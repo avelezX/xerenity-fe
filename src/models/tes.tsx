@@ -6,4 +6,11 @@ export interface Tes {
     volume: number;
     date:string;
   }
+
+  export interface TesRaw {
+    yield: number;
+    volume: number;
+    price: number;
+    date:string;
+  }
   

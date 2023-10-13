@@ -28,15 +28,19 @@ const Login: NextPage = () => {
     return '/'
   }
 
-  const login = async (e: SyntheticEvent) => {
+  const login = async (e: Event) => {
     e.stopPropagation()
     e.preventDefault()
 
     setSubmitting(true)
 
+    
+    const username = e.target[0].value
+    const password = e.target[1].value
+
     const res = await supabase.auth.signInWithPassword({
-      email:'svelezsaffon@gmail.com',
-      password:'Loquita1053778047'
+      email:username,
+      password:password
     })
 
     if (res.error) {
@@ -74,7 +78,6 @@ const Login: NextPage = () => {
                         disabled={submitting}
                         placeholder="Username"
                         aria-label="Username"
-                        defaultValue="Username"
                       />
                     </InputGroup>
 
@@ -92,7 +95,6 @@ const Login: NextPage = () => {
                         disabled={submitting}
                         placeholder="Password"
                         aria-label="Password"
-                        defaultValue="Password"
                       />
                     </InputGroup>
 
