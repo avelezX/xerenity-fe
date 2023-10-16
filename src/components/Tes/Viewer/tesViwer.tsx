@@ -62,14 +62,15 @@ export default function TesViever(){
     const supabase = createClientComponentClient()
     
     const fetchTesRawData = useCallback( async () =>{
-        const res =   await supabase.schema('xerenity').from(viewTes).select()
-        if(res.error){
-            console.log(res.error)
+        const {data,error} =   await supabase.schema('xerenity').from(viewTes).select()
+        
+        if(error){
+            console.log(error)
             setTesList([])
         }
 
-        if(res.data){
-            setTesList(res.data as Tes[])
+        if(data){
+            setTesList(data as Tes[])
         }else{
             setTesList([] as Tes[])
         }
@@ -110,12 +111,12 @@ export default function TesViever(){
                 <tbody>
                   {tesList.map((tes) => (
                     <tr >
-                      <td>{tes.date}</td>
+                      <td>{tes.day}</td>
                       <td>{tes.open}</td>
                       <td>{tes.high}</td>
                       <td>{tes.low}</td>
                       <td>{tes.close}</td>
-                      <td>{tes.volume}</td>
+                      <td>{tes.volo}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -139,7 +140,7 @@ export default function TesViever(){
               }}
 
               data={{
-                labels: tesList.map((tes) => [tes.date]),
+                labels: tesList.map((tes) => [tes.day]),
                 datasets: [
                   {
                     fill: true,

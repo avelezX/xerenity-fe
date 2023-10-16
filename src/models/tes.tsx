@@ -3,8 +3,8 @@ export interface Tes {
     high: number;
     low: number;
     close: number;
-    volume: number;
-    date:string;
+    volo: number;
+    day:string;
   }
 
   export interface TesRaw {

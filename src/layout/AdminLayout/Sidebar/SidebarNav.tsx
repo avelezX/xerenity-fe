@@ -130,14 +130,14 @@ const SidebarNavGroup = (props: SidebarNavGroupProps) => {
 export default function SidebarNav() {
   return (
     <ul className="list-unstyled">
-      <SidebarNavItem icon={faGauge} href="/">
+      <SidebarNavItem icon={faGauge} href="/home">
         Home
       </SidebarNavItem>
 
       <SidebarNavGroup toggleIcon={faInstitution} toggleText="Tes">
 
         <SidebarNavItem icon={faAreaChart}  href="/tes/daily">
-          Daily
+          History
           <small className="ms-auto"></small>
         </SidebarNavItem>
         <SidebarNavItem icon={faAreaChart}  href="/tes/raw">
