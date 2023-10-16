@@ -20,6 +20,8 @@ import Link from 'next/link'
 import axios from 'axios'
 import { useRouter } from 'next/router'
 
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+
 type ItemWithIconProps = {
   icon: IconDefinition;
 } & PropsWithChildren
@@ -36,13 +38,12 @@ const ItemWithIcon = (props: ItemWithIconProps) => {
 }
 
 export default function HeaderProfileNav() {
+    const supabase = createClientComponentClient()
   const router = useRouter()
 
   const logout = async () => {
-    const res = await axios.post('/api/mock/logout')
-    if (res.status === 200) {
-      router.push('/login')
-    }
+    const { error } = await supabase.auth.signOut()
+    router.push('/login')
   }
 
   return (

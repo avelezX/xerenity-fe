@@ -1,7 +1,7 @@
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { Table } from 'react-bootstrap'
 import { useState, useEffect, useCallback } from "react";
-import {Tes} from '@models/tes'
+import {TesRaw} from '@models/tes'
 import Container from 'react-bootstrap/Container';
 import Row from 'react-bootstrap/Row';
 import Col from 'react-bootstrap/Col';
@@ -51,28 +51,27 @@ ChartJS.register(
 
 const random = (min: number, max: number) => Math.floor(Math.random() * (max - min + 1) + min)
 
-export default function TesViever(){
-    const [tesList,setTesList] = useState<Tes[]>([]);
+export default function TesRawViever(){
+    const [tesList,setTesList] = useState<TesRaw[]>([]);
     const [loading,setIsLoading] = useState(true);
 
-    const options = ["tes_24", "tes_25", "tes_26", "tes_27", "tes_28", "tes_29", "tes_30", "tes_31"];
+    const options = ["tes_24_raw", "tes_25_raw", "tes_26_raw", "tes_27_raw", "tes_28_raw", "tes_29_raw", "tes_30_raw", "tes_31_raw"];
     
     const [viewTes, setMyViewTes] = useState(options[0]);
 
     const supabase = createClientComponentClient()
     
     const fetchTesRawData = useCallback( async () =>{
-        const {data,error} =   await supabase.schema('xerenity').from(viewTes).select()
-        
-        if(error){
-            console.log(error)
+        const res =   await supabase.schema('xerenity').from(viewTes).select()
+        if(res.error){
+            console.log(res.error)
             setTesList([])
         }
 
-        if(data){
-            setTesList(data as Tes[])
+        if(res.data){
+            setTesList(res.data as TesRaw[])
         }else{
-            setTesList([] as Tes[])
+            setTesList([] as TesRaw[])
         }
 
     },[supabase,viewTes])
@@ -101,22 +100,18 @@ export default function TesViever(){
                 <thead>
                   <tr>
                     <th>Date</th>
-                    <th>Open</th>
-                    <th>High</th>
-                    <th>low</th>
-                    <th>Close</th>
-                    <th>Volume</th>
+                    <th>Price</th>
+                    <th>volume</th>
+                    <th>yield</th>
                   </tr>
                 </thead>
                 <tbody>
                   {tesList.map((tes) => (
                     <tr >
-                      <td>{tes.day}</td>
-                      <td>{tes.open}</td>
-                      <td>{tes.high}</td>
-                      <td>{tes.low}</td>
-                      <td>{tes.close}</td>
-                      <td>{tes.volo}</td>
+                      <td>{tes.date}</td>
+                      <td>{tes.price}</td>
+                      <td>{tes.volume}</td>
+                      <td>{tes.yield}</td>ß
                     </tr>
                   ))}
                 </tbody>
@@ -140,36 +135,29 @@ export default function TesViever(){
               }}
 
               data={{
-                labels: tesList.map((tes) => [tes.day]),
+                labels: tesList.map((tes) => [tes.date]),
                 datasets: [
                   {
                     fill: true,
-                    label: 'High',
-                    data: tesList.map((tes) => tes.high),
+                    label: 'Yield',
+                    data: tesList.map((tes) => tes.yield),
                     borderColor: 'rgb(15,119,109)',
                     backgroundColor: 'rgba(15,119,109, 0.5)',
                   },
                   {
                     fill: true,
-                    label: 'Low',
-                    data: tesList.map((tes) => tes.low),
+                    label: 'Price',
+                    data: tesList.map((tes) => tes.price),
                     borderColor: 'rgb(96,204,194)',
                     backgroundColor: 'rgba(96,204,194, 0.5)',
                   },
                   {
                     fill: true,
-                    label: 'Close',
-                    data: tesList.map((tes) => tes.close),
+                    label: 'Volume',
+                    data: tesList.map((tes) => tes.volume),
                     borderColor: 'rgb(255,225,141)',
                     backgroundColor: 'rgba(255,225,141, 0.5)',
-                  },
-                  {
-                    fill: true,
-                    label: 'Open',
-                    data: tesList.map((tes) => tes.open),
-                    borderColor: 'rgb(1255,218,30)',
-                    backgroundColor: 'rgba(255,218,30, 0.5)',
-                  },
+                  }
                 ],
               }}
               />

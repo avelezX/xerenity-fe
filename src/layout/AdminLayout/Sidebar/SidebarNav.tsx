@@ -18,6 +18,7 @@ import {
   faPencil,
   faPuzzlePiece,
   faRightToBracket,
+  faAreaChart,
 } from '@fortawesome/free-solid-svg-icons'
 import React, {
   PropsWithChildren, useContext, useEffect, useState,
@@ -129,16 +130,20 @@ const SidebarNavGroup = (props: SidebarNavGroupProps) => {
 export default function SidebarNav() {
   return (
     <ul className="list-unstyled">
-      <SidebarNavItem icon={faGauge} href="/">
+      <SidebarNavItem icon={faGauge} href="/home">
         Home
       </SidebarNavItem>
 
       <SidebarNavGroup toggleIcon={faInstitution} toggleText="Tes">
 
-        <SidebarNavItem  href="/tes/daily">
-          Daily
+        <SidebarNavItem icon={faAreaChart}  href="/tes/daily">
+          History
           <small className="ms-auto"></small>
         </SidebarNavItem>
+        <SidebarNavItem icon={faAreaChart}  href="/tes/raw">
+          Raw
+          <small className="ms-auto"></small>
+        </SidebarNavItem>        
 
       </SidebarNavGroup>
 
