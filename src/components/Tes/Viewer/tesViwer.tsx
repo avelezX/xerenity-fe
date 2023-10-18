@@ -1,7 +1,7 @@
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { Table } from 'react-bootstrap'
 import { useState, useEffect, useCallback } from "react";
-import {Tes} from '@models/tes'
+import {Tes,TesYields} from '@models/tes'
 import Container from 'react-bootstrap/Container';
 import Row from 'react-bootstrap/Row';
 import Col from 'react-bootstrap/Col';
@@ -48,21 +48,22 @@ ChartJS.register(
   Filler,
   Legend
 );
+import Chart from 'react-apexcharts'
+
 
 const random = (min: number, max: number) => Math.floor(Math.random() * (max - min + 1) + min)
 
 export default function TesViever(){
-    const [tesList,setTesList] = useState<Tes[]>([]);
-    const [loading,setIsLoading] = useState(true);
-
-    const options = ["tes_24", "tes_25", "tes_26", "tes_27", "tes_28", "tes_29", "tes_30", "tes_31"];
+    const [tesList,setTesList] = useState<TesYields[]>([]);
     
-    const [viewTes, setMyViewTes] = useState(options[0]);
+    const [options,setOptions] = useState<Tes[]>([]);
+    
+    const [viewTes, setMyViewTes] = useState('');
 
     const supabase = createClientComponentClient()
     
-    const fetchTesRawData = useCallback( async () =>{
-        const {data,error} =   await supabase.schema('xerenity').from(viewTes).select()
+    const fetchTesRawData = useCallback( async (view_tes:string) =>{
+        const {data,error} =   await supabase.schema('xerenity').from(view_tes).select()
         
         if(error){
             console.log(error)
@@ -70,31 +71,90 @@ export default function TesViever(){
         }
 
         if(data){
-            setTesList(data as Tes[])
+            setTesList(data as TesYields[])
+            setMyViewTes(view_tes)
         }else{
-            setTesList([] as Tes[])
+            setTesList([] as TesYields[])
         }
 
     },[supabase,viewTes])
 
-    useEffect(()=>{
-        fetchTesRawData()
-    },[fetchTesRawData])
+    const fetTesData = useCallback( async () =>{
+      const {data,error} =   await supabase.schema('xerenity').rpc('tes_get_all')
+      
+      if(error){
+          console.log(error)
+          setOptions([])
+      }
 
-    const handleSelect = (eventKey) => setMyViewTes(`${eventKey}`);
-  
+      if(data){
+        setOptions(data.tes as Tes[])
+      }else{
+        setOptions([] as Tes[])
+      }
 
+  },[supabase,options])
+
+  useEffect(()=>{
+    fetTesData()
+  },[])
+
+    const handleSelect = (eventKey) => {        
+        fetchTesRawData(`${eventKey}`)
+    };
+
+    
+    
     return (
         <Container>
             <Row>
               <Nav variant="pills" activeKey="1" onSelect={handleSelect}>
                 <NavDropdown title="Seleccionar Tes" id="nav-dropdown">
                   {options.map((option, idx) => (                    
-                    <NavDropdown.Item eventKey={option} >{option}</NavDropdown.Item>
+                    <NavDropdown.Item eventKey={option.name} >{option.name}</NavDropdown.Item>
                   ))}                  
                 </NavDropdown>
               </Nav>             
-            </Row>         
+            </Row>
+          <Row>
+            <Col>
+            {(typeof window !== 'undefined') &&
+              <Chart 
+                options={
+                  {
+                    chart: {
+                      type: 'candlestick',
+                      height: 350
+                    },
+                    title: {
+                      text: `${viewTes} Chart`,
+                      align: 'left'
+                    },
+                    xaxis: {
+                      type: 'datetime'
+                    },
+                    yaxis: {
+                      tooltip: {
+                        enabled: true
+                      }
+                    }
+                  }
+                } 
+                series={
+                  [
+                    {
+                      data: tesList.map(tes => ({
+                        x: tes.day,
+                        y: [tes.open,tes.high,tes.low,tes.close]
+                      }))
+                    }
+                  ]
+                }
+                type="candlestick" 
+              />              
+              }    
+            </Col>
+          </Row>
           <Row>
             <Col>
             <Table striped bordered hover>
@@ -123,59 +183,6 @@ export default function TesViever(){
               </Table>
             </Col>
           </Row>
-          <Row>
-            <Col>
-              <Line 
-              options={{
-                responsive: true,
-                plugins: {
-                  legend: {
-                    position: 'top' as const,
-                  },
-                  title: {
-                    display: true,
-                    text: viewTes,
-                  },
-                },
-              }}
-
-              data={{
-                labels: tesList.map((tes) => [tes.day]),
-                datasets: [
-                  {
-                    fill: true,
-                    label: 'High',
-                    data: tesList.map((tes) => tes.high),
-                    borderColor: 'rgb(15,119,109)',
-                    backgroundColor: 'rgba(15,119,109, 0.5)',
-                  },
-                  {
-                    fill: true,
-                    label: 'Low',
-                    data: tesList.map((tes) => tes.low),
-                    borderColor: 'rgb(96,204,194)',
-                    backgroundColor: 'rgba(96,204,194, 0.5)',
-                  },
-                  {
-                    fill: true,
-                    label: 'Close',
-                    data: tesList.map((tes) => tes.close),
-                    borderColor: 'rgb(255,225,141)',
-                    backgroundColor: 'rgba(255,225,141, 0.5)',
-                  },
-                  {
-                    fill: true,
-                    label: 'Open',
-                    data: tesList.map((tes) => tes.open),
-                    borderColor: 'rgb(1255,218,30)',
-                    backgroundColor: 'rgba(255,218,30, 0.5)',
-                  },
-                ],
-              }}
-              />
-            </Col>
-          </Row>
-      
       </Container>
     );
 }

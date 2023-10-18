@@ -136,14 +136,10 @@ export default function SidebarNav() {
 
       <SidebarNavGroup toggleIcon={faInstitution} toggleText="Tes">
 
-        <SidebarNavItem icon={faAreaChart}  href="/tes/daily">
-          History
-          <small className="ms-auto"></small>
+        <SidebarNavItem icon={faInstitution}  href="/tes/daily">
+            Historical prices
+            <small className="ms-auto"></small>
         </SidebarNavItem>
-        <SidebarNavItem icon={faAreaChart}  href="/tes/raw">
-          Raw
-          <small className="ms-auto"></small>
-        </SidebarNavItem>        
 
       </SidebarNavGroup>
 

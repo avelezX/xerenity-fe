@@ -1,10 +1,5 @@
 export interface Tes {
-    open: number;
-    high: number;
-    low: number;
-    close: number;
-    volo: number;
-    day:string;
+    name:string;
   }
 
   export interface TesRaw {
@@ -13,4 +8,12 @@ export interface Tes {
     price: number;
     date:string;
   }
-  
+
+  export interface TesYields {
+    open: number;
+    high: number;
+    low: number;
+    close: number;
+    volo: number;
+    day:string;
+  }

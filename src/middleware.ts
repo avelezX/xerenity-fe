@@ -6,16 +6,18 @@ export async function middleware(req) {
   const supabase = createMiddlewareClient({ req, res })
 
   const {
-    data: { user },
-  } = await supabase.auth.getUser()
+    data: { session },
+  } = await supabase.auth.getSession();
 
+  console.log('-------');
+  console.log(session);
   // if user is signed in and the current path is / redirect the user to /account
-  if (user) {
+  if (session) {
     return NextResponse.redirect(new URL('/home', req.url))
   }
 
   // if user is not signed in and the current path is not / redirect the user to /
-  if (!user) {
+  if (!session) {
     return NextResponse.redirect(new URL('/login', req.url))
   }
 
@@ -23,5 +25,5 @@ export async function middleware(req) {
 }
 
 export const config = {
-  matcher: ['/', '/account'],
+  matcher: ['/', '/'],
 }
