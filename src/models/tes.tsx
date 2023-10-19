@@ -14,6 +14,6 @@ export interface Tes {
     high: number;
     low: number;
     close: number;
-    volo: number;
+    volume: number;
     day:string;
   }

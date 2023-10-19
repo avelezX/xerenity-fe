@@ -7,13 +7,30 @@ import { Container } from 'react-bootstrap'
 import Sidebar, { SidebarOverlay } from '@layout/AdminLayout/Sidebar/Sidebar'
 import Header from '@layout/AdminLayout/Header/Header'
 import Footer from '@layout/AdminLayout/Footer/Footer'
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import { NextResponse } from 'next/server'
+import { deleteCookie, getCookie, setCookie } from 'cookies-next'
+import { useRouter } from 'next/router'
 
 export default function AdminLayout({ children }: PropsWithChildren) {
   // Show status for xs screen
+  const router = useRouter()
   const [isShowSidebar, setIsShowSidebar] = useState(false)
 
   // Show status for md screen and above
   const [isShowSidebarMd, setIsShowSidebarMd] = useState(true)
+
+  const supabase = createClientComponentClient()
+
+  const getRedirect = () => {
+    const redirect = getCookie('redirect')
+    if (redirect) {
+      deleteCookie('redirect')
+      return redirect.toString()
+    }
+
+    return '/'
+  }
 
   const toggleIsShowSidebar = () => {
     setIsShowSidebar(!isShowSidebar)
@@ -36,12 +53,26 @@ export default function AdminLayout({ children }: PropsWithChildren) {
 
   const { ref } = useResizeDetector({ onResize })
 
+
   // On first time load only
   useEffect(() => {
     if (localStorage.getItem('isShowSidebarMd')) {
       setIsShowSidebarMd(localStorage.getItem('isShowSidebarMd') === 'true')
     }
   }, [setIsShowSidebarMd])
+
+  const checkUserLogedIn = useCallback( async () =>{
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    if (!session) {
+      router.push(getRedirect())
+    }
+  },[supabase])
+
+  useEffect(() => {
+    checkUserLogedIn()
+  }, [checkUserLogedIn])
 
   return (
     <>

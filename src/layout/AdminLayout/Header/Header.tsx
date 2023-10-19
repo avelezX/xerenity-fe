@@ -3,8 +3,8 @@ import { faBars } from '@fortawesome/free-solid-svg-icons'
 import Link from 'next/link'
 import { Button, Container } from 'react-bootstrap'
 import Breadcrumb from '@layout/AdminLayout/Breadcrumb/Breadcrumb'
-import HeaderFeaturedNav from '@layout/AdminLayout/Header/HeaderFeaturedNav'
-import HeaderNotificationNav from '@layout/AdminLayout/Header/HeaderNotificationNav'
+//import HeaderFeaturedNav from '@layout/AdminLayout/Header/HeaderFeaturedNav'
+//import HeaderNotificationNav from '@layout/AdminLayout/Header/HeaderNotificationNav'
 import HeaderProfileNav from '@layout/AdminLayout/Header/HeaderProfileNav'
 
 type HeaderProps = {
@@ -34,6 +34,7 @@ export default function Header(props: HeaderProps) {
         >
           <FontAwesomeIcon icon={faBars} />
         </Button>
+
         <Link href="/" className="header-brand d-md-none">
           <svg width="80" height="46">
             <title>CoreUI Logo</title>
@@ -41,10 +42,10 @@ export default function Header(props: HeaderProps) {
           </svg>
         </Link>
         <div className="header-nav d-none d-md-flex">
-          <HeaderFeaturedNav />
+          
         </div>
         <div className="header-nav ms-auto">
-          <HeaderNotificationNav />
+          
         </div>
         <div className="header-nav ms-2">
           <HeaderProfileNav />

@@ -38,19 +38,18 @@ import {
   faTwitter,
 } from '@fortawesome/free-brands-svg-icons'
 import React from 'react'
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import { Table } from 'react-bootstrap'
+import { useState, useEffect } from "react";
+import CanastaViewer from '@components/canasta/CanastaViewer'
 
-import TesViever from '@components/Tes/Viewer/tesViwer'
 
-
-
-Chart.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, Tooltip, Filler)
-const random = (min: number, max: number) => Math.floor(Math.random() * (max - min + 1) + min)
 
 
 const Home: NextPage = () => (
   
   <AdminLayout>
-      <TesViever ></TesViever>
+      <CanastaViewer />
   </AdminLayout>
 )
 

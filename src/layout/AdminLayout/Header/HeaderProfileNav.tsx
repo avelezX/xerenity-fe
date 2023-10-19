@@ -60,70 +60,7 @@ export default function HeaderProfileNav() {
           </div>
         </Dropdown.Toggle>
         <Dropdown.Menu className="pt-0">
-          <Dropdown.Header className="bg-light fw-bold rounded-top">Account</Dropdown.Header>
-          <Link href="#" passHref legacyBehavior>
-            <Dropdown.Item>
-              <ItemWithIcon icon={faBell}>
-                Updates
-                <Badge bg="info" className="ms-2">42</Badge>
-              </ItemWithIcon>
-            </Dropdown.Item>
-          </Link>
-          <Link href="#" passHref legacyBehavior>
-            <Dropdown.Item>
-              <ItemWithIcon icon={faEnvelopeOpen}>
-                Updates
-                <Badge bg="success" className="ms-2">42</Badge>
-              </ItemWithIcon>
-            </Dropdown.Item>
-          </Link>
-          <Link href="#" passHref legacyBehavior>
-            <Dropdown.Item>
-              <ItemWithIcon icon={faListCheck}>
-                Tasks
-                <Badge bg="danger" className="ms-2">42</Badge>
-              </ItemWithIcon>
-            </Dropdown.Item>
-          </Link>
-          <Link href="#" passHref legacyBehavior>
-            <Dropdown.Item>
-              <ItemWithIcon icon={faMessage}>
-                Messages
-                <Badge bg="warning" className="ms-2">42</Badge>
-              </ItemWithIcon>
-            </Dropdown.Item>
-          </Link>
-
-          <Dropdown.Header className="bg-light fw-bold">Settings</Dropdown.Header>
-
-          <Link href="#" passHref legacyBehavior>
-            <Dropdown.Item>
-              <ItemWithIcon icon={faUser}>Profile</ItemWithIcon>
-            </Dropdown.Item>
-          </Link>
-          <Link href="#" passHref legacyBehavior>
-            <Dropdown.Item>
-              <ItemWithIcon icon={faGear}>Settings</ItemWithIcon>
-            </Dropdown.Item>
-          </Link>
-          <Link href="#" passHref legacyBehavior>
-            <Dropdown.Item>
-              <ItemWithIcon icon={faCreditCard}>Payments</ItemWithIcon>
-            </Dropdown.Item>
-          </Link>
-          <Link href="#" passHref legacyBehavior>
-            <Dropdown.Item>
-              <ItemWithIcon icon={faFile}>Projects</ItemWithIcon>
-            </Dropdown.Item>
-          </Link>
-
-          <Dropdown.Divider />
-
-          <Link href="#" passHref legacyBehavior>
-            <Dropdown.Item>
-              <ItemWithIcon icon={faLock}>Lock Account</ItemWithIcon>
-            </Dropdown.Item>
-          </Link>
+          <Dropdown.Header className="bg-light fw-bold rounded-top">Acciones</Dropdown.Header>
           <Dropdown.Item onClick={logout}>
             <ItemWithIcon icon={faPowerOff}>Logout</ItemWithIcon>
           </Dropdown.Item>
