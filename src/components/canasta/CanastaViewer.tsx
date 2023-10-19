@@ -1,16 +1,13 @@
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { Table } from 'react-bootstrap'
 import { useState, useEffect, useCallback } from "react";
-import {Tes,TesYields} from '@models/tes'
+import { CanastaRaw,Canasta } from '@models/canasta';
 import Container from 'react-bootstrap/Container';
 import Row from 'react-bootstrap/Row';
 import Col from 'react-bootstrap/Col';
 import NavDropdown from 'react-bootstrap/NavDropdown';
 import Nav from 'react-bootstrap/Nav';
 import React from 'react';
-import dynamic from 'next/dynamic';
-const Chart = dynamic(() => import("react-apexcharts"), { ssr: false });
-
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -22,6 +19,9 @@ import {
   Filler,
   Legend,
 } from 'chart.js';
+
+import dynamic from 'next/dynamic';
+const Chart = dynamic(() => import("react-apexcharts"), { ssr: false });
 
 ChartJS.register(
   CategoryScale,
@@ -36,18 +36,18 @@ ChartJS.register(
 
 
 
-
-export default function TesViever(){
-    const [tesList,setTesList] = useState<TesYields[]>([]);
+export default function CanastaViewer(){
+    const [tesList,setTesList] = useState<CanastaRaw[]>([]);
     
-    const [options,setOptions] = useState<Tes[]>([]);
+    const [options,setOptions] = useState<Canasta[]>([]);
     
-    const [viewTes, setMyViewTes] = useState('');
+    const [viewCanasta, setViewCanasta] = useState('');
+    
 
     const supabase = createClientComponentClient()
     
-    const fetchTesRawData = useCallback( async (view_tes:string) =>{
-        const {data,error} =   await supabase.schema('xerenity').from(view_tes).select().order('day', { ascending: false })
+    const fetchTesRawData = useCallback( async (view_canasta:string) =>{
+        const {data,error} =   await supabase.schema('xerenity').from('canasta_values').select().eq('id_canasta',view_canasta).order('fecha', { ascending: false })
         
         if(error){
             console.log(error)
@@ -55,16 +55,16 @@ export default function TesViever(){
         }
 
         if(data){
-            setTesList(data as TesYields[])
-            setMyViewTes(view_tes)
+            setTesList(data as CanastaRaw[])
+            setViewCanasta(view_canasta)
         }else{
-            setTesList([] as TesYields[])
+            setTesList([] as CanastaRaw[])
         }
 
-    },[supabase,viewTes])
+    },[supabase,viewCanasta])
 
     const fetTesData = useCallback( async () =>{
-      const {data,error} =   await supabase.schema('xerenity').rpc('tes_get_all')
+        const {data,error} =   await supabase.schema('xerenity').from('canasta').select()
       
       if(error){
           console.log(error)
@@ -72,9 +72,9 @@ export default function TesViever(){
       }
 
       if(data){
-        setOptions(data.tes as Tes[])
+        setOptions(data as Canasta[])
       }else{
-        setOptions([] as Tes[])
+        setOptions([] as Canasta[])
       }
 
   },[supabase,options])
@@ -83,7 +83,7 @@ export default function TesViever(){
     fetTesData()
   },[])
 
-    const handleSelect = (eventKey) => {        
+    const handleSelect = (eventKey: any) => {        
         fetchTesRawData(`${eventKey}`)
     };
 
@@ -92,26 +92,25 @@ export default function TesViever(){
         <Container>
             <Row>
               <Nav variant="pills" activeKey="1" onSelect={handleSelect}>
-                <NavDropdown title="Seleccionar Tes" id="nav-dropdown">
+                <NavDropdown title="Seleccionar Canasta" id="nav-dropdown">
                   {options.map((option, idx) => (                    
-                    <NavDropdown.Item eventKey={option.name} >{option.name}</NavDropdown.Item>
+                    <NavDropdown.Item eventKey={option.id} >{option.nombre}</NavDropdown.Item>
                   ))}                  
                 </NavDropdown>
               </Nav>             
             </Row>
           <Row>
             <Col>
-            
             {(typeof window !== 'undefined') &&
               <Chart 
                 options={
                   {
                     chart: {
-                      type: 'candlestick',
+                      type: 'area',
                       height: 350
                     },
                     title: {
-                      text: `${viewTes} Chart`,
+                      text: `${viewCanasta} Chart`,
                       align: 'left'
                     },
                     xaxis: {
@@ -127,14 +126,36 @@ export default function TesViever(){
                 series={
                   [
                     {
-                      data: tesList.map(tes => ({
-                        x: tes.day,
-                        y: [tes.open,tes.high,tes.low,tes.close]
+                        name: "Indice" ,
+                        data: tesList.map(tes => ({
+                        x: tes.fecha,
+                        y: tes.indice
                       }))
-                    }
+                    },
+                    {
+                        name: "Valor",
+                        data: tesList.map(tes => ({
+                        x: tes.fecha,
+                        y: tes.valor
+                      }))
+                    },
+                    {
+                        name: "Valor Contribucion",
+                        data: tesList.map(tes => ({
+                        x: tes.fecha,
+                        y: tes.valorcontribucion
+                      }))
+                    },
+                    {
+                        name: "Valor Mensual",
+                        data: tesList.map(tes => ({
+                        x: tes.fecha,
+                        y: tes.valormensual
+                      }))
+                    } 
                   ]
                 }
-                type="candlestick" 
+                type="area" 
               />              
               }    
             </Col>
@@ -144,23 +165,21 @@ export default function TesViever(){
             <Table striped bordered hover>
                 <thead>
                   <tr>
-                    <th>Date</th>
-                    <th>Open</th>
-                    <th>High</th>
-                    <th>low</th>
-                    <th>Close</th>
-                    <th>Volume</th>
+                    <th>Fecha</th>
+                    <th>Contribucion</th>
+                    <th>Indice</th>
+                    <th>Valor</th>
+                    <th>Mensual</th>
                   </tr>
                 </thead>
                 <tbody>
                   {tesList.map((tes) => (
                     <tr >
-                      <td>{tes.day}</td>
-                      <td>{tes.open}</td>
-                      <td>{tes.high}</td>
-                      <td>{tes.low}</td>
-                      <td>{tes.close}</td>
-                      <td>{tes.volume}</td>
+                      <td>{tes.fecha}</td>
+                      <td>{tes.valorcontribucion}</td>
+                      <td>{tes.indice}</td>
+                      <td>{tes.valor}</td>
+                      <td>{tes.valormensual}</td>
                     </tr>
                   ))}
                 </tbody>

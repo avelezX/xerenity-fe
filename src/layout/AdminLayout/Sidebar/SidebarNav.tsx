@@ -1,8 +1,6 @@
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import {
-  faAddressCard,
-  faBell,
-  faFileLines,
+
   faStar,
   IconDefinition,
 } from '@fortawesome/free-regular-svg-icons'
@@ -14,8 +12,9 @@ import {
   faDroplet,
   faGauge,
   faLayerGroup,
+  faShoppingBasket,
   faLocationArrow,
-  faPencil,
+  faLineChart,
   faPuzzlePiece,
   faRightToBracket,
   faAreaChart,
@@ -136,12 +135,21 @@ export default function SidebarNav() {
 
       <SidebarNavGroup toggleIcon={faInstitution} toggleText="Tes">
 
-        <SidebarNavItem icon={faInstitution}  href="/tes/daily">
+        <SidebarNavItem icon={faLineChart}  href="/tes/daily">
             Historical prices
             <small className="ms-auto"></small>
         </SidebarNavItem>
 
       </SidebarNavGroup>
+
+      <SidebarNavGroup toggleIcon={faShoppingBasket} toggleText="Canasta">
+
+        <SidebarNavItem icon={faLineChart}  href="/canasta">
+            Valores Canasta
+            <small className="ms-auto"></small>
+        </SidebarNavItem>
+
+      </SidebarNavGroup>      
 
     </ul>
   )
