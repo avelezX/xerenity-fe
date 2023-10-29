@@ -144,8 +144,13 @@ export default function SidebarNav() {
 
       <SidebarNavGroup toggleIcon={faShoppingBasket} toggleText="Canasta">
 
-        <SidebarNavItem icon={faLineChart}  href="/canasta">
-            Valores Canasta
+        <SidebarNavItem icon={faLineChart}  href="/canasta/inflacion">
+            Inflacion
+            <small className="ms-auto"></small>
+        </SidebarNavItem>
+
+        <SidebarNavItem icon={faLineChart}  href="/canasta/valores">
+            Valores
             <small className="ms-auto"></small>
         </SidebarNavItem>
 
