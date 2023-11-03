@@ -9,8 +9,6 @@ export async function middleware(req) {
     data: { session },
   } = await supabase.auth.getSession();
 
-  console.log('-------');
-  console.log(session);
   // if user is signed in and the current path is / redirect the user to /account
   if (session) {
     return NextResponse.redirect(new URL('/home', req.url))
@@ -21,6 +19,8 @@ export async function middleware(req) {
     return NextResponse.redirect(new URL('/login', req.url))
   }
 
+      // add the CORS headers to the response
+      
   return res
 }
 

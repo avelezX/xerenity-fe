@@ -9,6 +9,11 @@ import NavDropdown from 'react-bootstrap/NavDropdown';
 import Nav from 'react-bootstrap/Nav';
 import React from 'react';
 import dynamic from 'next/dynamic';
+import CandleSerieViewer from '@components/compare/candleViewer';
+
+import { CandleSerie } from '@models/tes';
+
+
 const Chart = dynamic(() => import("react-apexcharts"), { ssr: false });
 
 import {
@@ -23,6 +28,7 @@ import {
   Legend,
 } from 'chart.js';
 
+
 ChartJS.register(
   CategoryScale,
   LinearScale,
@@ -34,11 +40,9 @@ ChartJS.register(
   Legend
 );
 
-
-
-
 export default function TesViever(){
-    const [tesList,setTesList] = useState<TesYields[]>([]);
+    
+    const [candleSerie,setCandleSerie]= useState<CandleSerie>({name:'',values:[]})
     
     const [options,setOptions] = useState<Tes[]>([]);
     
@@ -51,14 +55,14 @@ export default function TesViever(){
         
         if(error){
             console.log(error)
-            setTesList([])
+            setCandleSerie({name:'',values:[]})
         }
 
-        if(data){
-            setTesList(data as TesYields[])
+        if(data){            
+            setCandleSerie({name:view_tes,values:data as TesYields[]})
             setMyViewTes(view_tes)
         }else{
-            setTesList([] as TesYields[])
+            setCandleSerie({name:'',values:[]})
         }
 
     },[supabase,viewTes])
@@ -67,7 +71,6 @@ export default function TesViever(){
       const {data,error} =   await supabase.schema('xerenity').rpc('tes_get_all')
       
       if(error){
-          console.log(error)
           setOptions([])
       }
 
@@ -83,7 +86,7 @@ export default function TesViever(){
     fetTesData()
   },[])
 
-    const handleSelect = (eventKey) => {        
+    const handleSelect = (eventKey: any) => {        
         fetchTesRawData(`${eventKey}`)
     };
 
@@ -95,48 +98,13 @@ export default function TesViever(){
                 <NavDropdown title="Seleccionar Tes" id="nav-dropdown">
                   {options.map((option, idx) => (                    
                     <NavDropdown.Item eventKey={option.name} >{option.name}</NavDropdown.Item>
-                  ))}                  
+                  ))}
                 </NavDropdown>
-              </Nav>             
+              </Nav>
             </Row>
           <Row>
             <Col>
-            
-            {(typeof window !== 'undefined') &&
-              <Chart 
-                options={
-                  {
-                    chart: {
-                      type: 'candlestick',
-                      height: 350
-                    },
-                    title: {
-                      text: `${viewTes} Chart`,
-                      align: 'left'
-                    },
-                    xaxis: {
-                      type: 'datetime'
-                    },
-                    yaxis: {
-                      tooltip: {
-                        enabled: true
-                      }
-                    }
-                  }
-                } 
-                series={
-                  [
-                    {
-                      data: tesList.map(tes => ({
-                        x: tes.day,
-                        y: [tes.open,tes.high,tes.low,tes.close]
-                      }))
-                    }
-                  ]
-                }
-                type="candlestick" 
-              />              
-              }    
+              <CandleSerieViewer candleSerie={candleSerie} chartName={candleSerie.name} chartHeight={300} />
             </Col>
           </Row>
           <Row>
@@ -153,7 +121,7 @@ export default function TesViever(){
                   </tr>
                 </thead>
                 <tbody>
-                  {tesList.map((tes) => (
+                  {candleSerie.values.map((tes) => (
                     <tr >
                       <td>{tes.day}</td>
                       <td>{tes.open}</td>

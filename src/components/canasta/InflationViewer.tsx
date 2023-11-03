@@ -1,40 +1,14 @@
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { Card, Table } from 'react-bootstrap'
 import { useState, useEffect, useCallback } from "react";
-import { CanastaRaw,Canasta,CanastaInflacion } from '@models/canasta';
+import { Canasta,CanastaInflacion } from '@models/canasta';
 import Container from 'react-bootstrap/Container';
 import Row from 'react-bootstrap/Row';
 import Col from 'react-bootstrap/Col';
 import NavDropdown from 'react-bootstrap/NavDropdown';
 import Nav from 'react-bootstrap/Nav';
 import React from 'react';
-import Badge from 'react-bootstrap/Badge';
-import {
-  Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  Title,
-  Tooltip,
-  Filler,
-  Legend,
-} from 'chart.js';
-
-import dynamic from 'next/dynamic';
-const Chart = dynamic(() => import("react-apexcharts"), { ssr: false });
-
-ChartJS.register(
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  Title,
-  Tooltip,
-  Filler,
-  Legend
-);
-
+import DisplaySerie from '@components/compare/CompareSeries';
 
 
 export default function InflationViewer(){
@@ -131,7 +105,7 @@ export default function InflationViewer(){
         }
       }
       
-      
+      return ''
     }
 
     return (
@@ -139,7 +113,7 @@ export default function InflationViewer(){
             <Row>
               <Col>
                 <Nav>
-                
+                  
                     <NavDropdown title="Seleccionar Canasta" id="nav-dropdown-canasta" onSelect={handleCanastaSelect}>
                       {options.map((option, idx) => (                    
                         <NavDropdown.Item eventKey={option.id} >{option.nombre}</NavDropdown.Item>
@@ -161,38 +135,20 @@ export default function InflationViewer(){
             </Row>
           <Row>
             <Col>
-            {(typeof window !== 'undefined') &&
-              <Chart 
-                options={
+            <DisplaySerie allSeries={
+                [
                   {
-                    chart: {
-                      type: 'area',
-                      height: 350
-                    },
-                    xaxis: {
-                      type: 'datetime'
-                    },
-                    yaxis: {
-                      tooltip: {
-                        enabled: true
-                      }
-                    }
+                    name: searchCanastaName(viewCanasta),
+                    values: tesList.map((ser)=>(
+                        {
+                          fecha:ser.fecha,
+                          value:ser.percentage_change
+                        }
+                      )
+                    )
                   }
-                } 
-                series={
-                  [
-                    {
-                        name: "Porcentaje",
-                        data: tesList.map(tes => ({
-                        x: tes.fecha,
-                        y: tes.percentage_change
-                      }))
-                    }
-                  ]
-                }
-                type="area" 
-              />              
-              }    
+                ]
+                } chartName={searchCanastaName(viewCanasta)}/>   
             </Col>
           </Row>
           <Row>

@@ -17,3 +17,9 @@ export interface Tes {
     volume: number;
     day:string;
   }
+
+
+export interface CandleSerie{
+    name:string
+    values:TesYields[]
+}
