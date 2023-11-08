@@ -5,6 +5,7 @@ export interface BanrepSerieValue {
 }
 
 
+
 export interface BanrepSerie {
     id: number;
     nombre: string;

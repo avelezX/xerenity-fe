@@ -20,7 +20,7 @@ export default function SeriesViewer(){
     const supabase = createClientComponentClient()
     
     const fetchTesRawData = useCallback( async (view_canasta:string) =>{
-        const {data,error} =   await supabase.schema('xerenity').from('banrep_serie_value').select().eq('id_serie',view_canasta).order('fecha', { ascending: false })
+        const {data,error} =   await supabase.schema('xerenity').from('banrep_serie_value').select('*').eq('id_serie',view_canasta).order('fecha', { ascending: false })
         
         if(error){
             console.log(error)
@@ -65,18 +65,18 @@ export default function SeriesViewer(){
         <Container>
             <Row>
               <Nav variant="pills" activeKey="1" onSelect={handleSelect}>
-                <NavDropdown title="Seleccionar Canasta" id="nav-dropdown">
-                  {options.map((option, idx) => (                    
-                    <NavDropdown.Item eventKey={option.id} >{option.nombre}</NavDropdown.Item>
-                  ))}                  
-                </NavDropdown>
-              </Nav>             
+                  <NavDropdown title="Seleccionar Canasta" id="nav-dropdown">
+                    {options.map((option, idx) => (                    
+                      <NavDropdown.Item eventKey={option.id} >{option.nombre}</NavDropdown.Item>
+                    ))}                  
+                  </NavDropdown>
+              </Nav>
             </Row>
-          <Row>
+            <Row>
               <DisplaySerie allSeries={
                 [
                   {
-                    name:'Banrep series',
+                    name:'Inflacion existente',
                      values: tesList.map((ser)=>(
                         {
                           fecha:ser.fecha,
