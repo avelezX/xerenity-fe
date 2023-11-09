@@ -1,54 +1,50 @@
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { Card, Table } from 'react-bootstrap'
-import { useState, useEffect, useCallback } from "react";
-import { Canasta,CanastaInflacion } from '@models/canasta';
-import Container from 'react-bootstrap/Container';
-import Row from 'react-bootstrap/Row';
-import Col from 'react-bootstrap/Col';
-import NavDropdown from 'react-bootstrap/NavDropdown';
-import Nav from 'react-bootstrap/Nav';
-import React from 'react';
-import DisplaySerie from '@components/compare/CompareSeries';
+import React,{ useState, useEffect, useCallback } from "react"
+import { Canasta,CanastaInflacion } from '@models/canasta'
+import Container from 'react-bootstrap/Container'
+import Row from 'react-bootstrap/Row'
+import Col from 'react-bootstrap/Col'
+import NavDropdown from 'react-bootstrap/NavDropdown'
+import Nav from 'react-bootstrap/Nav'
+
+import DisplaySerie from '@components/compare/CompareSeries'
 
 
 export default function InflationViewer(){
-    const [tesList,setTesList] = useState<CanastaInflacion[]>([]);
+    const [tesList,setTesList] = useState<CanastaInflacion[]>([])
 
-    const [monthChange,setMonthChange] = useState<number>(12);
+    const [monthChange,setMonthChange] = useState<number>(12)
 
-    const [options,setOptions] = useState<Canasta[]>([]);
+    const [options,setOptions] = useState<Canasta[]>([])
     
-    const [viewCanasta, setViewCanasta] = useState('1');    
+    const [viewCanasta, setViewCanasta] = useState('1')    
 
-    const supabase = createClientComponentClient()
-
-     
+    const supabase = createClientComponentClient()     
     
     const fetchTesRawData = useCallback( async (canasta_id:string,month_chnage:number) =>{
-        //const {data,error} =   await supabase.schema('xerenity').from('canasta_values').select().eq('id_canasta',viewCanasta).order('fecha', { ascending: false })
         
-        let canasta_name;
+        let canastaName
 
         if(canasta_id){
-            canasta_name = canasta_id;
+            canastaName = canasta_id
         }else{
-            canasta_name =viewCanasta
+            canastaName =viewCanasta
         }
 
-        let month_new_value;
+        let monthNewValue
 
         if(month_chnage===-1){
-          month_new_value = monthChange;
+          monthNewValue = monthChange
         }else{          
-          month_new_value = month_chnage;
+          monthNewValue = month_chnage
         }
 
+        setViewCanasta(canastaName)
 
-        setViewCanasta(canasta_name)
-
-        setMonthChange(month_new_value)
+        setMonthChange(monthNewValue)
         
-        const {data,error} =  await supabase.schema('xerenity').rpc('cpi_index_change',{lag_value:month_new_value,id_canasta_search:canasta_name})
+        const {data,error} =  await supabase.schema('xerenity').rpc('cpi_index_change',{lag_value:monthNewValue,id_canasta_search:monthNewValue})
         
         if(error){
             console.log(error)
@@ -87,12 +83,12 @@ export default function InflationViewer(){
     const handleCanastaSelect = (eventKey: any) => {
         setViewCanasta(eventKey)
         fetchTesRawData(eventKey,-1)
-    };
+    }
 
     const handleMonthSelect = (eventKey: any) => {        
         setMonthChange(eventKey)
         fetchTesRawData('',eventKey)
-    };
+    }
     
     function searchCanastaName(index:any){
 
@@ -101,7 +97,7 @@ export default function InflationViewer(){
       {
         if(options[i].id == index)
         {
-          return options[i].nombre;
+          return options[i].nombre
         }
       }
       
@@ -174,5 +170,5 @@ export default function InflationViewer(){
             </Col>
           </Row>
       </Container>
-    );
+    )
 }

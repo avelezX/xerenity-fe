@@ -1,23 +1,12 @@
 import {
-  Badge, Dropdown, Nav, NavItem,
+   Dropdown, Nav, NavItem,
 } from 'react-bootstrap'
 import Image from 'next/image'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import {
-  faBell,
-  faCreditCard,
-  faEnvelopeOpen,
-  faFile,
-  faMessage,
-  faUser,
-} from '@fortawesome/free-regular-svg-icons'
 import { PropsWithChildren } from 'react'
 import { IconDefinition } from '@fortawesome/fontawesome-svg-core'
-import {
-  faGear, faListCheck, faLock, faPowerOff,
-} from '@fortawesome/free-solid-svg-icons'
-import Link from 'next/link'
-import axios from 'axios'
+import {faPowerOff} from '@fortawesome/free-solid-svg-icons'
+
 import { useRouter } from 'next/router'
 
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
@@ -43,7 +32,12 @@ export default function HeaderProfileNav() {
 
   const logout = async () => {
     const { error } = await supabase.auth.signOut()
-    router.push('/login')
+    if(error){
+      router.push('/login')
+    }else{
+      router.push('/login')
+    }
+    
   }
 
   return (

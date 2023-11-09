@@ -7,7 +7,7 @@ export async function middleware(req) {
 
   const {
     data: { session },
-  } = await supabase.auth.getSession();
+  } = await supabase.auth.getSession()
 
   // if user is signed in and the current path is / redirect the user to /account
   if (session) {

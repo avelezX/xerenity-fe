@@ -20,6 +20,6 @@ export interface Tes {
 
 
 export interface CandleSerie{
-    name:string
-    values:TesYields[]
+    name:string;
+    values:TesYields[];
 }
