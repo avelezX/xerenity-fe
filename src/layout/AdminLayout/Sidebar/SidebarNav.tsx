@@ -1,30 +1,19 @@
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import {
-
-  faStar,
   IconDefinition,
 } from '@fortawesome/free-regular-svg-icons'
 import {
-  faBug,
-  faCalculator,
   faInstitution,
-  faChevronUp, faCode,
-  faDroplet,
-  faGauge,
-  faLayerGroup,
+  faChevronUp,
   faShoppingBasket,
-  faLocationArrow,
   faDashboard,
-  faLineChart,
-  faPuzzlePiece,
-  faRightToBracket,
-  faAreaChart
+  faLineChart
 } from '@fortawesome/free-solid-svg-icons'
 import React, {
   PropsWithChildren, useContext, useEffect, useState,
 } from 'react'
 import {
-  Accordion, AccordionContext, Badge, Button, Nav, useAccordionButton,
+  Accordion, AccordionContext, Button, Nav, useAccordionButton,
 } from 'react-bootstrap'
 import classNames from 'classnames'
 import Link from 'next/link'
@@ -54,13 +43,6 @@ const SidebarNavItem = (props: SidebarNavItemProps) => {
   )
 }
 
-const SidebarNavTitle = (props: PropsWithChildren) => {
-  const { children } = props
-
-  return (
-    <li className="nav-title px-3 py-2 mt-3 text-uppercase fw-bold">{children}</li>
-  )
-}
 
 type SidebarNavGroupToggleProps = {
   eventKey: string;
@@ -132,29 +114,25 @@ export default function SidebarNav() {
     <ul className="list-unstyled">
 
       <SidebarNavItem icon={faDashboard}  href="/home">
-            Dashboard
-            <small className="ms-auto"></small>
+            Dashboard            
       </SidebarNavItem>
 
       <SidebarNavGroup toggleIcon={faInstitution} toggleText="Tes">
 
-        <SidebarNavItem icon={faLineChart}  href="/tes/daily">
-            Historical prices
-            <small className="ms-auto"></small>
+        <SidebarNavItem icon={faLineChart}  href="/tes/daily">            
+            <small className="ms-auto">Historical prices</small>
         </SidebarNavItem>
 
       </SidebarNavGroup>
 
       <SidebarNavGroup toggleIcon={faShoppingBasket} toggleText="Canasta">
 
-        <SidebarNavItem icon={faLineChart}  href="/canasta/inflacion">
-            Inflacion
-            <small className="ms-auto"></small>
+        <SidebarNavItem icon={faLineChart}  href="/canasta/inflacion">            
+            <small className="ms-auto">Inflacion</small>
         </SidebarNavItem>
 
-        <SidebarNavItem icon={faLineChart}  href="/canasta/valores">
-            Valores
-            <small className="ms-auto"></small>
+        <SidebarNavItem icon={faLineChart}  href="/canasta/valores">            
+            <small className="ms-auto">Valores</small>
         </SidebarNavItem>
 
       </SidebarNavGroup>
@@ -162,20 +140,11 @@ export default function SidebarNav() {
       <SidebarNavGroup toggleIcon={faInstitution} toggleText="Banrep">
 
         <SidebarNavItem icon={faLineChart}  href="/banrep">
-            Series
-            <small className="ms-auto"></small>
+            
+            <small className="ms-auto">Series</small>
         </SidebarNavItem>
 
-      </SidebarNavGroup>
-
-      <SidebarNavGroup toggleIcon={faInstitution} toggleText="Functions">
-
-        <SidebarNavItem icon={faLineChart}  href="/functions">
-            Special Functions
-            <small className="ms-auto"></small>
-        </SidebarNavItem>
-
-      </SidebarNavGroup>        
+      </SidebarNavGroup> 
 
     </ul>
   )

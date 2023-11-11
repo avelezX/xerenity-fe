@@ -1,15 +1,13 @@
-import React from 'react';
-import Container from 'react-bootstrap/Container';
+import Container from 'react-bootstrap/Container'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
-import { useState, useEffect, useCallback } from "react";
-import { CandleSerie } from '@models/tes';
-import {TesYields} from '@models/tes'
-import Toast from 'react-bootstrap/Toast';
-import ToastContainer from 'react-bootstrap/ToastContainer';
-import CandleSerieViewer from '@components/compare/candleViewer';
+import React,{ useState, useEffect, useCallback } from "react"
+import {TesYields,CandleSerie } from '@models/tes'
+import Toast from 'react-bootstrap/Toast'
+import ToastContainer from 'react-bootstrap/ToastContainer'
+import CandleSerieViewer from '@components/compare/candleViewer'
 
 type ViewerProps={    
-    tableName:string
+    tableName:string;
 }
 
 export default function CardCandleSeries({tableName}:ViewerProps){
@@ -30,11 +28,11 @@ export default function CardCandleSeries({tableName}:ViewerProps){
         }else{
             setCandleSerie({name:'',values:[]})
         } 
-    },[candleSerie]) 
+    },[supabase]) 
 
     useEffect(()=>{
         fetchTesRawData(tableName)
-    },[])
+    },[fetchTesRawData,tableName])
 
     return (
         <Container>
@@ -44,7 +42,7 @@ export default function CardCandleSeries({tableName}:ViewerProps){
                     <strong className="me-auto" >{tableName}</strong>                    
                     </Toast.Header>
                     <Toast.Body>
-                        <CandleSerieViewer candleSerie={candleSerie} chartName={''} chartHeight={450} />
+                        <CandleSerieViewer  candleSerie={candleSerie} chartName='' chartHeight={450} />
                     </Toast.Body>
                 </Toast>
             </ToastContainer>

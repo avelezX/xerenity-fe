@@ -1,29 +1,27 @@
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { Table } from 'react-bootstrap'
-import { useState, useEffect, useCallback } from "react";
-import { BanrepSerieValue,BanrepSerie } from '@models/banrep';
-import Container from 'react-bootstrap/Container';
-import Row from 'react-bootstrap/Row';
-import Col from 'react-bootstrap/Col';
-import NavDropdown from 'react-bootstrap/NavDropdown';
-import Nav from 'react-bootstrap/Nav';
-import React from 'react';
-import DisplaySerie from '@components/compare/CompareSeries';
+import React,{ useState, useEffect, useCallback } from "react"
+import { BanrepSerieValue,BanrepSerie } from '@models/banrep'
+import Container from 'react-bootstrap/Container'
+import Row from 'react-bootstrap/Row'
+import Col from 'react-bootstrap/Col'
+import NavDropdown from 'react-bootstrap/NavDropdown'
+import Nav from 'react-bootstrap/Nav'
+import DisplaySerie from '@components/compare/CompareSeries'
 
 export default function SeriesViewer(){
-    const [tesList,setTesList] = useState<BanrepSerieValue[]>([]);
+    const [tesList,setTesList] = useState<BanrepSerieValue[]>([])
     
-    const [options,setOptions] = useState<BanrepSerie[]>([]);
+    const [options,setOptions] = useState<BanrepSerie[]>([])
     
-    const [viewCanasta, setViewCanasta] = useState('');    
+    const [viewCanasta, setViewCanasta] = useState('')    
 
     const supabase = createClientComponentClient()
     
     const fetchTesRawData = useCallback( async (view_canasta:string) =>{
         const {data,error} =   await supabase.schema('xerenity').from('banrep_serie_value').select('*').eq('id_serie',view_canasta).order('fecha', { ascending: false })
         
-        if(error){
-            console.log(error)
+        if(error){            
             setTesList([])
         }
 
@@ -34,13 +32,12 @@ export default function SeriesViewer(){
             setTesList([] as BanrepSerieValue[])
         }
 
-    },[supabase,viewCanasta])
+    },[supabase])
 
-    const fetTesData = useCallback( async () =>{
+    const fetchData = useCallback( async () =>{
         const {data,error} =   await supabase.schema('xerenity').from('banrep_serie').select()
       
       if(error){
-          console.log(error)
           setOptions([])
       }
 
@@ -50,15 +47,15 @@ export default function SeriesViewer(){
         setOptions([] as BanrepSerie[])
       }
 
-  },[supabase,options])
+  },[supabase])
 
   useEffect(()=>{
-    fetTesData()
-  },[])
+    fetchData()
+  },[fetchData])
 
     const handleSelect = (eventKey: any) => {        
         fetchTesRawData(`${eventKey}`)
-    };
+    }
 
     
     return (
@@ -66,8 +63,8 @@ export default function SeriesViewer(){
             <Row>
               <Nav variant="pills" activeKey="1" onSelect={handleSelect}>
                   <NavDropdown title="Seleccionar Canasta" id="nav-dropdown">
-                    {options.map((option, idx) => (                    
-                      <NavDropdown.Item eventKey={option.id} >{option.nombre}</NavDropdown.Item>
+                    {options.map((option) => (                    
+                      <NavDropdown.Item key={option.id} eventKey={option.id} >{option.nombre}</NavDropdown.Item>
                     ))}                  
                   </NavDropdown>
               </Nav>
@@ -100,7 +97,7 @@ export default function SeriesViewer(){
                 </thead>
                 <tbody>
                   {tesList.map((tes) => (
-                    <tr >
+                    <tr key={`tr-${tes.fecha}`}>
                       <td>{tes.fecha}</td>
                       <td>{tes.valor}</td>
                     </tr>
@@ -110,5 +107,5 @@ export default function SeriesViewer(){
             </Col>
           </Row>
       </Container>
-    );
+    )
 }

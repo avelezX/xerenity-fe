@@ -6,10 +6,8 @@ import Head from 'next/head'
 import { Container } from 'react-bootstrap'
 import Sidebar, { SidebarOverlay } from '@layout/AdminLayout/Sidebar/Sidebar'
 import Header from '@layout/AdminLayout/Header/Header'
-import Footer from '@layout/AdminLayout/Footer/Footer'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
-import { NextResponse } from 'next/server'
-import { deleteCookie, getCookie, setCookie } from 'cookies-next'
+import { deleteCookie, getCookie} from 'cookies-next'
 import { useRouter } from 'next/router'
 
 export default function AdminLayout({ children }: PropsWithChildren) {
@@ -64,11 +62,11 @@ export default function AdminLayout({ children }: PropsWithChildren) {
   const checkUserLogedIn = useCallback( async () =>{
     const {
       data: { session },
-    } = await supabase.auth.getSession();
+    } = await supabase.auth.getSession()
     if (!session) {
       router.push(getRedirect())
     }
-  },[supabase])
+  },[supabase,router])
 
   useEffect(() => {
     checkUserLogedIn()

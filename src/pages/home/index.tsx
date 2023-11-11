@@ -1,39 +1,16 @@
-
 import { AdminLayout } from '@layout'
-import type { NextPage } from 'next'
-import Image from 'next/image'
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import {
-  faArrowDown,
-  faArrowUp,
-  faDownload,
-  faEllipsisVertical,
-  faMars,
-  faSearch,
-  faUsers,
-  faVenus,
-} from '@fortawesome/free-solid-svg-icons'
-import {
-  Button, ButtonGroup, Card, Col, Container, Dropdown, ProgressBar, Row,
-} from 'react-bootstrap'
-
-import React from 'react'
+import Navbar from 'react-bootstrap/Navbar'
+import {Col, Container, Row} from 'react-bootstrap'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
-
-import { useState, useEffect,useCallback } from "react";
+import React,{ useState, useEffect } from "react"
 
 import CardCandleSeries from '@components/charts/cardCharts/candleChart'
 
 interface TopTes{
-  tes:string, 
-  date_trunc:string,
-  operations: number
+  tes:string;
+  date_trunc:string;
+  operations: number;
 }
-
-import Navbar from 'react-bootstrap/Navbar';
-import Nav from 'react-bootstrap/Nav';
-
-import NavDropdown from 'react-bootstrap/NavDropdown';
 
 export default function HomePage(){ 
 
@@ -42,10 +19,10 @@ export default function HomePage(){
   const [topTes,setTopTes] = useState<TopTes[]>([])
   
   function getTodayDate(){
-    const date=new Date();
-    let day = date.getDate();
-    let month = date.getMonth() + 1;
-    let year = date.getFullYear();
+    const date=new Date()
+    const day = date.getDate()
+    const month = date.getMonth() + 1
+    const year = date.getFullYear()
     return `${year}-${month}-${day}`
   }
 
@@ -58,7 +35,7 @@ export default function HomePage(){
       }      
     }
     getTopTest()
-  },[])
+  },[supabase])
 
   return (
     <AdminLayout>
@@ -68,7 +45,7 @@ export default function HomePage(){
           <Container>
             <Navbar.Brand href="#home">Los Tes mas transados en {getTodayDate()}</Navbar.Brand>
             <Navbar.Toggle aria-controls="basic-navbar-nav" />
-            
+
           </Container>
         </Navbar>
         <Container>          

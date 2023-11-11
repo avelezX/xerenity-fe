@@ -1,7 +1,7 @@
-import Container from 'react-bootstrap/Container';
-import Row from 'react-bootstrap/Row';
-import Col from 'react-bootstrap/Col';
-import React from 'react';
+import Container from 'react-bootstrap/Container'
+import Row from 'react-bootstrap/Row'
+import Col from 'react-bootstrap/Col'
+import React from 'react'
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -12,12 +12,11 @@ import {
   Tooltip,
   Filler,
   Legend,
-} from 'chart.js';
-import dynamic from 'next/dynamic';
-const Chart = dynamic(() => import("react-apexcharts"), { ssr: false });
+} from 'chart.js'
+import dynamic from 'next/dynamic'
+import { CandleSerie } from '@models/tes'
 
-import { CandleSerie } from '@models/tes';
-
+const Chart = dynamic(() => import("react-apexcharts"), { ssr: false })
 
 ChartJS.register(
   CategoryScale,
@@ -28,12 +27,12 @@ ChartJS.register(
   Tooltip,
   Filler,
   Legend
-);
+)
 
 type ViewerProps={
-    candleSerie:CandleSerie
-    chartName:string,
-    chartHeight:number
+    candleSerie:CandleSerie;
+    chartName:string;
+    chartHeight:number;
 }
 
 export default function CandleSerieViewer({candleSerie,chartName,chartHeight}:ViewerProps){
@@ -88,5 +87,5 @@ export default function CandleSerieViewer({candleSerie,chartName,chartHeight}:Vi
             </Col>
           </Row>            
         </Container>
-    );
+    )
 }

@@ -1,13 +1,8 @@
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
-import { Table } from 'react-bootstrap'
-import { useState, useEffect, useCallback } from "react";
-import { BanrepSerieValue,BanrepSerie } from '@models/banrep';
-import Container from 'react-bootstrap/Container';
-import Row from 'react-bootstrap/Row';
-import Col from 'react-bootstrap/Col';
-import NavDropdown from 'react-bootstrap/NavDropdown';
-import Nav from 'react-bootstrap/Nav';
-import React from 'react';
+
+import Container from 'react-bootstrap/Container'
+import Row from 'react-bootstrap/Row'
+import Col from 'react-bootstrap/Col'
+import React from 'react'
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -18,10 +13,11 @@ import {
   Tooltip,
   Filler,
   Legend,
-} from 'chart.js';
-import { Serie } from '@models/serie';
-import dynamic from 'next/dynamic';
-const Chart = dynamic(() => import("react-apexcharts"), { ssr: false });
+} from 'chart.js'
+import { Serie } from '@models/serie'
+import dynamic from 'next/dynamic'
+
+const Chart = dynamic(() => import("react-apexcharts"), { ssr: false })
 
 ChartJS.register(
   CategoryScale,
@@ -32,11 +28,11 @@ ChartJS.register(
   Tooltip,
   Filler,
   Legend
-);
+)
 
 type ViewerProps={
-    allSeries:Serie[]
-    chartName:string
+    allSeries:Serie[];
+    chartName:string;
 }
 
 export default function DisplaySerie({allSeries,chartName}:ViewerProps){
@@ -51,7 +47,6 @@ export default function DisplaySerie({allSeries,chartName}:ViewerProps){
                   {
                     chart: {
                       type: 'area',
-                      //height: 450
                     },
                     title: {
                       text: chartName,
@@ -68,7 +63,7 @@ export default function DisplaySerie({allSeries,chartName}:ViewerProps){
                     grid: {
                       borderColor: '#e7e7e7',
                       row: {
-                        colors: ['#f3f3f3', 'transparent'], // takes an array which will be repeated on columns
+                        colors: ['#f3f3f3', 'transparent'],
                         opacity: 0.5
                       },
                     },                    
@@ -93,5 +88,5 @@ export default function DisplaySerie({allSeries,chartName}:ViewerProps){
             </Col>
           </Row>            
         </Container>
-    );
+    )
 }
