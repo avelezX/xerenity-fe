@@ -114,8 +114,7 @@ export default function SidebarNav() {
     <ul className="list-unstyled">
 
       <SidebarNavItem icon={faDashboard}  href="/home">
-            Dashboard
-            
+            Dashboard            
       </SidebarNavItem>
 
       <SidebarNavGroup toggleIcon={faInstitution} toggleText="Tes">

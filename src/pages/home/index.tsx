@@ -45,7 +45,7 @@ export default function HomePage(){
           <Container>
             <Navbar.Brand href="#home">Los Tes mas transados en {getTodayDate()}</Navbar.Brand>
             <Navbar.Toggle aria-controls="basic-navbar-nav" />
-            
+
           </Container>
         </Navbar>
         <Container>          

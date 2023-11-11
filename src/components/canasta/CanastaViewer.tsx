@@ -1,13 +1,12 @@
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { Table } from 'react-bootstrap'
-import { useState, useEffect, useCallback } from "react";
-import { CanastaRaw,Canasta } from '@models/canasta';
-import Container from 'react-bootstrap/Container';
-import Row from 'react-bootstrap/Row';
-import Col from 'react-bootstrap/Col';
-import NavDropdown from 'react-bootstrap/NavDropdown';
-import Nav from 'react-bootstrap/Nav';
-import React from 'react';
+import React,{ useState, useEffect, useCallback } from "react"
+import { CanastaRaw,Canasta } from '@models/canasta'
+import Container from 'react-bootstrap/Container'
+import Row from 'react-bootstrap/Row'
+import Col from 'react-bootstrap/Col'
+import NavDropdown from 'react-bootstrap/NavDropdown'
+import Nav from 'react-bootstrap/Nav'
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -18,10 +17,10 @@ import {
   Tooltip,
   Filler,
   Legend,
-} from 'chart.js';
+} from 'chart.js'
+import dynamic from 'next/dynamic'
 
-import dynamic from 'next/dynamic';
-const Chart = dynamic(() => import("react-apexcharts"), { ssr: false });
+const Chart = dynamic(() => import("react-apexcharts"), { ssr: false })
 
 ChartJS.register(
   CategoryScale,
@@ -32,16 +31,16 @@ ChartJS.register(
   Tooltip,
   Filler,
   Legend
-);
+)
 
 
 
 export default function CanastaViewer(){
-    const [tesList,setTesList] = useState<CanastaRaw[]>([]);
+    const [tesList,setTesList] = useState<CanastaRaw[]>([])
     
-    const [options,setOptions] = useState<Canasta[]>([]);
+    const [options,setOptions] = useState<Canasta[]>([])
     
-    const [viewCanasta, setViewCanasta] = useState('');
+    const [viewCanasta, setViewCanasta] = useState('')
     
 
     const supabase = createClientComponentClient()
@@ -49,8 +48,7 @@ export default function CanastaViewer(){
     const fetchTesRawData = useCallback( async (view_canasta:string) =>{
         const {data,error} =   await supabase.schema('xerenity').from('canasta_values').select().eq('id_canasta',view_canasta).order('fecha', { ascending: false })
         
-        if(error){
-            console.log(error)
+        if(error){            
             setTesList([])
         }
 
@@ -61,13 +59,12 @@ export default function CanastaViewer(){
             setTesList([] as CanastaRaw[])
         }
 
-    },[supabase,viewCanasta])
+    },[supabase])
 
-    const fetTesData = useCallback( async () =>{
+    const fetchTesData = useCallback( async () =>{
         const {data,error} =   await supabase.schema('xerenity').from('canasta').select()
       
-      if(error){
-          console.log(error)
+      if(error){          
           setOptions([])
       }
 
@@ -77,15 +74,15 @@ export default function CanastaViewer(){
         setOptions([] as Canasta[])
       }
 
-  },[supabase,options])
+  },[supabase])
 
   useEffect(()=>{
-    fetTesData()
-  },[])
+    fetchTesData()
+  },[fetchTesData])
 
-    const handleSelect = (eventKey: any) => {        
+    const handleSelect = (eventKey: string|null) => {        
         fetchTesRawData(`${eventKey}`)
-    };
+    }
 
     
     return (
@@ -93,8 +90,8 @@ export default function CanastaViewer(){
             <Row>
               <Nav variant="pills" activeKey="1" onSelect={handleSelect}>
                 <NavDropdown title="Seleccionar Canasta" id="nav-dropdown">
-                  {options.map((option, idx) => (                    
-                    <NavDropdown.Item eventKey={option.id} >{option.nombre}</NavDropdown.Item>
+                  {options.map((option) => (                    
+                    <NavDropdown.Item key={`drop-down${option.id}`} eventKey={option.id} >{option.nombre}</NavDropdown.Item>
                   ))}                  
                 </NavDropdown>
               </Nav>             
@@ -174,7 +171,7 @@ export default function CanastaViewer(){
                 </thead>
                 <tbody>
                   {tesList.map((tes) => (
-                    <tr >
+                    <tr key={`tr-tes-${tes.indice}`}>
                       <td>{tes.fecha}</td>
                       <td>{tes.valorcontribucion}</td>
                       <td>{tes.indice}</td>
@@ -187,5 +184,5 @@ export default function CanastaViewer(){
             </Col>
           </Row>
       </Container>
-    );
+    )
 }

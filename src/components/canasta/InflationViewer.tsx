@@ -18,11 +18,11 @@ export default function InflationViewer(){
 
     const [options,setOptions] = useState<Canasta[]>([])
     
-    const [viewCanasta, setViewCanasta] = useState('1')    
+    const [viewCanasta, setViewCanasta] = useState(1)    
 
     const supabase = createClientComponentClient()     
     
-    const fetchTesRawData = useCallback( async (canasta_id:string,month_chnage:number) =>{
+    const fetchTesRawData = useCallback( async (canasta_id:number | null,month_chnage:number | null) =>{
         
         let canastaName
 
@@ -40,14 +40,18 @@ export default function InflationViewer(){
           monthNewValue = month_chnage
         }
 
-        setViewCanasta(canastaName)
-
-        setMonthChange(monthNewValue)
+        if(canastaName){
+          setViewCanasta(canastaName)
+        }
         
-        const {data,error} =  await supabase.schema('xerenity').rpc('cpi_index_change',{lag_value:monthNewValue,id_canasta_search:monthNewValue})
+        if(monthNewValue){
+          setMonthChange(monthNewValue)
+        }        
+        
+        const {data,error} =  await supabase.schema('xerenity').rpc('cpi_index_change',{lag_value:monthNewValue,id_canasta_search:canastaName})
         
         if(error){
-            console.log(error)
+            
             setTesList([])
         }
 
@@ -60,11 +64,11 @@ export default function InflationViewer(){
 
     },[supabase,viewCanasta,monthChange])
 
-    const fetTesData = useCallback( async () =>{
+    const fetchTesData = useCallback( async () =>{
         const {data,error} =   await supabase.schema('xerenity').from('canasta').select()
       
       if(error){
-          console.log(error)
+          
           setOptions([])
       }
 
@@ -74,30 +78,35 @@ export default function InflationViewer(){
         setOptions([] as Canasta[])
       }
 
-  },[supabase,options])
+  },[supabase])
 
   useEffect(()=>{
-    fetTesData()
-  },[])
+    fetchTesData()
+  },[fetchTesData])
 
-    const handleCanastaSelect = (eventKey: any) => {
+    const handleCanastaSelect = (eventKey: number|null) => {
+      if(eventKey){
         setViewCanasta(eventKey)
         fetchTesRawData(eventKey,-1)
+      }
     }
 
-    const handleMonthSelect = (eventKey: any) => {        
+    const handleMonthSelect = (eventKey: number|null) => {
+      if(eventKey){       
         setMonthChange(eventKey)
-        fetchTesRawData('',eventKey)
+        fetchTesRawData(null,eventKey)
+      }
     }
     
-    function searchCanastaName(index:any){
-
-
-      for(var i = 0; i < options.length; i++)
-      {
-        if(options[i].id == index)
+    function searchCanastaName(index:number|null){
+      
+      if(index){
+        for(let i = 0; i < options.length; i+=1)
         {
-          return options[i].nombre
+          if(options[i].id === index)
+          {
+            return options[i].nombre
+          }
         }
       }
       
@@ -108,16 +117,15 @@ export default function InflationViewer(){
         <Container>
             <Row>
               <Col>
-                <Nav>
-                  
+                <Nav>                  
                     <NavDropdown title="Seleccionar Canasta" id="nav-dropdown-canasta" onSelect={handleCanastaSelect}>
-                      {options.map((option, idx) => (                    
-                        <NavDropdown.Item eventKey={option.id} >{option.nombre}</NavDropdown.Item>
+                      {options.map((option) => (                    
+                        <NavDropdown.Item key={option.id} eventKey={option.id} >{option.nombre}</NavDropdown.Item>
                       ))}                  
                     </NavDropdown>
                     <NavDropdown title="Cambio mes" id="nav-dropdown-mes" onSelect={handleMonthSelect}>
                       {[1,2,3,4,5,6,7,8,9,10,11,12].map((option) => (                    
-                        <NavDropdown.Item eventKey={option} >{option}</NavDropdown.Item>
+                        <NavDropdown.Item key={`drop-canast-${option}`} eventKey={option} >{option}</NavDropdown.Item>
                       ))}                  
                     </NavDropdown>
                 </Nav>            
@@ -159,7 +167,7 @@ export default function InflationViewer(){
                 </thead>
                 <tbody>
                   {tesList.map((tes) => (
-                    <tr >
+                    <tr key={`tr-view-${tes.indice}`}>
                       <td>{tes.fecha}</td>
                       <td>{tes.indice}</td>
                       <td>{tes.percentage_change}</td>

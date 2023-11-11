@@ -42,7 +42,7 @@ export default function CardCandleSeries({tableName}:ViewerProps){
                     <strong className="me-auto" >{tableName}</strong>                    
                     </Toast.Header>
                     <Toast.Body>
-                        <CandleSerieViewer candleSerie={candleSerie} chartName={tableName} chartHeight={450} />
+                        <CandleSerieViewer  candleSerie={candleSerie} chartName='' chartHeight={450} />
                     </Toast.Body>
                 </Toast>
             </ToastContainer>

@@ -1,52 +1,15 @@
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
-import { Table } from 'react-bootstrap'
-import { useState, useEffect, useCallback } from "react";
-import {Tes,TesYields} from '@models/tes'
-import Container from 'react-bootstrap/Container';
-import Row from 'react-bootstrap/Row';
-import Col from 'react-bootstrap/Col';
-import NavDropdown from 'react-bootstrap/NavDropdown';
-import Nav from 'react-bootstrap/Nav';
-import React from 'react';
-import dynamic from 'next/dynamic';
-import CandleSerieViewer from '@components/compare/candleViewer';
+import { Table,Row,Col,NavDropdown,Nav,Container } from 'react-bootstrap'
+import React,{ useState, useEffect, useCallback } from "react"
+import {Tes,TesYields,CandleSerie} from '@models/tes'
+import CandleSerieViewer from '@components/compare/candleViewer'
 
-import { CandleSerie } from '@models/tes';
-
-
-const Chart = dynamic(() => import("react-apexcharts"), { ssr: false });
-
-import {
-  Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  Title,
-  Tooltip,
-  Filler,
-  Legend,
-} from 'chart.js';
-
-
-ChartJS.register(
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  Title,
-  Tooltip,
-  Filler,
-  Legend
-);
 
 export default function TesViever(){
     
     const [candleSerie,setCandleSerie]= useState<CandleSerie>({name:'',values:[]})
     
-    const [options,setOptions] = useState<Tes[]>([]);
-    
-    const [viewTes, setMyViewTes] = useState('');
+    const [options,setOptions] = useState<Tes[]>([])
 
     const supabase = createClientComponentClient()
     
@@ -54,20 +17,18 @@ export default function TesViever(){
         const {data,error} =   await supabase.schema('xerenity').from(view_tes).select().order('day', { ascending: false })
         
         if(error){
-            console.log(error)
             setCandleSerie({name:'',values:[]})
         }
 
         if(data){            
             setCandleSerie({name:view_tes,values:data as TesYields[]})
-            setMyViewTes(view_tes)
         }else{
             setCandleSerie({name:'',values:[]})
         }
 
-    },[supabase,viewTes])
+    },[supabase])
 
-    const fetTesData = useCallback( async () =>{
+    const fetchTesData = useCallback( async () =>{
       const {data,error} =   await supabase.schema('xerenity').rpc('tes_get_all')
       
       if(error){
@@ -80,15 +41,15 @@ export default function TesViever(){
         setOptions([] as Tes[])
       }
 
-  },[supabase,options])
+  },[supabase])
 
   useEffect(()=>{
-    fetTesData()
-  },[])
+    fetchTesData()
+  },[fetchTesData])
 
     const handleSelect = (eventKey: any) => {        
         fetchTesRawData(`${eventKey}`)
-    };
+    }
 
     
     return (
@@ -96,8 +57,8 @@ export default function TesViever(){
             <Row>
               <Nav variant="pills" activeKey="1" onSelect={handleSelect}>
                 <NavDropdown title="Seleccionar Tes" id="nav-dropdown">
-                  {options.map((option, idx) => (                    
-                    <NavDropdown.Item eventKey={option.name} >{option.name}</NavDropdown.Item>
+                  {options.map((option) => (                    
+                    <NavDropdown.Item  key={`drop-down-name${option.name}`} eventKey={option.name} >{option.name}</NavDropdown.Item>
                   ))}
                 </NavDropdown>
               </Nav>
@@ -122,7 +83,7 @@ export default function TesViever(){
                 </thead>
                 <tbody>
                   {candleSerie.values.map((tes) => (
-                    <tr >
+                    <tr key={`tr-day-name${tes.day}`}>
                       <td>{tes.day}</td>
                       <td>{tes.open}</td>
                       <td>{tes.high}</td>
@@ -136,5 +97,5 @@ export default function TesViever(){
             </Col>
           </Row>
       </Container>
-    );
+    )
 }
