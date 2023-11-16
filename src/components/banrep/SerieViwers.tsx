@@ -73,8 +73,8 @@ export default function SeriesViewer(){
               <DisplaySerie allSeries={
                 [
                   {
-                    name:'Inflacion existente',
-                     values: tesList.map((ser)=>(
+                      name:'Inflacion existente',
+                      values: tesList.map((ser)=>(
                         {
                           fecha:ser.fecha,
                           value:ser.valor
@@ -83,7 +83,10 @@ export default function SeriesViewer(){
                     )
                   }
                 ]
-                } chartName={viewCanasta}/>
+                } 
+                chartName={viewCanasta}
+                chartType='area'
+                />
           </Row>
           {' '}
           <Row>

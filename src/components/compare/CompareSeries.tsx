@@ -2,7 +2,7 @@
 import Container from 'react-bootstrap/Container'
 import Row from 'react-bootstrap/Row'
 import Col from 'react-bootstrap/Col'
-import React from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -33,9 +33,16 @@ ChartJS.register(
 type ViewerProps={
     allSeries:Serie[];
     chartName:string;
+    chartType:
+      | "line"
+      | "area"
 }
 
-export default function DisplaySerie({allSeries,chartName}:ViewerProps){
+export default function DisplaySerie({allSeries,chartName,chartType}:ViewerProps){
+
+    const [longetsSeries,setLongestSeries] = useState<Serie>()
+
+
     
     return (
         <Container>
@@ -53,14 +60,79 @@ export default function DisplaySerie({allSeries,chartName}:ViewerProps){
                       align: 'center'
                     },
                     xaxis: {
-                      type: 'datetime'
+                      type: 'datetime'                      
                     },
-                    yaxis: {
-                      tooltip: {
-                        enabled: true
-                      }
-                    },
-                    grid: {
+                    yaxis: [
+                      {
+                        axisTicks: {
+                          show: true,
+                        },
+                        axisBorder: {
+                          show: true,
+                          color: '#008FFB'
+                        },
+                        labels: {
+                          style: {
+                            colors: '#008FFB',
+                          }
+                        },
+                        title: {
+                          text: "Income (thousand crores)",
+                          style: {
+                            color: '#008FFB',
+                          }
+                        },
+                        tooltip: {
+                          enabled: true
+                        }
+                      },
+                      {
+                        seriesName: 'Income',
+                        opposite: true,
+                        axisTicks: {
+                          show: true,
+                        },
+                        axisBorder: {
+                          show: true,
+                          color: '#00E396'
+                        },
+                        labels: {
+                          style: {
+                            colors: '#00E396',
+                          }
+                        },
+                        title: {
+                          text: "Operating Cashflow (thousand crores)",
+                          style: {
+                            color: '#00E396',
+                          }
+                        },
+                      },
+                      {
+                        seriesName: 'Revenue',
+                        opposite: true,
+                        axisTicks: {
+                          show: true,
+                        },
+                        axisBorder: {
+                          show: true,
+                          color: '#FEB019'
+                        },
+                        labels: {
+                          style: {
+                            colors: '#FEB019',
+                          },
+                        },
+                        title: {
+                          text: "Revenue (thousand crores)",
+                          style: {
+                            color: '#FEB019',
+                          }
+                        }
+                      },
+                    ]
+                    ,
+                    grid: { 
                       borderColor: '#e7e7e7',
                       row: {
                         colors: ['#f3f3f3', 'transparent'],
@@ -72,17 +144,15 @@ export default function DisplaySerie({allSeries,chartName}:ViewerProps){
                 series={
                     allSeries.map((serie) => (
                         {
-                            name: serie.name,
-                            data: serie.values.map((val) => ({
-                                x: val.fecha,
-                                y: val.value
-                          }))
-                        }
+                          name: serie.name,
+                          data: serie.values.map((val,idx) => ({
+                              x: idx,
+                              y: val.value
+                        }))
+                      }
                     )
-                )
-                }
-                type="area"
-                
+                  )
+                }                
               />              
               }    
             </Col>

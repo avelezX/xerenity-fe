@@ -144,7 +144,15 @@ export default function SidebarNav() {
             <small className="ms-auto">Series</small>
         </SidebarNavItem>
 
-      </SidebarNavGroup> 
+      </SidebarNavGroup>
+
+      <SidebarNavGroup toggleIcon={faInstitution} toggleText="Series">
+        <small>
+          <SidebarNavItem icon={faLineChart}  href="/series">              
+              <big className="ms-auto">Series</big>
+          </SidebarNavItem>
+        </small>
+      </SidebarNavGroup>
 
     </ul>
   )

@@ -4,6 +4,10 @@ export interface BanrepSerieValue {
     valor: number;
 }
 
+export interface SerieNameValue{
+    name:string;
+    serieValue:BanrepSerieValue[]
+}
 
 
 export interface BanrepSerie {
