@@ -23,3 +23,13 @@ export interface CandleSerie{
     name:string;
     values:TesYields[];
 }
+
+
+export interface GridEntry{
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+  tes:string;
+}

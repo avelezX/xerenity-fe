@@ -12,27 +12,29 @@ import Form from 'react-bootstrap/Form';
 import {Tes,TesYields,CandleSerie} from '@models/tes'
 import CandleGridViewer from '@components/grid/CandleGrid'
 import CandleSerieViewer from '@components/compare/candleViewer'
-
+import { GridEntry } from '@models/tes'
 
 export default function FullTesViewer(){
 
     const supabase = createClientComponentClient()
 
-    const [options,setOptions] = useState<Tes[]>([])
+    const [options,setOptions] = useState<GridEntry[]>([])
 
     const [candleSerie,setCandleSerie]= useState<CandleSerie>({name:'',values:[]})
 
     const fetchTesNames = useCallback( async () =>{
-        const {data,error} =   await supabase.schema('xerenity').rpc('tes_get_all')
+        const {data,error} =   await supabase.schema('xerenity').rpc('get_tes_grid_raw')
         
+        console.log(data)
+
         if(error){
             setOptions([])
         }
   
         if(data){
-          setOptions(data.tes as Tes[])
+          setOptions(data as GridEntry[])
         }else{
-          setOptions([] as Tes[])
+          setOptions([] as GridEntry[])
         }
   
     },[supabase])    

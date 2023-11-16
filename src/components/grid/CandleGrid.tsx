@@ -10,11 +10,11 @@ import Nav from 'react-bootstrap/Nav'
 import DisplaySerie from '@components/compare/CompareSeries'
 import Form from 'react-bootstrap/Form';
 import {Tes,TesYields,CandleSerie} from '@models/tes'
-
+import { GridEntry } from '@models/tes'
 
 export interface GridViewProps{
     selectCallback:any;
-    allTes:Tes[]
+    allTes:GridEntry[]
 }
 
 export default function CandleGridViewer({selectCallback,allTes}:GridViewProps){
@@ -27,11 +27,10 @@ export default function CandleGridViewer({selectCallback,allTes}:GridViewProps){
                 <thead>
                   <tr>
                     <th>#</th>
-                    <th>Date</th>
                     <th>Open</th>
-                    <th>High</th>
-                    <th>low</th>
                     <th>Close</th>
+                    <th>Low</th>
+                    <th>High</th>
                     <th>Volume</th>
                   </tr>
                 </thead>                
@@ -39,16 +38,15 @@ export default function CandleGridViewer({selectCallback,allTes}:GridViewProps){
                         {
                             allTes.map((tesValue)=>[
                                 <tr>
-                                <td>
-                                    <Form.Check inline type={'radio'} label={tesValue.name} name="group1" id={tesValue.name} />                                
-                                </td>                                
-                                <td>Otto</td>
-                                <td>@mdo</td>
-                                <td>@mdo</td>
-                                <td>@mdo</td>
-                                <td>@mdo</td>
-                                <td>@mdo</td>
-                            </tr>
+                                    <td>
+                                        <Form.Check inline type={'radio'} label={tesValue.tes} name="group1" id={tesValue.tes} />                                
+                                    </td>                                
+                                    <td>{tesValue.open}</td>
+                                    <td>{tesValue.close}</td>
+                                    <td>{tesValue.low}</td>
+                                    <td>{tesValue.high}</td>
+                                    <td>{tesValue.volume}</td>                                
+                                </tr>
                             ])
                         }
                     </tbody>                
