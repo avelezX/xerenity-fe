@@ -65,7 +65,7 @@ export default function TesViever(){
             </Row>
           <Row>
             <Col>
-              <CandleSerieViewer candleSerie={candleSerie} chartName={candleSerie.name} chartHeight={300} />
+              <CandleSerieViewer candleSerie={candleSerie} chartName={candleSerie.name} />
             </Col>
           </Row>
           <Row>
@@ -85,11 +85,13 @@ export default function TesViever(){
                   {candleSerie.values.map((tes) => (
                     <tr key={`tr-day-name${tes.day}`}>
                       <td>{tes.day}</td>
-                      <td>{tes.open}</td>
+                      <td>{tes.open.toPrecision(2)}</td>
                       <td>{tes.high}</td>
                       <td>{tes.low}</td>
                       <td>{tes.close}</td>
-                      <td>{tes.volume}</td>
+                      <td>
+                        {tes.volume}
+                      </td>
                     </tr>
                   ))}
                 </tbody>

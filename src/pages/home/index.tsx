@@ -45,20 +45,10 @@ export default function HomePage(){
           <Container>
             <Navbar.Brand href="#home">Los Tes mas transados en {getTodayDate()}</Navbar.Brand>
             <Navbar.Toggle aria-controls="basic-navbar-nav" />
-
           </Container>
         </Navbar>
         <Container>          
             <Row>
-            {
-                topTes.map(
-                  (tes_data)=>(
-                  <Col key={tes_data.tes}>
-                    <CardCandleSeries tableName={tes_data.tes} />
-                  </Col>
-                )
-              )
-            }
             </Row>
         </Container>        
       </Container>

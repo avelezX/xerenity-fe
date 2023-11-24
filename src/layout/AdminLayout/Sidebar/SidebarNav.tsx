@@ -120,7 +120,11 @@ export default function SidebarNav() {
       <SidebarNavGroup toggleIcon={faInstitution} toggleText="Tes">
 
         <SidebarNavItem icon={faLineChart}  href="/tes/daily">            
-            <small className="ms-auto">Historical prices</small>
+            <small className="ms-auto">COP</small>
+        </SidebarNavItem>
+        
+        <SidebarNavItem icon={faLineChart}  href="/tes/daily">            
+            <small className="ms-auto">UVR</small>
         </SidebarNavItem>
 
       </SidebarNavGroup>

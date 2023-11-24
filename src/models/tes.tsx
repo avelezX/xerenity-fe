@@ -32,4 +32,7 @@ export interface GridEntry{
   close: number;
   volume: number;
   tes:string;
+  prev: number;
+  displayname:string;
+  operation_time:string;  
 }

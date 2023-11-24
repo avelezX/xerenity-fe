@@ -7,32 +7,6 @@ import Row from 'react-bootstrap/Row'
 import Col from 'react-bootstrap/Col'
 import NavDropdown from 'react-bootstrap/NavDropdown'
 import Nav from 'react-bootstrap/Nav'
-import {
-  Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  Title,
-  Tooltip,
-  Filler,
-  Legend,
-} from 'chart.js'
-import dynamic from 'next/dynamic'
-
-const Chart = dynamic(() => import("react-apexcharts"), { ssr: false })
-
-ChartJS.register(
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  Title,
-  Tooltip,
-  Filler,
-  Legend
-)
-
 
 
 export default function CanastaViewer(){
@@ -98,63 +72,7 @@ export default function CanastaViewer(){
             </Row>
           <Row>
             <Col>
-            {(typeof window !== 'undefined') &&
-              <Chart 
-                options={
-                  {
-                    chart: {
-                      type: 'area',
-                      height: 350
-                    },
-                    title: {
-                      text: `${viewCanasta} Chart`,
-                      align: 'left'
-                    },
-                    xaxis: {
-                      type: 'datetime'
-                    },
-                    yaxis: {
-                      tooltip: {
-                        enabled: true
-                      }
-                    }
-                  }
-                } 
-                series={
-                  [
-                    {
-                        name: "Indice" ,
-                        data: tesList.map(tes => ({
-                        x: tes.fecha,
-                        y: tes.indice
-                      }))
-                    },
-                    {
-                        name: "Valor",
-                        data: tesList.map(tes => ({
-                        x: tes.fecha,
-                        y: tes.valor
-                      }))
-                    },
-                    {
-                        name: "Valor Contribucion",
-                        data: tesList.map(tes => ({
-                        x: tes.fecha,
-                        y: tes.valorcontribucion
-                      }))
-                    },
-                    {
-                        name: "Valor Mensual",
-                        data: tesList.map(tes => ({
-                        x: tes.fecha,
-                        y: tes.valormensual
-                      }))
-                    } 
-                  ]
-                }
-                type="area" 
-              />              
-              }    
+
             </Col>
           </Row>
           <Row>

@@ -13,6 +13,11 @@ import {Tes,TesYields,CandleSerie} from '@models/tes'
 import CandleGridViewer from '@components/grid/CandleGrid'
 import CandleSerieViewer from '@components/compare/candleViewer'
 import { GridEntry } from '@models/tes'
+import SimpleLineChart from '@components/simpleCharts/SimpleLineChart'
+import SimpleAreaChart from '@components/simpleCharts/SimpleAreaChart'
+import SimpleBarChart from '@components/simpleCharts/SimpleBarChart'
+import Alert from 'react-bootstrap/Alert';
+import {  Line,Area,Bar,Rectangle } from 'recharts';
 
 export default function FullTesViewer(){
 
@@ -22,8 +27,10 @@ export default function FullTesViewer(){
 
     const [candleSerie,setCandleSerie]= useState<CandleSerie>({name:'',values:[]})
 
+    const [displayName,setDisplayName] = useState('')
+
     const fetchTesNames = useCallback( async () =>{
-        const {data,error} =   await supabase.schema('xerenity').rpc('get_tes_grid_raw')
+        const {data,error} =   await supabase.schema('xerenity').rpc('get_tes_grid_raw',{money:'COP'})
         
         console.log(data)
 
@@ -40,7 +47,7 @@ export default function FullTesViewer(){
     },[supabase])    
 
     const fetchTesRawData = useCallback( async (view_tes:string) =>{
-        const {data,error} =   await supabase.schema('xerenity').from(view_tes).select().order('day', { ascending: false })
+        const {data,error} =   await supabase.schema('xerenity').from(view_tes).select().order('day', { ascending: true })
         
         if(error){
             setCandleSerie({name:'',values:[]})
@@ -60,6 +67,7 @@ export default function FullTesViewer(){
 
     const handleSelect = (eventKey: any) => {        
         fetchTesRawData(eventKey.target.id)
+        setDisplayName(eventKey.target.placeholder)
     }
 
 
@@ -67,8 +75,56 @@ export default function FullTesViewer(){
         <Container fluid>
             <Row>
                 <Row>
+                    <Col >
+                        <Container>                     
+                            <Alert variant={'light'} style={{ width: '100%', height:'15rem' }}>                            
+                                <SimpleLineChart data={candleSerie.values.map((tes)=>(
+                                            {
+                                                close:tes.close,
+                                                open:tes.open
+                                            }
+                                        ))
+                                    } >
+                                    <Line type="monotone" dot={false} dataKey='close' stroke="#3179F5" strokeWidth={2} />
+                                    <Line type="monotone" dot={false} dataKey='open' stroke="green" strokeWidth={2} />
+                                </SimpleLineChart>                            
+                            </Alert>
+                        </Container>
+                    </Col>
+                    <Col >   
+                        <Container>                     
+                        <Alert variant={'light'} style={{ width: '100%', height:'15rem' }}>                            
+                                <SimpleLineChart data={candleSerie.values.map((tes)=>(
+                                            {
+                                                low:tes.low,
+                                                high:tes.high
+                                            }
+                                        ))
+                                    } >
+                                    <Line type="monotone" dot={false} dataKey='low' stroke="#3179F5" strokeWidth={2} />
+                                    <Line type="monotone" dot={false} dataKey='high' stroke="purple" strokeWidth={2} />
+                                </SimpleLineChart>                            
+                            </Alert>
+                        </Container>
+                    </Col>
+                    <Col >   
+                        <Container>                     
+                            <Alert variant={'light'} style={{ width: '100%', height:'15rem' }}>                            
+                                <SimpleBarChart data={candleSerie.values.map((tes)=>(
+                                            {
+                                                volume:tes.volume
+                                            }
+                                        ))
+                                    } >
+                                    <Bar dataKey="volume" fill="#3179F5" activeBar={<Rectangle/>} />
+                                </SimpleBarChart>
+                            </Alert>
+                        </Container>
+                    </Col>                     
+                </Row>
+                <Row>
                     <Col>
-                        <CandleSerieViewer candleSerie={candleSerie} chartName={candleSerie.name} chartHeight={300} />
+                        <CandleSerieViewer candleSerie={candleSerie} chartName={displayName} />
                     </Col>
                 </Row>
                 <Row>

@@ -84,14 +84,14 @@ export default function InflationViewer(){
     fetchTesData()
   },[fetchTesData])
 
-    const handleCanastaSelect = (eventKey: number|null) => {
+    const handleCanastaSelect = (eventKey: any) => {
       if(eventKey){
         setViewCanasta(eventKey)
         fetchTesRawData(eventKey,-1)
       }
     }
 
-    const handleMonthSelect = (eventKey: number|null) => {
+    const handleMonthSelect = (eventKey: any) => {
       if(eventKey){       
         setMonthChange(eventKey)
         fetchTesRawData(null,eventKey)
