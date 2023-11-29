@@ -80,14 +80,14 @@ export default function AdminLayout({ children }: PropsWithChildren) {
         <link rel="icon" href="/favicon.ico" />
       </Head>
 
-      <div ref={ref} className="position-absolute w-100" />
+      <div ref={ref} className="position-absolute" />
 
       <Sidebar isShow={isShowSidebar} isShowMd={isShowSidebarMd} />
 
       <div className="wrapper d-flex flex-column min-vh-100 bg-light">
         <Header toggleSidebar={toggleIsShowSidebar} toggleSidebarMd={toggleIsShowSidebarMd} />
         <div className="body flex-grow-1 px-sm-2 mb-4">
-          <Container fluid="lg">
+          <Container>
             {children}
           </Container>
         </div>

@@ -122,10 +122,6 @@ export default function SidebarNav() {
         <SidebarNavItem icon={faLineChart}  href="/tes/daily">            
             <small className="ms-auto">COP</small>
         </SidebarNavItem>
-        
-        <SidebarNavItem icon={faLineChart}  href="/tes/daily">            
-            <small className="ms-auto">UVR</small>
-        </SidebarNavItem>
 
       </SidebarNavGroup>
 

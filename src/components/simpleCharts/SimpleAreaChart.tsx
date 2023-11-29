@@ -6,7 +6,7 @@ type SimpleLineProps = {
 } & PropsWithChildren
 
 export default function SimpleAreaChart({data,children}:SimpleLineProps){
-    console.log(data)
+    
     return (
         <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={data}>

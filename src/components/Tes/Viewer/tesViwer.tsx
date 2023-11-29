@@ -65,7 +65,7 @@ export default function TesViever(){
             </Row>
           <Row>
             <Col>
-              <CandleSerieViewer candleSerie={candleSerie} chartName={candleSerie.name} />
+              <CandleSerieViewer candleSerie={candleSerie} chartName={candleSerie.name} otherSeries={[]} fit={true}/>
             </Col>
           </Row>
           <Row>
