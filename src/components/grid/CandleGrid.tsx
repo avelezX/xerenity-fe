@@ -50,12 +50,12 @@ export default function CandleGridViewer({selectCallback,allTes}:GridViewProps){
                                                     <td>{tesValue.prev.toFixed(3)} PBS</td>
                                                 </NewPrevTag>
                                             </td>
-                                            <td>{tesValue.close.toPrecision(3)}</td>
-                                            <td>{tesValue.prev.toPrecision(3)}</td>
-                                            <td>{tesValue.open.toPrecision(3)}</td>
-                                            <td>{tesValue.low.toPrecision(3)}</td>
-                                            <td>{tesValue.high.toPrecision(3)}</td>
-                                            <td>{(tesValue.volume/1000000000).toPrecision(3)} MMM</td>
+                                            <td>{tesValue.close.toFixed(2)}</td>
+                                            <td>{tesValue.prev.toFixed(2)}</td>
+                                            <td>{tesValue.open.toFixed(2)}</td>
+                                            <td>{tesValue.low.toFixed(2)}</td>
+                                            <td>{tesValue.high.toFixed(2)}</td>
+                                            <td>{(tesValue.volume/1000000000).toFixed(2)} MMM</td>
                                             <td>{tesValue.operation_time}</td>
                                         </tr>
                                     ])

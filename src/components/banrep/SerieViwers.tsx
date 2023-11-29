@@ -36,6 +36,7 @@ export default function SeriesViewer(){
           let avgValues = data as BanrepSerieValue[]
           
           avgValues.forEach((avgval)=>{
+            console.log(avgValues[0].valor)
             serieValues.push({
                   value:avgval.valor,
                   time:avgval.fecha.split('T')[0]
