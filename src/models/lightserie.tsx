@@ -8,6 +8,7 @@ export interface LightSerieEntry{
     source_name:string;
     display_name:string;
     grupo:string;
+    fuente:string;
 }
 
 export interface LightSerie{

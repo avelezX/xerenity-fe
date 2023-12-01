@@ -11,8 +11,11 @@ import Nav from 'react-bootstrap/Nav';
 import Navbar from 'react-bootstrap/Navbar';
 import NavDropdown from 'react-bootstrap/NavDropdown';
 import Alert from 'react-bootstrap/Alert';
-
-
+import Spinner from 'react-bootstrap/Spinner';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import {
+  faClose
+} from '@fortawesome/free-solid-svg-icons'
 
 export default function SeriesViewer(){
 
@@ -23,6 +26,8 @@ export default function SeriesViewer(){
     const [selectedSeries,setSelectedSeries]= useState<Map<string,LightSerie>>(new Map())
 
     const [selectionOptions,setSelectionOptions]= useState<Map<string,LightSerieEntry[]>>(new Map())
+
+    const [serieNameInfo,setSerieNameInfo]= useState<Map<string,LightSerieEntry>>(new Map())
 
     const [_selection,setSelection] = useState<string[]>([])
 
@@ -56,8 +61,10 @@ export default function SeriesViewer(){
         let options = data as LightSerieEntry[]
         let mapOptions= new Map<string,LightSerieEntry[]>()
 
+        let serieData= new Map<string,LightSerieEntry>()
+
         options.forEach((entry)=>{
-          
+          serieData.set(entry.source_name,entry);
           if(mapOptions.has(entry.grupo)){
               mapOptions.get(entry.grupo)!.push(entry)
           }else{
@@ -65,7 +72,9 @@ export default function SeriesViewer(){
           }
         })
 
+        console.log(serieData)
         setSelectionOptions(mapOptions)
+        setSerieNameInfo(serieData)
       }else{
         setSelectionOptions(new Map())
       }
@@ -88,27 +97,52 @@ export default function SeriesViewer(){
       }  
       
       setSelection(newSelection)
+      
     },[selectedSeries])
     
+    const handleRemoveSerie = useCallback(async ( serieId: string) => {
+      let newSelection=new Array<string>()
+
+      selectedSeries.delete(serieId)
+      
+      setSelection(newSelection)
+      
+    },[])
+
     return (
         <Container>
             <div>
               <Offcanvas show={showCanvas} onHide={handleCloseCanvas} placement={'end'}>
                 <Offcanvas.Header closeButton>
                   <Offcanvas.Title>
-                    Serie                    
+                    <Row>
+                      <Col>
+                        Series
+                      </Col>
+                      <Col>
+                        {
+                          loadingSerie?
+                          (
+                            <Spinner animation="border" />
+                          ):
+                          (
+                            null
+                          )
+                        }
+                      </Col>
+                    </Row>        
                   </Offcanvas.Title>
                 </Offcanvas.Header>
                 <Offcanvas.Body>
                     <Stack gap={2} >
-                      {                    
-                        
+                      { 
                         Array.from(selectionOptions.entries()).map(([key,value])=>[
                           <Card border="primary" key={`card-${key}`}>                          
                           <Card.Header as="h5">{key}</Card.Header>
                           <Card.Body>                            
                               {
-                                   value.map((serie)=>[                              
+                                   value.map((serie)=>[      
+                                                            
                                     <Form.Check // prettier-ignore
                                         type="switch"
                                         id={`${serie.source_name}`}
@@ -148,6 +182,42 @@ export default function SeriesViewer(){
                 <Col>
                     <CandleSerieViewer candleSerie={null} chartName={''} otherSeries={Array.from(selectedSeries.values())} fit={true}/>
                 </Col>
+            </Row>
+            <Row>
+              <Col>
+                <Table bordered hover>
+                  <thead>
+                    <tr>                      
+                      <th>Nombre</th>
+                      <th>Descripcion</th>
+                      <th>Fuente</th>
+                      <th style={{width:'2%'}}></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {
+                      Array.from(serieNameInfo.entries()).map(([key,value])=>[
+                        selectedSeries.has(key)?
+                        (
+                          <tr>
+                            <td>{value.display_name}</td>
+                            <td>{value.description}</td>
+                            <td>{value.fuente}</td>
+                            <td>
+                              <Button variant="outline-primary">
+                                <FontAwesomeIcon size="xs" icon={faClose} onClick={()=>handleRemoveSerie(value.source_name)} />
+                              </Button>
+                            </td>
+                          </tr>                          
+                        ):
+                        (
+                          null
+                        )
+                      ])
+                    }
+                  </tbody>
+                </Table>
+              </Col>
             </Row>
       </Container>
     )
