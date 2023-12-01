@@ -114,38 +114,11 @@ export default function SidebarNav() {
     <ul className="list-unstyled">
 
       <SidebarNavItem icon={faDashboard}  href="/home">
-            Dashboard            
+        Dashboard            
       </SidebarNavItem>
-
-      <SidebarNavGroup toggleIcon={faInstitution} toggleText="Tes">
-
-        <SidebarNavItem icon={faLineChart}  href="/tes/daily">            
-            <small className="ms-auto">COP</small>
-        </SidebarNavItem>
-
-      </SidebarNavGroup>
-
-      <SidebarNavGroup toggleIcon={faShoppingBasket} toggleText="Canasta">
-
-        <SidebarNavItem icon={faLineChart}  href="/canasta/inflacion">            
-            <small className="ms-auto">Inflacion</small>
-        </SidebarNavItem>
-
-        <SidebarNavItem icon={faLineChart}  href="/canasta/valores">            
-            <small className="ms-auto">Valores</small>
-        </SidebarNavItem>
-
-      </SidebarNavGroup>
-
-      <SidebarNavGroup toggleIcon={faInstitution} toggleText="Banrep">
-
-        <SidebarNavItem icon={faLineChart}  href="/banrep">
-            
-            <small className="ms-auto">Series</small>
-        </SidebarNavItem>
-
-      </SidebarNavGroup> 
-
+      <SidebarNavItem icon={faInstitution}  href="/tes/daily">
+        Tes
+      </SidebarNavItem>
     </ul>
   )
 }

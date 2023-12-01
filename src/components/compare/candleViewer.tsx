@@ -120,11 +120,17 @@ export default function CandleSerieViewer({candleSerie,chartName,otherSeries,fit
 
   return (
       <Card style={{width:'100%',height:'50rem'}}>
-        <Card.Header>
-          <Stack direction='horizontal' gap={5}>
-            <h2>{chartName}</h2>
-          </Stack>
-        </Card.Header>
+        {
+          chartName?
+          (
+            <Card.Header>          
+                <h2>{chartName}</h2>
+            </Card.Header>
+          ):
+          (
+            null
+          )
+        }
         <Card.Body style={{width:'100%',height:'100%'}}>
           <Container id='chartcontainer' style={{width:'100%',height:'100%'}}/>
         </Card.Body>

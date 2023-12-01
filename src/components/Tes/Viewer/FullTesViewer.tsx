@@ -1,5 +1,5 @@
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
-import { Card} from 'react-bootstrap'
+import { Card,Alert,Button} from 'react-bootstrap'
 import React,{ useState, useEffect, useCallback } from "react"
 import Container from 'react-bootstrap/Container'
 import Row from 'react-bootstrap/Row'
@@ -92,7 +92,7 @@ export default function FullTesViewer(){
         setDisplayName(eventKey.target.placeholder)
     }
 
-    const handleCurrenyChange = (eventKey: any) => {                
+    const handleCurrenyChange = (eventKey: string) => {                
         setCurrencyType(eventKey)
     }
 
@@ -103,6 +103,24 @@ export default function FullTesViewer(){
 
     return (
         <Container fluid>
+            <Row>            
+                <Col>
+                  <Alert variant="secondary">
+                    <Row>
+                      <Col sm={1}>
+                        <Button onClick={()=>handleCurrenyChange('COP')}>
+                            COP
+                        </Button>
+                      </Col>
+                      <Col sm={1}>
+                        <Button onClick={()=>handleCurrenyChange('UVR')}>
+                            UVR
+                        </Button>
+                      </Col>                      
+                    </Row>                      
+                  </Alert>                
+                </Col>          
+            </Row>
             <Row>
                 <Col>
                     <CandleSerieViewer candleSerie={candleSerie} chartName={displayName} otherSeries={movingAvg} fit={true}/>
@@ -111,20 +129,6 @@ export default function FullTesViewer(){
             <Row>
                 <Col>
                     <Card >
-                        <Card.Header >
-                            <Nav variant="tabs" defaultActiveKey="COP" onSelect={handleCurrenyChange}>
-                                <Nav.Item>
-                                    <Nav.Link eventKey="COP">
-                                        COP
-                                    </Nav.Link>
-                                </Nav.Item>
-                                <Nav.Item>
-                                    <Nav.Link eventKey="UVR">
-                                        UVR
-                                    </Nav.Link>
-                                </Nav.Item>
-                            </Nav>
-                        </Card.Header>
 
                         <Card.Body>
                             <Row>
