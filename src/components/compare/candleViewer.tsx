@@ -1,91 +1,146 @@
 import Container from 'react-bootstrap/Container'
-import Row from 'react-bootstrap/Row'
-import Col from 'react-bootstrap/Col'
-import React from 'react'
-import {
-  Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  Title,
-  Tooltip,
-  Filler,
-  Legend,
-} from 'chart.js'
-import dynamic from 'next/dynamic'
 import { CandleSerie } from '@models/tes'
-
-const Chart = dynamic(() => import("react-apexcharts"), { ssr: false })
-
-ChartJS.register(
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  Title,
-  Tooltip,
-  Filler,
-  Legend
-)
+import { CandlestickData, HistogramData, Time, WhitespaceData, createChart } from 'lightweight-charts'
+import React, { useEffect } from 'react'
+import { Card } from 'react-bootstrap'
+import { LightSerie } from '@models/lightserie'
 
 type ViewerProps={
-    candleSerie:CandleSerie;
+    candleSerie:CandleSerie | null;
+    otherSeries:LightSerie[] | null;
     chartName:string;
-    chartHeight:number;
+    fit:boolean;
 }
 
-export default function CandleSerieViewer({candleSerie,chartName,chartHeight}:ViewerProps){
+export default function CandleSerieViewer({candleSerie,chartName,otherSeries,fit}:ViewerProps){
 
-    return (
-        <Container>
-          <Row>
-            <Col>
-            {(typeof window !== 'undefined') &&
-              <Chart 
-                options={
-                  {
-                    chart: {
-                      type: 'area',
-                      height: chartHeight                      
-                    },
-                    title: {
-                      text: chartName,
-                      align: 'center'
-                    },
-                    xaxis: {
-                      type: 'datetime'
-                    },
-                    yaxis: {
-                      tooltip: {
-                        enabled: true
-                      },
-                      show: false
-                    },
-                    grid: {
-                      borderColor: '#e7e7e7',
-                      row: {
-                        colors: ['#f3f3f3', 'transparent'],
-                        opacity: 0.5
-                      },
-                    }                  
-                  }
-                } 
-                series={
-                    [
-                      {
-                        data: candleSerie.values.map(tes => ({
-                          x: tes.day,
-                          y: [tes.open,tes.high,tes.low,tes.close]
-                        }))
-                      }
-                    ]
-                }
-                type="candlestick"
-              />              
-              }    
-            </Col>
-          </Row>            
-        </Container>
-    )
+  useEffect(()=>{
+    const container=document.getElementById('chartcontainer')
+
+    if(container){
+      
+      container.innerHTML = ''
+      
+      const element = document.createElement('div')
+      
+      const chartOptions={
+        width: container.offsetWidth,
+        height: container.offsetHeight,
+        type:'solid',
+        color:'transparent',
+        layout: {
+          background: { 
+            color: 'transparent' },
+            textColor: "#C3BCDB",
+        },
+        watermark: {
+          visible: true,
+          fontSize: 100,
+          color: '#212121',
+          text: 'Xerenity',
+        }
+      }
+      
+      const chart = createChart(element,chartOptions)
+
+
+      if(candleSerie){
+        const serieData: (WhitespaceData<Time> | CandlestickData<Time>)[] | { time: string; open: number; high: number; low: number; close: number }[]= []
+        const volData: (WhitespaceData<Time> | HistogramData<Time>)[] | { time: string; value: number }[]= []
+  
+        candleSerie.values.forEach((tes)=>{        
+          
+          serieData.push(
+            {
+              time: tes.day.split('T')[0],
+              open: tes.open, high: tes.high, low: tes.low, close: tes.close
+            }
+          )
+  
+          volData.push(
+            {
+              time: tes.day.split('T')[0],
+              value:tes.volume
+            }
+          )
+        })
+        
+        const volumeSeries = chart.addHistogramSeries(
+          { 
+            color: '#2270E2',
+            priceFormat: {
+              type: 'volume',
+            },
+            priceScaleId: ''
+          }
+        )
+  
+        volumeSeries.priceScale().applyOptions({
+          // set the positioning of the volume series
+          scaleMargins: {
+              top: 0.9, // highest point of the series will be 70% away from the top
+              bottom: 0.0,
+          },
+        })
+  
+        const candlestickSeries = chart.addCandlestickSeries({
+          upColor: '#26a69a', downColor: '#ef5350', borderVisible: true,
+          wickUpColor: '#26a69a', wickDownColor: '#ef5350',
+        })
+  
+        candlestickSeries.setData(serieData)
+  
+        volumeSeries.setData(volData)
+      }
+
+      if(otherSeries){
+        const legend = document.createElement('div')
+        legend.setAttribute('style' , `position: absolute; left: 12px; top: 12px; z-index: 1; font-size: 14px; font-family: sans-serif; line-height: 18px; font-weight: 300;`)
+        container.appendChild(legend)
+        const firstRow = document.createElement('div')
+        let iner: string =''
+        otherSeries.forEach((other)=>{
+          if(other.name){
+            iner=`<a style={{backgroundColor:${other.color}}}>${other.name}</a><br/> ${iner}` 
+          }
+          const otherSerieChart = chart.addLineSeries({ color: other.color })
+          otherSerieChart.setData(other.serie)
+        })
+        firstRow.innerHTML=iner
+        legend.appendChild(firstRow)
+      }
+
+      new ResizeObserver(entries => {
+        if (entries.length === 0 || entries[0].target !== container) { return }        
+        const newRect = entries[0].contentRect
+        chart.applyOptions({ height: newRect.height, width: newRect.width })
+
+      }).observe(container)
+
+      if(fit){
+        chart.timeScale().fitContent()
+      }      
+      
+      container.appendChild(element)
+    }
+  })
+
+  return (
+      <Card style={{width:'100%',height:'50rem'}}>
+        {
+          chartName?
+          (
+            <Card.Header>          
+                <h2>{chartName}</h2>
+            </Card.Header>
+          ):
+          (
+            null
+          )
+        }
+        <Card.Body style={{width:'100%',height:'100%'}}>
+          <Container id='chartcontainer' style={{width:'100%',height:'100%'}}/>
+        </Card.Body>
+      </Card>
+  )
 }

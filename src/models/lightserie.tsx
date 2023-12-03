@@ -1,0 +1,19 @@
+export interface LightSerieValue{
+    value:number;
+    time:string;
+}
+
+export interface LightSerieEntry{
+    description:string;
+    source_name:string;
+    display_name:string;
+    grupo:string;
+    fuente:string;
+}
+
+export interface LightSerie{
+    
+    name:string;
+    color:string;
+    serie:LightSerieValue[];
+}

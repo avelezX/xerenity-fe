@@ -1,111 +1,259 @@
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
-import { Table } from 'react-bootstrap'
-import React,{ useState, useEffect, useCallback } from "react"
-import { BanrepSerieValue,BanrepSerie } from '@models/banrep'
-import Container from 'react-bootstrap/Container'
-import Row from 'react-bootstrap/Row'
-import Col from 'react-bootstrap/Col'
-import NavDropdown from 'react-bootstrap/NavDropdown'
-import Nav from 'react-bootstrap/Nav'
-import DisplaySerie from '@components/compare/CompareSeries'
+import { 
+  Table,
+  Card, 
+  Button,
+  Stack,
+  ListGroup,
+  Offcanvas,
+  Alert,
+  Spinner,
+  Row,
+  Col,
+  Container
+} from 'react-bootstrap'
+import React,{ useState, useEffect, useCallback, ChangeEvent } from "react"
+import { LightSerie,LightSerieValue,LightSerieEntry } from '@models/lightserie'
+import CandleSerieViewer from '@components/compare/candleViewer'
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import {
+  faClose
+} from '@fortawesome/free-solid-svg-icons'
+import SeriePicker from '@components/serie/SeriePicker'
 
 export default function SeriesViewer(){
-    const [tesList,setTesList] = useState<BanrepSerieValue[]>([])
-    
-    const [options,setOptions] = useState<BanrepSerie[]>([])
-    
-    const [viewCanasta, setViewCanasta] = useState('')    
+
+    const [loadingSerie,setLowdingSerie]= useState(false)
+
+    const [showCanvas, setShowCanvas] = useState(false)
+
+    const [selectedSeries,setSelectedSeries]= useState<Map<string,LightSerie>>(new Map())
+
+    const [selectionOptions,setSelectionOptions]= useState<Map<string,LightSerieEntry[]>>(new Map())
+
+    const [serieNameInfo,setSerieNameInfo]= useState<Map<string,LightSerieEntry>>(new Map())
 
     const supabase = createClientComponentClient()
+
+    const handleCloseCanvas = () => setShowCanvas(false)
+
+    const handleShowCanvas = () => setShowCanvas(true)
     
-    const fetchTesRawData = useCallback( async (view_canasta:string) =>{
-        const {data,error} =   await supabase.schema('xerenity').from('banrep_serie_value').select('*').eq('id_serie',view_canasta).order('fecha', { ascending: false })
-        
-        if(error){            
-            setTesList([])
-        }
-
-        if(data){
-            setTesList(data as BanrepSerieValue[])
-            setViewCanasta(view_canasta)
-        }else{
-            setTesList([] as BanrepSerieValue[])
-        }
-
-    },[supabase])
-
-    const fetchData = useCallback( async () =>{
-        const {data,error} =   await supabase.schema('xerenity').from('banrep_serie').select()
+    const FetchSerieValues = async (idSerie:string,newColor:string) =>{
+     
+      const {data,error} = await await supabase.schema('xerenity').rpc('search',{name:idSerie})
       
       if(error){
-          setOptions([])
+        return {serie:[],color:'',name:''} as LightSerie
+      }
+      if(data){        
+        return {
+          serie:data.data as LightSerieValue[],
+          color:newColor,
+          name:serieNameInfo.get(idSerie)?.display_name
+        } as LightSerie     
+      }
+            
+      return {serie:[],color:'',name:''} as LightSerie
+    }
+
+    const fetchData = useCallback( async () =>{
+        const {data,error} =   await supabase.schema('xerenity').from('search').select()
+      
+      if(error){
+        setSelectionOptions(new Map())
       }
 
       if(data){
-        setOptions(data as BanrepSerie[])
+        const options = data as LightSerieEntry[]
+        const mapOptions= new Map<string,LightSerieEntry[]>()
+
+        const serieData= new Map<string,LightSerieEntry>()
+
+        options.forEach((entry)=>{
+          serieData.set(entry.source_name,entry)
+          if(mapOptions.has(entry.grupo)){
+              mapOptions.get(entry.grupo)?.push(entry)
+          }else{
+              mapOptions.set(entry.grupo,[entry])
+          }
+        })
+
+        setSelectionOptions(mapOptions)
+        setSerieNameInfo(serieData)
       }else{
-        setOptions([] as BanrepSerie[])
+        setSelectionOptions(new Map())
       }
 
   },[supabase])
 
-  useEffect(()=>{
-    fetchData()
-  },[fetchData])
+    useEffect(()=>{
+      fetchData()
+    },[fetchData])
 
-    const handleSelect = (eventKey: any) => {        
-        fetchTesRawData(`${eventKey}`)
-    }
 
+    const handleCheckboxChange = useCallback(async (event: ChangeEvent<HTMLInputElement>, checkboxId: string,color:string) => {
+      
+      setLowdingSerie(true)
+
+      const newSelection=new Map<string,LightSerie>()
+      
+      Array.from(selectedSeries.entries()).forEach(([key,value])=>{
+        newSelection.set(key,value)
+      })
+      if(event.target.checked){
+        newSelection.set(checkboxId,await FetchSerieValues(checkboxId,color)) 
+      }else{        
+        newSelection.delete(checkboxId)
+      }
+
+      setSelectedSeries(newSelection)
+
+      setLowdingSerie(false)
+      
+    },[selectedSeries,setSelectedSeries,FetchSerieValues])
     
+    const handleColorChnage = useCallback(async ( checkboxId: string,newColor:string) => {        
+      const newSelection=new Map<string,LightSerie>()
+      
+      Array.from(selectedSeries.entries()).forEach(([key,value])=>{        
+        if(key===checkboxId){          
+          newSelection.set(key,{serie:value.serie,color:newColor,name:value.name})
+        }else{
+          newSelection.set(key,value)
+        }
+      })      
+
+      setSelectedSeries(newSelection)      
+      
+    },[selectedSeries])
+
+    const handleRemoveSerie = useCallback(async ( serieId: string) => {
+      const newSelection=new Map<string,LightSerie>()
+      
+      Array.from(selectedSeries.entries()).forEach(([key,value])=>{
+        
+        newSelection.set(key,value)
+      })
+
+      newSelection.delete(serieId)
+
+      setSelectedSeries(newSelection)
+    },[selectedSeries])
+
     return (
         <Container>
-            <Row>
-              <Nav variant="pills" activeKey="1" onSelect={handleSelect}>
-                  <NavDropdown title="Seleccionar Canasta" id="nav-dropdown">
-                    {options.map((option) => (                    
-                      <NavDropdown.Item key={option.id} eventKey={option.id} >{option.nombre}</NavDropdown.Item>
-                    ))}                  
-                  </NavDropdown>
-              </Nav>
+            <div>
+              <Offcanvas show={showCanvas} onHide={handleCloseCanvas} placement='end'>
+                <Offcanvas.Header closeButton>
+                  <Offcanvas.Title>
+                    <Row>
+                      <Col>
+                        Series
+                      </Col>
+                      <Col>
+                        {
+                          loadingSerie?
+                          (
+                            <Spinner animation="border" />
+                          ):
+                          (
+                            null
+                          )
+                        }
+                      </Col>
+                    </Row>        
+                  </Offcanvas.Title>
+                </Offcanvas.Header>
+                <Offcanvas.Body>
+                    <Stack gap={3} >
+                      { 
+                        Array.from(selectionOptions.entries()).map(([key,value])=>[
+                          <Card border="primary" key={`card-${key}`}>                          
+                          <Card.Header as="h5">{key}</Card.Header>
+                          <Card.Body>
+                            <Stack gap={2}>                            
+                              {
+                                   value.map((serie)=>[      
+                                    
+                                      <SeriePicker key={`serie-${serie.source_name}`}
+                                        handleSeriePick={handleCheckboxChange} 
+                                        handleColorPicker={handleColorChnage}
+                                        displayName={serie.display_name} 
+                                        serieID={serie.source_name} 
+                                        disable={loadingSerie} 
+                                        checked={selectedSeries.has(serie.source_name)}
+                                       />
+                                    
+                                  ])
+                                }
+                              </Stack>                         
+                          </Card.Body>
+                        </Card>                            
+                        ])
+                      }
+                    </Stack>
+                </Offcanvas.Body>
+              </Offcanvas>    
+              </div>
+            <Row>            
+                <Col>
+                  <Alert variant="secondary">
+                    <Row>
+                      <Col>
+                        <Button onClick={handleShowCanvas}>
+                          Seleccionar series
+                        </Button>
+                      </Col>
+                    </Row>                      
+                  </Alert>                
+                </Col>          
             </Row>
             <Row>
-              <DisplaySerie allSeries={
-                [
-                  {
-                    name:'Inflacion existente',
-                     values: tesList.map((ser)=>(
-                        {
-                          fecha:ser.fecha,
-                          value:ser.valor
-                        }
-                      )
-                    )
-                  }
-                ]
-                } chartName={viewCanasta}/>
-          </Row>
-          {' '}
-          <Row>
-            <Col>
-            <Table striped bordered hover>
-                <thead>
-                  <tr>
-                    <th>Fecha</th>
-                    <th>Valor</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {tesList.map((tes) => (
-                    <tr key={`tr-${tes.fecha}`}>
-                      <td>{tes.fecha}</td>
-                      <td>{tes.valor}</td>
+                <Col>
+                    <CandleSerieViewer candleSerie={null} chartName='' otherSeries={Array.from(selectedSeries.values())} fit/>
+                </Col>
+            </Row>
+            <Row>
+              <Col>
+                <Table bordered hover>
+                  <thead>
+                    <tr>                      
+                      <th>Nombre</th>
+                      <th>Descripcion</th>
+                      <th>Fuente</th>
+                      <th style={{width:'2%'}}> Quitar</th>
                     </tr>
-                  ))}
-                </tbody>
-              </Table>
-            </Col>
-          </Row>
+                  </thead>
+                  <tbody>
+                    {
+                      Array.from(serieNameInfo.entries()).map(([key,value])=>[
+                        selectedSeries.has(key)?
+                        (
+                          <tr key={`t-row-serie${key}`}>
+                            <td>
+                              <ListGroup >
+                                    <ListGroup.Item  style={{backgroundColor:selectedSeries.get(key)?.color}}>{value.display_name}</ListGroup.Item>
+                              </ListGroup>
+                            </td>
+                            <td>{value.description}</td>
+                            <td>{value.fuente}</td>
+                            <td>
+                              <Button variant="outline-primary" >
+                                <FontAwesomeIcon size="xs" icon={faClose} onClick={()=>handleRemoveSerie(value.source_name)} />
+                              </Button>
+                            </td>
+                          </tr>                          
+                        ):
+                        (
+                          null
+                        )
+                      ])
+                    }
+                  </tbody>
+                </Table>
+              </Col>
+            </Row>
       </Container>
     )
 }

@@ -1,5 +1,5 @@
 export interface SerieValue{
-    fecha:string;
+    time:string;
     value:number;
 }
 

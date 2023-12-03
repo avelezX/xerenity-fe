@@ -1,12 +1,12 @@
 import React from 'react'
 import { AdminLayout } from '@layout'
 import type { NextPage } from 'next'
-import TesViever from '@components/Tes/Viewer/tesViwer'
+import FullTesViewer from '@components/Tes/Viewer/FullTesViewer'
 
-const Home: NextPage = () => (
-  
+
+const Home: NextPage = () => (  
   <AdminLayout>
-      <TesViever />
+      <FullTesViewer />
   </AdminLayout>
 )
 
