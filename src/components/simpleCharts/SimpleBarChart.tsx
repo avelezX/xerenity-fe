@@ -1,8 +1,9 @@
-import React, { PropsWithChildren } from 'react';
-import { BarChart,Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import React, { PropsWithChildren } from 'react'
+import { BarChart,Tooltip, Legend, ResponsiveContainer } from 'recharts'
+import { LightSerieValue } from '@models/lightserie'
 
 type SimpleLineProps = {
-    data:any[];
+    data:LightSerieValue[];
 } & PropsWithChildren
 
 export default function SimpleBarChart({data,children}:SimpleLineProps){

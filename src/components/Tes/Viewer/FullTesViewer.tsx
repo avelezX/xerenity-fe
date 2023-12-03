@@ -1,16 +1,15 @@
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
-import { Card,Alert,Button} from 'react-bootstrap'
-import React,{ useState, useEffect, useCallback } from "react"
+import { Card,Alert,Button, Stack,Row,Col,Form} from 'react-bootstrap'
+import React,{ useState, useEffect, useCallback, ChangeEvent } from "react"
 import Container from 'react-bootstrap/Container'
-import Row from 'react-bootstrap/Row'
-import Col from 'react-bootstrap/Col'
-import Nav from 'react-bootstrap/Nav'
-import {TesYields,CandleSerie} from '@models/tes'
+
+import {TesYields,CandleSerie,GridEntry} from '@models/tes'
 import CandleGridViewer from '@components/grid/CandleGrid'
 import CandleSerieViewer from '@components/compare/candleViewer'
-import { GridEntry } from '@models/tes'
+
 import { LightSerie,LightSerieValue } from '@models/lightserie'
 import { MovingAvgValue } from '@models/movingAvg'
+import { getHexColor } from '@models/hexColors'
 
 export default function FullTesViewer(){
 
@@ -64,28 +63,28 @@ export default function FullTesViewer(){
         const {data,error} =   await supabase.schema('xerenity').rpc('tes_moving_average',{tes_name:serieId,average_days:movingAvgDays})
         
         if(error){
-            console.log(error)
+            setMovingAvg([])
         }
 
         if(data){            
-            let avgValues = data.moving_avg as MovingAvgValue[]
-            let avgSerie = Array<LightSerieValue>()
+            const avgValues = data.moving_avg as MovingAvgValue[]
+            const avgSerie = Array<LightSerieValue>()
             avgValues.forEach((avgval)=>{
                 avgSerie.push({
                     value:avgval.avg,
                     time:avgval.close_date.split('T')[0]
                 })
             })
-            setMovingAvg([{serie:avgSerie}])
+            setMovingAvg([{serie:avgSerie,color:getHexColor(1),name:''}])
         }
 
-    },[supabase,serieId,movingAvgDays])    
+    },[supabase,serieId,movingAvgDays,setMovingAvg])    
 
     useEffect(()=>{
         fetchTesNames()
       },[fetchTesNames])
 
-    const handleSelect = (eventKey: any) => {
+    const handleSelect = (eventKey: ChangeEvent<HTMLFormElement>) => {
         setSerieId(eventKey.target.id)
         fetchTesRawData(eventKey.target.id)
         fetchTesMvingAvg()
@@ -96,8 +95,8 @@ export default function FullTesViewer(){
         setCurrencyType(eventKey)
     }
 
-    const handleRangeChnage = (eventKey: any) => {                
-        setMovingAvgDays(eventKey.target.value)
+    const handleMonthChnage = (eventKey: number) => {                
+        setMovingAvgDays(eventKey)
         fetchTesMvingAvg()
     }
 
@@ -116,6 +115,35 @@ export default function FullTesViewer(){
                         <Button onClick={()=>handleCurrenyChange('UVR')}>
                             UVR
                         </Button>
+                      </Col>
+                      <Col sm={{offset:1}}>
+                        <Form>
+                            <Stack direction='horizontal' gap={3}>
+                                <a>Promedio Movible </a>
+                                <Form.Check                                        
+                                        label="20"
+                                        name="group1"
+                                        type="radio"
+                                        id='inline-20days-1'
+                                        onChange={()=>handleMonthChnage(20)}
+                                    />
+                                <Form.Check
+                                        
+                                        label="30"
+                                        name="group1"
+                                        type="radio"
+                                        id='inline-30days-2'
+                                        onChange={()=>handleMonthChnage(30)}
+                                    />
+                                <Form.Check
+                                        label="50"
+                                        name="group1"
+                                        type="radio"
+                                        id='inline-50days'
+                                        onChange={()=>handleMonthChnage(50)}
+                                    />                            
+                            </Stack>
+                        </Form>
                       </Col>                      
                     </Row>                      
                   </Alert>                
@@ -123,17 +151,24 @@ export default function FullTesViewer(){
             </Row>
             <Row>
                 <Col>
-                    <CandleSerieViewer candleSerie={candleSerie} chartName={displayName} otherSeries={movingAvg} fit={true}/>
+                    <CandleSerieViewer 
+                        candleSerie={candleSerie} 
+                        chartName={displayName} 
+                        otherSeries={movingAvg} 
+                        fit 
+                    />
                 </Col>
             </Row>
             <Row>
                 <Col>
                     <Card >
-
                         <Card.Body>
                             <Row>
                                 <Col>
-                                    <CandleGridViewer selectCallback={handleSelect} allTes={options}/>
+                                    <CandleGridViewer 
+                                        selectCallback={handleSelect} 
+                                        allTes={options}
+                                    />
                                 </Col>
                             </Row>                            
                         </Card.Body>

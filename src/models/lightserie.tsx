@@ -13,5 +13,7 @@ export interface LightSerieEntry{
 
 export interface LightSerie{
     
-    serie:LightSerieValue[]
+    name:string;
+    color:string;
+    serie:LightSerieValue[];
 }

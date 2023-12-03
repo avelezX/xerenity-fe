@@ -15,9 +15,24 @@ import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import Collapse from 'react-bootstrap/Collapse'
 import Badge from 'react-bootstrap/Badge'
 
+interface MyFormData{
+  username:string;
+  password:string;
+}
+
 const Login: NextPage = () => {
 
   const router = useRouter()
+
+  const [formData, setFormData] = useState<MyFormData>({
+    username: '',
+    password: '',
+  })
+  
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target
+    setFormData((prevData) => ({ ...prevData, [name]: value }))
+  }
   
   const [submitting, setSubmitting] = useState(false)
   
@@ -40,15 +55,13 @@ const Login: NextPage = () => {
   const login = async (e: React.FormEvent<HTMLFormElement>) => {
     e.stopPropagation()
     e.preventDefault()
-
     setSubmitting(true)
-    
-    const username = e.target[0].value
-    const password = e.target[1].value
+
+    const { username, password } = formData
 
     const res = await supabase.auth.signInWithPassword({
       email:username,
-      password:password
+      password
     })
 
     if (res.error) {
@@ -67,7 +80,6 @@ const Login: NextPage = () => {
         <Row className="justify-content-center align-items-center px-3">
           <Col lg={8}>
             <Row>
-
               <Col md={7} className="bg-white border p-5">
                 <div className="">
                   <h1>Login</h1>
@@ -86,6 +98,7 @@ const Login: NextPage = () => {
                         disabled={submitting}
                         placeholder="Username"
                         aria-label="Username"
+                        onChange={handleChange}
                       />
                     </InputGroup>
 
@@ -103,6 +116,7 @@ const Login: NextPage = () => {
                         disabled={submitting}
                         placeholder="Password"
                         aria-label="Password"
+                        onChange={handleChange}
                       />
                     </InputGroup>
                     <Row>

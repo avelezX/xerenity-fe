@@ -1,24 +1,15 @@
 import Container from 'react-bootstrap/Container'
 import { CandleSerie } from '@models/tes'
-import { createChart } from 'lightweight-charts'
+import { CandlestickData, HistogramData, Time, WhitespaceData, createChart } from 'lightweight-charts'
 import React, { useEffect } from 'react'
-import { Card, Stack } from 'react-bootstrap'
+import { Card } from 'react-bootstrap'
 import { LightSerie } from '@models/lightserie'
 
 type ViewerProps={
     candleSerie:CandleSerie | null;
-    otherSeries:LightSerie[] | null
+    otherSeries:LightSerie[] | null;
     chartName:string;
     fit:boolean;
-}
-
-const randomColor = (): string => {
-  let result = '';
-  for (let i = 0; i < 6; ++i) {
-    const value = Math.floor(16 * Math.random());
-    result += value.toString(16);
-  }
-  return '#' + result;
 }
 
 export default function CandleSerieViewer({candleSerie,chartName,otherSeries,fit}:ViewerProps){
@@ -28,9 +19,9 @@ export default function CandleSerieViewer({candleSerie,chartName,otherSeries,fit
 
     if(container){
       
-      container.innerHTML = '';
+      container.innerHTML = ''
       
-      const element = document.createElement('div');
+      const element = document.createElement('div')
       
       const chartOptions={
         width: container.offsetWidth,
@@ -39,17 +30,23 @@ export default function CandleSerieViewer({candleSerie,chartName,otherSeries,fit
         color:'transparent',
         layout: {
           background: { 
-            color: "#ffffff" },
+            color: 'transparent' },
             textColor: "#C3BCDB",
+        },
+        watermark: {
+          visible: true,
+          fontSize: 100,
+          color: '#212121',
+          text: 'Xerenity',
         }
       }
       
-      const chart = createChart(element,chartOptions);
+      const chart = createChart(element,chartOptions)
 
 
       if(candleSerie){
-        let serieData= new Array()
-        let volData= new Array()
+        const serieData: (WhitespaceData<Time> | CandlestickData<Time>)[] | { time: string; open: number; high: number; low: number; close: number }[]= []
+        const volData: (WhitespaceData<Time> | HistogramData<Time>)[] | { time: string; value: number }[]= []
   
         candleSerie.values.forEach((tes)=>{        
           
@@ -70,13 +67,13 @@ export default function CandleSerieViewer({candleSerie,chartName,otherSeries,fit
         
         const volumeSeries = chart.addHistogramSeries(
           { 
-            color: '#3179F5',
+            color: '#2270E2',
             priceFormat: {
               type: 'volume',
             },
             priceScaleId: ''
           }
-        );
+        )
   
         volumeSeries.priceScale().applyOptions({
           // set the positioning of the volume series
@@ -84,12 +81,12 @@ export default function CandleSerieViewer({candleSerie,chartName,otherSeries,fit
               top: 0.9, // highest point of the series will be 70% away from the top
               bottom: 0.0,
           },
-        });
+        })
   
         const candlestickSeries = chart.addCandlestickSeries({
           upColor: '#26a69a', downColor: '#ef5350', borderVisible: true,
           wickUpColor: '#26a69a', wickDownColor: '#ef5350',
-        });
+        })
   
         candlestickSeries.setData(serieData)
   
@@ -97,21 +94,31 @@ export default function CandleSerieViewer({candleSerie,chartName,otherSeries,fit
       }
 
       if(otherSeries){
+        const legend = document.createElement('div')
+        legend.setAttribute('style' , `position: absolute; left: 12px; top: 12px; z-index: 1; font-size: 14px; font-family: sans-serif; line-height: 18px; font-weight: 300;`)
+        container.appendChild(legend)
+        const firstRow = document.createElement('div')
+        let iner: string =''
         otherSeries.forEach((other)=>{
-          const otherSerieChart = chart.addLineSeries({ color: randomColor() });      
+          if(other.name){
+            iner=`<a style={{backgroundColor:${other.color}}}>${other.name}</a><br/> ${iner}` 
+          }
+          const otherSerieChart = chart.addLineSeries({ color: other.color })
           otherSerieChart.setData(other.serie)
         })
+        firstRow.innerHTML=iner
+        legend.appendChild(firstRow)
       }
 
       new ResizeObserver(entries => {
-        if (entries.length === 0 || entries[0].target !== container) { return; }        
-        const newRect = entries[0].contentRect;
-        chart.applyOptions({ height: newRect.height, width: newRect.width });       
+        if (entries.length === 0 || entries[0].target !== container) { return }        
+        const newRect = entries[0].contentRect
+        chart.applyOptions({ height: newRect.height, width: newRect.width })
 
-      }).observe(container);
+      }).observe(container)
 
       if(fit){
-        chart.timeScale().fitContent();
+        chart.timeScale().fitContent()
       }      
       
       container.appendChild(element)

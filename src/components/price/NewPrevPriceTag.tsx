@@ -1,6 +1,6 @@
-import { Badge, Card, Col, Stack, Row } from 'react-bootstrap'
-import React,{ useState, useEffect, useCallback,PropsWithChildren } from "react"
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { Badge,  Col,  Row } from 'react-bootstrap'
+import React,{ PropsWithChildren } from "react"
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import {
     faArrowDown,
     faArrowUp,
@@ -13,9 +13,10 @@ type NewPrevProps = {
 } & PropsWithChildren
 
 export default function NewPrevTag(props:NewPrevProps){
+    const { current, prev,children } = props
     let bg
     let icn
-    if(props.current - props.prev <=0){
+    if(current - prev <=0){
         bg='success'
         icn=faArrowUp
     }else{
@@ -29,7 +30,7 @@ export default function NewPrevTag(props:NewPrevProps){
                     <FontAwesomeIcon icon={icn}/>
                 </Col>
                 <Col>
-                    {props.children}
+                    {children}
                 </Col>
             </Row>            
         </Badge>

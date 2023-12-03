@@ -1,8 +1,10 @@
-import React, { PropsWithChildren } from 'react';
-import { AreaChart,Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import React, { PropsWithChildren } from 'react'
+import { AreaChart,Tooltip, Legend, ResponsiveContainer } from 'recharts'
+import { LightSerieValue } from '@models/lightserie'
+
 
 type SimpleLineProps = {
-    data:any[];
+    data:LightSerieValue[];
 } & PropsWithChildren
 
 export default function SimpleAreaChart({data,children}:SimpleLineProps){
