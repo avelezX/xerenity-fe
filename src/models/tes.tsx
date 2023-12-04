@@ -36,3 +36,26 @@ export interface GridEntry{
   displayname:string;
   operation_time:string;  
 }
+
+export function GridEntryToArray(entry:GridEntry){
+  return [
+    entry.open.toString(),
+    entry.high.toString(),
+    entry.low.toString(),
+    entry.close.toString(),
+    entry.volume.toString(),
+    entry.displayname.toString(),
+    entry.operation_time.toString(),
+  ]
+}
+
+export function TesEntryToArray(entry:TesYields){
+  return [
+    entry.open.toFixed(2).toString(),
+    entry.high.toFixed(2).toString(),
+    entry.low.toFixed(2).toString(),
+    entry.close.toFixed(2).toString(),
+    entry.volume.toString(),
+    entry.day.toString(),
+  ]
+}
