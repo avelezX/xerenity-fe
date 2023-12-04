@@ -278,7 +278,7 @@ export default function SeriesViewer(){
                             <td>{value.description}</td>
                             <td>{value.fuente}</td>
                             <td>
-                              <Button variant="outline-primary" >
+                              <Button aria-label="descargar" variant="outline-primary" >
                                 <FontAwesomeIcon size="xs" icon={faClose} onClick={()=>handleRemoveSerie(value.source_name)} />
                               </Button>
                             </td>
