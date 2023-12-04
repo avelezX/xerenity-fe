@@ -10,16 +10,20 @@ import {
   Spinner,
   Row,
   Col,
-  Container
+  Container,
+  Badge
 } from 'react-bootstrap'
 import React,{ useState, useEffect, useCallback, ChangeEvent } from "react"
-import { LightSerie,LightSerieValue,LightSerieEntry } from '@models/lightserie'
+import { LightSerie,LightSerieValue,LightSerieEntry,LightSerieValueArray } from '@models/lightserie'
 import CandleSerieViewer from '@components/compare/candleViewer'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import {
-  faClose
+  faClose,
+  faDownLong,
+  faList
 } from '@fortawesome/free-solid-svg-icons'
 import SeriePicker from '@components/serie/SeriePicker'
+import { ExportToCsv,downloadBlob } from '@components/csvDownload/cscDownload'
 
 export default function SeriesViewer(){
 
@@ -141,6 +145,29 @@ export default function SeriesViewer(){
       setSelectedSeries(newSelection)
     },[selectedSeries])
 
+    const downloadSeries = () => {                
+      const allValues: string[][]=[]
+      allValues.push([
+          'serie',
+          'time',
+          'value'
+      ]
+      )
+      
+      Array.from(selectedSeries.values()).forEach((value)=>{
+        value.serie.forEach((entry)=>{
+          allValues.push([
+            value.name
+          ].concat(LightSerieValueArray(entry)))
+          
+        })        
+      })
+
+      const csv=ExportToCsv(allValues)
+
+      downloadBlob(csv, 'xerenity_series.csv', 'text/csv;charset=utf-8;')
+  }  
+
     return (
         <Container>
             <div>
@@ -200,11 +227,23 @@ export default function SeriesViewer(){
                 <Col>
                   <Alert variant="secondary">
                     <Row>
-                      <Col>
+                      <Col sm={3}>
                         <Button onClick={handleShowCanvas}>
-                          Seleccionar series
+                        <Stack direction='horizontal' gap={1}>                            
+                            <Badge bg="secondary"><FontAwesomeIcon size="xs" icon={faList} /></Badge>
+                            Seleccionar serie
+                          </Stack>
                         </Button>
                       </Col>
+
+                      <Col sm={3}>
+                        <Button onClick={downloadSeries}>
+                          <Stack direction='horizontal' gap={1}>                            
+                            <Badge bg="secondary"><FontAwesomeIcon size="xs" icon={faDownLong} /></Badge>
+                            Descargar
+                          </Stack>
+                        </Button>
+                      </Col>                      
                     </Row>                      
                   </Alert>                
                 </Col>          

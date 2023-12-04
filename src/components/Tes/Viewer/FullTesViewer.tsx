@@ -1,15 +1,20 @@
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
-import { Card,Alert,Button, Stack,Row,Col,Form} from 'react-bootstrap'
+import { Card,Alert,Button, Stack,Row,Col,Form,Badge} from 'react-bootstrap'
 import React,{ useState, useEffect, useCallback, ChangeEvent } from "react"
 import Container from 'react-bootstrap/Container'
 
-import {TesYields,CandleSerie,GridEntry} from '@models/tes'
+import {TesYields,CandleSerie,GridEntry,TesEntryToArray} from '@models/tes'
 import CandleGridViewer from '@components/grid/CandleGrid'
 import CandleSerieViewer from '@components/compare/candleViewer'
 
 import { LightSerie,LightSerieValue } from '@models/lightserie'
 import { MovingAvgValue } from '@models/movingAvg'
 import { getHexColor } from '@models/hexColors'
+import { ExportToCsv,downloadBlob } from '@components/csvDownload/cscDownload'
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import {
+  faDownLong
+} from '@fortawesome/free-solid-svg-icons'
 
 export default function FullTesViewer(){
 
@@ -100,6 +105,26 @@ export default function FullTesViewer(){
         fetchTesMvingAvg()
     }
 
+    const downloadGrid = () => {                
+        const allValues: string[][]=[]
+        allValues.push([
+            'open',
+            'high',
+            'low',
+            'close',
+            'volume',
+            'day',
+        ]
+        )
+        candleSerie.values.forEach((entry)=>{
+            allValues.push(TesEntryToArray(entry))
+        })
+
+        const csv=ExportToCsv(allValues)
+
+        downloadBlob(csv,`xerenity_${displayName}.csv`, 'text/csv;charset=utf-8;')
+    }    
+
     return (
         <Container fluid>
             <Row>            
@@ -114,6 +139,14 @@ export default function FullTesViewer(){
                       <Col sm={1}>
                         <Button onClick={()=>handleCurrenyChange('UVR')}>
                             UVR
+                        </Button>
+                      </Col>
+                      <Col  sm={2}>
+                        <Button onClick={downloadGrid}>
+                            <Stack direction='horizontal' gap={1}>                            
+                                <Badge bg="secondary"><FontAwesomeIcon size="xs" icon={faDownLong} /></Badge>
+                            Descargar
+                          </Stack>
                         </Button>
                       </Col>
                       <Col sm={{offset:1}}>

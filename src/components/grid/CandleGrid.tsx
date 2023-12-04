@@ -10,7 +10,7 @@ export interface GridViewProps{
 }
 
 export default function CandleGridViewer({selectCallback,allTes}:GridViewProps){
-
+    
     return (        
         <Form onChange={(e)=>selectCallback(e as ChangeEvent<HTMLFormElement>)}>
             <Table hover>

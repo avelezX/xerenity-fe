@@ -3,6 +3,10 @@ export interface LightSerieValue{
     time:string;
 }
 
+export function LightSerieValueArray(entry:LightSerieValue){
+    return [entry.time.toString(),entry.value.toFixed(2).toString()]
+}
+
 export interface LightSerieEntry{
     description:string;
     source_name:string;
