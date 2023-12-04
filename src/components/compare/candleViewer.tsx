@@ -36,7 +36,7 @@ export default function CandleSerieViewer({candleSerie,chartName,otherSeries,fit
         watermark: {
           visible: true,
           fontSize: 100,
-          color: '#212121',
+          color: '#D3D3D3',
           text: 'Xerenity',
         }
       }
