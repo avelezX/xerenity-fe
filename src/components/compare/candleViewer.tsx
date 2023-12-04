@@ -71,7 +71,8 @@ export default function CandleSerieViewer({candleSerie,chartName,otherSeries,fit
             priceFormat: {
               type: 'volume',
             },
-            priceScaleId: ''
+            priceScaleId: 'volume'
+            
           }
         )
   
@@ -83,10 +84,17 @@ export default function CandleSerieViewer({candleSerie,chartName,otherSeries,fit
           },
         })
   
-        const candlestickSeries = chart.addCandlestickSeries({
-          upColor: '#26a69a', downColor: '#ef5350', borderVisible: true,
-          wickUpColor: '#26a69a', wickDownColor: '#ef5350',
-        })
+        const candlestickSeries = chart.addCandlestickSeries(
+          {
+              upColor: '#26a69a', 
+              downColor: '#ef5350',
+              borderVisible: true,
+              wickUpColor: '#26a69a', 
+              wickDownColor: '#ef5350',
+              priceScaleId: 'right',
+              
+          }
+        )
   
         candlestickSeries.setData(serieData)
   
@@ -99,11 +107,20 @@ export default function CandleSerieViewer({candleSerie,chartName,otherSeries,fit
         container.appendChild(legend)
         const firstRow = document.createElement('div')
         let iner: string =''
-        otherSeries.forEach((other)=>{
+        otherSeries.forEach((other,index)=>{
           if(other.name){
             iner=`<a style={{backgroundColor:${other.color}}}>${other.name}</a><br/> ${iner}` 
           }
-          const otherSerieChart = chart.addLineSeries({ color: other.color })
+          
+          const otherSerieChart = chart.addLineSeries(
+            { 
+              color: other.color,
+              priceScaleId: index===0?('right'):(other.name),
+              priceFormat: {
+                type: 'price'
+              } 
+            }
+          )
           otherSerieChart.setData(other.serie)
         })
         firstRow.innerHTML=iner
