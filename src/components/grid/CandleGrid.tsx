@@ -44,7 +44,7 @@ export default function CandleGridViewer({selectCallback,allTes}:GridViewProps){
                                     </td>
                                     <td>                                        
                                         <NewPrevTag current={tesValue.close} prev={tesValue.prev} > 
-                                            <td>{tesValue.prev.toFixed(3)} PBS</td>
+                                            {((tesValue.prev-tesValue.close)*100).toFixed(1)} bps
                                         </NewPrevTag>
                                     </td>
                                     <td>{tesValue.close.toFixed(2)}</td>
