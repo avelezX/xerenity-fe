@@ -1,5 +1,5 @@
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
-import { Card,Alert,Button, Stack,Row,Col,Form,Badge} from 'react-bootstrap'
+import { Card,Row,Col,Nav,Form,Stack,Dropdown,NavItem,NavLink} from 'react-bootstrap'
 import React,{ useState, useEffect, useCallback, ChangeEvent } from "react"
 import Container from 'react-bootstrap/Container'
 
@@ -13,8 +13,9 @@ import { getHexColor } from '@models/hexColors'
 import { ExportToCsv,downloadBlob } from '@components/csvDownload/cscDownload'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import {
-  faDownLong
+  faFileCsv
 } from '@fortawesome/free-solid-svg-icons'
+
 
 export default function FullTesViewer(){
 
@@ -57,22 +58,22 @@ export default function FullTesViewer(){
         }
 
         if(data){            
-            setCandleSerie({name:view_tes,values:data as TesYields[]})
+            setCandleSerie({name:view_tes,values:data as TesYields[]})            
         }else{
             setCandleSerie({name:'',values:[]})
         }
 
     },[supabase])
 
-    const fetchTesMvingAvg = useCallback( async () =>{
-        const {data,error} =   await supabase.schema('xerenity').rpc('tes_moving_average',{tes_name:serieId,average_days:movingAvgDays})
+    const fetchTesMvingAvg = useCallback( async (selected_name:string,moving_days:number) =>{
+        const data =   await supabase.schema('xerenity').rpc('tes_moving_average',{tes_name:selected_name,average_days:moving_days})
         
-        if(error){
+        if(data){
             setMovingAvg([])
         }
 
-        if(data){            
-            const avgValues = data.moving_avg as MovingAvgValue[]
+        if(data.data){            
+            const avgValues = data.data.moving_avg as MovingAvgValue[]
             const avgSerie = Array<LightSerieValue>()
             avgValues.forEach((avgval)=>{
                 avgSerie.push({
@@ -83,7 +84,7 @@ export default function FullTesViewer(){
             setMovingAvg([{serie:avgSerie,color:getHexColor(1),name:''}])
         }
 
-    },[supabase,serieId,movingAvgDays,setMovingAvg])    
+    },[supabase,setMovingAvg])    
 
     useEffect(()=>{
         fetchTesNames()
@@ -92,9 +93,10 @@ export default function FullTesViewer(){
     const handleSelect = (eventKey: ChangeEvent<HTMLFormElement>) => {
         setSerieId(eventKey.target.id)
         fetchTesRawData(eventKey.target.id)
-        fetchTesMvingAvg()
+        fetchTesMvingAvg(eventKey.target.id,movingAvgDays)
         setDisplayName(eventKey.target.placeholder)
     }
+
 
     const handleCurrenyChange = (eventKey: string) => {                
         setCurrencyType(eventKey)
@@ -102,7 +104,7 @@ export default function FullTesViewer(){
 
     const handleMonthChnage = (eventKey: number) => {                
         setMovingAvgDays(eventKey)
-        fetchTesMvingAvg()
+        fetchTesMvingAvg(serieId,eventKey)
     }
 
     const downloadGrid = () => {                
@@ -129,28 +131,21 @@ export default function FullTesViewer(){
         <Container fluid>
             <Row>            
                 <Col>
-                  <Alert variant="secondary">
-                    <Row>
-                      <Col sm={1}>
-                        <Button onClick={()=>handleCurrenyChange('COP')}>
-                            COP
-                        </Button>
-                      </Col>
-                      <Col sm={1}>
-                        <Button onClick={()=>handleCurrenyChange('UVR')}>
-                            UVR
-                        </Button>
-                      </Col>
-                      <Col  sm={2}>
-                        <Button onClick={downloadGrid}>
-                            <Stack direction='horizontal' gap={1}>                            
-                                <Badge bg="secondary"><FontAwesomeIcon size="xs" icon={faDownLong} /></Badge>
-                            Descargar
-                          </Stack>
-                        </Button>
-                      </Col>
-                      <Col sm={{offset:1}}>
-                        <Form>
+                    <Nav justify  >
+                        <Nav.Item onClick={()=>handleCurrenyChange('COP')}> 
+                            <Nav.Link >COP</Nav.Link>
+                        </Nav.Item>
+                        <Nav.Item onClick={()=>handleCurrenyChange('UVR')}>
+                            <Nav.Link >UVR</Nav.Link>
+                        </Nav.Item>                      
+                        <Dropdown as={NavItem}>
+                            <Dropdown.Toggle as={NavLink}>Configuracion</Dropdown.Toggle>
+                            <Dropdown.Menu>
+                                <Dropdown.Item onClick={downloadGrid}> 
+                                    Exportar CSV <FontAwesomeIcon size="xs" icon={faFileCsv} />
+                                </Dropdown.Item>
+                                <Dropdown.Item>
+                                <Form>
                             <Stack direction='horizontal' gap={3}>
                                 <a>Promedio Movible </a>
                                 <Form.Check                                        
@@ -176,12 +171,13 @@ export default function FullTesViewer(){
                                         onChange={()=>handleMonthChnage(50)}
                                     />                            
                             </Stack>
-                        </Form>
-                      </Col>                      
-                    </Row>                      
-                  </Alert>                
-                </Col>          
-            </Row>
+                        </Form> 
+                                </Dropdown.Item>
+                            </Dropdown.Menu>
+                        </Dropdown>
+                    </Nav>
+                </Col>
+            </Row>             
             <Row>
                 <Col>
                     <CandleSerieViewer 
@@ -191,7 +187,7 @@ export default function FullTesViewer(){
                         fit 
                     />
                 </Col>
-            </Row>
+            </Row>           
             <Row>
                 <Col>
                     <Card >
@@ -199,11 +195,11 @@ export default function FullTesViewer(){
                             <Row>
                                 <Col>
                                     <CandleGridViewer 
-                                        selectCallback={handleSelect} 
-                                        allTes={options}
+                                    selectCallback={handleSelect} 
+                                    allTes={options}
                                     />
                                 </Col>
-                            </Row>                            
+                            </Row>
                         </Card.Body>
                     </Card>
                 </Col>

@@ -18,10 +18,10 @@ export default function NewPrevTag(props:NewPrevProps){
     let icn
     if(current - prev <=0){
         bg='success'
-        icn=faArrowUp
+        icn=faArrowDown
     }else{
         bg='danger'
-        icn=faArrowDown
+        icn=faArrowUp
     }
     return (        
         <Badge bg={bg}>

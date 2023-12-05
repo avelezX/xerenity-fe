@@ -6,12 +6,11 @@ import {
   Stack,
   ListGroup,
   Offcanvas,
-  Alert,
   Spinner,
   Row,
   Col,
   Container,
-  Badge
+  Navbar
 } from 'react-bootstrap'
 import React,{ useState, useEffect, useCallback, ChangeEvent } from "react"
 import { LightSerie,LightSerieValue,LightSerieEntry,LightSerieValueArray } from '@models/lightserie'
@@ -19,17 +18,15 @@ import CandleSerieViewer from '@components/compare/candleViewer'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import {
   faClose,
-  faDownLong,
-  faList
+  faFileCsv
 } from '@fortawesome/free-solid-svg-icons'
 import SeriePicker from '@components/serie/SeriePicker'
 import { ExportToCsv,downloadBlob } from '@components/csvDownload/cscDownload'
 
+
 export default function SeriesViewer(){
 
     const [loadingSerie,setLowdingSerie]= useState(false)
-
-    const [showCanvas, setShowCanvas] = useState(false)
 
     const [selectedSeries,setSelectedSeries]= useState<Map<string,LightSerie>>(new Map())
 
@@ -39,9 +36,6 @@ export default function SeriesViewer(){
 
     const supabase = createClientComponentClient()
 
-    const handleCloseCanvas = () => setShowCanvas(false)
-
-    const handleShowCanvas = () => setShowCanvas(true)
     
     const FetchSerieValues = async (idSerie:string,newColor:string) =>{
      
@@ -170,83 +164,63 @@ export default function SeriesViewer(){
 
     return (
         <Container>
-            <div>
-              <Offcanvas show={showCanvas} onHide={handleCloseCanvas} placement='end'>
-                <Offcanvas.Header closeButton>
-                  <Offcanvas.Title>
-                    <Row>
-                      <Col>
-                        Series
-                      </Col>
-                      <Col>
-                        {
-                          loadingSerie?
-                          (
-                            <Spinner animation="border" />
-                          ):
-                          (
-                            null
-                          )
-                        }
-                      </Col>
-                    </Row>        
-                  </Offcanvas.Title>
-                </Offcanvas.Header>
-                <Offcanvas.Body>
-                    <Stack gap={3} >
-                      { 
-                        Array.from(selectionOptions.entries()).map(([key,value])=>[
-                          <Card border="primary" key={`card-${key}`}>                          
-                          <Card.Header as="h5">{key}</Card.Header>
-                          <Card.Body>
-                            <Stack gap={2}>                            
-                              {
-                                   value.map((serie)=>[      
-                                    
-                                      <SeriePicker key={`serie-${serie.source_name}`}
-                                        handleSeriePick={handleCheckboxChange} 
-                                        handleColorPicker={handleColorChnage}
-                                        displayName={serie.display_name} 
-                                        serieID={serie.source_name} 
-                                        disable={loadingSerie} 
-                                        checked={selectedSeries.has(serie.source_name)}
-                                       />
-                                    
-                                  ])
-                                }
-                              </Stack>                         
-                          </Card.Body>
-                        </Card>                            
-                        ])
-                      }
-                    </Stack>
-                </Offcanvas.Body>
-              </Offcanvas>    
-              </div>
-            <Row>            
-                <Col>
-                  <Alert variant="secondary">
-                    <Row>
-                      <Col sm={3}>
-                        <Button onClick={handleShowCanvas}>
-                        <Stack direction='horizontal' gap={1}>                            
-                            <Badge bg="secondary"><FontAwesomeIcon size="xs" icon={faList} /></Badge>
-                            Seleccionar serie
-                          </Stack>
-                        </Button>
-                      </Col>
+            <Row>              
+                <Navbar  expand={false} className="bg-body-tertiary mb-3">
+                  <Container fluid>
+                    <Navbar.Brand >
+                      <Button variant="outline-primary" onClick={downloadSeries}>Exportar CSV <FontAwesomeIcon size="xs" icon={faFileCsv} /></Button>
+                    </Navbar.Brand>
+                    <Navbar.Toggle style={{background:'#D3D3D3'}} aria-controls='offcanvasNavbar-expand-false' />
 
-                      <Col sm={3}>
-                        <Button onClick={downloadSeries}>
-                          <Stack direction='horizontal' gap={1}>                            
-                            <Badge bg="secondary"><FontAwesomeIcon size="xs" icon={faDownLong} /></Badge>
-                            Descargar
-                          </Stack>
-                        </Button>
-                      </Col>                      
-                    </Row>                      
-                  </Alert>                
-                </Col>          
+                    <Navbar.Offcanvas
+                      id='offcanvasNavbar-expand-false'
+                      aria-labelledby='offcanvasNavbarLabel-expand-false'
+                      placement="end"
+                    >
+                      <Offcanvas.Header closeButton>
+                        <Offcanvas.Title id='offcanvasNavbarLabel-expand-false'>
+                        <Row>
+                            <Col>
+                              Series
+                            </Col>
+                            <Col>
+                              {loadingSerie?(<Spinner animation="border" />):(null)}
+                            </Col>
+                          </Row> 
+                        </Offcanvas.Title>
+                      </Offcanvas.Header>
+                      <Offcanvas.Body>
+                          <Stack gap={3} >
+                          { 
+                            Array.from(selectionOptions.entries()).map(([key,value])=>[
+                              <Card border="primary" key={`card-${key}`}>                          
+                              <Card.Header as="h5">{key}</Card.Header>
+                              <Card.Body>
+                                <Stack gap={2}>                            
+                                  {
+                                      value.map((serie)=>[      
+                                        
+                                          <SeriePicker key={`serie-${serie.source_name}`}
+                                            handleSeriePick={handleCheckboxChange} 
+                                            handleColorPicker={handleColorChnage}
+                                            displayName={serie.display_name} 
+                                            serieID={serie.source_name} 
+                                            disable={loadingSerie} 
+                                            checked={selectedSeries.has(serie.source_name)}
+                                          />
+                                        
+                                      ])
+                                    }
+                                  </Stack>                         
+                              </Card.Body>
+                            </Card>                            
+                            ])
+                          }
+                        </Stack>                       
+                      </Offcanvas.Body>
+                    </Navbar.Offcanvas>
+                  </Container>
+                </Navbar>       
             </Row>
             <Row>
                 <Col>
