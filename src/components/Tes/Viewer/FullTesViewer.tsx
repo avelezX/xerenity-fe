@@ -1,5 +1,5 @@
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
-import { Card,Row,Col,Nav,Form,Stack,Dropdown,NavItem,NavLink} from 'react-bootstrap'
+import { Row,Col,Nav,Form,Stack,Dropdown,NavItem,NavLink} from 'react-bootstrap'
 import React,{ useState, useEffect, useCallback, ChangeEvent } from "react"
 import Container from 'react-bootstrap/Container'
 
