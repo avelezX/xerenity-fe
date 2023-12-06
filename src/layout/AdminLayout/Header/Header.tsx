@@ -2,7 +2,6 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faBars } from '@fortawesome/free-solid-svg-icons'
 import Link from 'next/link'
 import { Button, Container } from 'react-bootstrap'
-import Breadcrumb from '@layout/AdminLayout/Breadcrumb/Breadcrumb'
 import HeaderProfileNav from '@layout/AdminLayout/Header/HeaderProfileNav'
 
 type HeaderProps = {
@@ -44,11 +43,7 @@ export default function Header(props: HeaderProps) {
         <div className="header-nav ms-2">
           <HeaderProfileNav />
         </div>
-      </Container>
-      <div className="header-divider border-top my-2 mx-sm-n2" />
-      <Container fluid>
-        <Breadcrumb />
-      </Container>
+      </Container>      
     </header>
   )
 }

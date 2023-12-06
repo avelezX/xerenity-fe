@@ -29,7 +29,7 @@ export default function FullTesViewer(){
 
     const [serieId,setSerieId] = useState('tes_24')
 
-    const [currencyType,setCurrencyType] = useState('COP')
+    const [currencyType,setCurrencyType] = useState('COLTES-COP')
 
     const [movingAvg,setMovingAvg] = useState<LightSerie[]>([])
 
@@ -132,10 +132,10 @@ export default function FullTesViewer(){
             <Row>            
                 <Col>
                     <Nav justify  >
-                        <Nav.Item onClick={()=>handleCurrenyChange('COP')}> 
+                        <Nav.Item onClick={()=>handleCurrenyChange('COLTES-COP')}> 
                             <Nav.Link >COP</Nav.Link>
                         </Nav.Item>
-                        <Nav.Item onClick={()=>handleCurrenyChange('UVR')}>
+                        <Nav.Item onClick={()=>handleCurrenyChange('COLTES-UVR')}>
                             <Nav.Link >UVR</Nav.Link>
                         </Nav.Item>                      
                         <Dropdown as={NavItem}>
@@ -184,7 +184,7 @@ export default function FullTesViewer(){
                         candleSerie={candleSerie} 
                         chartName={displayName} 
                         otherSeries={movingAvg} 
-                        fit 
+                        fit
                     />
                 </Col>
             </Row>           

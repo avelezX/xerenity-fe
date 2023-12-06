@@ -13,7 +13,7 @@ export default function CandleGridViewer({selectCallback,allTes}:GridViewProps){
     
     return (        
         <Form onChange={(e)=>selectCallback(e as ChangeEvent<HTMLFormElement>)}>
-            <Table bordered hover>
+            <Table bordered hover responsive='sm'>
                 <thead>
                     <tr>
                         <th>Name</th>

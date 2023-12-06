@@ -229,7 +229,7 @@ export default function SeriesViewer(){
             </Row>
             <Row>
               <Col>
-                <Table bordered hover>
+                <Table bordered hover responsive='sm'>
                   <thead>
                     <tr>                      
                       <th>Nombre</th>
