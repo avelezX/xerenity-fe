@@ -64,69 +64,70 @@ export default function CandleSerieViewer({candleSerie,chartName,otherSeries,fit
       chart.current = createChart(chartContainerRef.current,chartOptions)
 
       if(chart.current){
-        if(candleSerie){
-
-          const serieData: (WhitespaceData<Time> | CandlestickData<Time>)[] | { time: string; open: number; high: number; low: number; close: number }[]= []
-          const volData: (WhitespaceData<Time> | HistogramData<Time>)[] | { time: string; value: number }[]= []
-    
-          candleSerie.values.forEach((tes)=>{        
-            
-            serieData.push(
-              {
-                time: tes.day.split('T')[0],
-                open: tes.open, high: tes.high, low: tes.low, close: tes.close
-              }
-            )
-    
-            volData.push(
-              {
-                time: tes.day.split('T')[0],
-                value:tes.volume
-              }
-            )
-          })
-          
-          const volumeSeries = chart.current.addHistogramSeries(
-            { 
-              color: '#2270E2',              
-              priceFormat: {
-                type: 'volume',
-              },
-              priceScaleId: 'volume'            
-            }
-          )
-    
-          volumeSeries.priceScale().applyOptions({
-            // set the positioning of the volume series
-            scaleMargins: {
-                top: 0.9, // highest point of the series will be 70% away from the top
-                bottom: 0.0,
-            },
-          })
-    
-          const candlestickSeries = chart.current.addCandlestickSeries(
-            {
-                upColor: '#26a69a', 
-                downColor: '#ef5350',
-                borderVisible: true,
-                wickUpColor: '#26a69a', 
-                wickDownColor: '#ef5350',
-                priceScaleId: 'right',
+        if(candleSerie){          
+          if(candleSerie.values.length>0){
+              const serieData: (WhitespaceData<Time> | CandlestickData<Time>)[] | { time: string; open: number; high: number; low: number; close: number }[]= []
+              const volData: (WhitespaceData<Time> | HistogramData<Time>)[] | { time: string; value: number }[]= []
+        
+              candleSerie.values.forEach((tes)=>{        
                 
-            }
-          )
-          
-          /*
-            chart.current.subscribeCrosshairMove((handler)=>{
-              if(handler.hoveredSeries===candlestickSeries){
-                console.log(handler)
-              }
-            })
-          */
-    
-          candlestickSeries.setData(serieData)
-    
-          volumeSeries.setData(volData)
+                serieData.push(
+                  {
+                    time: tes.day.split('T')[0],
+                    open: tes.open, high: tes.high, low: tes.low, close: tes.close
+                  }
+                )
+        
+                volData.push(
+                  {
+                    time: tes.day.split('T')[0],
+                    value:tes.volume
+                  }
+                )
+              })
+              
+              const volumeSeries = chart.current.addHistogramSeries(
+                { 
+                  color: '#2270E2',              
+                  priceFormat: {
+                    type: 'volume',
+                  },
+                  priceScaleId: 'volume'            
+                }
+              )
+        
+              volumeSeries.priceScale().applyOptions({
+                // set the positioning of the volume series
+                scaleMargins: {
+                    top: 0.9, // highest point of the series will be 70% away from the top
+                    bottom: 0.0,
+                },
+              })
+        
+              const candlestickSeries = chart.current.addCandlestickSeries(
+                {
+                    upColor: '#26a69a', 
+                    downColor: '#ef5350',
+                    borderVisible: true,
+                    wickUpColor: '#26a69a', 
+                    wickDownColor: '#ef5350',
+                    priceScaleId: 'right',
+                    
+                }
+              )
+              
+              /*
+                chart.current.subscribeCrosshairMove((handler)=>{
+                  if(handler.hoveredSeries===candlestickSeries){
+                    console.log(handler)
+                  }
+                })
+              */
+        
+              candlestickSeries.setData(serieData)
+        
+              volumeSeries.setData(volData)
+          }
         }
   
         if(otherSeries){
