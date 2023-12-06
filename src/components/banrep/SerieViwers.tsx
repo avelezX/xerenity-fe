@@ -163,7 +163,7 @@ export default function SeriesViewer(){
   }  
 
     return (
-        <Container>
+        <Container fluid>
             <Row>              
                 <Navbar  expand={false} className="bg-body-tertiary mb-3">
                   <Container fluid>

@@ -13,51 +13,51 @@ export default function CandleGridViewer({selectCallback,allTes}:GridViewProps){
     
     return (        
         <Form onChange={(e)=>selectCallback(e as ChangeEvent<HTMLFormElement>)}>
-            <Table hover>
+            <Table bordered hover>
                 <thead>
-                <tr>
-                    <th>Name</th>
-                    
-                    <th>Change</th>
-                    
-                    <th>Last</th>
+                    <tr>
+                        <th>Name</th>
+                        
+                        <th>Change</th>
+                        
+                        <th>Last</th>
 
-                    <th>Prev</th>
-                    
-                    <th>Open</th>
+                        <th>Prev</th>
+                        
+                        <th>Open</th>
 
-                    <th>Low</th>
-                    
-                    <th>High</th>
+                        <th>Low</th>
+                        
+                        <th>High</th>
 
-                    <th>Volume</th>
+                        <th>Volume</th>
 
-                    <th>Date/Hour</th>
-                </tr>
+                        <th>Date/Hour</th>
+                    </tr>
                 </thead>                
-                    <tbody>
-                        {
-                            allTes.map((tesValue)=>[
-                                <tr key={`tr-row${tesValue.tes}`}>
-                                    <td>
-                                        <Form.Check inline placeholder={tesValue.displayname} type='radio' label={tesValue.displayname} name="group1" id={tesValue.tes}  />                                
-                                    </td>
-                                    <td>                                        
-                                        <NewPrevTag current={tesValue.close} prev={tesValue.prev} > 
-                                            {((tesValue.prev-tesValue.close)*100).toFixed(1)} bps
-                                        </NewPrevTag>
-                                    </td>
-                                    <td>{tesValue.close.toFixed(2)}</td>
-                                    <td>{tesValue.prev.toFixed(2)}</td>
-                                    <td>{tesValue.open.toFixed(2)}</td>
-                                    <td>{tesValue.low.toFixed(2)}</td>
-                                    <td>{tesValue.high.toFixed(2)}</td>
-                                    <td>{(tesValue.volume/1000000000).toFixed(2)} MMM</td>
-                                    <td>{tesValue.operation_time}</td>
-                                </tr>
-                            ])
-                        }
-                    </tbody>                
+                <tbody>
+                    {
+                        allTes.map((tesValue)=>[
+                            <tr key={`tr-grid-row${tesValue.tes}`}>
+                                <td>
+                                    <Form.Check inline placeholder={tesValue.displayname} type='radio' label={tesValue.displayname} name="group1" id={tesValue.tes}  />                                
+                                </td>
+                                <td>                                        
+                                    <NewPrevTag current={tesValue.close} prev={tesValue.prev} > 
+                                        {((tesValue.prev-tesValue.close)*100).toFixed(1)} bps
+                                    </NewPrevTag>
+                                </td>
+                                <td>{tesValue.close.toFixed(2)}</td>
+                                <td>{tesValue.prev.toFixed(2)}</td>
+                                <td>{tesValue.open.toFixed(2)}</td>
+                                <td>{tesValue.low.toFixed(2)}</td>
+                                <td>{tesValue.high.toFixed(2)}</td>
+                                <td>{(tesValue.volume/1000000000).toFixed(2)} MMM</td>
+                                <td>{tesValue.operation_time}</td>
+                            </tr>
+                        ])
+                    }
+                </tbody>                
             </Table>
         </Form>
     )

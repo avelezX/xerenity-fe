@@ -190,20 +190,12 @@ export default function FullTesViewer(){
             </Row>           
             <Row>
                 <Col>
-                    <Card >
-                        <Card.Body>
-                            <Row>
-                                <Col>
-                                    <CandleGridViewer 
-                                    selectCallback={handleSelect} 
-                                    allTes={options}
-                                    />
-                                </Col>
-                            </Row>
-                        </Card.Body>
-                    </Card>
+                    <CandleGridViewer 
+                        selectCallback={handleSelect} 
+                        allTes={options}
+                    />
                 </Col>
-            </Row>            
+            </Row>
         </Container>
     )
 }
