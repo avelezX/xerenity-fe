@@ -2,8 +2,9 @@
 import { Button,Toast, Row,Col,Form} from 'react-bootstrap'
 import React,{ useState, useEffect, ChangeEvent } from "react"
 import Container from 'react-bootstrap/Container'
-import {SwatchesPicker} from "react-color"
-import { getHexColor } from '@models/hexColors'
+import { getHexColor,XerenityHexColors } from '@models/hexColors'
+import Circle from '@uiw/react-color-circle'
+
 
 export interface SeriePickerProps {
     handleSeriePick:(e: ChangeEvent<HTMLInputElement>,serieid:string,color:string) => void;
@@ -58,16 +59,15 @@ export default function SeriePicker({handleSeriePick,handleColorPicker,serieID,d
                         </Button>
                     </Col>
             </Row>
-            <div>
-                <Toast   onClose={()=>setShowColorToast(false)} show={showColorToast} animation>                
-                    <Toast.Header closeButton>
-                        Seleccione un color
-                    </Toast.Header>
-                    <Toast.Body >
-                        <SwatchesPicker onChangeComplete={HandleColorSelect}/>
-                    </Toast.Body>
-                </Toast>
-            </div>
+            <Row>
+                <Col>
+                    <Toast  onClose={()=>setShowColorToast(false)} show={showColorToast} animation>
+                        <Toast.Body>                            
+                            <Circle style={{ width: '100%', height: '100%', }} onChange={HandleColorSelect} colors={XerenityHexColors}/>
+                        </Toast.Body>
+                    </Toast>
+                </Col>
+            </Row>
         </Container>
     )
 }
