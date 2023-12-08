@@ -13,10 +13,10 @@ export interface LightSerieEntry{
     display_name:string;
     grupo:string;
     fuente:string;
+    sub_group:string;
 }
 
-export interface LightSerie{
-    
+export interface LightSerie{    
     name:string;
     color:string;
     serie:LightSerieValue[];

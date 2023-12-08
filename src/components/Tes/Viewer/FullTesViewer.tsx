@@ -9,7 +9,6 @@ import CandleSerieViewer from '@components/compare/candleViewer'
 
 import { LightSerie,LightSerieValue } from '@models/lightserie'
 import { MovingAvgValue } from '@models/movingAvg'
-import { getHexColor } from '@models/hexColors'
 import { ExportToCsv,downloadBlob } from '@components/csvDownload/cscDownload'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import {
@@ -65,7 +64,7 @@ export default function FullTesViewer(){
 
     },[supabase])
 
-    const fetchTesMvingAvg = useCallback( async (selected_name:string,moving_days:number) =>{
+    const fetchTesMvingAvg = useCallback( async (selected_name:string,moving_days:number,display_name:string) =>{
         const data =   await supabase.schema('xerenity').rpc('tes_moving_average',{tes_name:selected_name,average_days:moving_days})
         
         if(data){
@@ -81,7 +80,7 @@ export default function FullTesViewer(){
                     time:avgval.close_date.split('T')[0]
                 })
             })
-            setMovingAvg([{serie:avgSerie,color:getHexColor(1),name:''}])
+            setMovingAvg([{serie:avgSerie,color:'#2270E2',name:display_name}])
         }
 
     },[supabase,setMovingAvg])    
@@ -93,8 +92,9 @@ export default function FullTesViewer(){
     const handleSelect = (eventKey: ChangeEvent<HTMLFormElement>) => {
         setSerieId(eventKey.target.id)
         fetchTesRawData(eventKey.target.id)
-        fetchTesMvingAvg(eventKey.target.id,movingAvgDays)
         setDisplayName(eventKey.target.placeholder)
+        fetchTesMvingAvg(eventKey.target.id,movingAvgDays,eventKey.target.placeholder)
+        
     }
 
 
@@ -104,7 +104,7 @@ export default function FullTesViewer(){
 
     const handleMonthChnage = (eventKey: number) => {                
         setMovingAvgDays(eventKey)
-        fetchTesMvingAvg(serieId,eventKey)
+        fetchTesMvingAvg(serieId,eventKey,displayName)
     }
 
     const downloadGrid = () => {                
@@ -181,8 +181,7 @@ export default function FullTesViewer(){
             <Row>
                 <Col>
                     <CandleSerieViewer 
-                        candleSerie={candleSerie} 
-                        chartName={displayName} 
+                        candleSerie={candleSerie}                        
                         otherSeries={movingAvg} 
                         fit
                     />

@@ -8,12 +8,11 @@ import { LightSerie } from '@models/lightserie'
 
 type ViewerProps={
     candleSerie:CandleSerie | null;
-    otherSeries:LightSerie[] | null;
-    chartName:string;
+    otherSeries:LightSerie[] | null;    
     fit:boolean;
 }
 
-export default function CandleSerieViewer({candleSerie,chartName,otherSeries,fit}:ViewerProps){
+export default function CandleSerieViewer({candleSerie,otherSeries,fit}:ViewerProps){
   const chartContainerRef = useRef<HTMLInputElement| null>(null)
   const chart = useRef<IChartApi | null>(null)
   const resizeObserver = useRef<ResizeObserver | null>(null)
@@ -134,13 +133,16 @@ export default function CandleSerieViewer({candleSerie,chartName,otherSeries,fit
           const legend = document.createElement('div')
           legend.setAttribute('style' , `position: absolute; left: 12px; top: 12px; z-index: 1; font-size: 14px; font-family: sans-serif; line-height: 18px; font-weight: 300;`)
           chartContainerRef.current.appendChild(legend)
+
           const firstRow = document.createElement('div')
-          let iner: string =''
+          let iner: string ='<ul id="serieList">'
           otherSeries.forEach((other,index)=>{
-            if(other.name){
-              iner=`<a style={{backgroundColor:${other.color}}}>${other.name}</a><br/> ${iner}` 
-            }
             
+            if(other.name){
+
+              iner=`<li><a style="color:${other.color}">${other.name}</a></li> ${iner}` 
+
+            }            
             const otherSerieChart = chart.current?.addLineSeries(
               { 
                 color: other.color,
@@ -155,7 +157,7 @@ export default function CandleSerieViewer({candleSerie,chartName,otherSeries,fit
             }            
           })
           
-          firstRow.innerHTML=iner
+          firstRow.innerHTML=`${iner}</ul>`
           legend.appendChild(firstRow)
         }
 
@@ -195,17 +197,6 @@ export default function CandleSerieViewer({candleSerie,chartName,otherSeries,fit
 
   return (
       <Card >
-        {
-          chartName?
-          (
-            <Card.Header>          
-                <h2>{chartName}</h2>
-            </Card.Header>
-          ):
-          (
-            null
-          )
-        }
         <Card.Body  style={{width:'100%',height:'50rem'}}>
             <Container ref={chartContainerRef} className="chart-container" style={{width:'100%',height:'100%'}}/>
         </Card.Body>

@@ -1,7 +1,6 @@
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { 
   Table,
-  Card, 
   Button,
   Stack,
   ListGroup,
@@ -10,7 +9,8 @@ import {
   Row,
   Col,
   Container,
-  Navbar
+  Navbar,
+  Accordion
 } from 'react-bootstrap'
 import React,{ useState, useEffect, useCallback, ChangeEvent } from "react"
 import { LightSerie,LightSerieValue,LightSerieEntry,LightSerieValueArray } from '@models/lightserie'
@@ -51,7 +51,7 @@ export default function SeriesViewer(){
           name:serieNameInfo.get(idSerie)?.display_name
         } as LightSerie     
       }
-            
+      
       return {serie:[],color:'',name:''} as LightSerie
     }
 
@@ -63,20 +63,26 @@ export default function SeriesViewer(){
       }
 
       if(data){
+        
         const options = data as LightSerieEntry[]
         const mapOptions= new Map<string,LightSerieEntry[]>()
-
         const serieData= new Map<string,LightSerieEntry>()
 
         options.forEach((entry)=>{
+
+          let sbgroup=entry.sub_group
+
+          if(!sbgroup){
+            sbgroup='Sin clasificar'
+          }
           serieData.set(entry.source_name,entry)
-          if(mapOptions.has(entry.grupo)){
-              mapOptions.get(entry.grupo)?.push(entry)
+          
+          if(mapOptions.has(sbgroup)){
+              mapOptions.get(sbgroup)?.push(entry)
           }else{
-              mapOptions.set(entry.grupo,[entry])
+              mapOptions.set(sbgroup,[entry])
           }
         })
-
         setSelectionOptions(mapOptions)
         setSerieNameInfo(serieData)
       }else{
@@ -104,7 +110,7 @@ export default function SeriesViewer(){
       }else{        
         newSelection.delete(checkboxId)
       }
-
+      
       setSelectedSeries(newSelection)
 
       setLowdingSerie(false)
@@ -176,6 +182,7 @@ export default function SeriesViewer(){
                       id='offcanvasNavbar-expand-false'
                       aria-labelledby='offcanvasNavbarLabel-expand-false'
                       placement="end"
+                      scroll
                     >
                       <Offcanvas.Header closeButton>
                         <Offcanvas.Title id='offcanvasNavbarLabel-expand-false'>
@@ -193,27 +200,29 @@ export default function SeriesViewer(){
                           <Stack gap={3} >
                           { 
                             Array.from(selectionOptions.entries()).map(([key,value])=>[
-                              <Card border="primary" key={`card-${key}`}>                          
-                              <Card.Header as="h5">{key}</Card.Header>
-                              <Card.Body>
-                                <Stack gap={2}>                            
-                                  {
-                                      value.map((serie)=>[      
-                                        
-                                          <SeriePicker key={`serie-${serie.source_name}`}
-                                            handleSeriePick={handleCheckboxChange} 
-                                            handleColorPicker={handleColorChnage}
-                                            displayName={serie.display_name} 
-                                            serieID={serie.source_name} 
-                                            disable={loadingSerie} 
-                                            checked={selectedSeries.has(serie.source_name)}
-                                          />
-                                        
-                                      ])
-                                    }
-                                  </Stack>                         
-                              </Card.Body>
-                            </Card>                            
+                              <Accordion key={`serie-group-${key}`}>
+                              <Accordion.Item eventKey={key}>
+                                <Accordion.Header>{key}</Accordion.Header>
+                                <Accordion.Body>
+                                  <Stack gap={2}>                            
+                                    {
+                                        value.map((serie)=>[      
+                                          
+                                            <SeriePicker key={`serie-${serie.source_name}`}
+                                              handleSeriePick={handleCheckboxChange} 
+                                              handleColorPicker={handleColorChnage}
+                                              displayName={serie.display_name} 
+                                              serieID={serie.source_name} 
+                                              disable={loadingSerie} 
+                                              checked={selectedSeries.has(serie.source_name)}
+                                            />
+                                          
+                                        ])
+                                      }
+                                  </Stack>
+                                </Accordion.Body>
+                              </Accordion.Item>
+                            </Accordion>                                                         
                             ])
                           }
                         </Stack>                       
@@ -224,7 +233,7 @@ export default function SeriesViewer(){
             </Row>
             <Row>
                 <Col>
-                    <CandleSerieViewer candleSerie={null} chartName='' otherSeries={Array.from(selectedSeries.values())} fit/>
+                    <CandleSerieViewer candleSerie={null} otherSeries={Array.from(selectedSeries.values())} fit/>
                 </Col>
             </Row>
             <Row>
