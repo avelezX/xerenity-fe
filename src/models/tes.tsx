@@ -34,7 +34,8 @@ export interface GridEntry{
   tes:string;
   prev: number;
   displayname:string;
-  operation_time:string;  
+  operation_time:string;
+  tes_months:number;
 }
 
 export function GridEntryToArray(entry:GridEntry){

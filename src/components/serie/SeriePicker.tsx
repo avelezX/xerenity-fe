@@ -13,9 +13,10 @@ export interface SeriePickerProps {
     serieID:string;
     disable:boolean;
     checked:boolean;
+    showColor:boolean;
 }
 
-export default function SeriePicker({handleSeriePick,handleColorPicker,serieID,displayName,disable,checked}:SeriePickerProps){
+export default function SeriePicker({handleSeriePick,handleColorPicker,serieID,displayName,disable,checked,showColor}:SeriePickerProps){
 
     const [idserie,setIdSerie] = useState('')
 
@@ -31,7 +32,10 @@ export default function SeriePicker({handleSeriePick,handleColorPicker,serieID,d
     const HandleColorSelect = async (color: { hex: React.SetStateAction<string> })=>{
         
         setSerieColor(color.hex)
-        handleColorPicker(idserie,color.hex.toString())
+        if(handleColorPicker){
+            handleColorPicker(idserie,color.hex.toString())
+        }
+        
     }
 
     useEffect(()=>{
@@ -53,21 +57,33 @@ export default function SeriePicker({handleSeriePick,handleColorPicker,serieID,d
                             onChange={(e)=> HandleSerieSelect(e, serieID)}
                         />
                     </Col>
-                    <Col>
-                        <Button size="sm" variant="outline-primary" onClick={()=>setShowColorToast(!showColorToast)}>
-                            Color
-                        </Button>
-                    </Col>
+                    {showColor?
+                    (
+                        <Col>
+                            <Button size="sm" variant="outline-primary" onClick={()=>setShowColorToast(!showColorToast)}>
+                                Color
+                            </Button>
+                        </Col>
+                    ):
+                    (null)
+                    }
+                    
             </Row>
-            <Row>
-                <Col>
+            {showColor?
+            (
+                <Row>
+                    <Col>
                     <Toast  onClose={()=>setShowColorToast(false)} show={showColorToast} animation>
                         <Toast.Body>                            
                             <Circle style={{ width: '100%', height: '100%', }} onChange={HandleColorSelect} colors={XerenityHexColors}/>
                         </Toast.Body>
-                    </Toast>
-                </Col>
-            </Row>
+                        </Toast>
+                    </Col>
+                </Row>
+            ):(null)
+
+            }
+
         </Container>
     )
 }

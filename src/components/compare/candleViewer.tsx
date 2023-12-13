@@ -131,18 +131,17 @@ export default function CandleSerieViewer({candleSerie,otherSeries,fit}:ViewerPr
   
         if(otherSeries){
           const legend = document.createElement('div')
-          legend.setAttribute('style' , `position: absolute; left: 12px; top: 12px; z-index: 1; font-size: 14px; font-family: sans-serif; line-height: 18px; font-weight: 300;`)
+          legend.setAttribute('style' , `position: absolute; left: 20px; top: 12px; z-index: 1; font-size: 14px; font-family: sans-serif; line-height: 18px; font-weight: 300;`)
           chartContainerRef.current.appendChild(legend)
 
           const firstRow = document.createElement('div')
+          
           let iner: string ='<ul id="serieList">'
           otherSeries.forEach((other,index)=>{
             
             if(other.name){
-
-              iner=`<li><a style="color:${other.color}">${other.name}</a></li> ${iner}` 
-
-            }            
+                iner=`<li style="color:${other.color}"><h6>${other.name}</h6></li> ${iner}`
+            }
             const otherSerieChart = chart.current?.addLineSeries(
               { 
                 color: other.color,
@@ -160,7 +159,6 @@ export default function CandleSerieViewer({candleSerie,otherSeries,fit}:ViewerPr
           firstRow.innerHTML=`${iner}</ul>`
           legend.appendChild(firstRow)
         }
-
 
         if(fit){
           chart.current.timeScale().fitContent()

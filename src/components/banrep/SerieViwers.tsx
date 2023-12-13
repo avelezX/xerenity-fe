@@ -1,3 +1,5 @@
+'use client'
+
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { 
   Table,
@@ -35,9 +37,8 @@ export default function SeriesViewer(){
     const [serieNameInfo,setSerieNameInfo]= useState<Map<string,LightSerieEntry>>(new Map())
 
     const supabase = createClientComponentClient()
-
     
-    const FetchSerieValues = async (idSerie:string,newColor:string) =>{
+    const FetchSerieValues = useCallback(async (idSerie:string,newColor:string) =>{
      
       const {data,error} = await await supabase.schema('xerenity').rpc('search',{name:idSerie})
       
@@ -53,7 +54,7 @@ export default function SeriesViewer(){
       }
       
       return {serie:[],color:'',name:''} as LightSerie
-    }
+    },[supabase,serieNameInfo])
 
     const fetchData = useCallback( async () =>{
         const {data,error} =   await supabase.schema('xerenity').from('search').select()
@@ -211,6 +212,7 @@ export default function SeriesViewer(){
                                             <SeriePicker key={`serie-${serie.source_name}`}
                                               handleSeriePick={handleCheckboxChange} 
                                               handleColorPicker={handleColorChnage}
+                                              showColor
                                               displayName={serie.display_name} 
                                               serieID={serie.source_name} 
                                               disable={loadingSerie} 
