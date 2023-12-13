@@ -1,5 +1,7 @@
+'use client'
+
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
-import { Row,Col,Nav,Form,Stack,Dropdown,NavItem,NavLink} from 'react-bootstrap'
+import { Row,Col,Card,Button, ButtonGroup} from 'react-bootstrap'
 import React,{ useState, useEffect, useCallback, ChangeEvent } from "react"
 import Container from 'react-bootstrap/Container'
 
@@ -11,9 +13,8 @@ import { LightSerie,LightSerieValue } from '@models/lightserie'
 import { MovingAvgValue } from '@models/movingAvg'
 import { ExportToCsv,downloadBlob } from '@components/csvDownload/cscDownload'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import {
-  faFileCsv
-} from '@fortawesome/free-solid-svg-icons'
+import {faFileCsv} from '@fortawesome/free-solid-svg-icons'
+import { toast } from 'react-toastify'
 
 
 export default function FullTesViewer(){
@@ -26,6 +27,8 @@ export default function FullTesViewer(){
 
     const [displayName,setDisplayName] = useState('')
 
+    const [ibrData,setIbrData] = useState<Map<string,GridEntry>>(new Map())
+
     const [serieId,setSerieId] = useState('tes_24')
 
     const [currencyType,setCurrencyType] = useState('COLTES-COP')
@@ -34,22 +37,55 @@ export default function FullTesViewer(){
 
     const [movingAvgDays,setMovingAvgDays] =useState(20)
 
+
+
     const fetchTesNames = useCallback( async () =>{
-        const {data,error} =   await supabase.schema('xerenity').rpc('get_tes_grid_raw',{money:currencyType})
 
-        if(error){
-            setOptions([])
-        }
-  
-        if(data){
-          setOptions(data as GridEntry[])
+        
+        if(currencyType==='COLTES-COP' || currencyType==='COLTES-UVR'){
+            const {data,error} =   await supabase.schema('xerenity').rpc('get_tes_grid_raw',{money:currencyType})
+
+            if(error){
+                setOptions([])
+            }
+    
+            if(data){
+            setOptions(data as GridEntry[])
+            }else{
+            setOptions([] as GridEntry[])
+            }
         }else{
-          setOptions([] as GridEntry[])
-        }
-  
-    },[supabase,currencyType])    
+            const {data,error} =   await supabase.schema('xerenity').rpc('get_ibr_grid_raw',{})
 
-    const fetchTesRawData = useCallback( async (view_tes:string) =>{
+            if(error){
+                setOptions([])
+                toast.error(error.message)
+            }
+      
+            if(data){
+                const allIbr =data as GridEntry[]
+                const mapping= new Map<string,GridEntry>()
+                allIbr.forEach((entry)=>{
+                    mapping.set(entry.tes,entry)
+                })
+    
+                setIbrData(mapping)
+    
+                setOptions(data as GridEntry[])
+    
+            }else{
+              setOptions([] as GridEntry[])
+            }
+        }        
+
+    },[supabase,currencyType])
+
+    useEffect(()=>{
+        fetchTesNames()
+    },[fetchTesNames])
+
+
+    const fetchTesRawData = useCallback( async (view_tes:string) =>{        
         const {data,error} =   await supabase.schema('xerenity').from(view_tes).select().order('day', { ascending: true })
         
         if(error){
@@ -61,10 +97,11 @@ export default function FullTesViewer(){
         }else{
             setCandleSerie({name:'',values:[]})
         }
-
+        
     },[supabase])
 
     const fetchTesMvingAvg = useCallback( async (selected_name:string,moving_days:number,display_name:string) =>{
+        
         const data =   await supabase.schema('xerenity').rpc('tes_moving_average',{tes_name:selected_name,average_days:moving_days})
         
         if(data){
@@ -82,29 +119,59 @@ export default function FullTesViewer(){
             })
             setMovingAvg([{serie:avgSerie,color:'#2270E2',name:display_name}])
         }
-
     },[supabase,setMovingAvg])    
 
-    useEffect(()=>{
-        fetchTesNames()
-      },[fetchTesNames])
 
-    const handleSelect = (eventKey: ChangeEvent<HTMLFormElement>) => {
+    const fetchTesMvingAvgIbr = useCallback( async (selected_name:string,moving_days:number,display_name:string) =>{
+        const ibrIdentifier= ibrData.get(selected_name)?.tes_months
+        if(ibrIdentifier){
+            const data =   await supabase.schema('xerenity').rpc('ibr_moving_average',{ibr_months:ibrIdentifier,average_days:moving_days})
+            
+            
+            if(data){
+                setMovingAvg([])
+            }
+    
+            if(data.data){            
+                const avgValues = data.data.moving_avg as MovingAvgValue[]
+                const avgSerie = Array<LightSerieValue>()
+                avgValues.forEach((avgval)=>{
+                    avgSerie.push({
+                        value:avgval.avg,
+                        time:avgval.close_date.split('T')[0]
+                    })
+                })
+                setMovingAvg([{serie:avgSerie,color:'#2270E2',name:display_name}])
+            }
+        }
+
+    },[supabase,setMovingAvg,ibrData]) 
+
+
+    const handleSelect = useCallback((eventKey: ChangeEvent<HTMLFormElement>) => {
+        
         setSerieId(eventKey.target.id)
         fetchTesRawData(eventKey.target.id)
-        setDisplayName(eventKey.target.placeholder)
-        fetchTesMvingAvg(eventKey.target.id,movingAvgDays,eventKey.target.placeholder)
-        
+        setDisplayName(eventKey.target.placeholder)        
+        if(eventKey.target.id.includes('ibr')){            
+            fetchTesMvingAvgIbr(eventKey.target.id,movingAvgDays,eventKey.target.placeholder)            
+        }else{
+            fetchTesMvingAvg(eventKey.target.id,movingAvgDays,eventKey.target.placeholder)
+        }  
+    },[fetchTesMvingAvg,fetchTesMvingAvgIbr,setSerieId,fetchTesRawData,setDisplayName,movingAvgDays])
+
+
+    const handleCurrenyChange = (eventKey: string) => {
+        setCurrencyType(eventKey)        
     }
 
-
-    const handleCurrenyChange = (eventKey: string) => {                
-        setCurrencyType(eventKey)
-    }
-
-    const handleMonthChnage = (eventKey: number) => {                
-        setMovingAvgDays(eventKey)
-        fetchTesMvingAvg(serieId,eventKey,displayName)
+    const handleMonthChange = (eventKey: number) => {                
+        setMovingAvgDays(eventKey)        
+        if(serieId.includes('ibr')){
+            fetchTesMvingAvgIbr(serieId,eventKey,displayName)            
+        }else{
+            fetchTesMvingAvg(serieId,eventKey,displayName)
+        }        
     }
 
     const downloadGrid = () => {                
@@ -125,59 +192,59 @@ export default function FullTesViewer(){
         const csv=ExportToCsv(allValues)
 
         downloadBlob(csv,`xerenity_${displayName}.csv`, 'text/csv;charset=utf-8;')
-    }    
+    }
+    
+ 
+       
+
 
     return (
         <Container fluid>
-            <Row>            
-                <Col>
-                    <Nav justify  >
-                        <Nav.Item onClick={()=>handleCurrenyChange('COLTES-COP')}> 
-                            <Nav.Link >COP</Nav.Link>
-                        </Nav.Item>
-                        <Nav.Item onClick={()=>handleCurrenyChange('COLTES-UVR')}>
-                            <Nav.Link >UVR</Nav.Link>
-                        </Nav.Item>                      
-                        <Dropdown as={NavItem}>
-                            <Dropdown.Toggle as={NavLink}>Configuracion</Dropdown.Toggle>
-                            <Dropdown.Menu>
-                                <Dropdown.Item onClick={downloadGrid}> 
-                                    Exportar CSV <FontAwesomeIcon size="xs" icon={faFileCsv} />
-                                </Dropdown.Item>
-                                <Dropdown.Item>
-                                <Form>
-                            <Stack direction='horizontal' gap={3}>
-                                <a>Promedio Movible </a>
-                                <Form.Check                                        
-                                        label="20"
-                                        name="group1"
-                                        type="radio"
-                                        id='inline-20days-1'
-                                        onChange={()=>handleMonthChnage(20)}
-                                    />
-                                <Form.Check
-                                        
-                                        label="30"
-                                        name="group1"
-                                        type="radio"
-                                        id='inline-30days-2'
-                                        onChange={()=>handleMonthChnage(30)}
-                                    />
-                                <Form.Check
-                                        label="50"
-                                        name="group1"
-                                        type="radio"
-                                        id='inline-50days'
-                                        onChange={()=>handleMonthChnage(50)}
-                                    />                            
-                            </Stack>
-                        </Form> 
-                                </Dropdown.Item>
-                            </Dropdown.Menu>
-                        </Dropdown>
-                    </Nav>
+            <Row>
+                <Col sm={4}>
+                    <Card >
+                        <Card.Header>
+                            Serie
+                        </Card.Header>
+                        <Card.Body>
+                            <ButtonGroup >
+                                <Button variant={currencyType==='COLTES-COP'?('primary'):('outline-primary')}  onClick={() => handleCurrenyChange('COLTES-COP')}>COP</Button>
+                                <Button variant={currencyType==='COLTES-UVR'?('success'):('outline-success')}  onClick={() => handleCurrenyChange('COLTES-UVR')} >UVR</Button>
+                                <Button variant={currencyType==='COLTES-IBR'?('warning'):('outline-warning')}  onClick={()=>handleCurrenyChange('COLTES-IBR')}>IBR</Button>
+                            </ButtonGroup>
+                        </Card.Body>                                                
+                    </Card>
                 </Col>
-            </Row>             
+                <Col sm={4}>
+                    <Card>            
+                        <Card.Header>
+                            Promedio Movil
+                        </Card.Header>                                    
+                        <Card.Body>
+                            <ButtonGroup >
+                                <Button variant={movingAvgDays===20?('dark'):('outline-dark')} onClick={()=>handleMonthChange(20)}>20</Button>
+                                <Button variant={movingAvgDays===30?('dark'):('outline-dark')} onClick={()=>handleMonthChange(30)}>30</Button>
+                                <Button variant={movingAvgDays===50?('dark'):('outline-dark')} onClick={()=>handleMonthChange(50)}>50</Button>
+                            </ButtonGroup>
+                        </Card.Body>
+                    </Card>
+                </Col>
+                <Col sm={4}>
+                    <Card >
+                        <Card.Header>
+                            Descargar
+                        </Card.Header>
+                        <Card.Body>
+                            <Button variant="outline-primary" onClick={downloadGrid}>Exportar CSV <FontAwesomeIcon size="xs" icon={faFileCsv} /></Button>
+                        </Card.Body>                                                
+                    </Card>                   
+                </Col>
+            </Row>
+            <Row>
+                <Col>
+                    <hr/>
+                </Col>
+            </Row>            
             <Row>
                 <Col>
                     <CandleSerieViewer 

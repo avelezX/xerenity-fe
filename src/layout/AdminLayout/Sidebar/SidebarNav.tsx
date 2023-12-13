@@ -48,7 +48,7 @@ export default function SidebarNav() {
       </SidebarNavItem>
       <SidebarNavItem icon={faInstitution}  href="/tes/daily">
         Tes
-      </SidebarNavItem>
+      </SidebarNavItem>    
     </ul>
   )
 }
