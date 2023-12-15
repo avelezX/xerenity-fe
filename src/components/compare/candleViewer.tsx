@@ -151,10 +151,12 @@ export default function CandleSerieViewer({candleSerie,otherSeries,fit,normalyze
 
             let scaleid='right'
 
-            if(!normalyze){
-              if(index!==0){
-                scaleid=other.name
-              }
+            if(normalyze){
+              scaleid='right'
+            }else if(index > 0){
+              scaleid=other.name  
+            }else{
+              scaleid='right'
             }
             
             const otherSerieChart = chart.current?.addLineSeries(
