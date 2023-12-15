@@ -251,6 +251,8 @@ export default function FullTesViewer(){
                         candleSerie={candleSerie}                        
                         otherSeries={movingAvg} 
                         fit
+                        shorten={false}
+                        normalyze={false}
                     />
                 </Col>
             </Row>           

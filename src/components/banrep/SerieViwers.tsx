@@ -8,10 +8,11 @@ import {
   ListGroup,
   Offcanvas,
   Spinner,
+  ButtonGroup,
   Row,
   Col,
   Container,
-  Navbar,
+  Card,
   Accordion
 } from 'react-bootstrap'
 import React,{ useState, useEffect, useCallback, ChangeEvent } from "react"
@@ -20,13 +21,16 @@ import CandleSerieViewer from '@components/compare/candleViewer'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import {
   faClose,
-  faFileCsv
+  faFileCsv,
+  faLinesLeaning
 } from '@fortawesome/free-solid-svg-icons'
 import SeriePicker from '@components/serie/SeriePicker'
 import { ExportToCsv,downloadBlob } from '@components/csvDownload/cscDownload'
 
 
 export default function SeriesViewer(){
+    
+    const supabase = createClientComponentClient()
 
     const [loadingSerie,setLowdingSerie]= useState(false)
 
@@ -36,8 +40,14 @@ export default function SeriesViewer(){
 
     const [serieNameInfo,setSerieNameInfo]= useState<Map<string,LightSerieEntry>>(new Map())
 
-    const supabase = createClientComponentClient()
-    
+    const [normalize,setNormalize]=useState(false)
+
+    const [showCanvs,setShowCanvas]=useState(false)
+
+    const handleClose = () => setShowCanvas(false)
+
+    const handleShow = () => setShowCanvas(true)
+
     const FetchSerieValues = useCallback(async (idSerie:string,newColor:string) =>{
      
       const {data,error} = await await supabase.schema('xerenity').rpc('search',{name:idSerie})
@@ -172,18 +182,52 @@ export default function SeriesViewer(){
     return (
         <Container fluid>
             <Row>              
-                <Navbar  expand={false} className="bg-body-tertiary mb-3">
-                  <Container fluid>
-                    <Navbar.Brand >
-                      <Button variant="outline-primary" onClick={downloadSeries}>Exportar CSV <FontAwesomeIcon size="xs" icon={faFileCsv} /></Button>
-                    </Navbar.Brand>
-                    <Navbar.Toggle style={{background:'#D3D3D3'}} aria-controls='offcanvasNavbar-expand-false' />
+            <Row>
+                <Col sm={4}>
+                    <Card >
+                        <Card.Header>
+                            Normalizar
+                        </Card.Header>
+                        <Card.Body>
+                          <Button  variant={normalize?('primary'):('outline-primary')}  onClick={()=>setNormalize(!normalize)}>{normalize?('Normalizado'):('Normalizar')}</Button>
+                        </Card.Body>                                                
+                    </Card>
+                </Col>
+                <Col sm={4}>
+                    <Card >
+                        <Card.Header>
+                            Descargar
+                        </Card.Header>
+                        <Card.Body>
+                            <Button variant="outline-primary" onClick={downloadSeries}>Exportar CSV <FontAwesomeIcon size="xs" icon={faFileCsv} /></Button>
+                        </Card.Body>                                                
+                    </Card>                   
+                </Col>
+                <Col sm={4}>
+                    <Card>            
+                        <Card.Header>
+                            Ver Series
+                        </Card.Header>                                    
+                        <Card.Body>
+                            <ButtonGroup >
+                                <Button variant={showCanvs?('dark'):('outline-dark')} onClick={handleShow}>Ver serie <FontAwesomeIcon icon={faLinesLeaning} /></Button>
+                            </ButtonGroup>
+                        </Card.Body>
+                    </Card>
+                </Col>                
+            </Row>
+            <Row>
+                <Col>
+                    <hr/>
+                </Col>
+            </Row> 
 
-                    <Navbar.Offcanvas
+                  <Offcanvas
                       id='offcanvasNavbar-expand-false'
                       aria-labelledby='offcanvasNavbarLabel-expand-false'
                       placement="end"
                       scroll
+                      show={showCanvs} onHide={handleClose}
                     >
                       <Offcanvas.Header closeButton>
                         <Offcanvas.Title id='offcanvasNavbarLabel-expand-false'>
@@ -229,13 +273,14 @@ export default function SeriesViewer(){
                           }
                         </Stack>                       
                       </Offcanvas.Body>
-                    </Navbar.Offcanvas>
-                  </Container>
-                </Navbar>       
+              </Offcanvas>
+
+
+
             </Row>
             <Row>
                 <Col>
-                    <CandleSerieViewer candleSerie={null} otherSeries={Array.from(selectedSeries.values())} fit/>
+                    <CandleSerieViewer candleSerie={null} otherSeries={Array.from(selectedSeries.values())} fit shorten normalyze={normalize}/>
                 </Col>
             </Row>
             <Row>
