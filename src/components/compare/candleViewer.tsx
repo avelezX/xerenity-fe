@@ -4,21 +4,24 @@ import { CandlestickData, HistogramData, Time, WhitespaceData, createChart,IChar
 import React, { useEffect,useRef } from 'react'
 import { Card } from 'react-bootstrap'
 import { LightSerie } from '@models/lightserie'
-
+import normalizeSeries from './normalize'
 
 type ViewerProps={
     candleSerie:CandleSerie | null;
     otherSeries:LightSerie[] | null;    
     fit:boolean;
+    normalyze:boolean;
+    shorten:boolean;
 }
 
-export default function CandleSerieViewer({candleSerie,otherSeries,fit}:ViewerProps){
+export default function CandleSerieViewer({candleSerie,otherSeries,fit,normalyze,shorten}:ViewerProps){
   const chartContainerRef = useRef<HTMLInputElement| null>(null)
   const chart = useRef<IChartApi | null>(null)
   const resizeObserver = useRef<ResizeObserver | null>(null)
+  
 
   useEffect(()=>{
-    
+    let newSeries=Array<LightSerie>()
     if(chartContainerRef.current){
       
       chartContainerRef.current.innerHTML = ''
@@ -130,6 +133,9 @@ export default function CandleSerieViewer({candleSerie,otherSeries,fit}:ViewerPr
         }
   
         if(otherSeries){
+          
+          newSeries=normalizeSeries(otherSeries,normalyze,shorten)          
+
           const legend = document.createElement('div')
           legend.setAttribute('style' , `position: absolute; left: 20px; top: 12px; z-index: 1; font-size: 14px; font-family: sans-serif; line-height: 18px; font-weight: 300;`)
           chartContainerRef.current.appendChild(legend)
@@ -137,15 +143,24 @@ export default function CandleSerieViewer({candleSerie,otherSeries,fit}:ViewerPr
           const firstRow = document.createElement('div')
           
           let iner: string ='<ul id="serieList">'
-          otherSeries.forEach((other,index)=>{
+          newSeries.forEach((other,index)=>{
             
             if(other.name){
                 iner=`<li style="color:${other.color}"><h6>${other.name}</h6></li> ${iner}`
             }
+
+            let scaleid='right'
+
+            if(!normalyze){
+              if(index!==0){
+                scaleid=other.name
+              }
+            }
+            
             const otherSerieChart = chart.current?.addLineSeries(
               { 
                 color: other.color,
-                priceScaleId: index===0?('right'):(other.name),
+                priceScaleId: scaleid,
                 priceFormat: {
                   type: 'price'
                 } 
