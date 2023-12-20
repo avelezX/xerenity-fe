@@ -4,7 +4,8 @@ import {
 } from '@fortawesome/free-regular-svg-icons'
 import {
   faInstitution,
-  faDashboard  
+  faDashboard,  
+  faTable
 } from '@fortawesome/free-solid-svg-icons'
 import React, {
   PropsWithChildren
@@ -49,6 +50,9 @@ export default function SidebarNav() {
       <SidebarNavItem icon={faInstitution}  href="/tes/daily">
         Tes
       </SidebarNavItem>    
+      <SidebarNavItem icon={faTable}  href="/multiple">
+        Varios Grids
+      </SidebarNavItem>        
     </ul>
   )
 }
