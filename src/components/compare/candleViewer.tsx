@@ -137,16 +137,16 @@ export default function CandleSerieViewer({candleSerie,otherSeries,fit,normalyze
           newSeries=normalizeSeries(otherSeries,normalyze,shorten)          
 
           const legend = document.createElement('div')
-          legend.setAttribute('style' , `position: absolute; left: 20px; top: 12px; z-index: 1; font-size: 14px; font-family: sans-serif; line-height: 18px; font-weight: 300;`)
+          legend.setAttribute('style' , `position: absolute; left: 20px; top: 12px; z-index: 1; font-size: 14px; font-family: sans-serif; line-height: 20px; font-weight: 300;`)
           chartContainerRef.current.appendChild(legend)
 
           const firstRow = document.createElement('div')
           
-          let iner: string ='<ul id="serieList">'
+          let iner: string ='<dl id="serieList">'
           newSeries.forEach((other,index)=>{
             
             if(other.name){
-                iner=`<li style="color:${other.color}"><h6>${other.name}</h6></li> ${iner}`
+                iner=`<dd style="color:${other.color}"><h6>${other.name}</h6></dd> ${iner}`
             }
 
             let scaleid='right'
@@ -173,7 +173,7 @@ export default function CandleSerieViewer({candleSerie,otherSeries,fit,normalyze
             }            
           })
           
-          firstRow.innerHTML=`${iner}</ul>`
+          firstRow.innerHTML=`${iner}</dl>`
           legend.appendChild(firstRow)
         }
 
@@ -211,7 +211,7 @@ export default function CandleSerieViewer({candleSerie,otherSeries,fit,normalyze
   }, [])
 
   return (
-      <Card >
+      <Card style={{width:'100%',height:'100%'}}>
         <Card.Body  style={{width:'100%',height:'50rem'}}>
             <Container ref={chartContainerRef} className="chart-container" style={{width:'100%',height:'100%'}}/>
         </Card.Body>

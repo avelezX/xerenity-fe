@@ -45,7 +45,7 @@ export default function SeriePicker({handleSeriePick,handleColorPicker,serieID,d
     
 
     return (
-        <Container fluid>
+        <Container fluid>            
             <Row>                
                 <Col sm={8}>                        
                     <Form.Check // prettier-ignore

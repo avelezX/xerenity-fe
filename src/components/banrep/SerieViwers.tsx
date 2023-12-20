@@ -36,7 +36,7 @@ export default function SeriesViewer(){
 
     const [selectedSeries,setSelectedSeries]= useState<Map<string,LightSerie>>(new Map())
 
-    const [selectionOptions,setSelectionOptions]= useState<Map<string,LightSerieEntry[]>>(new Map())
+    const [selectionOptionsSbg,setSelectionOptionsSbg]= useState<Map<string, Map <string,LightSerieEntry[]>  >>(new Map())
 
     const [serieNameInfo,setSerieNameInfo]= useState<Map<string,LightSerieEntry>>(new Map())
 
@@ -70,14 +70,17 @@ export default function SeriesViewer(){
         const {data,error} =   await supabase.schema('xerenity').from('search').select()
       
       if(error){
-        setSelectionOptions(new Map())
+        setSelectionOptionsSbg(new Map())
       }
 
       if(data){
         
         const options = data as LightSerieEntry[]
-        const mapOptions= new Map<string,LightSerieEntry[]>()
+        const subGrupos= new Map<string,LightSerieEntry[]>()
         const serieData= new Map<string,LightSerieEntry>()
+
+        const groupData = new Map<string, Map <string,LightSerieEntry[]>>()
+
 
         options.forEach((entry)=>{
 
@@ -88,16 +91,37 @@ export default function SeriesViewer(){
           }
           serieData.set(entry.source_name,entry)
           
-          if(mapOptions.has(sbgroup)){
-              mapOptions.get(sbgroup)?.push(entry)
+          if(subGrupos.has(sbgroup)){
+            subGrupos.get(sbgroup)?.push(entry)
           }else{
-              mapOptions.set(sbgroup,[entry])
+            subGrupos.set(sbgroup,[entry])
           }
         })
-        setSelectionOptions(mapOptions)
+
+        Array.from(subGrupos.entries()).forEach(([key,value])=>{
+          
+          value.forEach((serie)=>{
+
+            const grp=groupData.get(serie.grupo)
+
+            if(grp){
+              
+              grp.set(serie.sub_group,value)
+            }else{
+              const helper=new Map<string,LightSerieEntry[]>()
+              helper.set(key,value)
+              groupData.set(serie.grupo,helper)
+            }
+
+
+          })
+
+        })
+
+        setSelectionOptionsSbg(groupData)
         setSerieNameInfo(serieData)
       }else{
-        setSelectionOptions(new Map())
+        setSelectionOptionsSbg(new Map())
       }
 
   },[supabase])
@@ -244,27 +268,41 @@ export default function SeriesViewer(){
                       <Offcanvas.Body>
                           <Stack gap={3} >
                           { 
-                            Array.from(selectionOptions.entries()).map(([key,value])=>[
+                            Array.from(selectionOptionsSbg.entries()).map(([key,value])=>[
                               <Accordion key={`serie-group-${key}`}>
                               <Accordion.Item eventKey={key}>
                                 <Accordion.Header>{key}</Accordion.Header>
                                 <Accordion.Body>
                                   <Stack gap={2}>                            
-                                    {
-                                        value.map((serie)=>[      
-                                          
-                                            <SeriePicker key={`serie-${serie.source_name}`}
-                                              handleSeriePick={handleCheckboxChange} 
-                                              handleColorPicker={handleColorChnage}
-                                              showColor
-                                              displayName={serie.display_name} 
-                                              serieID={serie.source_name} 
-                                              disable={loadingSerie} 
-                                              checked={selectedSeries.has(serie.source_name)}
-                                            />
-                                          
-                                        ])
-                                      }
+                                    
+                                  
+                                  {
+                                    Array.from(value.entries()).map(([skey,svalue])=>[
+                                      <Accordion  key={`serie-group-${skey}`}>
+                                        <Accordion.Item eventKey={skey}>
+                                          <Accordion.Header>{skey}</Accordion.Header>
+                                          <Accordion.Body>
+                                            <Stack gap={2}>  
+                                              {
+                                                svalue.map((serie)=>[
+                                                  <SeriePicker key={`serie-${serie.source_name}`}
+                                                    handleSeriePick={handleCheckboxChange} 
+                                                    handleColorPicker={handleColorChnage}
+                                                    showColor
+                                                    displayName={serie.display_name} 
+                                                    serieID={serie.source_name} 
+                                                    disable={loadingSerie} 
+                                                    checked={selectedSeries.has(serie.source_name)}                                                    
+                                                  />
+                                                ]) 
+                                              }                                                                               
+                                            </Stack>
+                                          </Accordion.Body>
+                                        </Accordion.Item>
+                                      </Accordion>
+                                    ])  
+                                  }
+
                                   </Stack>
                                 </Accordion.Body>
                               </Accordion.Item>

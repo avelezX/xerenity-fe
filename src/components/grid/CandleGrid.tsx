@@ -13,7 +13,8 @@ export default function CandleGridViewer({selectCallback,allTes}:GridViewProps){
     
     return (        
         <Form onChange={(e)=>selectCallback(e as ChangeEvent<HTMLFormElement>)}>
-            <Table bordered hover responsive='sm'>
+            <div style={{ maxHeight: '500px', overflowY: 'auto' }}>
+            <Table bordered hover responsive='sm' style={{fontSize:13}}>
                 <thead>
                     <tr>
                         <th>Name</th>
@@ -40,7 +41,7 @@ export default function CandleGridViewer({selectCallback,allTes}:GridViewProps){
                         allTes.map((tesValue)=>[
                             <tr key={`tr-grid-row${tesValue.tes}`}>
                                 <td>
-                                    <Form.Check inline placeholder={tesValue.displayname} type='radio' label={tesValue.displayname} name="group1" id={tesValue.tes} />                                
+                                    <Form.Check inline placeholder={tesValue.displayname} type='radio' label={tesValue.displayname?.replace('COLTES','T').toString()} name="group1" id={tesValue.tes} />                                
                                 </td>
                                 <td>                                        
                                     <NewPrevTag current={tesValue.close} prev={tesValue.prev} > 
@@ -59,6 +60,7 @@ export default function CandleGridViewer({selectCallback,allTes}:GridViewProps){
                     }
                 </tbody>                
             </Table>
+            </div>
         </Form>
     )
 }
