@@ -1,4 +1,4 @@
-import { Badge,  Col,  Row } from 'react-bootstrap'
+import { Badge, Stack } from 'react-bootstrap'
 import React,{ PropsWithChildren } from "react"
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import {
@@ -25,14 +25,10 @@ export default function NewPrevTag(props:NewPrevProps){
     }
     return (        
         <Badge bg={bg}>
-            <Row>
-                <Col sm={1}>
-                    <FontAwesomeIcon icon={icn}/>
-                </Col>
-                <Col>
-                    {children}
-                </Col>
-            </Row>            
+            <Stack gap={1} direction='horizontal'>
+                <FontAwesomeIcon icon={icn}/>
+                {children}                
+            </Stack>           
         </Badge>
     )
 }
