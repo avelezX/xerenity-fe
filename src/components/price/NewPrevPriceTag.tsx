@@ -1,11 +1,10 @@
-import { Badge,  Col,  Row,Stack } from 'react-bootstrap'
+import { Badge, Stack } from 'react-bootstrap'
 import React,{ PropsWithChildren } from "react"
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import {
     faArrowDown,
     faArrowUp,
   } from '@fortawesome/free-solid-svg-icons'
-import { offset } from '@popperjs/core'
 
   
 type NewPrevProps = {
