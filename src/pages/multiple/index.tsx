@@ -146,9 +146,8 @@ export default function NextPage(){
                 </Col>
             </Row>
 
-            <Row>
-                
-                <Col>
+            <Row>                
+                <Col sm={6}>
                     <Row>
                         <Col>
                             <Alert variant='dark'>
@@ -168,7 +167,7 @@ export default function NextPage(){
                     <Row>
                         <Col>
                             <Alert variant='dark'>
-                                COLTES IBR
+                                IBR SWAPS
                             </Alert>
                         </Col>
                     </Row>
