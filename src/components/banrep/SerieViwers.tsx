@@ -50,7 +50,7 @@ export default function SeriesViewer(){
 
     const FetchSerieValues = useCallback(async (idSerie:string,newColor:string) =>{
      
-      const {data,error} = await await supabase.schema('xerenity').rpc('search',{name:idSerie})
+      const {data,error} = await supabase.schema('xerenity').rpc('search',{name:idSerie})
       
       if(error){
         return {serie:[],color:'',name:''} as LightSerie
@@ -312,8 +312,6 @@ export default function SeriesViewer(){
                         </Stack>                       
                       </Offcanvas.Body>
               </Offcanvas>
-
-
 
             </Row>
             <Row>

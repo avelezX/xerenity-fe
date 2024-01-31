@@ -52,7 +52,10 @@ export default function SidebarNav() {
       </SidebarNavItem>    
       <SidebarNavItem icon={faTable}  href="/multiple">
         Varios Grids
-      </SidebarNavItem>        
+      </SidebarNavItem>
+      <SidebarNavItem icon={faTable}  href="/loans">
+        Creditos
+      </SidebarNavItem>                 
     </ul>
   )
 }
