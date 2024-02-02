@@ -6,6 +6,7 @@ export interface Loan {
     rate_type:number;
     periodicity:string;
     interest_rate:number;
+    type:string;
 }
 
 export interface LoanCashFlow

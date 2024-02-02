@@ -26,7 +26,8 @@ import {
 } from '@fortawesome/free-solid-svg-icons'
 import SeriePicker from '@components/serie/SeriePicker'
 import { ExportToCsv,downloadBlob } from '@components/csvDownload/cscDownload'
-
+import { ToastContainer, toast } from 'react-toastify'
+import "react-toastify/dist/ReactToastify.css"
 
 export default function SeriesViewer(){
     
@@ -71,9 +72,8 @@ export default function SeriesViewer(){
       
       if(error){
         setSelectionOptionsSbg(new Map())
-      }
-
-      if(data){
+        toast.error(error.message, {position: toast.POSITION.TOP_CENTER})
+      }else if(data){
         
         const options = data as LightSerieEntry[]
         const subGrupos= new Map<string,LightSerieEntry[]>()
@@ -205,6 +205,7 @@ export default function SeriesViewer(){
 
     return (
         <Container fluid>
+        <ToastContainer />
             <Row>              
             <Row>
                 <Col sm={4}>

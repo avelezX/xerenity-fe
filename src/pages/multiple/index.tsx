@@ -3,7 +3,6 @@
 import React,{ ChangeEvent,useCallback,useState,useEffect } from 'react'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { Container,Row,Col, Alert } from 'react-bootstrap'
-
 import { AdminLayout } from '@layout'
 import {TesYields,CandleSerie} from '@models/tes'
 import CopTesGrid from '@components/grid/SpecificGrids/copGrid'
@@ -11,6 +10,8 @@ import CandleSerieViewer from '@components/compare/candleViewer'
 import IbrTesGrid from '@components/grid/SpecificGrids/ibrGrid'
 import { LightSerie, LightSerieValue } from '@models/lightserie'
 import { MovingAvgValue } from '@models/movingAvg'
+import { ToastContainer, toast } from 'react-toastify'
+import "react-toastify/dist/ReactToastify.css"
 
 export default function NextPage(){
 
@@ -36,6 +37,7 @@ export default function NextPage(){
             const {data,error} =   await supabase.schema('xerenity').from(selectedSerie).select().order('day', { ascending: true })
             if(error){
                 setCandleSerie({name:'',values:[]})
+                toast.error(error.message, {position: toast.POSITION.TOP_CENTER})
             }else if(data){            
                 setCandleSerie({name:selectedSerie,values:data as TesYields[]})            
             }else{
@@ -53,9 +55,11 @@ export default function NextPage(){
 
             if(selectedSerie.includes('tes') || selectedSerie.includes('uvr')){
                 
-                const data =   await supabase.schema('xerenity').rpc('tes_moving_average',{tes_name:selectedSerie,average_days:20})
+                const {data,error}=   await supabase.schema('xerenity').rpc('tes_moving_average',{tes_name:selectedSerie,average_days:20})
                 
-                if(data){
+                if(error){                    
+                    toast.error(error.message, {position: toast.POSITION.TOP_CENTER})
+                }else if(data){
                     setMovingAvg([])
                 }
         
@@ -72,14 +76,11 @@ export default function NextPage(){
                 }
 
             }else{
-                const data =   await supabase.schema('xerenity').rpc('ibr_moving_average',{ibr_months:selectedSerie,average_days:20})
-            
+                const {data,error}=  await supabase.schema('xerenity').rpc('ibr_moving_average',{ibr_months:selectedSerie,average_days:20})
                 
-                if(data){
-                    setMovingAvg([])
-                }
-        
-                if(data.data){            
+                if(error){                    
+                    toast.error(null, {position: toast.POSITION.TOP_CENTER})
+                }else if(data.data){            
                     const avgValues = data.data.moving_avg as MovingAvgValue[]
                     const avgSerie = Array<LightSerieValue>()
                     avgValues.forEach((avgval)=>{
@@ -101,6 +102,7 @@ export default function NextPage(){
 
     return (        
         <AdminLayout >
+        <ToastContainer />
         <Container fluid>
             <Row>
                 
