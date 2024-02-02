@@ -1,20 +1,20 @@
 'use client'
 
-import React,{ ChangeEvent,useCallback,useState,useEffect } from 'react'
+import React,{ useCallback,useState,useEffect } from 'react'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
-import { Container,Row,Col, Table,Card, Button, Tooltip, ToastContainer } from 'react-bootstrap'
+import { Container,Row,Col, Table, Button } from 'react-bootstrap'
 import { Loan,LoanCashFlow,LoanCashFlowIbr } from '@models/loans'
 import Form from 'react-bootstrap/Form'
 import ProgressBar from 'react-bootstrap/ProgressBar'
 import CandleSerieViewer from '@components/compare/candleViewer'
-import OverlayTrigger from 'react-bootstrap/OverlayTrigger'
 
 import { AdminLayout } from '@layout'
 import { LightSerie} from '@models/lightserie'
 import LoanForm from '@components/forms/loanForm'
-import { toast } from 'react-toastify'
 import { ExportToCsv,downloadBlob } from '@components/csvDownload/cscDownload'
 
+import { ToastContainer, toast } from 'react-toastify'
+import "react-toastify/dist/ReactToastify.css"
 
 export default function NextPage(){
 
@@ -26,23 +26,25 @@ export default function NextPage(){
 
     const [fetching,setFetching] = useState<boolean>(false)
 
-    const [loanIds,setLoanIds] = useState<string []>([])
-
     const [cashFlowView,setCashFlowView] = useState<LightSerie[]>([])
 
     const [showDialog,setShowDialog]= useState<boolean>(false)
+    
 
     const fetchLoanNames = useCallback( async () =>{        
 
+        setFetching(true)
         const {data,error} =   await supabase.schema('xerenity').rpc('get_loans')
 
         if(error){
             setAllCredits([])
+            toast.error(error.message, {position: toast.POSITION.TOP_CENTER})
         }else if(data){            
-            setAllCredits(data as Loan[])            
+            setAllCredits(data as Loan[])
         }else{
             setAllCredits([])
         }
+
 
         setFetching(false)
 
@@ -52,13 +54,13 @@ export default function NextPage(){
         fetchLoanNames()
     },[fetchLoanNames])
 
-    const calculateCashFlow = async () => {
+    const calculateCashFlow = async (cred_id:string) => {
         
         setFetching(true)
-        const {data,error} =   await supabase.schema('xerenity').rpc('loan_cash_flow',{credito_id:loanIds[0]})
+        const {data,error} =   await supabase.schema('xerenity').rpc('loan_cash_flow',{credito_id:cred_id})
         if(error){
             setCashFlow([])
-            toast.error(error.message)
+            toast.error(error.message, {position: toast.POSITION.TOP_CENTER})
         }else if(data){
             const allData = data as LoanCashFlowIbr[]
             setCashFlow(allData)
@@ -100,13 +102,13 @@ export default function NextPage(){
      
     }
 
-    const calculateCashFlowIbr = async () => {
+    const calculateCashFlowIbr = async (cred_id:string) => {
         
         setFetching(true)
-        const {data,error} =   await supabase.schema('xerenity').rpc('ibr_cash_flow',{credito_id:loanIds[0]})
+        const {data,error} =   await supabase.schema('xerenity').rpc('ibr_cash_flow',{credito_id:cred_id})
         if(error){
-            setCashFlow([])
-            toast.error(error.message)
+            setCashFlow([])            
+            toast.error(error.message, {position: toast.POSITION.TOP_CENTER})
         }else if(data){
             const allData = data as LoanCashFlow[]
             setCashFlow(allData)
@@ -149,21 +151,12 @@ export default function NextPage(){
     }    
 
 
-    const selectLoan = async (event: ChangeEvent<HTMLInputElement>,cred_id:string) => {
-        
-        if(event.target.checked){            
-            setLoanIds([...loanIds,cred_id])
-        }else{
-            const newLoanId=Array<string>()
-
-            loanIds.forEach((lid)=>{
-                if(lid !== cred_id){
-                    newLoanId.push(lid)
-                }
-            })
-
-            setLoanIds(newLoanId)
-        }
+    const selectLoan = async (cred_id:string,cred_type:string) => {
+        if(cred_type==='fija'){
+            calculateCashFlow(cred_id)
+        }else if(cred_type==='ibr'){
+            calculateCashFlowIbr(cred_id)
+        }        
     }
 
     const downloadSeries = () => {                
@@ -203,14 +196,32 @@ export default function NextPage(){
             <Container fluid>
                 <Row>
                     <Col sm={8}>
-                        <h1>
-                            Mis Creditos
-                        </h1>
+                        <Row>
+                            <Col>
+                                <h1>
+                                    Mis Creditos
+                                </h1>
+                            </Col>                    
+                        </Row>
                     </Col>
-                    <Col sm={{offset:2}}>
-                        <Button onClick={()=>setShowDialog(!showDialog)}>
-                            Crear Credito
-                        </Button>
+                    <Col>
+                        <Row>              
+                            <Col >
+                                <Button onClick={()=>setShowDialog(!showDialog)}>
+                                    Nuevo credito
+                                </Button>
+                            </Col>
+                            <Col >
+                                <Button onClick={downloadSeries}>
+                                    Exportar csv
+                                </Button>
+                            </Col>                    
+                        </Row>
+                    </Col>
+                </Row>
+                <Row>
+                    <Col>
+                        <hr/>
                     </Col>
                 </Row>
                 <Row>                    
@@ -223,6 +234,7 @@ export default function NextPage(){
                                     <th>Periodicidad</th>
                                     <th>Numero de pagos</th>
                                     <th>Interes</th>
+                                    <th>Tipo</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -234,12 +246,15 @@ export default function NextPage(){
                                             <td>{loan.periodicity}</td>
                                             <td>{loan.number_of_payments}</td>
                                             <td>{loan.interest_rate}</td>
+                                            <td>{loan.type}</td>
                                             <td>
                                                 <Form.Check
-                                                    type='switch'
+                                                    type='radio'
                                                     id={`check-${loan.id}`}
+                                                    name="selectedcredit"
+                                                    disabled={fetching}
                                                     label="Seleccionar"
-                                                    onChange={(e)=> selectLoan(e, loan.id)}
+                                                    onClick={()=>selectLoan(loan.id,loan.type)}
                                                 />
                                             </td>
                                         </tr>
@@ -248,72 +263,6 @@ export default function NextPage(){
                             </tbody>                    
                         </Table>                    
                     </Col>
-                </Row>
-
-                <Row>
-                    <Col sm={4}>
-                        <Card style={{ width: '18rem' }}>
-                            <Card.Body>
-                                <Card.Title>Flujo de Caja</Card.Title>
-                                <Card.Text>
-                                El Flujo de Caja permite tener una vista rápida del lugar en donde estamos pisando financieramente, dando luces de hacia dónde nos dirigimos en el corto, medio y largo plazo
-                                </Card.Text>
-                                <OverlayTrigger
-                                    placement='right'
-                                    overlay={                                        
-                                        loanIds.length===0?(
-                                            <Tooltip id="button-tooltip-2">Debes selecionar al menos un credito</Tooltip>
-                                        ):
-                                        (
-                                            <Tooltip id="button-tooltip-2">Click para calcular</Tooltip>
-                                        )
-                                    }
-                                >
-                                    <Button className="d-inline-flex align-items-center"
-                                        onClick={calculateCashFlow}disabled={loanIds.length===0}>Calcular
-                                    </Button>
-                                </OverlayTrigger>
-                            </Card.Body>
-                        </Card>                                
-                    </Col>
-                    <Col sm={4}>
-                        <Card style={{ width: '18rem' }}>
-                            <Card.Body>
-                                <Card.Title>IBR cash flow</Card.Title>
-                                <Card.Text>
-                                Flujo de caja basado en curvas de inflacion
-                                </Card.Text>
-                                <OverlayTrigger
-                                    placement='right'
-                                    overlay={                                        
-                                        loanIds.length===0?(
-                                            <Tooltip id="button-tooltip-2">Debes selecionar al menos un credito</Tooltip>
-                                        ):
-                                        (
-                                            <Tooltip id="button-tooltip-2">Click para calcular</Tooltip>
-                                        )
-                                    }
-                                >
-                                    <Button className="d-inline-flex align-items-center"
-                                        onClick={calculateCashFlowIbr}disabled={loanIds.length===0}>Calcular
-                                    </Button>
-                                </OverlayTrigger>
-                            </Card.Body>
-                        </Card>                                
-                    </Col>                    
-                    <Col sm={4}>
-                        <Card style={{ width: '18rem' }}>
-                            <Card.Body>
-                                <Card.Title>Exportar CSV</Card.Title>
-                                <Card.Text>
-                                 Descargar todo el flujo de caja a un archivo compatible con excel
-                                </Card.Text>
-                                <Button className="d-inline-flex align-items-center"
-                                        onClick={downloadSeries} disabled={loanIds.length===0}>Calcular
-                                </Button>
-                            </Card.Body>
-                        </Card>                                
-                    </Col>                    
                 </Row>
 
                 <Row>

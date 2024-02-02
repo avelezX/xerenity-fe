@@ -29,7 +29,8 @@ export default function LoanForm({showStart,createCallback,showCallBack}:LoanFor
         original_balance:1,
         rate_type:1,
         periodicity:'',
-        interest_rate:0.1
+        interest_rate:0.1,
+        type:'fija'
     }
 
     useEffect(() => {
@@ -59,6 +60,7 @@ export default function LoanForm({showStart,createCallback,showCallBack}:LoanFor
                     //  touched,
                     handleChange,
                     //  handleBlur,
+                    setFieldValue,
                     handleSubmit,
                     isSubmitting,
                     /* and other goodies */
@@ -69,6 +71,30 @@ export default function LoanForm({showStart,createCallback,showCallBack}:LoanFor
                         </Modal.Header>
                         <Form onSubmit={handleSubmit}>
                             <Modal.Body>
+
+                                <Form.Group  controlId="type">
+                                    <Form.Label>Tipo de credito</Form.Label>
+                                        <Row>
+                                            <Col>
+                                                {
+                                                    ['fija', 'ibr', 'uvr'].map((loant)=>[
+                                                        <Form.Check
+                                                            inline
+                                                            label={loant}                                                            
+                                                            name="type"
+                                                            checked={values.type===loant}
+                                                            onChange={() => setFieldValue('type', loant)}
+                                                            type='radio'
+                                                            value={values.type}
+                                                            key={`inline-${loant}-1`}
+                                                        />
+                                                    ])
+                                                }
+                                            </Col>
+                                        </Row>                                                     
+                                    <ErrorMessage name='type' component="div" />
+                                </Form.Group>
+
                                 <Form.Group  controlId="periodicity">
                                     <Form.Label>Periodicdad</Form.Label>
                                     <Form.Select value={values.periodicity} onChange={handleChange}>                                        
