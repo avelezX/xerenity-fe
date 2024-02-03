@@ -54,7 +54,7 @@ export default function SeriesViewer(){
       const {data,error} = await supabase.schema('xerenity').rpc('search',{name:idSerie})
       
       if(error){
-        return {serie:[],color:'',name:''} as LightSerie
+        return {serie:[],color:'',name:'',type:'line'} as LightSerie
       }
       if(data){        
         return {
@@ -64,7 +64,7 @@ export default function SeriesViewer(){
         } as LightSerie     
       }
       
-      return {serie:[],color:'',name:''} as LightSerie
+      return {serie:[],color:'',name:'',type:'line'} as LightSerie
     },[supabase,serieNameInfo])
 
     const fetchData = useCallback( async () =>{
@@ -157,7 +157,7 @@ export default function SeriesViewer(){
       
       Array.from(selectedSeries.entries()).forEach(([key,value])=>{        
         if(key===checkboxId){          
-          newSelection.set(key,{serie:value.serie,color:newColor,name:value.name})
+          newSelection.set(key,{serie:value.serie,color:newColor,name:value.name,type:'line'})
         }else{
           newSelection.set(key,value)
         }

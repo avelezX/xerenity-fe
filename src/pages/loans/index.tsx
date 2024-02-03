@@ -2,8 +2,8 @@
 
 import React,{ useCallback,useState,useEffect } from 'react'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
-import { Container,Row,Col, Table, Button } from 'react-bootstrap'
-import { Loan,LoanCashFlow,LoanCashFlowIbr } from '@models/loans'
+import { Container,Row,Col, Table, Button,Badge } from 'react-bootstrap'
+import { Loan,LoanCashFlowIbr } from '@models/loans'
 import Form from 'react-bootstrap/Form'
 import ProgressBar from 'react-bootstrap/ProgressBar'
 import CandleSerieViewer from '@components/compare/candleViewer'
@@ -15,6 +15,10 @@ import { ExportToCsv,downloadBlob } from '@components/csvDownload/cscDownload'
 
 import { ToastContainer, toast } from 'react-toastify'
 import "react-toastify/dist/ReactToastify.css"
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import { faTrashCan} from '@fortawesome/free-regular-svg-icons'
+import { faExclamation } from '@fortawesome/free-solid-svg-icons'
+import SimpleModal from '@components/modals/genericModal'
 
 export default function NextPage(){
 
@@ -22,13 +26,18 @@ export default function NextPage(){
 
     const [allCredits,setAllCredits] = useState<Loan[]>()
 
-    const [cashFlow,setCashFlow] = useState<LoanCashFlow[]>()
+    const [cashFlow,setCashFlow] = useState<LoanCashFlowIbr[]>()
 
     const [fetching,setFetching] = useState<boolean>(false)
 
     const [cashFlowView,setCashFlowView] = useState<LightSerie[]>([])
 
     const [showDialog,setShowDialog]= useState<boolean>(false)
+
+
+    const [showConfirm,setShowConfirm]= useState<boolean>(false)
+
+    const [eraseLoan,setEraseLoan]= useState<string>('')
     
 
     const fetchLoanNames = useCallback( async () =>{        
@@ -67,14 +76,16 @@ export default function NextPage(){
 
             const balance: LightSerie={
                 name: 'Balance',
-                color: '#55933b',
-                serie: []
+                color: '#FAC863',
+                serie: [],
+                type:'bar'
             }
 
             const payment: LightSerie={
                 name: 'Payment',
                 color: '#2270E2',
-                serie: []
+                serie: [],
+                type:'line'
             }
 
             allData.forEach((l)=>{
@@ -110,19 +121,21 @@ export default function NextPage(){
             setCashFlow([])            
             toast.error(error.message, {position: toast.POSITION.TOP_CENTER})
         }else if(data){
-            const allData = data as LoanCashFlow[]
+            const allData = data as LoanCashFlowIbr[]
             setCashFlow(allData)
 
             const balance: LightSerie={
                 name: 'Balance',
                 color: '#55933b',
-                serie: []
+                serie: [],
+                type:'bar'
             }
 
             const payment: LightSerie={
                 name: 'Payment',
                 color: '#2270E2',
-                serie: []
+                serie: [],
+                type:'line'
             }
 
             allData.forEach((l)=>{
@@ -187,12 +200,39 @@ export default function NextPage(){
         const csv=ExportToCsv(allValues)
   
         downloadBlob(csv, 'xerenity_flujo_de_caja.csv', 'text/csv;charset=utf-8;')
+    }
+    
+    const borrarCredito = async (cred_id:string) => {
+        
+        setFetching(true)
+        
+        const {data,error} =   await supabase.schema('xerenity').rpc('erase_loan',{credito_id:cred_id})
+        
+        if(error){
+            toast.error(error.message, {position: toast.POSITION.TOP_CENTER})
+        }else{
+            toast.info(data.message, {position: toast.POSITION.TOP_CENTER})
+            fetchLoanNames()
+        }
+        setShowConfirm(false)
+        setFetching(false)
+     
     }    
 
     return (        
         <AdminLayout >
             <LoanForm showStart={showDialog} createCallback={fetchLoanNames} showCallBack={setShowDialog}/>
             <ToastContainer />
+            <SimpleModal 
+                cancelCallback={()=>setShowConfirm(false)} 
+                cancelMessage='Cancelar'
+                saveCallback={()=>borrarCredito(eraseLoan)} 
+                saveMessage='Borrar'
+                title='Confirmar'
+                message='Desea Borrar el credito'
+                display={showConfirm}
+                icon={faExclamation}
+            />
             <Container fluid>
                 <Row>
                     <Col sm={8}>
@@ -201,7 +241,7 @@ export default function NextPage(){
                                 <h1>
                                     Mis Creditos
                                 </h1>
-                            </Col>                    
+                            </Col>
                         </Row>
                     </Col>
                     <Col>
@@ -246,16 +286,42 @@ export default function NextPage(){
                                             <td>{loan.periodicity}</td>
                                             <td>{loan.number_of_payments}</td>
                                             <td>{loan.interest_rate}</td>
-                                            <td>{loan.type}</td>
                                             <td>
-                                                <Form.Check
-                                                    type='radio'
-                                                    id={`check-${loan.id}`}
-                                                    name="selectedcredit"
-                                                    disabled={fetching}
-                                                    label="Seleccionar"
-                                                    onClick={()=>selectLoan(loan.id,loan.type)}
-                                                />
+                                                {
+                                                    loan.type==='ibr'?
+                                                    (
+                                                        <Badge pill bg="primary">{loan.type}</Badge>
+                                                    )
+                                                    :
+                                                    (
+                                                        <Badge pill bg="warning">{loan.type}</Badge>
+                                                    )
+                                                }
+                                            </td>
+                                            <td>
+                                                <Row>
+
+                                                    <Col sm={{span:3}}>
+                                                        <Button size='sm' variant="outline-danger" onClick={                                                                
+                                                                ()=>{
+                                                                    setEraseLoan(loan.id)
+                                                                    setShowConfirm(true)
+                                                                }
+                                                            }>
+                                                            <FontAwesomeIcon icon={faTrashCan}/>
+                                                        </Button>
+                                                    </Col>
+                                                    <Col sm={{offset:2,span:3}}>
+                                                        <Form.Check
+                                                            type='radio'
+                                                            id={`check-${loan.id}`}
+                                                            name="selectedcredit"
+                                                            disabled={fetching}
+                                                            label="Ver"
+                                                            onClick={()=>selectLoan(loan.id,loan.type)}
+                                                        />
+                                                    </Col>
+                                                </Row>
                                             </td>
                                         </tr>
                                     ])

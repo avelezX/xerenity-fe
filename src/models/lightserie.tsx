@@ -20,4 +20,5 @@ export interface LightSerie{
     name:string;
     color:string;
     serie:LightSerieValue[];
+    type: 'bar' | 'line';
 }

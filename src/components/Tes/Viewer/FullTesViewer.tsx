@@ -117,7 +117,7 @@ export default function FullTesViewer(){
                     time:avgval.close_date.split('T')[0]
                 })
             })
-            setMovingAvg([{serie:avgSerie,color:'#2270E2',name:display_name}])
+            setMovingAvg([{serie:avgSerie,color:'#2270E2',name:display_name,type:'line'}])
         }
     },[supabase,setMovingAvg])    
 
@@ -141,7 +141,7 @@ export default function FullTesViewer(){
                         time:avgval.close_date.split('T')[0]
                     })
                 })
-                setMovingAvg([{serie:avgSerie,color:'#2270E2',name:display_name}])
+                setMovingAvg([{serie:avgSerie,color:'#2270E2',name:display_name,type:'line'}])
             }
         }
 
