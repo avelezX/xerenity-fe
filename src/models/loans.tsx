@@ -17,16 +17,9 @@ export interface LoanCashFlow
     interest: number;
     principal: number;
     ending_balance: number;
-    rate: number;
 }
 
-export interface LoanCashFlowIbr 
+export interface LoanCashFlowIbr extends LoanCashFlow
 {
-    date:string;
     rate: number;
-    payment: number;
-    interest: number;
-    principal: number;
-    ending_balance: number;
-    beginning_balance: number;
 }

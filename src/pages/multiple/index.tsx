@@ -72,7 +72,7 @@ export default function NextPage(){
                             time:avgval.close_date.split('T')[0]
                         })
                     })
-                    setMovingAvg([{serie:avgSerie,color:'#2270E2',name:displayName}])
+                    setMovingAvg([{serie:avgSerie,color:'#2270E2',name:displayName,type:'line'}])
                 }
 
             }else{
@@ -89,7 +89,7 @@ export default function NextPage(){
                             time:avgval.close_date.split('T')[0]
                         })
                     })
-                    setMovingAvg([{serie:avgSerie,color:'#2270E2',name:displayName}])
+                    setMovingAvg([{serie:avgSerie,color:'#2270E2',name:displayName,type:'line'}])
                 }
             }
 

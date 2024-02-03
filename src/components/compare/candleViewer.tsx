@@ -159,18 +159,40 @@ export default function CandleSerieViewer({candleSerie,otherSeries,fit,normalyze
               scaleid='right'
             }
             
-            const otherSerieChart = chart.current?.addLineSeries(
-              { 
-                color: other.color,
-                priceScaleId: scaleid,
-                priceFormat: {
-                  type: 'price'
-                } 
-              }
-            )
-            if(otherSerieChart){
-              otherSerieChart.setData(other.serie)
-            }            
+            if(other.type==='bar'){
+              
+              const otherSerieChart=chart.current?.addHistogramSeries(
+                { 
+                  color: other.color,                  
+                  priceScaleId: scaleid,
+                  priceFormat: {
+                    type: 'price'
+                  } 
+                }
+              )
+
+              if(otherSerieChart){
+                otherSerieChart.setData(other.serie)
+              } 
+            }else{
+              const otherSerieChart=chart.current?.addLineSeries(
+                { 
+                  color: other.color,
+                  priceScaleId: scaleid,
+                  priceFormat: {
+                    type: 'price'
+                  } 
+                }
+              )
+
+              if(otherSerieChart){
+                otherSerieChart.setData(other.serie)
+              } 
+            }
+
+            
+
+           
           })
           
           firstRow.innerHTML=`${iner}</dl>`
