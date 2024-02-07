@@ -14,7 +14,7 @@ export default function CandleGridViewer({selectCallback,allTes}:GridViewProps){
     return (        
         <Form onChange={(e)=>selectCallback(e as ChangeEvent<HTMLFormElement>)}>
             <div style={{ maxHeight: '500px', overflowY: 'auto' }}>
-            <Table bordered hover responsive='sm' style={{fontSize:13}}>
+            <Table bordered hover responsive='sm' style={{fontSize:13,textAlign:'center'}}>
                 <thead>
                     <tr>
                         <th>Name</th>

@@ -284,7 +284,7 @@ export default function NextPage(){
                 </Row>
                 <Row>                    
                     <Col>
-                        <Table bordered hover responsive='sm'>
+                        <Table bordered hover responsive='sm' style={{textAlign:'center'}}>
                             <thead>
                                 <tr>
                                     <th>Fecha de inicio</th>
@@ -371,7 +371,7 @@ export default function NextPage(){
 
                 <Row>
                     <Col>
-                    <Table bordered hover responsive='sm'>
+                    <Table bordered hover responsive='sm' style={{textAlign:'center'}}>
                             <thead>
                                 <tr>
                                     <th>Fecha de inicio</th>

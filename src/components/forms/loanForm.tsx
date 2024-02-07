@@ -32,10 +32,10 @@ export default function LoanForm({showStart,createCallback,showCallBack}:LoanFor
     { 
         start_date: '',
         number_of_payments:12,
-        original_balance:null,
-        rate_type:null,
+        original_balance:0,
+        rate_type:'',
         periodicity:'',
-        interest_rate:null,
+        interest_rate:'',
         type:'fija'
     }
 

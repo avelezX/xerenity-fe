@@ -322,7 +322,7 @@ export default function SeriesViewer(){
             </Row>
             <Row>
               <Col>
-                <Table bordered hover responsive='sm'>
+                <Table bordered hover responsive='sm' style={{textAlign:'center'}}>
                   <thead>
                     <tr>                      
                       <th>Nombre</th>
