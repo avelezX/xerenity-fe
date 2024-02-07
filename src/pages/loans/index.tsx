@@ -161,7 +161,7 @@ export default function NextPage(){
         })
 
         if(event.target.checked){
-            if(loanType==='ibr'){
+            if(loanType==='fija'){
                 newSelection.set(loanId,await calculateCashFlow(loanId))
             }else{
                 newSelection.set(loanId,await calculateCashFlowIbr(loanId))
