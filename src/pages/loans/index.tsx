@@ -44,8 +44,9 @@ export default function NextPage(){
     
 
     const fetchLoanNames = useCallback( async () =>{        
-
+        setShowDialog(false)
         setFetching(true)
+
         const {data,error} =   await supabase.schema('xerenity').rpc('get_loans')
 
         if(error){
