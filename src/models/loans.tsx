@@ -23,3 +23,8 @@ export interface LoanCashFlowIbr extends LoanCashFlow
 {
     rate: number;
 }
+
+export interface LoanType {
+    value:string;
+    display:string;
+}

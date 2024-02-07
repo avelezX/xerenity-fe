@@ -1,6 +1,6 @@
 import Container from 'react-bootstrap/Container'
 import { CandleSerie } from '@models/tes'
-import { CandlestickData, HistogramData, Time, WhitespaceData, createChart,IChartApi,CrosshairMode } from 'lightweight-charts'
+import { CandlestickData, HistogramData, Time, WhitespaceData, createChart,IChartApi,CrosshairMode, } from 'lightweight-charts'
 import React, { useEffect,useRef } from 'react'
 import { Card } from 'react-bootstrap'
 import { LightSerie } from '@models/lightserie'
@@ -33,10 +33,11 @@ export default function CandleSerieViewer({candleSerie,otherSeries,fit,normalyze
         height: chartContainerRef.current.offsetHeight,
         type:'solid',
         color:'transparent',
+        autoSize: true,
         layout: {
           background: { 
             color: 'transparent' },
-            textColor: "#C3BCDB",
+            textColor: "#D3D3D3",
         },
         watermark: {
           visible: true,
@@ -56,11 +57,15 @@ export default function CandleSerieViewer({candleSerie,otherSeries,fit,normalyze
           mode: CrosshairMode.Normal,
         },
         priceScale: {
-          borderColor: '#485c7b',
+          borderColor: '#485c7b',          
         },
         timeScale: {
           borderColor: '#485c7b',
+          fixLeftEdge:true,
+          uniformDistribution:true,
+          visible:true,
         }
+        
       }
       
       chart.current = createChart(chartContainerRef.current,chartOptions)
@@ -94,7 +99,8 @@ export default function CandleSerieViewer({candleSerie,otherSeries,fit,normalyze
                   priceFormat: {
                     type: 'volume',
                   },
-                  priceScaleId: 'volume'            
+                  priceScaleId: 'volume',
+                  title:'volume'
                 }
               )
         
@@ -167,7 +173,8 @@ export default function CandleSerieViewer({candleSerie,otherSeries,fit,normalyze
                   priceScaleId: scaleid,
                   priceFormat: {
                     type: 'price'
-                  } 
+                  },
+                  title:other.name                  
                 }
               )
 
@@ -181,7 +188,8 @@ export default function CandleSerieViewer({candleSerie,otherSeries,fit,normalyze
                   priceScaleId: scaleid,
                   priceFormat: {
                     type: 'price'
-                  } 
+                  },
+                  title:other.name
                 }
               )
 
@@ -189,9 +197,6 @@ export default function CandleSerieViewer({candleSerie,otherSeries,fit,normalyze
                 otherSerieChart.setData(other.serie)
               } 
             }
-
-            
-
            
           })
           
@@ -200,8 +205,8 @@ export default function CandleSerieViewer({candleSerie,otherSeries,fit,normalyze
         }
 
         if(fit){
-          chart.current.timeScale().fitContent()
-        }        
+          chart.current.timeScale().fitContent()          
+        }
 
       }    
       
