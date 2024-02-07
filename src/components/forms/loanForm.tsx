@@ -3,13 +3,19 @@
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import React,{ useState,useEffect } from 'react'
 import { Formik,ErrorMessage } from 'formik'
-import {Form,Modal,Col,Row,Badge,Button, Alert} from 'react-bootstrap'
+import {Form,Modal,Col,Row,Button, Alert} from 'react-bootstrap'
+import { LoanType } from '@models/loans'
 
 interface LoanFormProps{
     showStart:boolean;
     createCallback:() => void;
     showCallBack:(show:boolean) => void;
 }
+
+const loanTypes:LoanType[]=[
+    {display:'Tasa Fija',value:'fija'},
+    {display:'IBR',value:'ibr'}
+]
 
 export default function LoanForm({showStart,createCallback,showCallBack}:LoanFormProps){
 
@@ -26,16 +32,25 @@ export default function LoanForm({showStart,createCallback,showCallBack}:LoanFor
     { 
         start_date: '',
         number_of_payments:12,
-        original_balance:1,
-        rate_type:1,
+        original_balance:null,
+        rate_type:null,
         periodicity:'',
-        interest_rate:0.1,
+        interest_rate:null,
         type:'fija'
     }
 
     useEffect(() => {
         setShow(showStart)    
     },[showStart])
+
+
+    const nameMapping:{ [id: string] : string }={
+        "Anual":"Anos",
+        "Semestral":"Semestres",
+        "Trimestral":"Trimestres",
+        "Bimensual":"Bi meses",
+        "Mensual":"Meses"
+    }
 
 
     return (
@@ -77,13 +92,13 @@ export default function LoanForm({showStart,createCallback,showCallBack}:LoanFor
                                             <Row>
                                                 <Col>
                                                     {
-                                                        ['fija', 'ibr'].map((loant)=>[
+                                                        loanTypes.map((loant)=>[
                                                             <Form.Check
                                                                 inline
-                                                                label={loant}                                                            
+                                                                label={loant.display}                                                            
                                                                 name="type"
-                                                                checked={values.type===loant}
-                                                                onChange={() => setFieldValue('type', loant)}
+                                                                checked={values.type===loant.value}
+                                                                onChange={() => setFieldValue('type', loant.value)}
                                                                 type='radio'
                                                                 value={values.type}
                                                                 key={`inline-${loant}-1`}
@@ -113,20 +128,15 @@ export default function LoanForm({showStart,createCallback,showCallBack}:LoanFor
 
                                 <Alert variant='light'>
                                     <Form.Group  controlId="number_of_payments">
-                                        <Form.Label>Numero de pagos {values.periodicity}</Form.Label>
+                                        <Form.Label>Numero de pagos {values.number_of_payments} {nameMapping[values.periodicity]}</Form.Label>
                                         <Row>
-                                            <Col sm={10}>
+                                            <Col >
                                                 <Form.Range 
                                                     min={1}
                                                     max={100}
                                                     value={values.number_of_payments} 
                                                     onChange={handleChange}
                                                 />                                        
-                                            </Col>
-                                            <Col sm={1}>
-                                                <Badge>
-                                                    {values.number_of_payments}
-                                                </Badge>
                                             </Col>
                                         </Row>                            
                                         <ErrorMessage name='number_of_payments' component="div" />
@@ -161,12 +171,13 @@ export default function LoanForm({showStart,createCallback,showCallBack}:LoanFor
 
                                 <Alert variant='light'>
                                     <Form.Group  controlId="interest_rate">
-                                        <Form.Label>Interes</Form.Label>
-                                        <Form.Control 
+                                        <Form.Label>Interes nominal anual {values.interest_rate}%</Form.Label>
+                                        <Form.Control
+                                            placeholder="10.0%"
                                             type="number" 
                                             value={values.interest_rate} 
                                             onChange={handleChange}
-                                        />                            
+                                        />                           
                                         <ErrorMessage name='interest_rate' component="div" />
                                     </Form.Group>
                                 </Alert>

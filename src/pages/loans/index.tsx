@@ -1,6 +1,6 @@
 'use client'
 
-import React,{ useCallback,useState,useEffect } from 'react'
+import React,{ useCallback,useState,useEffect,ChangeEvent } from 'react'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { Container,Row,Col, Table, Button,Badge } from 'react-bootstrap'
 import { Loan,LoanCashFlowIbr } from '@models/loans'
@@ -19,6 +19,8 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faTrashCan} from '@fortawesome/free-regular-svg-icons'
 import { faExclamation } from '@fortawesome/free-solid-svg-icons'
 import SimpleModal from '@components/modals/genericModal'
+import PriceTagTd from '@components/price/CopDisplay'
+
 
 export default function NextPage(){
 
@@ -34,10 +36,11 @@ export default function NextPage(){
 
     const [showDialog,setShowDialog]= useState<boolean>(false)
 
-
     const [showConfirm,setShowConfirm]= useState<boolean>(false)
 
     const [eraseLoan,setEraseLoan]= useState<string>('')
+
+    const [selectedLoans,setSelectLoans] = useState<Map<string,LoanCashFlowIbr[]>>(new Map())
     
 
     const fetchLoanNames = useCallback( async () =>{        
@@ -63,114 +66,43 @@ export default function NextPage(){
         fetchLoanNames()
     },[fetchLoanNames])
 
-    const calculateCashFlow = async (cred_id:string) => {
+    const calculateCashFlow = useCallback(async (cred_id:string) => {
         
         setFetching(true)
         const {data,error} =   await supabase.schema('xerenity').rpc('loan_cash_flow',{credito_id:cred_id})
-        if(error){
-            setCashFlow([])
+        if(error){            
+            setFetching(false)
             toast.error(error.message, {position: toast.POSITION.TOP_CENTER})
-        }else if(data){
-            const allData = data as LoanCashFlowIbr[]
-            setCashFlow(allData)
-
-            const balance: LightSerie={
-                name: 'Balance',
-                color: '#FAC863',
-                serie: [],
-                type:'bar'
-            }
-
-            const payment: LightSerie={
-                name: 'Payment',
-                color: '#2270E2',
-                serie: [],
-                type:'line'
-            }
-
-            allData.forEach((l)=>{
-                balance.serie.push(
-                    {
-                        time:l.date.split(' ')[0],
-                        value:l.ending_balance
-                    }
-                )
-                payment.serie.push(
-                    {
-                        time:l.date.split(' ')[0],
-                        value:l.payment
-                    }
-                )                
-            })
-
-            setCashFlowView([balance,payment])
-            
-        }else{
-            setCashFlow([])
-        }        
+            return []
+        } 
+        
+        if(data){
+            setFetching(false)
+            return data as LoanCashFlowIbr[]
+        }     
 
         setFetching(false)
-     
-    }
+        return []     
+    },[supabase])
 
-    const calculateCashFlowIbr = async (cred_id:string) => {
+    const calculateCashFlowIbr = useCallback(async (cred_id:string) => {
         
         setFetching(true)
         const {data,error} =   await supabase.schema('xerenity').rpc('ibr_cash_flow',{credito_id:cred_id})
-        if(error){
-            setCashFlow([])            
+        if(error){            
+            setFetching(false)
             toast.error(error.message, {position: toast.POSITION.TOP_CENTER})
-        }else if(data){
-            const allData = data as LoanCashFlowIbr[]
-            setCashFlow(allData)
-
-            const balance: LightSerie={
-                name: 'Balance',
-                color: '#55933b',
-                serie: [],
-                type:'bar'
-            }
-
-            const payment: LightSerie={
-                name: 'Payment',
-                color: '#2270E2',
-                serie: [],
-                type:'line'
-            }
-
-            allData.forEach((l)=>{
-                balance.serie.push(
-                    {
-                        time:l.date.split(' ')[0],
-                        value:l.ending_balance
-                    }
-                )
-                payment.serie.push(
-                    {
-                        time:l.date.split(' ')[0],
-                        value:l.payment
-                    }
-                )
-            })
-
-            setCashFlowView([balance,payment])
-            
-        }else{
-            setCashFlow([])
-        }        
+            return []
+        }
+        
+        if(data){
+            setFetching(false)
+            return data as LoanCashFlowIbr[]
+        }    
 
         setFetching(false)
-     
-    }    
-
-
-    const selectLoan = async (cred_id:string,cred_type:string) => {
-        if(cred_type==='fija'){
-            calculateCashFlow(cred_id)
-        }else if(cred_type==='ibr'){
-            calculateCashFlowIbr(cred_id)
-        }        
-    }
+        return []     
+    },[supabase])
 
     const downloadSeries = () => {                
         const allValues: string[][]=[]
@@ -206,18 +138,104 @@ export default function NextPage(){
         
         setFetching(true)
         
-        const {data,error} =   await supabase.schema('xerenity').rpc('erase_loan',{credito_id:cred_id})
+        const {error} =   await supabase.schema('xerenity').rpc('erase_loan',{credito_id:cred_id})
         
         if(error){
-            toast.error(error.message, {position: toast.POSITION.TOP_CENTER})
+            toast.error(error.message, {position: toast.POSITION.BOTTOM_RIGHT})
         }else{
-            toast.info(data.message, {position: toast.POSITION.TOP_CENTER})
+            toast.info("El credito fue borrado exitosamente", {position: toast.POSITION.BOTTOM_RIGHT})
             fetchLoanNames()
         }
         setShowConfirm(false)
         setFetching(false)
      
-    }    
+    }
+    
+    const handleLoanCheckChnage = useCallback(async (event: ChangeEvent<HTMLInputElement>, loanId: string,loanType:string) => {
+        
+        const newSelection=new Map<string,LoanCashFlowIbr[]>()        
+
+        Array.from(selectedLoans.entries()).forEach(([key,value])=>{
+          newSelection.set(key,value)
+        })
+
+        if(event.target.checked){
+            if(loanType==='ibr'){
+                newSelection.set(loanId,await calculateCashFlow(loanId))
+            }else{
+                newSelection.set(loanId,await calculateCashFlowIbr(loanId))
+            }                
+        }else{
+            newSelection.delete(loanId)
+        }
+
+        setSelectLoans(newSelection)
+
+        const newCashFlow= new Map<string,LoanCashFlowIbr>()
+        
+        Array.from(newSelection.entries()).forEach((val)=>{            
+            val[1].forEach((entr)=>{
+                const au=newCashFlow.get(entr.date)                
+                if(au){
+                    const newentry={
+                        principal: au.principal + entr.principal,
+                        rate: au.rate,
+                        date: entr.date,
+                        beginning_balance: au.beginning_balance + entr.beginning_balance,
+                        payment: au.payment + entr.payment,
+                        interest: au.payment + entr.payment,
+                        ending_balance: au.ending_balance + entr.ending_balance
+                    }                
+                    newCashFlow.set(newentry.date,newentry)
+                }else{
+                    newCashFlow.set(entr.date,entr)
+                }                
+            })
+        })
+
+        const longCashFlow= new Array<LoanCashFlowIbr>()
+
+        const balance: LightSerie={
+            name: 'Balance final',
+            color: '#FAC863',
+            serie: [],
+            type:'bar'
+        }
+
+        const payment: LightSerie={
+            name: 'Pago cuota',
+            color: '#2270E2',
+            serie: [],
+            type:'line'
+        }
+
+        Array.from(newCashFlow.entries()).forEach((val)=>{
+            longCashFlow.push(val[1])
+        })
+
+        longCashFlow.sort((a, b) => (a.date < b.date ? -1 : 1))
+
+        longCashFlow.forEach((value)=>{          
+          balance.serie.push(
+                {
+                    time:value.date.split(' ')[0],
+                    value:value.ending_balance
+                }
+            )
+            payment.serie.push(
+                {
+                    time:value.date.split(' ')[0],
+                    value:value.payment
+                }
+            )
+        })
+
+        setCashFlowView([balance,payment])
+
+        setCashFlow(longCashFlow)
+              
+        
+    },[selectedLoans,setSelectLoans,calculateCashFlow,calculateCashFlowIbr])
 
     return (        
         <AdminLayout >
@@ -299,8 +317,8 @@ export default function NextPage(){
                                                 }
                                             </td>
                                             <td>
+                                                {' '}
                                                 <Row>
-
                                                     <Col sm={{span:3}}>
                                                         <Button size='sm' variant="outline-danger" onClick={                                                                
                                                                 ()=>{
@@ -313,12 +331,10 @@ export default function NextPage(){
                                                     </Col>
                                                     <Col sm={{offset:2,span:3}}>
                                                         <Form.Check
-                                                            type='radio'
+                                                            type="switch"
                                                             id={`check-${loan.id}`}
-                                                            name="selectedcredit"
-                                                            disabled={fetching}
-                                                            label="Ver"
-                                                            onClick={()=>selectLoan(loan.id,loan.type)}
+                                                            disabled={fetching}                                                            
+                                                            onChange={(e)=> handleLoanCheckChnage(e, loan.id,loan.type)}
                                                         />
                                                     </Col>
                                                 </Row>
@@ -346,8 +362,8 @@ export default function NextPage(){
                 <Row>
                     <Col>
                         <CandleSerieViewer candleSerie={null} otherSeries={cashFlowView} 
-                        fit 
-                        shorten 
+                        fit
+                        shorten
                         normalyze={false}
                         />
                     </Col>
@@ -371,13 +387,19 @@ export default function NextPage(){
                                 {
                                     cashFlow?.map((loan)=>[
                                         <tr key={`row-credit${loan.date}`}>
-                                            <td>{loan.date.split(' ')[0]}</td>
-                                            <td>{loan.beginning_balance.toLocaleString('us-US', { style: 'currency', currency: 'COP' })}</td>
-                                            <td>{loan.rate}</td>
-                                            <td>{loan.payment.toLocaleString('us-US', { style: 'currency', currency: 'COP' })}</td>
-                                            <td>{loan.interest}</td>
-                                            <td>{loan.principal}</td>
-                                            <td>{loan.ending_balance.toLocaleString('us-US', { style: 'currency', currency: 'COP' })}</td>
+                                            <td>{loan.date.split(' ')[0]}</td>                                            
+                                            
+                                            <PriceTagTd value={loan.beginning_balance}/>
+                                            
+                                            <td>{loan.rate.toFixed(2)}%</td>                                            
+
+                                            <PriceTagTd value={loan.payment}/>
+                                            
+                                            <td>{loan.interest.toFixed(2)}</td> 
+                                            
+                                            <td>{loan.principal.toFixed(2)}</td>                                            
+
+                                            <PriceTagTd value={loan.ending_balance}/>
                                         </tr>
                                     ])
                                 }
