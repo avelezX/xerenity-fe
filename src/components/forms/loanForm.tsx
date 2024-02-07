@@ -43,7 +43,6 @@ export default function LoanForm({showStart,createCallback,showCallBack}:LoanFor
         setShow(showStart)    
     },[showStart])
 
-
     const nameMapping:{ [id: string] : string }={
         "Anual":"Anos",
         "Semestral":"Semestres",
