@@ -8,7 +8,7 @@ import {TesYields,CandleSerie} from '@models/tes'
 import CopTesGrid from '@components/grid/SpecificGrids/copGrid'
 import CandleSerieViewer from '@components/compare/candleViewer'
 import IbrTesGrid from '@components/grid/SpecificGrids/ibrGrid'
-import { LightSerie, LightSerieValue } from '@models/lightserie'
+import { LightSerie, LightSerieValue, defaultCustomFormat } from '@models/lightserie'
 import { MovingAvgValue } from '@models/movingAvg'
 import { ToastContainer, toast } from 'react-toastify'
 import "react-toastify/dist/ReactToastify.css"
@@ -72,7 +72,7 @@ export default function NextPage(){
                             time:avgval.close_date.split('T')[0]
                         })
                     })
-                    setMovingAvg([{serie:avgSerie,color:'#2270E2',name:displayName,type:'line'}])
+                    setMovingAvg([{serie:avgSerie,color:'#2270E2',name:displayName,type:'line',priceFormat:defaultCustomFormat}])
                 }
 
             }else{
@@ -89,7 +89,7 @@ export default function NextPage(){
                             time:avgval.close_date.split('T')[0]
                         })
                     })
-                    setMovingAvg([{serie:avgSerie,color:'#2270E2',name:displayName,type:'line'}])
+                    setMovingAvg([{serie:avgSerie,color:'#2270E2',name:displayName,type:'line',priceFormat:defaultCustomFormat}])
                 }
             }
 

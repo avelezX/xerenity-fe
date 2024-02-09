@@ -1,9 +1,9 @@
 import Container from 'react-bootstrap/Container'
 import { CandleSerie } from '@models/tes'
-import { CandlestickData, HistogramData, Time, WhitespaceData, createChart,IChartApi,CrosshairMode, } from 'lightweight-charts'
+import { CandlestickData, HistogramData, Time, WhitespaceData, createChart,IChartApi,CrosshairMode} from 'lightweight-charts'
 import React, { useEffect,useRef } from 'react'
 import { Card } from 'react-bootstrap'
-import { LightSerie } from '@models/lightserie'
+import { LightSerie, defaultCustomFormat } from '@models/lightserie'
 import normalizeSeries from './normalize'
 
 type ViewerProps={
@@ -171,9 +171,7 @@ export default function CandleSerieViewer({candleSerie,otherSeries,fit,normalyze
                 { 
                   color: other.color,                  
                   priceScaleId: scaleid,
-                  priceFormat: {
-                    type: 'price'
-                  },
+                  priceFormat:other.priceFormat,
                   title:other.name                  
                 }
               )
@@ -186,9 +184,7 @@ export default function CandleSerieViewer({candleSerie,otherSeries,fit,normalyze
                 { 
                   color: other.color,
                   priceScaleId: scaleid,
-                  priceFormat: {
-                    type: 'price'
-                  },
+                  priceFormat: defaultCustomFormat,
                   title:other.name
                 }
               )

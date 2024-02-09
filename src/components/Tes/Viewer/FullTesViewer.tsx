@@ -9,7 +9,7 @@ import {TesYields,CandleSerie,GridEntry,TesEntryToArray} from '@models/tes'
 import CandleGridViewer from '@components/grid/CandleGrid'
 import CandleSerieViewer from '@components/compare/candleViewer'
 
-import { LightSerie,LightSerieValue } from '@models/lightserie'
+import { LightSerie,LightSerieValue,defaultCustomFormat } from '@models/lightserie'
 import { MovingAvgValue } from '@models/movingAvg'
 import { ExportToCsv,downloadBlob } from '@components/csvDownload/cscDownload'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
@@ -117,7 +117,7 @@ export default function FullTesViewer(){
                     time:avgval.close_date.split('T')[0]
                 })
             })
-            setMovingAvg([{serie:avgSerie,color:'#2270E2',name:display_name,type:'line'}])
+            setMovingAvg([{serie:avgSerie,color:'#2270E2',name:display_name,type:'line',priceFormat:defaultCustomFormat}])
         }
     },[supabase,setMovingAvg])    
 
@@ -141,7 +141,7 @@ export default function FullTesViewer(){
                         time:avgval.close_date.split('T')[0]
                     })
                 })
-                setMovingAvg([{serie:avgSerie,color:'#2270E2',name:display_name,type:'line'}])
+                setMovingAvg([{serie:avgSerie,color:'#2270E2',name:display_name,type:'line',priceFormat:defaultCustomFormat}])
             }
         }
 

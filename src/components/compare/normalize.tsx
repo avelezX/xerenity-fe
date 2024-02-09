@@ -32,7 +32,8 @@ export default function normalizeSeries(existinSeries:LightSerie[],normalize:boo
                         name:lSerie.name,
                         serie:aux,
                         color:lSerie.color,
-                        type:lSerie.type
+                        type:lSerie.type,
+                        priceFormat:lSerie.priceFormat
                     }
                 )
             })
@@ -76,7 +77,8 @@ export default function normalizeSeries(existinSeries:LightSerie[],normalize:boo
                     name:lSerie.name,
                     serie:aux,
                     color:lSerie.color,
-                    type:lSerie.type
+                    type:lSerie.type,
+                    priceFormat:lSerie.priceFormat
                 }
             )
         })
