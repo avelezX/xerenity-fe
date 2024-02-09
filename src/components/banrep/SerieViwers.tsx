@@ -16,7 +16,7 @@ import {
   Accordion
 } from 'react-bootstrap'
 import React,{ useState, useEffect, useCallback, ChangeEvent } from "react"
-import { LightSerie,LightSerieValue,LightSerieEntry,LightSerieValueArray } from '@models/lightserie'
+import { LightSerie,LightSerieValue,LightSerieEntry,LightSerieValueArray, defaultPriceFormat } from '@models/lightserie'
 import CandleSerieViewer from '@components/compare/candleViewer'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import {
@@ -54,7 +54,7 @@ export default function SeriesViewer(){
       const {data,error} = await supabase.schema('xerenity').rpc('search',{name:idSerie})
       
       if(error){
-        return {serie:[],color:'',name:'',type:'line'} as LightSerie
+        return {serie:[],color:'',name:'',type:'line',priceFormat:{type:'price',precision:2,minMove:0.01}} as LightSerie
       }
       if(data){        
         return {
@@ -64,7 +64,7 @@ export default function SeriesViewer(){
         } as LightSerie     
       }
       
-      return {serie:[],color:'',name:'',type:'line'} as LightSerie
+      return {serie:[],color:'',name:'',type:'line',priceFormat:{type:'price',precision:2,minMove:0.01}} as LightSerie
     },[supabase,serieNameInfo])
 
     const fetchData = useCallback( async () =>{
@@ -157,7 +157,7 @@ export default function SeriesViewer(){
       
       Array.from(selectedSeries.entries()).forEach(([key,value])=>{        
         if(key===checkboxId){          
-          newSelection.set(key,{serie:value.serie,color:newColor,name:value.name,type:'line'})
+          newSelection.set(key,{serie:value.serie,color:newColor,name:value.name,type:'line',priceFormat:defaultPriceFormat})
         }else{
           newSelection.set(key,value)
         }

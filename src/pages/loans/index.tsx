@@ -9,7 +9,7 @@ import ProgressBar from 'react-bootstrap/ProgressBar'
 import CandleSerieViewer from '@components/compare/candleViewer'
 
 import { AdminLayout } from '@layout'
-import { LightSerie} from '@models/lightserie'
+import { LightSerie, defaultCustomFormat} from '@models/lightserie'
 import LoanForm from '@components/forms/loanForm'
 import { ExportToCsv,downloadBlob } from '@components/csvDownload/cscDownload'
 
@@ -20,7 +20,6 @@ import { faTrashCan} from '@fortawesome/free-regular-svg-icons'
 import { faExclamation } from '@fortawesome/free-solid-svg-icons'
 import SimpleModal from '@components/modals/genericModal'
 import PriceTagTd from '@components/price/CopDisplay'
-
 
 export default function NextPage(){
 
@@ -200,14 +199,16 @@ export default function NextPage(){
             name: 'Balance final',
             color: '#FAC863',
             serie: [],
-            type:'bar'
+            type:'bar',
+            priceFormat:defaultCustomFormat
         }
 
         const payment: LightSerie={
             name: 'Pago cuota',
             color: '#2270E2',
             serie: [],
-            type:'line'
+            type:'line',
+            priceFormat:defaultCustomFormat
         }
 
         Array.from(newCashFlow.entries()).forEach((val)=>{
