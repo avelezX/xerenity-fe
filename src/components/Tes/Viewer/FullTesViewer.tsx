@@ -50,9 +50,9 @@ export default function FullTesViewer(){
             }
     
             if(data){
-            setOptions(data as GridEntry[])
+                setOptions(data as GridEntry[])
             }else{
-            setOptions([] as GridEntry[])
+                setOptions([] as GridEntry[])
             }
         }else{
             const {data,error} =   await supabase.schema('xerenity').rpc('get_ibr_grid_raw',{})
@@ -93,7 +93,7 @@ export default function FullTesViewer(){
         }
 
         if(data){            
-            setCandleSerie({name:view_tes,values:data as TesYields[]})            
+            setCandleSerie({name:'',values:data as TesYields[]})            
         }else{
             setCandleSerie({name:'',values:[]})
         }
@@ -253,6 +253,8 @@ export default function FullTesViewer(){
                         fit
                         shorten={false}
                         normalyze={false}
+                        watermarkText='Xerenity'
+                        chartHeight='50rem'
                     />
                 </Col>
             </Row>           

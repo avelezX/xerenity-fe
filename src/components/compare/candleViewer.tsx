@@ -12,9 +12,11 @@ type ViewerProps={
     fit:boolean;
     normalyze:boolean;
     shorten:boolean;
+    chartHeight:string;
+    watermarkText:'Xerenity'|'';
 }
 
-export default function CandleSerieViewer({candleSerie,otherSeries,fit,normalyze,shorten}:ViewerProps){
+export default function CandleSerieViewer({candleSerie,otherSeries,fit,normalyze,shorten,chartHeight,watermarkText}:ViewerProps){
   const chartContainerRef = useRef<HTMLInputElement| null>(null)
   const chart = useRef<IChartApi | null>(null)
   const resizeObserver = useRef<ResizeObserver | null>(null)
@@ -43,7 +45,7 @@ export default function CandleSerieViewer({candleSerie,otherSeries,fit,normalyze
           visible: true,
           fontSize: 100,
           color: '#D3D3D3',
-          text: 'Xerenity',
+          text: watermarkText,
         },
         grid: {
           vertLines: {
@@ -71,11 +73,24 @@ export default function CandleSerieViewer({candleSerie,otherSeries,fit,normalyze
       chart.current = createChart(chartContainerRef.current,chartOptions)
 
       if(chart.current){
+        const legend = document.createElement('div')
+        legend.setAttribute('style' , `position: absolute; left: 20px; top: 12px; z-index: 1; font-size: 14px; font-family: sans-serif; line-height: 20px; font-weight: 300;`)
+        chartContainerRef.current.appendChild(legend)
+
+        const firstRow = document.createElement('div')
+        
+        let iner: string ='<dl id="serieList">'
+
         if(candleSerie){          
           if(candleSerie.values.length>0){
+
               const serieData: (WhitespaceData<Time> | CandlestickData<Time>)[] | { time: string; open: number; high: number; low: number; close: number }[]= []
               const volData: (WhitespaceData<Time> | HistogramData<Time>)[] | { time: string; value: number }[]= []
         
+              if(candleSerie.name){
+                iner=`<dd style="color:#2270E2"><h6>${candleSerie.name}</h6></dd> ${iner}`
+              }
+
               candleSerie.values.forEach((tes)=>{        
                 
                 serieData.push(
@@ -140,16 +155,10 @@ export default function CandleSerieViewer({candleSerie,otherSeries,fit,normalyze
   
         if(otherSeries){
           
-          newSeries=normalizeSeries(otherSeries,normalyze,shorten)          
+            newSeries=normalizeSeries(otherSeries,normalyze,shorten)          
 
-          const legend = document.createElement('div')
-          legend.setAttribute('style' , `position: absolute; left: 20px; top: 12px; z-index: 1; font-size: 14px; font-family: sans-serif; line-height: 20px; font-weight: 300;`)
-          chartContainerRef.current.appendChild(legend)
 
-          const firstRow = document.createElement('div')
-          
-          let iner: string ='<dl id="serieList">'
-          newSeries.forEach((other,index)=>{
+            newSeries.forEach((other,index)=>{
             
             if(other.name){
                 iner=`<dd style="color:${other.color}"><h6>${other.name}</h6></dd> ${iner}`
@@ -196,9 +205,11 @@ export default function CandleSerieViewer({candleSerie,otherSeries,fit,normalyze
            
           })
           
-          firstRow.innerHTML=`${iner}</dl>`
-          legend.appendChild(firstRow)
+
         }
+
+        firstRow.innerHTML=`${iner}</dl>`
+        legend.appendChild(firstRow)
 
         if(fit){
           chart.current.timeScale().fitContent()          
@@ -235,7 +246,7 @@ export default function CandleSerieViewer({candleSerie,otherSeries,fit,normalyze
 
   return (
       <Card style={{width:'100%',height:'100%'}}>
-        <Card.Body  style={{width:'100%',height:'50rem'}}>
+        <Card.Body  style={{width:'100%',height:chartHeight}}>
             <Container ref={chartContainerRef} className="chart-container" style={{width:'100%',height:'100%'}}/>
         </Card.Body>
       </Card>

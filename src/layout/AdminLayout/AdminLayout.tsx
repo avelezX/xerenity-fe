@@ -10,10 +10,13 @@ import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { deleteCookie, getCookie} from 'cookies-next'
 import { useRouter } from 'next/router'
 
+
+
 export default function AdminLayout({ children }: PropsWithChildren) {
   // Show status for xs screen
   const router = useRouter()
   const [isShowSidebar, setIsShowSidebar] = useState(false)
+
 
   // Show status for md screen and above
   const [isShowSidebarMd, setIsShowSidebarMd] = useState(true)
@@ -72,9 +75,10 @@ export default function AdminLayout({ children }: PropsWithChildren) {
     checkUserLogedIn()
   }, [checkUserLogedIn])
 
+
   return (
     <>
-      <Head>
+      <Head >
         <title>Xerenity</title>
         <meta name="description" content="Xerenity Financial tools" />
         <link rel="icon" href="/favicon.ico" />
@@ -84,16 +88,18 @@ export default function AdminLayout({ children }: PropsWithChildren) {
 
       <Sidebar isShow={isShowSidebar} isShowMd={isShowSidebarMd} />
 
-      <div className="wrapper d-flex flex-column min-vh-100 bg-light">
+      <div className="wrapper d-flex flex-column min-vh-100" >
+        
         <Header toggleSidebar={toggleIsShowSidebar} toggleSidebarMd={toggleIsShowSidebarMd} />
-        <div className="body flex-grow-1 px-sm-2 mb-4">
+
+        <div className="body flex-grow-1 px-sm-2 mb-4" >
           <Container>
             {children}
           </Container>
         </div>
       </div>
 
-      <SidebarOverlay isShowSidebar={isShowSidebar} toggleSidebar={toggleIsShowSidebar} />
+      <SidebarOverlay isShowSidebar={isShowSidebar} toggleSidebar={toggleIsShowSidebar}/>
     </>
   )
 }
