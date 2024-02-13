@@ -363,10 +363,14 @@ export default function NextPage(){
 
                 <Row>
                     <Col>
-                        <CandleSerieViewer candleSerie={null} otherSeries={cashFlowView} 
-                        fit
-                        shorten
-                        normalyze={false}
+                        <CandleSerieViewer 
+                            candleSerie={null} 
+                            otherSeries={cashFlowView} 
+                            fit
+                            shorten
+                            normalyze={false}
+                            chartHeight="50rem"
+                            watermarkText='Xerenity'
                         />
                     </Col>
                 </Row>

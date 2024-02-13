@@ -26,6 +26,7 @@ const ItemWithIcon = (props: ItemWithIconProps) => {
   )
 }
 
+
 export default function HeaderProfileNav() {
     const supabase = createClientComponentClient()
   const router = useRouter()
@@ -58,6 +59,7 @@ export default function HeaderProfileNav() {
           <Dropdown.Item onClick={logout}>
             <ItemWithIcon icon={faPowerOff}>Logout</ItemWithIcon>
           </Dropdown.Item>
+
         </Dropdown.Menu>
       </Dropdown>
     </Nav>

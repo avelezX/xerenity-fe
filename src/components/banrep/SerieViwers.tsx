@@ -317,7 +317,14 @@ export default function SeriesViewer(){
             </Row>
             <Row>
                 <Col>
-                    <CandleSerieViewer candleSerie={null} otherSeries={Array.from(selectedSeries.values())} fit shorten normalyze={normalize}/>
+                    <CandleSerieViewer 
+                      candleSerie={null} 
+                      otherSeries={Array.from(selectedSeries.values())} 
+                      fit shorten 
+                      normalyze={normalize}
+                      chartHeight="50rem"
+                      watermarkText='Xerenity'
+                    />
                 </Col>
             </Row>
             <Row>

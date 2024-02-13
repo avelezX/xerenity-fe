@@ -39,7 +39,7 @@ export default function NextPage(){
                 setCandleSerie({name:'',values:[]})
                 toast.error(error.message, {position: toast.POSITION.TOP_CENTER})
             }else if(data){            
-                setCandleSerie({name:selectedSerie,values:data as TesYields[]})            
+                setCandleSerie({name:'',values:data as TesYields[]})            
             }else{
                 setCandleSerie({name:'',values:[]})
             }
@@ -121,7 +121,9 @@ export default function NextPage(){
                                     otherSeries={movingAvg} 
                                     fit
                                     shorten={false}
-                                    normalyze={false}                        
+                                    normalyze={false}
+                                    chartHeight="50rem"
+                                    watermarkText='Xerenity'
                                 />
                             </Col>                        
                         </Row>
