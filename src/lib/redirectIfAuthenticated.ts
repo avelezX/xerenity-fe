@@ -1,7 +1,7 @@
 /* eslint-disable max-len */
-import { ParsedUrlQuery } from 'querystring'
-import { GetServerSideProps } from 'next'
-import { PreviewData } from 'next/types'
+import { ParsedUrlQuery } from 'querystring';
+import { GetServerSideProps } from 'next';
+import { PreviewData } from 'next/types';
 
 type RedirectIfAuthenticated = <
   P extends { [key: string]: unknown } = { [key: string]: unknown },
@@ -9,7 +9,7 @@ type RedirectIfAuthenticated = <
   D extends PreviewData = PreviewData,
 >(
   gssp: GetServerSideProps<P, Q, D>
-) => GetServerSideProps<P, Q, D>
+) => GetServerSideProps<P, Q, D>;
 
 /**
  * Use with `GetServerSideProps`
@@ -20,18 +20,19 @@ type RedirectIfAuthenticated = <
  * })
  * ```
  */
-const redirectIfAuthenticated: RedirectIfAuthenticated = (gssp) => async (context) => {
-  const { auth: authSession } = context.req.cookies
-  if (authSession) {
-    return {
-      redirect: {
-        destination: '/',
-        permanent: false,
-      },
+const redirectIfAuthenticated: RedirectIfAuthenticated =
+  (gssp) => async (context) => {
+    const { auth: authSession } = context.req.cookies;
+    if (authSession) {
+      return {
+        redirect: {
+          destination: '/',
+          permanent: false,
+        },
+      };
     }
-  }
 
-  return gssp(context) // Continue on to call `getServerSideProps` logic
-}
+    return gssp(context); // Continue on to call `getServerSideProps` logic
+  };
 
-export default redirectIfAuthenticated
+export default redirectIfAuthenticated;

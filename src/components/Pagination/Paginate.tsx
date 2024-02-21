@@ -1,21 +1,21 @@
-import ReactPaginate from 'react-paginate'
-import React, { useEffect, useState } from 'react'
-import { useRouter } from 'next/router'
+import ReactPaginate from 'react-paginate';
+import React, { useEffect, useState } from 'react';
+import { useRouter } from 'next/router';
 
 type Props = {
   currentPage: number;
   lastPage: number;
   setPage?: (page: number) => void;
-}
+};
 
 export default function Paginate(props: Props) {
-  const { currentPage, lastPage, setPage } = props
-  const [pageIndex, setPageIndex] = useState(currentPage - 1)
-  const router = useRouter()
+  const { currentPage, lastPage, setPage } = props;
+  const [pageIndex, setPageIndex] = useState(currentPage - 1);
+  const router = useRouter();
 
   useEffect(() => {
-    setPageIndex(currentPage - 1)
-  }, [currentPage])
+    setPageIndex(currentPage - 1);
+  }, [currentPage]);
 
   return (
     <div className="col-auto ms-sm-auto mb-3 overflow-auto">
@@ -38,10 +38,10 @@ export default function Paginate(props: Props) {
         activeClassName="active"
         disabledClassName="disabled"
         onPageChange={(selectedItem) => {
-          const page = selectedItem.selected + 1
+          const page = selectedItem.selected + 1;
 
           if (setPage) {
-            setPage(page)
+            setPage(page);
           }
 
           router.push({
@@ -50,9 +50,9 @@ export default function Paginate(props: Props) {
               ...router.query,
               page,
             },
-          })
+          });
         }}
       />
     </div>
-  )
+  );
 }

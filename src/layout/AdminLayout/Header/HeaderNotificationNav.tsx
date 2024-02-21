@@ -1,5 +1,9 @@
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faBell, faEnvelope, IconDefinition } from '@fortawesome/free-regular-svg-icons'
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import {
+  faBell,
+  faEnvelope,
+  IconDefinition,
+} from '@fortawesome/free-regular-svg-icons';
 import {
   faBasketShopping,
   faChartBar,
@@ -7,42 +11,46 @@ import {
   faList,
   faUserMinus,
   faUserPlus,
-} from '@fortawesome/free-solid-svg-icons'
-import {
-  Badge, Dropdown, Nav, NavLink, ProgressBar,
-} from 'react-bootstrap'
-import Link from 'next/link'
-import React, { PropsWithChildren } from 'react'
-import Image from 'next/image'
+} from '@fortawesome/free-solid-svg-icons';
+import { Badge, Dropdown, Nav, NavLink, ProgressBar } from 'react-bootstrap';
+import Link from 'next/link';
+import React, { PropsWithChildren } from 'react';
+import Image from 'next/image';
 
 type ItemWithIconProps = {
   icon: IconDefinition;
-} & PropsWithChildren
+} & PropsWithChildren;
 
 const ItemWithIcon = (props: ItemWithIconProps) => {
-  const { icon, children } = props
+  const { icon, children } = props;
 
   return (
     <>
       <FontAwesomeIcon className="me-2" icon={icon} fixedWidth />
       {children}
     </>
-  )
-}
+  );
+};
 
 export default function HeaderNotificationNav() {
   return (
     <Nav>
       <Nav.Item>
         <Dropdown>
-          <Dropdown.Toggle as={NavLink} bsPrefix="hide-caret" id="dropdown-notification">
+          <Dropdown.Toggle
+            as={NavLink}
+            bsPrefix="hide-caret"
+            id="dropdown-notification"
+          >
             <FontAwesomeIcon icon={faBell} size="lg" />
             <Badge pill bg="danger" className="position-absolute top-0 right-0">
               5
             </Badge>
           </Dropdown.Toggle>
           <Dropdown.Menu className="pt-0" align="end">
-            <Dropdown.Header className="bg-light fw-bold rounded-top">You have 5 notifications</Dropdown.Header>
+            <Dropdown.Header className="bg-light fw-bold rounded-top">
+              You have 5 notifications
+            </Dropdown.Header>
             <Link href="#" passHref legacyBehavior>
               <Dropdown.Item>
                 <ItemWithIcon icon={faUserPlus}>
@@ -52,9 +60,7 @@ export default function HeaderNotificationNav() {
             </Link>
             <Link href="#" passHref legacyBehavior>
               <Dropdown.Item>
-                <ItemWithIcon icon={faUserMinus}>
-                  User deleted
-                </ItemWithIcon>
+                <ItemWithIcon icon={faUserMinus}>User deleted</ItemWithIcon>
               </Dropdown.Item>
             </Link>
             <Link href="#" passHref legacyBehavior>
@@ -66,9 +72,7 @@ export default function HeaderNotificationNav() {
             </Link>
             <Link href="#" passHref legacyBehavior>
               <Dropdown.Item>
-                <ItemWithIcon icon={faBasketShopping}>
-                  New client
-                </ItemWithIcon>
+                <ItemWithIcon icon={faBasketShopping}>New client</ItemWithIcon>
               </Dropdown.Item>
             </Link>
             <Link href="#" passHref legacyBehavior>
@@ -79,11 +83,17 @@ export default function HeaderNotificationNav() {
               </Dropdown.Item>
             </Link>
 
-            <Dropdown.Header className="bg-light fw-bold">Server</Dropdown.Header>
+            <Dropdown.Header className="bg-light fw-bold">
+              Server
+            </Dropdown.Header>
 
             <Link href="#" passHref legacyBehavior>
               <Dropdown.Item>
-                <small><div className="text-uppercase"><b>CPU Usage</b></div></small>
+                <small>
+                  <div className="text-uppercase">
+                    <b>CPU Usage</b>
+                  </div>
+                </small>
                 <ProgressBar
                   className="progress-thin mt-2"
                   variant="primary"
@@ -96,7 +106,11 @@ export default function HeaderNotificationNav() {
             </Link>
             <Link href="#" passHref legacyBehavior>
               <Dropdown.Item>
-                <small><div className="text-uppercase"><b>Memory Usage</b></div></small>
+                <small>
+                  <div className="text-uppercase">
+                    <b>Memory Usage</b>
+                  </div>
+                </small>
                 <ProgressBar
                   className="progress-thin mt-2"
                   variant="warning"
@@ -109,7 +123,11 @@ export default function HeaderNotificationNav() {
             </Link>
             <Link href="#" passHref legacyBehavior>
               <Dropdown.Item>
-                <small><div className="text-uppercase"><b>SSD 1 Usage</b></div></small>
+                <small>
+                  <div className="text-uppercase">
+                    <b>SSD 1 Usage</b>
+                  </div>
+                </small>
                 <ProgressBar
                   className="progress-thin mt-2"
                   variant="danger"
@@ -125,14 +143,24 @@ export default function HeaderNotificationNav() {
       </Nav.Item>
       <Nav.Item>
         <Dropdown>
-          <Dropdown.Toggle as={NavLink} bsPrefix="hide-caret" id="dropdown-task">
+          <Dropdown.Toggle
+            as={NavLink}
+            bsPrefix="hide-caret"
+            id="dropdown-task"
+          >
             <FontAwesomeIcon icon={faList} size="lg" />
-            <Badge pill bg="warning" className="position-absolute top-0 right-0">
+            <Badge
+              pill
+              bg="warning"
+              className="position-absolute top-0 right-0"
+            >
               5
             </Badge>
           </Dropdown.Toggle>
           <Dropdown.Menu className="pt-0" align="end">
-            <Dropdown.Header className="bg-light fw-bold rounded-top">You have 5 pending tasks</Dropdown.Header>
+            <Dropdown.Header className="bg-light fw-bold rounded-top">
+              You have 5 pending tasks
+            </Dropdown.Header>
 
             <Link href="#" passHref legacyBehavior>
               <Dropdown.Item>
@@ -203,22 +231,33 @@ export default function HeaderNotificationNav() {
             <Dropdown.Divider />
 
             <Link href="#" passHref legacyBehavior>
-              <Dropdown.Item className="text-center fw-bold">View all tasks</Dropdown.Item>
+              <Dropdown.Item className="text-center fw-bold">
+                View all tasks
+              </Dropdown.Item>
             </Link>
-
           </Dropdown.Menu>
         </Dropdown>
       </Nav.Item>
       <Nav.Item>
         <Dropdown>
-          <Dropdown.Toggle as={NavLink} bsPrefix="hide-caret" id="dropdown-mail">
+          <Dropdown.Toggle
+            as={NavLink}
+            bsPrefix="hide-caret"
+            id="dropdown-mail"
+          >
             <FontAwesomeIcon icon={faEnvelope} size="lg" />
-            <Badge pill bg="primary" className="position-absolute top-0 right-0">
+            <Badge
+              pill
+              bg="primary"
+              className="position-absolute top-0 right-0"
+            >
               7
             </Badge>
           </Dropdown.Toggle>
           <Dropdown.Menu className="pt-0" align="end">
-            <Dropdown.Header className="bg-light fw-bold rounded-top">You have 4 messages</Dropdown.Header>
+            <Dropdown.Header className="bg-light fw-bold rounded-top">
+              You have 4 messages
+            </Dropdown.Header>
             <Link href="#" passHref legacyBehavior>
               <Dropdown.Item>
                 <div className="message">
@@ -230,19 +269,17 @@ export default function HeaderNotificationNav() {
                         src="/assets/img/avatars/1.jpg"
                         alt="user@email.com"
                       />
-                      <span
-                        className="avatar-status position-absolute d-block bottom-0 end-0 bg-success rounded-circle border border-white"
-                      />
+                      <span className="avatar-status position-absolute d-block bottom-0 end-0 bg-success rounded-circle border border-white" />
                     </div>
                   </div>
                   <div>
                     <small className="text-muted">John Doe</small>
-                    <small className="text-muted float-end mt-1">Just now</small>
+                    <small className="text-muted float-end mt-1">
+                      Just now
+                    </small>
                   </div>
                   <div className="text-truncate font-weight-bold">
-                    <span className="text-danger">!</span>
-                    {' '}
-                    Pet Pikachu
+                    <span className="text-danger">!</span> Pet Pikachu
                   </div>
                   <div className="small text-truncate text-muted">
                     Lorem ipsum dolor sit amet, consectetur adipisicing elit,
@@ -262,14 +299,14 @@ export default function HeaderNotificationNav() {
                         src="/assets/img/avatars/2.jpg"
                         alt="user@email.com"
                       />
-                      <span
-                        className="avatar-status position-absolute d-block bottom-0 end-0 bg-warning rounded-circle border border-white"
-                      />
+                      <span className="avatar-status position-absolute d-block bottom-0 end-0 bg-warning rounded-circle border border-white" />
                     </div>
                   </div>
                   <div>
                     <small className="text-muted">John Doe</small>
-                    <small className="text-muted float-end mt-1">5 mins ago</small>
+                    <small className="text-muted float-end mt-1">
+                      5 mins ago
+                    </small>
                   </div>
                   <div className="text-truncate font-weight-bold">
                     Dress Eevee
@@ -292,9 +329,7 @@ export default function HeaderNotificationNav() {
                         src="/assets/img/avatars/3.jpg"
                         alt="user@email.com"
                       />
-                      <span
-                        className="avatar-status position-absolute d-block bottom-0 end-0 bg-danger rounded-circle border border-white"
-                      />
+                      <span className="avatar-status position-absolute d-block bottom-0 end-0 bg-danger rounded-circle border border-white" />
                     </div>
                   </div>
                   <div>
@@ -322,9 +357,7 @@ export default function HeaderNotificationNav() {
                         src="/assets/img/avatars/4.jpg"
                         alt="user@email.com"
                       />
-                      <span
-                        className="avatar-status position-absolute d-block bottom-0 end-0 bg-primary rounded-circle border border-white"
-                      />
+                      <span className="avatar-status position-absolute d-block bottom-0 end-0 bg-primary rounded-circle border border-white" />
                     </div>
                   </div>
                   <div>
@@ -345,5 +378,5 @@ export default function HeaderNotificationNav() {
         </Dropdown>
       </Nav.Item>
     </Nav>
-  )
+  );
 }

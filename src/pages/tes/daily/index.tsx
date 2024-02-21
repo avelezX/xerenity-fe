@@ -1,13 +1,12 @@
-import React from 'react'
-import { AdminLayout } from '@layout'
-import type { NextPage } from 'next'
-import FullTesViewer from '@components/Tes/Viewer/FullTesViewer'
+import React from 'react';
+import { AdminLayout } from '@layout';
+import type { NextPage } from 'next';
+import FullTesViewer from '@components/Tes/Viewer/FullTesViewer';
 
-
-const Home: NextPage = () => (  
+const Home: NextPage = () => (
   <AdminLayout>
-      <FullTesViewer />
+    <FullTesViewer />
   </AdminLayout>
-)
+);
 
-export default Home
+export default Home;
