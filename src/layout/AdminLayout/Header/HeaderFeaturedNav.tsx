@@ -1,5 +1,5 @@
-import Link from 'next/link'
-import { Nav } from 'react-bootstrap'
+import Link from 'next/link';
+import { Nav } from 'react-bootstrap';
 
 export default function HeaderFeaturedNav() {
   return (
@@ -20,5 +20,5 @@ export default function HeaderFeaturedNav() {
         </Link>
       </Nav.Item>
     </Nav>
-  )
+  );
 }

@@ -1,13 +1,12 @@
-import React from 'react'
-import { AdminLayout } from '@layout'
-import type { NextPage } from 'next'
-import SeriesViewer from '@components/banrep/SerieViwers'
+import React from 'react';
+import { AdminLayout } from '@layout';
+import type { NextPage } from 'next';
+import SeriesViewer from '@components/banrep/SerieViwers';
 
 const Home: NextPage = () => (
-  
   <AdminLayout>
-      <SeriesViewer />
+    <SeriesViewer />
   </AdminLayout>
-)
+);
 
-export default Home
+export default Home;
