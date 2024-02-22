@@ -31,15 +31,13 @@ export default function Header(props: HeaderProps) {
         >
           <FontAwesomeIcon icon={faBars} />
         </Button>
-
         <Link href="/" className="header-brand d-md-none">
+          {/* TODO: Update this to Xerenity logo */}
           <svg width="80" height="46">
             <title>CoreUI Logo</title>
             <use xlinkHref="/assets/brand/coreui.svg#full" />
           </svg>
         </Link>
-        <div className="header-nav d-none d-md-flex" />
-        <div className="header-nav ms-auto" />
         <div className="header-nav ms-2">
           <HeaderProfileNav />
         </div>

@@ -11,6 +11,8 @@ $header-brand-color: #4f5d73;
   }
 
   .header-navbar {
+    display: flex;
+    justify-content: space-between;
     min-height: 3rem;
 
     .header-toggler {
