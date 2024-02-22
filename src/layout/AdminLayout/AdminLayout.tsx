@@ -81,22 +81,17 @@ export default function AdminLayout({ children }: PropsWithChildren) {
         <meta name="description" content="Xerenity Financial tools" />
         <link rel="icon" href="/favicon.ico" />
       </Head>
-
       <div ref={ref} className="position-absolute" />
-
       <Sidebar isShow={isShowSidebar} isShowMd={isShowSidebarMd} />
-
       <div className="wrapper d-flex flex-column min-vh-100">
         <Header
           toggleSidebar={toggleIsShowSidebar}
           toggleSidebarMd={toggleIsShowSidebarMd}
         />
-
         <div className="body flex-grow-1 px-sm-2 mb-4">
           <Container>{children}</Container>
         </div>
       </div>
-
       <SidebarOverlay
         isShowSidebar={isShowSidebar}
         toggleSidebar={toggleIsShowSidebar}

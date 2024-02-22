@@ -31,7 +31,7 @@ interface MyFormData {
 
 const Login: NextPage = () => {
   const router = useRouter();
-  const [tesCandeSerie, settesCandeSerie] = useState<CandleSerie>({
+  const [tesCandeSerie, setTESCandleSerie] = useState<CandleSerie>({
     name: '',
     values: [],
   });
@@ -52,14 +52,14 @@ const Login: NextPage = () => {
     const fetchData = async () => {
       const { data, error } = await supabase.schema('public').rpc('tes_33');
       if (error) {
-        settesCandeSerie({ name: '', values: [] });
+        setTESCandleSerie({ name: '', values: [] });
       } else if (data) {
-        settesCandeSerie({
+        setTESCandleSerie({
           name: 'COLTES 13.25 09/02/33',
           values: data as TesYields[],
         });
       } else {
-        settesCandeSerie({ name: '', values: [] });
+        setTESCandleSerie({ name: '', values: [] });
       }
     };
 
@@ -105,7 +105,6 @@ const Login: NextPage = () => {
             <br />
           </Col>
         </Row>
-
         <Row>
           <Col>
             <Container>
@@ -119,13 +118,11 @@ const Login: NextPage = () => {
             </Container>
           </Col>
         </Row>
-
         <Row>
           <Col>
             <br />
           </Col>
         </Row>
-
         <Row>
           <Col sm={{ span: 6 }}>
             <Row>
@@ -147,7 +144,6 @@ const Login: NextPage = () => {
                         onChange={handleChange}
                       />
                     </InputGroup>
-
                     <InputGroup className="mb-3">
                       <InputGroup.Text>
                         <FontAwesomeIcon icon={faLock} fixedWidth />
@@ -215,7 +211,6 @@ const Login: NextPage = () => {
                       </p>
                     </Carousel.Caption>
                   </Carousel.Item>
-
                   <Carousel.Item>
                     <CandleSerieViewer
                       candleSerie={tesCandeSerie}
@@ -226,7 +221,6 @@ const Login: NextPage = () => {
                       chartHeight="21rem"
                       watermarkText="Xerenity"
                     />
-
                     <Carousel.Caption>
                       <h3>Second slide label</h3>
                       <p>
@@ -239,7 +233,6 @@ const Login: NextPage = () => {
             </Row>
           </Col>
         </Row>
-
         <Row>
           <Col>
             <br />
@@ -249,7 +242,6 @@ const Login: NextPage = () => {
             <br />
           </Col>
         </Row>
-
         <Row>
           <Row>
             <Col sm={{ span: 6 }}>
@@ -266,13 +258,11 @@ const Login: NextPage = () => {
               </Card>
             </Col>
           </Row>
-
           <Row>
             <Col>
               <br />
             </Col>
           </Row>
-
           <Row>
             <Col sm={{ span: 6, offset: 6 }}>
               <Card>
@@ -287,13 +277,11 @@ const Login: NextPage = () => {
               </Card>
             </Col>
           </Row>
-
           <Row>
             <Col>
               <br />
             </Col>
           </Row>
-
           <Row>
             <Col sm={{ span: 6 }}>
               <Card>
