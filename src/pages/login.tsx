@@ -23,6 +23,7 @@ import { deleteCookie, getCookie } from 'cookies-next';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import CandleSerieViewer from '@components/compare/candleViewer';
 import { CandleSerie, TesYields } from '@models/tes';
+import DeleteThisButton from 'ui-components/src/components/test/test';
 
 interface MyFormData {
   username: string;
@@ -104,6 +105,9 @@ const Login: NextPage = () => {
           <Col>
             <br />
           </Col>
+        </Row>
+        <Row>
+          <DeleteThisButton />
         </Row>
         <Row>
           <Col>
