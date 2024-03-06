@@ -299,9 +299,6 @@ const Login: NextPage = () => {
             </Col>
           </Row>
         </Row>
-        <Row>
-          <App/>
-        </Row>
       </Container>
     </div>
   );

@@ -1,0 +1,10 @@
+@import 'token-variables';
+@import 'bootstrap/scss/functions';
+@import 'bootstrap/scss/variables';
+@import 'bootstrap/scss/variables-dark';
+
+$theme-colors: (
+  'primary': $purple-100,
+  // Purple
+  'purple-100': $purple-100,
+);

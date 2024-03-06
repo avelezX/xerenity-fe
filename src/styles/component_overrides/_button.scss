@@ -1,0 +1,40 @@
+// Buttons Override
+.btn {
+  --#{$prefix}btn-border-radius: #{$border-radius};
+  &.btn-primary {
+    color: $white-100 !important;
+  }
+  &.btn-outline-primary:hover {
+    color: $white-100 !important;
+  }
+  &.btn-link {
+    text-decoration: none;
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+  // Icon Buttons
+  &.rounded-circle {
+    padding: 0px !important;
+    width: 26px !important;
+    height: 26px !important;
+    i,
+    i::before {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      width: 100% !important;
+      height: 100% !important;
+    }
+    border-radius: 50% !important;
+  }
+
+  &.btn-primary {
+    &.active {
+      color: $white-100;
+    }
+    &.active.disabled {
+      color: $primary;
+    }
+  }
+}

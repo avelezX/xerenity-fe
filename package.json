@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "prettify": "prettier --write src/"
+    "prettify": "prettier --write src/",
+    "build-tokens": "style-dictionary build --config ./tokens-config.cjs"
   },
   "dependencies": {
     "@fortawesome/fontawesome-svg-core": "^6.4.2",
@@ -64,8 +65,8 @@
     "json-server": "^0.17.3",
     "prettier": "^3.2.5",
     "sass": "^1.66.0",
+    "style-dictionary": "^3.9.2",
     "typescript": "^5.1.6"
   },
   "packageManager": "npm@10.1.0"
-
 }
