@@ -1,6 +1,7 @@
 // Buttons Override
 .btn {
   --#{$prefix}btn-border-radius: #{$border-radius};
+  --#{$prefix}btn-font-family: #{$inter};
   &.btn-primary {
     color: $white-100 !important;
   }
@@ -12,8 +13,7 @@
     &:hover {
       text-decoration: underline;
     }
-  }
-  // Icon Buttons
+  } // Icon Buttons
   &.rounded-circle {
     padding: 0px !important;
     width: 26px !important;
@@ -28,7 +28,6 @@
     }
     border-radius: 50% !important;
   }
-
   &.btn-primary {
     &.active {
       color: $white-100;

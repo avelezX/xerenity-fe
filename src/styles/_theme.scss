@@ -1,10 +1,41 @@
-@import 'token-variables';
 @import 'bootstrap/scss/functions';
 @import 'bootstrap/scss/variables';
+@import 'token-variables';
 @import 'bootstrap/scss/variables-dark';
 
 $theme-colors: (
-  'primary': $purple-100,
+  'primary': $purple-200,
   // Purple
+  'purple-50': $purple-50,
   'purple-100': $purple-100,
+  'purple-200': $purple-200,
+  'purple-300': $purple-300,
+  'purple-400': $purple-400,
+  'purple-500': $purple-500,
+  // Green
+  'green-200': $green-200,
+  'green-300': $green-300,
+  'green-400': $green-400,
+  'green-500': $green-500,
+  'green-700': $green-700,
+  // Red
+  'red-300': $red-300,
+  'red-400': $red-400,
+  'red-600': $red-600,
+  'red-800': $red-800,
+  // Yellow
+  'yellow-300': $yellow-300,
+  'yellow-500': $yellow-500,
+  'yellow-600': $yellow-600,
+  'yellow-800': $yellow-800,
+  // White
+  'white-100': $white-100,
 );
+
+$font-family-sans-serif: $inter !important;
+$link-color: $purple-200;
+$link-hover-color: $purple-300;
+
+$theme-colors: map-remove($theme-colors, 'light', 'dark');
+
+@import 'bootstrap/scss/bootstrap.scss';
