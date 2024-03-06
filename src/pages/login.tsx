@@ -23,7 +23,6 @@ import { deleteCookie, getCookie } from 'cookies-next';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import CandleSerieViewer from '@components/compare/candleViewer';
 import { CandleSerie, TesYields } from '@models/tes';
-import App from 'ui-components/src/App';
 
 interface MyFormData {
   username: string;
