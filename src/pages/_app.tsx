@@ -1,5 +1,6 @@
 import '@styles/globals.scss';
 import type { AppProps } from 'next/app';
+import { Inter } from 'next/font/google';
 // Next.js allows you to import CSS directly in .js files.
 // It handles optimization and all the necessary Webpack configuration to make this work.
 import { config } from '@fortawesome/fontawesome-svg-core';
@@ -13,16 +14,28 @@ import { ProgressBar } from '@components/ProgressBar';
 // See https://fontawesome.com/v6/docs/web/use-with/react/use-with#next-js
 config.autoAddCss = false;
 
+const inter = Inter({
+  weight: ['300', '400', '500', '600'],
+  subsets: ['latin'],
+});
+
 function MyApp({ Component, pageProps }: AppProps) {
   // In server-side rendered applications, a SSRProvider must wrap the application in order
   // to ensure that the auto-generated ids are consistent between the server and client.
   // https://react-bootstrap.github.io/getting-started/server-side-rendering/
   return (
-    <SSRProvider>
-      <ProgressBar />
-      {/* eslint-disable-next-line react/jsx-props-no-spreading */}
-      <Component {...pageProps} />
-    </SSRProvider>
+    <>
+      <style jsx global>{`
+        html {
+          font-family: ${inter.style.fontFamily};
+        }
+      `}</style>
+      <SSRProvider>
+        <ProgressBar />
+        {/* eslint-disable-next-line react/jsx-props-no-spreading */}
+        <Component {...pageProps} />
+      </SSRProvider>
+    </>
   );
 }
 
