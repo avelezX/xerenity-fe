@@ -32,7 +32,7 @@ $theme-colors: (
   'white-100': $white-100,
 );
 
-$font-family-sans-serif: $inter !important;
+$font-family-sans-serif: var(--font-inter) !important;
 $link-color: $purple-200;
 $link-hover-color: $purple-300;
 

@@ -1,7 +1,7 @@
 // Buttons Override
 .btn {
   --#{$prefix}btn-border-radius: #{$border-radius};
-  --#{$prefix}btn-font-family: #{$inter};
+  --#{$prefix}btn-font-family: $font-family-sans-serif;
   &.btn-primary {
     color: $white-100 !important;
   }
