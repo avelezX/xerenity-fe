@@ -2,7 +2,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faAngleLeft } from '@fortawesome/free-solid-svg-icons';
 import React, { useEffect, useState } from 'react';
 import classNames from 'classnames';
-import { Button } from 'react-bootstrap';
+import { Button, Image } from 'react-bootstrap';
 import SidebarNav from './SidebarNav';
 
 export default function Sidebar(props: { isShow: boolean; isShowMd: boolean }) {
@@ -32,14 +32,7 @@ export default function Sidebar(props: { isShow: boolean; isShowMd: boolean }) {
       id="sidebar"
     >
       <div className="sidebar-brand d-none d-md-flex align-items-center justify-content-center">
-        <svg className="sidebar-brand-full">
-          <title>CoreUI Logo</title>
-          <use xlinkHref="/assets/brand/coreui.svg#full" />
-        </svg>
-        <svg className="sidebar-brand-narrow d-none">
-          <title>CoreUI Logo</title>
-          <use xlinkHref="/assets/brand/coreui.svg#signet" />
-        </svg>
+        <Image src="/assets/img/brand/logo.svg" alt="Xerenity Logo" />
       </div>
 
       <div className="sidebar-nav flex-fill">

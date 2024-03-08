@@ -1,7 +1,7 @@
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faBars } from '@fortawesome/free-solid-svg-icons';
 import Link from 'next/link';
-import { Button, Container } from 'react-bootstrap';
+import { Button, Container, Image } from 'react-bootstrap';
 import HeaderProfileNav from '@layout/AdminLayout/Header/HeaderProfileNav';
 
 type HeaderProps = {
@@ -32,11 +32,7 @@ export default function Header(props: HeaderProps) {
           <FontAwesomeIcon icon={faBars} />
         </Button>
         <Link href="/" className="header-brand d-md-none">
-          {/* TODO: Update this to Xerenity logo */}
-          <svg width="80" height="46">
-            <title>CoreUI Logo</title>
-            <use xlinkHref="/assets/brand/coreui.svg#full" />
-          </svg>
+          <Image src="/assets/img/brand/logo.svg" alt="Xerenity Logo" />
         </Link>
         <div className="header-nav ms-2">
           <HeaderProfileNav />

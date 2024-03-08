@@ -109,9 +109,9 @@ const Login: NextPage = () => {
           <Col>
             <Container>
               <Image
-                src="/assets/img/xerenity/orgtrans.png"
+                src="/assets/img/brand/logo.svg"
                 fluid
-                style={{ width: '40%' }}
+                width="230"
                 alt="xerenity logo"
                 className="mx-auto d-block"
               />
