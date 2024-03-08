@@ -1,11 +1,14 @@
-$enable-negative-margins: true;
+$enable-negative-margins: true; // TODO: Check dependencies on this line
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
 @import 'theme.scss';
-@import '~bootstrap/scss/bootstrap';
+@import 'component_overrides/button';
 @import 'layout/avatar';
 @import 'layout/footer';
 @import 'layout/header';
 @import 'layout/progress';
 @import 'layout/sidebar';
-
 @import '~nprogress/nprogress.css';
-@import 'component_overrides/button';
+
+body {
+  background-color: $beige-50;
+}
