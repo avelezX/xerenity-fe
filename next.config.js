@@ -1,4 +1,4 @@
-const path = require('path')
+const path = require('path');
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
@@ -7,9 +7,6 @@ const nextConfig = {
   sassOptions: {
     includePaths: [path.join(__dirname, 'styles')],
   },
-  images: {
-    domains: ['img.pokemondb.net'],
-  },  
   experimental: {
     serverActions: true,
   },
@@ -17,13 +14,11 @@ const nextConfig = {
     return [
       {
         // matching all API routes
-        source: "/functions/(.*)",
-        headers: [          
-          { key: "Access-Control-Allow-Origin", value: "*" }
-        ]
-      }
-    ]
-  }
-}
+        source: '/functions/(.*)',
+        headers: [{ key: 'Access-Control-Allow-Origin', value: '*' }],
+      },
+    ];
+  },
+};
 
-module.exports = nextConfig
+module.exports = nextConfig;
