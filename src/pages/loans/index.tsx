@@ -8,7 +8,7 @@ import Form from 'react-bootstrap/Form';
 import ProgressBar from 'react-bootstrap/ProgressBar';
 import CandleSerieViewer from '@components/compare/candleViewer';
 
-import { AdminLayout } from '@layout';
+import { CoreLayout } from '@layout';
 import { LightSerie, defaultCustomFormat } from '@models/lightserie';
 import LoanForm from '@components/forms/loanForm';
 import { ExportToCsv, downloadBlob } from '@components/csvDownload/cscDownload';
@@ -246,7 +246,7 @@ export default function NextPage() {
   );
 
   return (
-    <AdminLayout>
+    <CoreLayout>
       <LoanForm
         showStart={showDialog}
         createCallback={fetchLoanNames}
@@ -434,6 +434,6 @@ export default function NextPage() {
           </Col>
         </Row>
       </Container>
-    </AdminLayout>
+    </CoreLayout>
   );
 }

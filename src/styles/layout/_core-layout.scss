@@ -1,0 +1,11 @@
+.layout-wrapper {
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  .layout-sidebar {
+    flex: 0 1 auto;
+  }
+  .layout-content {
+    flex: 1 1 auto;
+  }
+}
