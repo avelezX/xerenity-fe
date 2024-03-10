@@ -1,4 +1,4 @@
-$header-background: #fff;
+$header-background: $beige-50;
 $header-link-color: rgba(44, 56, 74, 0.681);
 $header-link-color-hover: rgba(44, 56, 74, 0.95);
 $header-brand-color: #4f5d73;
@@ -12,7 +12,7 @@ $header-brand-color: #4f5d73;
 
   .header-navbar {
     display: flex;
-    justify-content: space-between;
+    justify-content: flex-end;
     min-height: 3rem;
 
     .header-toggler {

@@ -1,11 +1,10 @@
-import React from 'react';
 import { CoreLayout } from '@layout';
 import type { NextPage } from 'next';
-import FullTesViewer from '@components/Tes/Viewer/FullTesViewer';
+import SeriesViewer from '@components/banrep/SerieViwers';
 
 const Dashboard: NextPage = () => (
   <CoreLayout>
-    <FullTesViewer />
+    <SeriesViewer />
   </CoreLayout>
 );
 

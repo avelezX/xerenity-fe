@@ -3,7 +3,7 @@
 import React, { ChangeEvent, useCallback, useState, useEffect } from 'react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { Container, Row, Col, Alert } from 'react-bootstrap';
-import { AdminLayout } from '@layout';
+import { CoreLayout } from '@layout';
 import { TesYields, CandleSerie } from '@models/tes';
 import CopTesGrid from '@components/grid/SpecificGrids/copGrid';
 import CandleSerieViewer from '@components/compare/candleViewer';
@@ -127,7 +127,7 @@ export default function NextPage() {
   }, [supabase, selectedSerie, displayName]);
 
   return (
-    <AdminLayout>
+    <CoreLayout>
       <ToastContainer />
       <Container fluid>
         <Row>
@@ -205,6 +205,6 @@ export default function NextPage() {
           </Col>
         </Row>
       </Container>
-    </AdminLayout>
+    </CoreLayout>
   );
 }

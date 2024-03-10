@@ -1,6 +1,6 @@
-$enable-negative-margins: true; // TODO: Check dependencies on this line
 @import 'theme.scss';
-@import 'component_overrides/button';
+@import 'overrides/button';
+@import 'layout/core-layout';
 @import 'layout/avatar';
 @import 'layout/footer';
 @import 'layout/header';
@@ -9,5 +9,6 @@ $enable-negative-margins: true; // TODO: Check dependencies on this line
 @import '~nprogress/nprogress.css';
 
 body {
+  height: 100vh;
   background-color: $beige-50;
 }
