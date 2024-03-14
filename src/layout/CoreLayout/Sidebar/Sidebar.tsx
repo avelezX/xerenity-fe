@@ -1,10 +1,11 @@
 import React from 'react';
 import { useRouter } from 'next/router';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
-import { Button, Image } from 'react-bootstrap';
+import { Image } from 'react-bootstrap';
 import { FontAwesomeIcon as Icon } from '@fortawesome/react-fontawesome';
 import { faShareFromSquare } from '@fortawesome/free-solid-svg-icons';
 import SidebarNav from './SidebarNav';
+import LogoutButton from './LogoutButton';
 
 const LOGO_PATH = '/assets/img/brand/logo.svg';
 const LOGIN_PATH = '/login';
@@ -32,10 +33,10 @@ const Sidebar = () => {
       </section>
       <section className="bottom-container">
         {/* TODO: Hook Logout functionality */}
-        <Button variant="outline-primary" onClick={() => logout()}>
-          <Icon style={{ padding: '0 5px' }} icon={faShareFromSquare} />
+        <LogoutButton variant="outline-primary" onClick={() => logout()}>
+          <Icon icon={faShareFromSquare} />
           Salir
-        </Button>
+        </LogoutButton>
       </section>
     </div>
   );
