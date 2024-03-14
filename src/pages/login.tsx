@@ -4,19 +4,7 @@ import { NextPage } from 'next';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faUser } from '@fortawesome/free-regular-svg-icons';
 import { faLock } from '@fortawesome/free-solid-svg-icons';
-import {
-  Button,
-  Col,
-  Container,
-  Form,
-  InputGroup,
-  Row,
-  Card,
-  Collapse,
-  Badge,
-  Carousel,
-  Image,
-} from 'react-bootstrap';
+import { Form, Carousel, InputGroup, Collapse } from 'react-bootstrap';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import { deleteCookie, getCookie } from 'cookies-next';
@@ -24,29 +12,131 @@ import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import CandleSerieViewer from '@components/compare/candleViewer';
 import { CandleSerie, TesYields } from '@models/tes';
 
-interface MyFormData {
-  username: string;
-  password: string;
+import Button from '@components/Button';
+import Col from '@components/UI/Col';
+import Row from '@components/UI/Row';
+import Container from '@components/UI/Container';
+import Stack from '@components/UI/Stack';
+import Image from '@components/UI/Image';
+import Alert from '@components/UI/Alert';
+
+import {
+  Formik,
+  ErrorMessage,
+  FormikConfig,
+  prepareDataForValidation,
+} from 'formik';
+import * as Yup from 'yup';
+
+function LoginComponent() {
+  const router = useRouter();
+  const supabase = createClientComponentClient();
+  const [loginErrorMsg, setLoginErrorMsg] = useState('');
+  const [newErrorLogin, setNewErrorLogin] = useState<boolean>(false);
+
+  const signInSchema = Yup.object().shape({
+    email: Yup.string().email('El email es invalid').required('Required'),
+    password: Yup.string().min(1).required('Required'),
+  });
+
+  const initialValues = {
+    email: '',
+    password: '',
+  };
+
+  const getRedirect = () => {
+    const redirect = getCookie('redirect');
+    if (redirect) {
+      deleteCookie('redirect');
+      return redirect.toString();
+    }
+
+    return '/';
+  };
+
+  const onSubmit: FormikConfig<typeof initialValues>['onSubmit'] = async (
+    formValues
+  ) => {
+    const preparedValues = signInSchema.cast(
+      prepareDataForValidation(formValues)
+    );
+    setNewErrorLogin(false);
+    const res = await supabase.auth.signInWithPassword(preparedValues);
+
+    if (res.error) {
+      setNewErrorLogin(true);
+      setLoginErrorMsg(res.error.message);
+    } else {
+      setNewErrorLogin(false);
+      router.push(getRedirect());
+    }
+  };
+
+  return (
+    <Formik
+      initialValues={initialValues}
+      onSubmit={onSubmit}
+      validationSchema={signInSchema}
+    >
+      {({ values, handleChange, isSubmitting, handleSubmit }) => (
+        <Form onSubmit={handleSubmit}>
+          <Form.Group controlId="email">
+            <InputGroup className="mb-3">
+              <InputGroup.Text id="basic-addon3">
+                <FontAwesomeIcon icon={faUser} fixedWidth />
+              </InputGroup.Text>
+              <Form.Control
+                placeholder="Ingresa tu email"
+                type="email"
+                value={values.email}
+                onChange={handleChange}
+              />
+            </InputGroup>
+            <ErrorMessage name="email" component="div" />
+          </Form.Group>
+
+          <Form.Group controlId="password">
+            <InputGroup className="mb-3">
+              <InputGroup.Text id="basic-addon3">
+                <FontAwesomeIcon icon={faLock} fixedWidth />
+              </InputGroup.Text>
+              <Form.Control
+                placeholder="Ingresa tu password"
+                type="password"
+                value={values.password}
+                onChange={handleChange}
+              />
+            </InputGroup>
+            <ErrorMessage name="password" component="div" />
+          </Form.Group>
+          <Container fluid>
+            <Row>
+              <Col>
+                <Button type="submit" disabled={isSubmitting}>
+                  iniciar session
+                </Button>
+              </Col>
+            </Row>
+            <Collapse in={newErrorLogin}>
+              <Row>
+                <Col>
+                  <Alert>{loginErrorMsg}</Alert>
+                </Col>
+              </Row>
+            </Collapse>
+          </Container>
+        </Form>
+      )}
+    </Formik>
+  );
 }
 
-const Login: NextPage = () => {
-  const router = useRouter();
+function ChartComponent() {
+  const supabase = createClientComponentClient();
   const [tesCandeSerie, setTESCandleSerie] = useState<CandleSerie>({
     name: '',
     values: [],
   });
-  const [formData, setFormData] = useState<MyFormData>({
-    username: '',
-    password: '',
-  });
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setFormData((prevData) => ({ ...prevData, [name]: value }));
-  };
-  const [submitting, setSubmitting] = useState(false);
-  const [loginError, setLoginError] = useState<boolean>(false);
-  const [loginErrorMsg, setLoginErrorMsg] = useState('');
-  const supabase = createClientComponentClient();
 
   useEffect(() => {
     const fetchData = async () => {
@@ -66,241 +156,56 @@ const Login: NextPage = () => {
     fetchData();
   }, [supabase]);
 
-  const getRedirect = () => {
-    const redirect = getCookie('redirect');
-    if (redirect) {
-      deleteCookie('redirect');
-      return redirect.toString();
-    }
-
-    return '/';
-  };
-
-  const login = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.stopPropagation();
-    e.preventDefault();
-    setSubmitting(true);
-
-    const { username, password } = formData;
-
-    const res = await supabase.auth.signInWithPassword({
-      email: username,
-      password,
-    });
-
-    if (res.error) {
-      setLoginError(true);
-      setLoginErrorMsg(res.error.message);
-    } else {
-      router.push(getRedirect());
-    }
-    setSubmitting(false);
-  };
-
   return (
-    <div className="bg-light min-vh-100 d-flex flex-row align-items-center dark:bg-transparent">
-      <Container>
-        <Row>
-          <Col>
-            <br />
-          </Col>
-        </Row>
-        <Row>
-          <Col>
-            <Container>
-              <Image
-                src="/assets/img/brand/logo.svg"
-                fluid
-                width="230"
-                alt="xerenity logo"
-                className="mx-auto d-block"
-              />
-            </Container>
-          </Col>
-        </Row>
-        <Row>
-          <Col>
-            <br />
-          </Col>
-        </Row>
-        <Row>
-          <Col sm={{ span: 6 }}>
-            <Row>
-              <Col className="bg-white border p-5">
-                <div className="">
-                  <h1>Login</h1>
-                  <p className="text-black-50">Iniciar sesión en su cuenta</p>
-                  <form onSubmit={login}>
-                    <InputGroup className="mb-3">
-                      <InputGroup.Text>
-                        <FontAwesomeIcon icon={faUser} fixedWidth />
-                      </InputGroup.Text>
-                      <Form.Control
-                        name="username"
-                        required
-                        disabled={submitting}
-                        placeholder="Usuario"
-                        aria-label="Username"
-                        onChange={handleChange}
-                      />
-                    </InputGroup>
-                    <InputGroup className="mb-3">
-                      <InputGroup.Text>
-                        <FontAwesomeIcon icon={faLock} fixedWidth />
-                      </InputGroup.Text>
-                      <Form.Control
-                        type="password"
-                        name="password"
-                        required
-                        disabled={submitting}
-                        placeholder="Contrasena"
-                        aria-label="Password"
-                        onChange={handleChange}
-                      />
-                    </InputGroup>
-                    <Row>
-                      <Col>
-                        <Collapse in={loginError}>
-                          <Badge pill bg="danger" text="dark">
-                            {loginErrorMsg}
-                          </Badge>
-                        </Collapse>
-                      </Col>
-                    </Row>
-                    <Row>
-                      <Col xs={6}>
-                        <Button
-                          className="px-4"
-                          variant="primary"
-                          type="submit"
-                          disabled={submitting}
-                        >
-                          Login
-                        </Button>
-                      </Col>
-                      <Col xs={6} className="text-end">
-                        <Button className="px-0" variant="link" type="submit">
-                          Forgot password?
-                        </Button>
-                      </Col>
-                    </Row>
-                  </form>
-                </div>
-              </Col>
-            </Row>
-          </Col>
-          <Col sm={{ span: 6 }}>
-            <Row>
-              <Col>
-                <Carousel>
-                  <Carousel.Item>
-                    <CandleSerieViewer
-                      candleSerie={tesCandeSerie}
-                      otherSeries={[]}
-                      fit
-                      shorten={false}
-                      normalyze={false}
-                      chartHeight="21rem"
-                      watermarkText="Xerenity"
-                    />
-                    <Carousel.Caption>
-                      <h3>First slide label</h3>
-                      <p>
-                        Nulla vitae elit libero, a pharetra augue mollis
-                        interdum.
-                      </p>
-                    </Carousel.Caption>
-                  </Carousel.Item>
-                  <Carousel.Item>
-                    <CandleSerieViewer
-                      candleSerie={tesCandeSerie}
-                      otherSeries={[]}
-                      fit
-                      shorten={false}
-                      normalyze={false}
-                      chartHeight="21rem"
-                      watermarkText="Xerenity"
-                    />
-                    <Carousel.Caption>
-                      <h3>Second slide label</h3>
-                      <p>
-                        Lorem ipsum dolor sit amet, consectetur adipiscing elit.
-                      </p>
-                    </Carousel.Caption>
-                  </Carousel.Item>
-                </Carousel>
-              </Col>
-            </Row>
-          </Col>
-        </Row>
-        <Row>
-          <Col>
-            <br />
-            <br />
-            <br />
-            <br />
-            <br />
-          </Col>
-        </Row>
-        <Row>
-          <Row>
-            <Col sm={{ span: 6 }}>
-              <Card>
-                <Card.Body>
-                  <Card.Title>Xerenity</Card.Title>
-                  <Card.Text>
-                    Es una empresa líder en servicios financieros dedicada a
-                    proporcionar datos precisos y confiables y soluciones de
-                    gestión de riesgos para empoderar a empresas e individuos a
-                    tomar decisiones informadas.
-                  </Card.Text>
-                </Card.Body>
-              </Card>
-            </Col>
-          </Row>
-          <Row>
-            <Col>
-              <br />
-            </Col>
-          </Row>
-          <Row>
-            <Col sm={{ span: 6, offset: 6 }}>
-              <Card>
-                <Card.Body>
-                  <Card.Title>Visión</Card.Title>
-                  <Card.Text>
-                    Ser la fuente líder de información financiera confiable,
-                    empoderando a empresas e individuos para tomar decisiones
-                    informadas y seguras.
-                  </Card.Text>
-                </Card.Body>
-              </Card>
-            </Col>
-          </Row>
-          <Row>
-            <Col>
-              <br />
-            </Col>
-          </Row>
-          <Row>
-            <Col sm={{ span: 6 }}>
-              <Card>
-                <Card.Body>
-                  <Card.Title>Misión</Card.Title>
-                  <Card.Text>
-                    Facilitar el acceso a datos financieros precisos y
-                    actualizados, proporcionando a nuestros usuarios las
-                    herramientas necesarias para comprender y aprovechar las
-                    dinámicas del mercado, impulsando así el éxito financiero.
-                  </Card.Text>
-                </Card.Body>
-              </Card>
-            </Col>
-          </Row>
-        </Row>
-      </Container>
-    </div>
+    <Carousel>
+      <Carousel.Item>
+        <CandleSerieViewer
+          candleSerie={tesCandeSerie}
+          otherSeries={[]}
+          fit
+          shorten={false}
+          normalyze={false}
+          chartHeight="21rem"
+          watermarkText="Xerenity"
+        />
+      </Carousel.Item>
+      <Carousel.Item>
+        <CandleSerieViewer
+          candleSerie={tesCandeSerie}
+          otherSeries={[]}
+          fit
+          shorten={false}
+          normalyze={false}
+          chartHeight="21rem"
+          watermarkText="Xerenity"
+        />
+      </Carousel.Item>
+    </Carousel>
   );
-};
+}
+
+const Login: NextPage = () => (
+  <div className="min-vh-100 d-flex align-items-center">
+    <Container>
+      <Row>
+        <Col>
+          <Stack>
+            <Image
+              src="/assets/img/brand/logo.svg"
+              fluid
+              width="230"
+              alt="xerenity logo"
+              className="mx-auto d-block"
+            />
+            <LoginComponent />
+          </Stack>
+        </Col>
+        <Col>
+          <ChartComponent />
+        </Col>
+      </Row>
+    </Container>
+  </div>
+);
 
 export default Login;
