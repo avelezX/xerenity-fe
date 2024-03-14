@@ -4,7 +4,7 @@ import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { Image } from 'react-bootstrap';
 import { FontAwesomeIcon as Icon } from '@fortawesome/react-fontawesome';
 import { faShareFromSquare } from '@fortawesome/free-solid-svg-icons';
-import XButton from '@components/Button';
+import XButton from '@components/XButton';
 import SidebarNav from './SidebarNav';
 
 const LOGO_PATH = '/assets/img/brand/logo.svg';
