@@ -119,12 +119,10 @@ export default function FullTesViewer() {
       moving_days: number,
       display_name: string
     ) => {
-      const data = await supabase
-        .schema('xerenity')
-        .rpc('tes_moving_average', {
-          tes_name: selected_name,
-          average_days: moving_days,
-        });
+      const data = await supabase.schema('xerenity').rpc('tes_moving_average', {
+        tes_name: selected_name,
+        average_days: moving_days,
+      });
 
       if (data) {
         setMovingAvg([]);
@@ -271,8 +269,8 @@ export default function FullTesViewer() {
                 <Button
                   variant={
                     currencyType === 'COLTES-UVR'
-                      ? 'success'
-                      : 'outline-success'
+                      ? 'primary'
+                      : 'outline-primary'
                   }
                   onClick={() => handleCurrenyChange('COLTES-UVR')}
                 >
@@ -281,8 +279,8 @@ export default function FullTesViewer() {
                 <Button
                   variant={
                     currencyType === 'COLTES-IBR'
-                      ? 'warning'
-                      : 'outline-warning'
+                      ? 'primary'
+                      : 'outline-primary'
                   }
                   onClick={() => handleCurrenyChange('COLTES-IBR')}
                 >
@@ -298,19 +296,19 @@ export default function FullTesViewer() {
             <Card.Body>
               <ButtonGroup>
                 <Button
-                  variant={movingAvgDays === 20 ? 'dark' : 'outline-dark'}
+                  variant={movingAvgDays === 20 ? 'primary' : 'outline-primary'}
                   onClick={() => handleMonthChange(20)}
                 >
                   20
                 </Button>
                 <Button
-                  variant={movingAvgDays === 30 ? 'dark' : 'outline-dark'}
+                  variant={movingAvgDays === 30 ? 'primary' : 'outline-primary'}
                   onClick={() => handleMonthChange(30)}
                 >
                   30
                 </Button>
                 <Button
-                  variant={movingAvgDays === 50 ? 'dark' : 'outline-dark'}
+                  variant={movingAvgDays === 50 ? 'primary' : 'outline-primary'}
                   onClick={() => handleMonthChange(50)}
                 >
                   50

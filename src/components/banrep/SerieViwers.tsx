@@ -262,10 +262,7 @@ export default function SeriesViewer() {
               <Card.Header>Ver Series</Card.Header>
               <Card.Body>
                 <ButtonGroup>
-                  <Button
-                    variant={showCanvs ? 'dark' : 'outline-dark'}
-                    onClick={handleShow}
-                  >
+                  <Button variant="outline-primary" onClick={handleShow}>
                     Ver serie <FontAwesomeIcon icon={faLinesLeaning} />
                   </Button>
                 </ButtonGroup>

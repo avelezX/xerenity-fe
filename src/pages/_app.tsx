@@ -29,6 +29,9 @@ function MyApp({ Component, pageProps }: AppProps) {
         html {
           font-family: ${inter.style.fontFamily};
         }
+        #__next {
+          overflow-x: hidden;
+        }
       `}</style>
       <SSRProvider>
         <ProgressBar />
