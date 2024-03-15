@@ -1,7 +1,7 @@
 'use client';
 
 import { NextPage } from 'next';
-import Image from '@components/UI/Image';
+import { Image } from 'react-bootstrap';
 import LoginForm from './LoginForm';
 import LoginChart from './LoginChart';
 
@@ -12,7 +12,7 @@ const LoginPage: NextPage = () => (
         <Image
           src="/assets/img/brand/logo.svg"
           fluid
-          width="180"
+          width="200"
           alt="xerenity logo"
           className="mx-auto d-block"
         />
