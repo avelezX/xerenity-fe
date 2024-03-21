@@ -1,0 +1,9 @@
+{
+  "form": {
+    "email": "Ingresa tu email",
+    "emailInvalid": "Ingresa un email valido",
+    "password": "Ingresa tu password",
+    "action": "Iniciar Sesion",
+    "required": "Este campo es requerido."
+  }
+}

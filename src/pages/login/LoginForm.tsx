@@ -1,4 +1,4 @@
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { FontAwesomeIcon as Icon } from '@fortawesome/react-fontawesome';
 import { faUser } from '@fortawesome/free-regular-svg-icons';
 import { faLock } from '@fortawesome/free-solid-svg-icons';
 import { Form, InputGroup, Collapse } from 'react-bootstrap';
@@ -15,6 +15,10 @@ import {
   prepareDataForValidation,
 } from 'formik';
 import * as Yup from 'yup';
+import strings from '../../strings/login.json';
+import ErrorMsg from './ErrorMsg';
+
+const { form } = strings;
 
 function LoginForm() {
   const router = useRouter();
@@ -23,8 +27,8 @@ function LoginForm() {
   const [newErrorLogin, setNewErrorLogin] = useState<boolean>(false);
 
   const signInSchema = Yup.object().shape({
-    email: Yup.string().email('El email es invalid').required('Required'),
-    password: Yup.string().min(1).required('Required'),
+    email: Yup.string().email(form.emailInvalid).required(form.required),
+    password: Yup.string().min(1).required(form.required),
   });
 
   const initialValues = {
@@ -68,38 +72,51 @@ function LoginForm() {
     >
       {({ values, handleChange, isSubmitting, handleSubmit }) => (
         <div className="d-flex flex-column w-100 justify-content-center align-items-center py-5">
-          <Form onSubmit={handleSubmit} className="w-50 d-flex flex-column">
-            <Form.Group controlId="email">
-              <InputGroup className="mb-3">
-                <InputGroup.Text id="basic-addon3">
-                  <FontAwesomeIcon icon={faUser} fixedWidth />
+          <Form
+            onSubmit={handleSubmit}
+            className="w-50 d-flex justify-content-center flex-column gap-3"
+          >
+            <Form.Group
+              controlId="email"
+              className='className="w-50 d-flex flex-column gap-2'
+            >
+              <InputGroup>
+                <InputGroup.Text className="bg-white border-right-none">
+                  <Icon className="text-primary" icon={faUser} fixedWidth />
                 </InputGroup.Text>
                 <Form.Control
-                  placeholder="Ingresa tu email"
+                  placeholder={form.email}
                   type="email"
                   value={values.email}
                   onChange={handleChange}
                 />
               </InputGroup>
-              <ErrorMessage name="email" component="div" />
+              <ErrorMessage name="email">
+                {(msg: string) => <ErrorMsg>{msg}</ErrorMsg>}
+              </ErrorMessage>
             </Form.Group>
-            <Form.Group controlId="password">
-              <InputGroup className="mb-3">
-                <InputGroup.Text id="basic-addon3">
-                  <FontAwesomeIcon icon={faLock} fixedWidth />
+            <Form.Group
+              controlId="password"
+              className='className="w-50 d-flex flex-column gap-2'
+            >
+              <InputGroup>
+                <InputGroup.Text className="bg-white border-right-none">
+                  <Icon className="text-primary" icon={faLock} fixedWidth />
                 </InputGroup.Text>
                 <Form.Control
-                  placeholder="Ingresa tu password"
+                  placeholder={form.password}
                   type="password"
                   value={values.password}
                   onChange={handleChange}
                 />
               </InputGroup>
-              <ErrorMessage name="password" component="div" />
+              <ErrorMessage name="password">
+                {(msg: string) => <ErrorMsg>{msg}</ErrorMsg>}
+              </ErrorMessage>
             </Form.Group>
             <div className="d-flex justify-content-center p-4">
               <Button type="submit" disabled={isSubmitting}>
-                Iniciar Sesion
+                {form.action}
               </Button>
             </div>
             <Collapse in={newErrorLogin}>
