@@ -306,6 +306,7 @@ export default function NextPage() {
                   <th>Numero de pagos</th>
                   <th>Interes</th>
                   <th>Tipo</th>
+                  <th>Acciones</th>
                 </tr>
               </thead>
               <tbody>
@@ -381,13 +382,10 @@ export default function NextPage() {
         <Row>
           <Col>
             <CandleSerieViewer
-              candleSerie={null}
               otherSeries={cashFlowView}
               fit
               shorten
-              normalyze={false}
               chartHeight="50rem"
-              watermarkText="Xerenity"
             />
           </Col>
         </Row>
@@ -415,17 +413,11 @@ export default function NextPage() {
                 {cashFlow?.map((loan) => [
                   <tr key={`row-credit${loan.date}`}>
                     <td>{loan.date.split(' ')[0]}</td>
-
                     <PriceTagTd value={loan.beginning_balance} />
-
                     <td>{loan.rate.toFixed(2)}%</td>
-
                     <PriceTagTd value={loan.payment} />
-
                     <td>{loan.interest.toFixed(2)}</td>
-
                     <td>{loan.principal.toFixed(2)}</td>
-
                     <PriceTagTd value={loan.ending_balance} />
                   </tr>,
                 ])}
