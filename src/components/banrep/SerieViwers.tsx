@@ -345,7 +345,6 @@ export default function SeriesViewer() {
             shorten
             normalyze={normalize}
             chartHeight="50rem"
-            watermarkText="Xerenity"
           />
         </Col>
       </Row>

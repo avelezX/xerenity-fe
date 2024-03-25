@@ -7,31 +7,29 @@ import {
   WhitespaceData,
   createChart,
   IChartApi,
-  CrosshairMode,
 } from 'lightweight-charts';
 import React, { useEffect, useRef } from 'react';
 import { Card } from 'react-bootstrap';
 import { LightSerie, defaultCustomFormat } from '@models/lightserie';
 import normalizeSeries from './normalize';
+import charOptions, { legendStyles } from './candleViewerOptions';
 
 type ViewerProps = {
-  candleSerie: CandleSerie | null;
+  candleSerie?: CandleSerie | null;
   otherSeries: LightSerie[] | null;
   fit: boolean;
-  normalyze: boolean;
+  normalyze?: boolean;
   shorten: boolean;
   chartHeight: string;
-  watermarkText: 'Xerenity' | '';
 };
 
 export default function CandleSerieViewer({
   candleSerie,
   otherSeries,
   fit,
-  normalyze,
+  normalyze = false,
   shorten,
   chartHeight,
-  watermarkText,
 }: ViewerProps) {
   const chartContainerRef = useRef<HTMLInputElement | null>(null);
   const chart = useRef<IChartApi | null>(null);
@@ -43,55 +41,13 @@ export default function CandleSerieViewer({
       chartContainerRef.current.innerHTML = '';
 
       const element = document.createElement('div');
-
-      const chartOptions = {
-        width: chartContainerRef.current.offsetWidth,
-        height: chartContainerRef.current.offsetHeight,
-        type: 'solid',
-        color: 'transparent',
-        autoSize: true,
-        layout: {
-          background: {
-            color: 'transparent',
-          },
-          textColor: '#D3D3D3',
-        },
-        watermark: {
-          visible: true,
-          fontSize: 100,
-          color: '#D3D3D3',
-          text: watermarkText,
-        },
-        grid: {
-          vertLines: {
-            color: '#D3D3D3',
-          },
-          horzLines: {
-            color: '#D3D3D3',
-          },
-        },
-        crosshair: {
-          mode: CrosshairMode.Normal,
-        },
-        priceScale: {
-          borderColor: '#485c7b',
-        },
-        timeScale: {
-          borderColor: '#485c7b',
-          fixLeftEdge: true,
-          uniformDistribution: true,
-          visible: true,
-        },
-      };
-
-      chart.current = createChart(chartContainerRef.current, chartOptions);
+      charOptions.width = chartContainerRef.current.offsetWidth;
+      charOptions.height = chartContainerRef.current.offsetHeight;
+      chart.current = createChart(chartContainerRef.current, charOptions);
 
       if (chart.current) {
         const legend = document.createElement('div');
-        legend.setAttribute(
-          'style',
-          `position: absolute; left: 20px; top: 12px; z-index: 1; font-size: 14px; font-family: sans-serif; line-height: 20px; font-weight: 300;`
-        );
+        legend.setAttribute('style', legendStyles);
         chartContainerRef.current.appendChild(legend);
 
         const firstRow = document.createElement('div');
@@ -158,14 +114,6 @@ export default function CandleSerieViewer({
               priceScaleId: 'right',
             });
 
-            /*
-                chart.current.subscribeCrosshairMove((handler)=>{
-                  if(handler.hoveredSeries===candlestickSeries){
-                    console.log(handler)
-                  }
-                })
-              */
-
             candlestickSeries.setData(serieData);
 
             volumeSeries.setData(volData);
@@ -182,19 +130,19 @@ export default function CandleSerieViewer({
 
             let scaleid = 'right';
 
-            if (normalyze) {
+            if (index === 0) {
+              scaleid = 'left';
+            } else if (index === 1) {
               scaleid = 'right';
-            } else if (index > 0) {
-              scaleid = other.name;
             } else {
-              scaleid = 'right';
+              scaleid = other.name;
             }
 
             if (other.type === 'bar') {
               const otherSerieChart = chart.current?.addHistogramSeries({
                 color: other.color,
-                priceScaleId: scaleid,
                 priceFormat: other.priceFormat,
+                priceScaleId: scaleid,
                 title: other.name,
               });
 
@@ -204,8 +152,8 @@ export default function CandleSerieViewer({
             } else {
               const otherSerieChart = chart.current?.addLineSeries({
                 color: other.color,
-                priceScaleId: scaleid,
                 priceFormat: defaultCustomFormat,
+                priceScaleId: scaleid,
                 title: other.name,
               });
 

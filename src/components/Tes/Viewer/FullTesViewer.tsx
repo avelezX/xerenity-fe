@@ -341,7 +341,6 @@ export default function FullTesViewer() {
             fit
             shorten={false}
             normalyze={false}
-            watermarkText="Xerenity"
             chartHeight="50rem"
           />
         </Col>

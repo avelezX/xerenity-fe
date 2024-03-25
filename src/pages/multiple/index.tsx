@@ -146,7 +146,6 @@ export default function NextPage() {
                   shorten={false}
                   normalyze={false}
                   chartHeight="50rem"
-                  watermarkText="Xerenity"
                 />
               </Col>
             </Row>
