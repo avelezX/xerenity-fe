@@ -41,7 +41,6 @@ function LoginChart() {
               shorten={false}
               normalyze={false}
               chartHeight="21rem"
-              watermarkText="Xerenity"
             />
           </Carousel.Item>
           <Carousel.Item>
@@ -52,7 +51,6 @@ function LoginChart() {
               shorten={false}
               normalyze={false}
               chartHeight="21rem"
-              watermarkText="Xerenity"
             />
           </Carousel.Item>
         </Carousel>
