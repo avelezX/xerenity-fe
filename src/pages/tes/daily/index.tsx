@@ -253,9 +253,9 @@ export default function FullTesViewer() {
   return (
     <CoreLayout>
     <Container fluid>
-    <Row>
-      <Col>
-      <Nav variant="pills">
+    <div className="row">
+      <div className="bg-white d-flex flex-column justify-content-center col-xs-12 col-md-12 col-lg-11">
+        <Nav variant="pills" className="bg-white">
           
           <TabNavigationItem 
             name="Coltes/COP" 
@@ -295,9 +295,9 @@ export default function FullTesViewer() {
                 ])
               }
             </NavDropdown>
-        </Nav>       
-      </Col>
-    </Row>
+        </Nav> 
+      </div>
+    </div>
       <Row>
         <Col>
           <hr />

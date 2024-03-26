@@ -15,10 +15,8 @@ export default function TabNavigationItem (props: TabNavigationItemProps)  {
     const { icon, name,onClick } = props;
 
     return (
-        <Nav.Item
-            onClick={onClick}
-        >
-            <Nav.Link>
+        <Nav.Item onClick={onClick}>
+            <Nav.Link as='button'>
                 <Icon className="mr-5" icon={icon} />
                 {' '}
                 <span>{name}</span>
