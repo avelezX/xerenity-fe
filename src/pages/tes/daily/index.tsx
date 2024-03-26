@@ -2,7 +2,7 @@
 
 import { CoreLayout } from '@layout';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
-import { Row, Col, Nav, NavDropdown } from 'react-bootstrap';
+import { Row, Col, NavDropdown } from 'react-bootstrap';
 import React, { useState, useEffect, useCallback, ChangeEvent } from 'react';
 import Container from 'react-bootstrap/Container';
 import {
@@ -14,7 +14,7 @@ import { MovingAvgValue } from '@models/movingAvg';
 import { ExportToCsv, downloadBlob } from '@components/csvDownload/cscDownload';
 import { faAreaChart, faBarChart,faFileCsv, faLineChart, faLongArrowAltRight } from '@fortawesome/free-solid-svg-icons';
 import { toast } from 'react-toastify';
-import TabNavigationItem from '@components/UI/NavigationItem/NavigationItem';
+import TabNavigationItem from '@components/UI/Nav/NavigationItem';
 
 import {
   TesYields,
@@ -25,6 +25,7 @@ import {
 } from '@models/tes';
 import CandleGridViewer from '@components/grid/CandleGrid';
 import CandleSerieViewer from '@components/compare/candleViewer';
+import NavigationBar from '@components/UI/Nav/NavBar';
 
 export default function FullTesViewer() {
   const supabase = createClientComponentClient();
@@ -253,51 +254,51 @@ export default function FullTesViewer() {
   return (
     <CoreLayout>
     <Container fluid>
-    <div className="row">
-      <div className="bg-white d-flex flex-column justify-content-center col-xs-12 col-md-12 col-lg-11">
-        <Nav variant="pills" className="bg-white">
-          
-          <TabNavigationItem 
-            name="Coltes/COP" 
-            onClick={() => handleCurrenyChange('COLTES-COP')} 
-            icon={faLineChart}
-          />
-          
-          <TabNavigationItem 
-            name="Coltes/UVR" 
-            onClick={() => handleCurrenyChange('COLTES-UVR')}
-            icon={faBarChart}
-          />
+      <div className="row">
+        <div className='col-xs-12'>
+          <NavigationBar>
+    
+        <TabNavigationItem 
+              name="Coltes/COP" 
+              onClick={() => handleCurrenyChange('COLTES-COP')} 
+              icon={faLineChart}
+            />
+            
+            <TabNavigationItem 
+              name="Coltes/UVR" 
+              onClick={() => handleCurrenyChange('COLTES-UVR')}
+              icon={faBarChart}
+            />
 
-          <TabNavigationItem 
-            name="Coltes/IBR" 
-            onClick={() => handleCurrenyChange('COLTES-IBR')}
-            icon={faAreaChart}
-          />
+            <TabNavigationItem 
+              name="Coltes/IBR" 
+              onClick={() => handleCurrenyChange('COLTES-IBR')}
+              icon={faAreaChart}
+            />
 
-          
-            <NavDropdown title="Opciones" id="basic-nav-dropdown">
-              <TabNavigationItem 
-                name="Descargar" 
-                onClick={downloadGrid}
-                icon={faFileCsv}
-              />
-              <NavDropdown.Divider />
-              {
-                [20,30,50].map((month)=>[
+            
+              <NavDropdown title="Opciones" id="basic-nav-dropdown">
+                <TabNavigationItem 
+                  name="Descargar" 
+                  onClick={downloadGrid}
+                  icon={faFileCsv}
+                />
+                <NavDropdown.Divider />
+                {
+                  [20,30,50].map((month)=>[
 
-                  <TabNavigationItem 
-                    name={`cambio ${month}`} 
-                  onClick={() => handleMonthChange(month)}
-                  icon={faLongArrowAltRight}
-                  key={month}
-                /> 
-                ])
-              }
-            </NavDropdown>
-        </Nav> 
+                    <TabNavigationItem 
+                      name={`cambio ${month}`} 
+                    onClick={() => handleMonthChange(month)}
+                    icon={faLongArrowAltRight}
+                    key={month}
+                  /> 
+                  ])
+                }
+              </NavDropdown>
+          </NavigationBar>
+        </div>
       </div>
-    </div>
       <Row>
         <Col>
           <hr />
