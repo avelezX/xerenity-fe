@@ -6,6 +6,7 @@ import {
   faChartSimple,
   faLandmark,
   IconDefinition,
+  faLineChart,
 } from '@fortawesome/free-solid-svg-icons';
 
 type NavItemProps = {
@@ -30,6 +31,12 @@ const NAV_ITEMS: NavItemProps[] = [
     name: 'creditos',
     path: '/loans',
     icon: faLandmark,
+    active: false,
+  },
+  {
+    name: 'tes',
+    path: '/tes/daily',
+    icon: faLineChart,
     active: false,
   },
 ];
