@@ -2,7 +2,8 @@
 
 import { CoreLayout } from '@layout';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
-import { Row, Col, NavDropdown } from 'react-bootstrap';
+import { Row, Col, DropdownDivider } from 'react-bootstrap';
+import Dropdown from 'react-bootstrap/Dropdown';
 import React, { useState, useEffect, useCallback, ChangeEvent } from 'react';
 import Container from 'react-bootstrap/Container';
 import {
@@ -12,20 +13,46 @@ import {
 } from '@models/lightserie';
 import { MovingAvgValue } from '@models/movingAvg';
 import { ExportToCsv, downloadBlob } from '@components/csvDownload/cscDownload';
-import { faAreaChart, faBarChart,faFileCsv, faLineChart, faLongArrowAltRight } from '@fortawesome/free-solid-svg-icons';
+import {
+  faAreaChart,
+  faBarChart,
+  faFileCsv,
+  faLineChart,
+  faLongArrowAltRight,
+} from '@fortawesome/free-solid-svg-icons';
 import { toast } from 'react-toastify';
-import TabNavigationItem from '@components/UI/Nav/NavigationItem';
-
+import ToolbarItem from '@components/UI/Toolbar/ToolbarItem';
 import {
   TesYields,
   CandleSerie,
   GridEntry,
   TesEntryToArray,
-
 } from '@models/tes';
 import CandleGridViewer from '@components/grid/CandleGrid';
 import CandleSerieViewer from '@components/compare/candleViewer';
-import NavigationBar from '@components/UI/Nav/NavBar';
+import Toolbar from '@components/UI/Toolbar';
+
+const TOOLBAR_ITEMS = [
+  {
+    name: 'Coltes/COP',
+    property: 'Coltes/COP',
+    icon: faLineChart,
+  },
+  {
+    name: 'Coltes/UVR',
+    property: 'COLTES-UVR',
+    icon: faBarChart,
+  },
+  {
+    name: 'Coltes/IBR',
+    property: 'COLTES-IBR',
+    icon: faAreaChart,
+  },
+];
+
+const OPCIONES = 'Opciones';
+
+const MONTH_OPTIONS = [20, 30, 50];
 
 export default function FullTesViewer() {
   const supabase = createClientComponentClient();
@@ -225,11 +252,10 @@ export default function FullTesViewer() {
     ]
   );
 
-  const handleCurrenyChange = (eventKey: string) => {
+  const handleCurrencyChange = (eventKey: string) => {
     setCurrencyType(eventKey);
   };
 
-  
   const handleMonthChange = (eventKey: number) => {
     setMovingAvgDays(eventKey);
     if (serieId.includes('ibr')) {
@@ -253,77 +279,67 @@ export default function FullTesViewer() {
 
   return (
     <CoreLayout>
-    <Container fluid>
-      <div className="row">
-        <div className='col-xs-12'>
-          <NavigationBar>
-    
-        <TabNavigationItem 
-              name="Coltes/COP" 
-              onClick={() => handleCurrenyChange('COLTES-COP')} 
-              icon={faLineChart}
-            />
-            
-            <TabNavigationItem 
-              name="Coltes/UVR" 
-              onClick={() => handleCurrenyChange('COLTES-UVR')}
-              icon={faBarChart}
-            />
-
-            <TabNavigationItem 
-              name="Coltes/IBR" 
-              onClick={() => handleCurrenyChange('COLTES-IBR')}
-              icon={faAreaChart}
-            />
-
-            
-              <NavDropdown title="Opciones" id="basic-nav-dropdown">
-                <TabNavigationItem 
-                  name="Descargar" 
-                  onClick={downloadGrid}
-                  icon={faFileCsv}
-                />
-                <NavDropdown.Divider />
-                {
-                  [20,30,50].map((month)=>[
-
-                    <TabNavigationItem 
-                      name={`cambio ${month}`} 
-                    onClick={() => handleMonthChange(month)}
-                    icon={faLongArrowAltRight}
-                    key={month}
-                  /> 
-                  ])
-                }
-              </NavDropdown>
-          </NavigationBar>
+      <Container fluid>
+        <div className="row">
+          <div className="col-xs-12 py-3">
+            <Toolbar>
+              <div className="section">
+                {TOOLBAR_ITEMS.map(({ name, property, icon }) => (
+                  <ToolbarItem
+                    className="py-3"
+                    key={name}
+                    name={name}
+                    onClick={() => handleCurrencyChange(property)}
+                    icon={icon}
+                  />
+                ))}
+              </div>
+              <div className="section">
+                <Dropdown>
+                  <Dropdown.Toggle>{OPCIONES}</Dropdown.Toggle>
+                  <Dropdown.Menu>
+                    <Dropdown.Item>
+                      <ToolbarItem
+                        name="Descargar"
+                        onClick={downloadGrid}
+                        icon={faFileCsv}
+                      />
+                    </Dropdown.Item>
+                    <DropdownDivider />
+                    {MONTH_OPTIONS.map((month) => (
+                      <Dropdown.Item key={month}>
+                        <ToolbarItem
+                          name={`cambio ${month}`}
+                          onClick={() => handleMonthChange(month)}
+                          icon={faLongArrowAltRight}
+                          key={month}
+                        />
+                      </Dropdown.Item>
+                    ))}
+                  </Dropdown.Menu>
+                </Dropdown>
+              </div>
+            </Toolbar>
+          </div>
         </div>
-      </div>
-      <Row>
-        <Col>
-          <hr />
-        </Col>
-      </Row>
-      <Row>
-        <Col>
-          <CandleSerieViewer
-            candleSerie={candleSerie}
-            otherSeries={movingAvg}
-            fit
-            shorten={false}
-            normalyze={false}
-            chartHeight="50rem"
-          />
-        </Col>
-      </Row>
-      <Row>
-        <Col>
-          <CandleGridViewer selectCallback={handleSelect} allTes={options} />
-        </Col>
-      </Row>
-    </Container>
+        <Row>
+          <Col>
+            <CandleSerieViewer
+              candleSerie={candleSerie}
+              otherSeries={movingAvg}
+              fit
+              shorten={false}
+              normalyze={false}
+              chartHeight="50rem"
+            />
+          </Col>
+        </Row>
+        <Row>
+          <Col>
+            <CandleGridViewer selectCallback={handleSelect} allTes={options} />
+          </Col>
+        </Row>
+      </Container>
     </CoreLayout>
   );
-  
 }
-
