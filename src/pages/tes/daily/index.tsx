@@ -12,7 +12,13 @@ import {
 } from '@models/lightserie';
 import { MovingAvgValue } from '@models/movingAvg';
 import { ExportToCsv, downloadBlob } from '@components/csvDownload/cscDownload';
-import { faAreaChart, faBarChart,faFileCsv, faLineChart, faLongArrowAltRight } from '@fortawesome/free-solid-svg-icons';
+import {
+  faAreaChart,
+  faBarChart,
+  faFileCsv,
+  faLineChart,
+  faLongArrowAltRight,
+} from '@fortawesome/free-solid-svg-icons';
 import { toast } from 'react-toastify';
 import TabNavigationItem from '@components/UI/Nav/NavigationItem';
 
@@ -21,7 +27,6 @@ import {
   CandleSerie,
   GridEntry,
   TesEntryToArray,
-
 } from '@models/tes';
 import CandleGridViewer from '@components/grid/CandleGrid';
 import CandleSerieViewer from '@components/compare/candleViewer';
@@ -49,51 +54,6 @@ export default function FullTesViewer() {
 
   const [movingAvgDays, setMovingAvgDays] = useState(20);
 
-  const fetchTesNames = useCallback(async () => {
-    if (currencyType === 'COLTES-COP' || currencyType === 'COLTES-UVR') {
-      const { data, error } = await supabase
-        .schema('xerenity')
-        .rpc('get_tes_grid_raw', { money: currencyType });
-
-      if (error) {
-        setOptions([]);
-      }
-
-      if (data) {
-        setOptions(data as GridEntry[]);
-      } else {
-        setOptions([] as GridEntry[]);
-      }
-    } else {
-      const { data, error } = await supabase
-        .schema('xerenity')
-        .rpc('get_ibr_grid_raw', {});
-
-      if (error) {
-        setOptions([]);
-        toast.error(error.message);
-      }
-
-      if (data) {
-        const allIbr = data as GridEntry[];
-        const mapping = new Map<string, GridEntry>();
-        allIbr.forEach((entry) => {
-          mapping.set(entry.tes, entry);
-        });
-
-        setIbrData(mapping);
-
-        setOptions(data as GridEntry[]);
-      } else {
-        setOptions([] as GridEntry[]);
-      }
-    }
-  }, [supabase, currencyType]);
-
-  useEffect(() => {
-    fetchTesNames();
-  }, [fetchTesNames]);
-
   const fetchTesRawData = useCallback(
     async (view_tes: string) => {
       const { data, error } = await supabase
@@ -113,44 +73,6 @@ export default function FullTesViewer() {
       }
     },
     [supabase]
-  );
-
-  const fetchTesMvingAvg = useCallback(
-    async (
-      selected_name: string,
-      moving_days: number,
-      display_name: string
-    ) => {
-      const data = await supabase.schema('xerenity').rpc('tes_moving_average', {
-        tes_name: selected_name,
-        average_days: moving_days,
-      });
-
-      if (data) {
-        setMovingAvg([]);
-      }
-
-      if (data.data) {
-        const avgValues = data.data.moving_avg as MovingAvgValue[];
-        const avgSerie = Array<LightSerieValue>();
-        avgValues.forEach((avgval) => {
-          avgSerie.push({
-            value: avgval.avg,
-            time: avgval.close_date.split('T')[0],
-          });
-        });
-        setMovingAvg([
-          {
-            serie: avgSerie,
-            color: '#2270E2',
-            name: display_name,
-            type: 'line',
-            priceFormat: defaultCustomFormat,
-          },
-        ]);
-      }
-    },
-    [supabase, setMovingAvg]
   );
 
   const fetchTesMvingAvgIbr = useCallback(
@@ -196,40 +118,119 @@ export default function FullTesViewer() {
     [supabase, setMovingAvg, ibrData]
   );
 
-  const handleSelect = useCallback(
-    (eventKey: ChangeEvent<HTMLFormElement>) => {
-      setSerieId(eventKey.target.id);
-      fetchTesRawData(eventKey.target.id);
-      setDisplayName(eventKey.target.placeholder);
-      if (eventKey.target.id.includes('ibr')) {
-        fetchTesMvingAvgIbr(
-          eventKey.target.id,
-          movingAvgDays,
-          eventKey.target.placeholder
-        );
-      } else {
-        fetchTesMvingAvg(
-          eventKey.target.id,
-          movingAvgDays,
-          eventKey.target.placeholder
-        );
+  const fetchTesMvingAvg = useCallback(
+    async (
+      selected_name: string,
+      moving_days: number,
+      display_name: string
+    ) => {
+      const data = await supabase.schema('xerenity').rpc('tes_moving_average', {
+        tes_name: selected_name,
+        average_days: moving_days,
+      });
+
+      if (data) {
+        setMovingAvg([]);
+      }
+
+      if (data.data) {
+        const avgValues = data.data.moving_avg as MovingAvgValue[];
+        const avgSerie = Array<LightSerieValue>();
+        avgValues.forEach((avgval) => {
+          avgSerie.push({
+            value: avgval.avg,
+            time: avgval.close_date.split('T')[0],
+          });
+        });
+        setMovingAvg([
+          {
+            serie: avgSerie,
+            color: '#2270E2',
+            name: display_name,
+            type: 'line',
+            priceFormat: defaultCustomFormat,
+          },
+        ]);
       }
     },
-    [
-      fetchTesMvingAvg,
-      fetchTesMvingAvgIbr,
-      setSerieId,
-      fetchTesRawData,
-      setDisplayName,
-      movingAvgDays,
-    ]
+    [supabase, setMovingAvg]
   );
+
+  const changeSelection = useCallback(
+    async (id: string, placeholder: string) => {
+      setSerieId(id);
+      fetchTesRawData(id);
+      setDisplayName(placeholder);
+
+      if (id.includes('ibr')) {
+        fetchTesMvingAvgIbr(id, movingAvgDays, placeholder);
+      } else {
+        fetchTesMvingAvg(id, movingAvgDays, placeholder);
+      }
+    },
+    [fetchTesRawData, fetchTesMvingAvgIbr, movingAvgDays, fetchTesMvingAvg]
+  );
+
+  const fetchTesNames = useCallback(async () => {
+    if (currencyType === 'COLTES-COP' || currencyType === 'COLTES-UVR') {
+      const { data, error } = await supabase
+        .schema('xerenity')
+        .rpc('get_tes_grid_raw', { money: currencyType });
+
+      if (error) {
+        setOptions([]);
+      }
+
+      if (data) {
+        const allData = data as GridEntry[];
+        if (allData.length > 0) {
+          changeSelection(allData[0].tes, allData[0].displayname);
+        }
+        setOptions(allData);
+      } else {
+        setOptions([] as GridEntry[]);
+      }
+    } else {
+      const { data, error } = await supabase
+        .schema('xerenity')
+        .rpc('get_ibr_grid_raw', {});
+
+      if (error) {
+        setOptions([]);
+        toast.error(error.message);
+      }
+
+      if (data) {
+        const allIbr = data as GridEntry[];
+        const mapping = new Map<string, GridEntry>();
+        if (allIbr.length > 0) {
+          allIbr.forEach((entry) => {
+            mapping.set(entry.tes, entry);
+          });
+          setIbrData(mapping);
+          changeSelection(allIbr[0].tes, allIbr[0].displayname);
+        } else {
+          setOptions([]);
+        }
+        setOptions(allIbr);
+      } else {
+        setOptions([] as GridEntry[]);
+      }
+    }
+  }, [currencyType, supabase, changeSelection]);
+
+  useEffect(() => {
+    fetchTesNames();
+  }, [fetchTesNames]);
+
+  const handleSelect = (eventKey: ChangeEvent<HTMLFormElement>) => {
+    changeSelection(eventKey.target.id, eventKey.target.placeholder);
+  };
 
   const handleCurrenyChange = (eventKey: string) => {
     setCurrencyType(eventKey);
   };
 
-  
   const handleMonthChange = (eventKey: number) => {
     setMovingAvgDays(eventKey);
     if (serieId.includes('ibr')) {
@@ -253,77 +254,74 @@ export default function FullTesViewer() {
 
   return (
     <CoreLayout>
-    <Container fluid>
-      <div className="row">
-        <div className='col-xs-12'>
-          <NavigationBar>
-    
-        <TabNavigationItem 
-              name="Coltes/COP" 
-              onClick={() => handleCurrenyChange('COLTES-COP')} 
-              icon={faLineChart}
-            />
-            
-            <TabNavigationItem 
-              name="Coltes/UVR" 
-              onClick={() => handleCurrenyChange('COLTES-UVR')}
-              icon={faBarChart}
-            />
+      <Container fluid>
+        <div className="row">
+          <div className="col-xs-12">
+            <NavigationBar>
+              <TabNavigationItem
+                name="Coltes/COP"
+                onClick={() => handleCurrenyChange('COLTES-COP')}
+                icon={faLineChart}
+              />
 
-            <TabNavigationItem 
-              name="Coltes/IBR" 
-              onClick={() => handleCurrenyChange('COLTES-IBR')}
-              icon={faAreaChart}
-            />
+              <TabNavigationItem
+                name="Coltes/UVR"
+                onClick={() => handleCurrenyChange('COLTES-UVR')}
+                icon={faBarChart}
+              />
 
-            
+              <TabNavigationItem
+                name="Coltes/IBR"
+                onClick={() => handleCurrenyChange('COLTES-IBR')}
+                icon={faAreaChart}
+              />
+
               <NavDropdown title="Opciones" id="basic-nav-dropdown">
-                <TabNavigationItem 
-                  name="Descargar" 
+                <TabNavigationItem
+                  name="Descargar"
                   onClick={downloadGrid}
                   icon={faFileCsv}
                 />
                 <NavDropdown.Divider />
-                {
-                  [20,30,50].map((month)=>[
-
-                    <TabNavigationItem 
-                      name={`cambio ${month}`} 
+                {[20, 30, 50].map((month) => [
+                  <TabNavigationItem
+                    name={`cambio ${month}`}
                     onClick={() => handleMonthChange(month)}
                     icon={faLongArrowAltRight}
                     key={month}
-                  /> 
-                  ])
-                }
+                  />,
+                ])}
               </NavDropdown>
-          </NavigationBar>
+            </NavigationBar>
+          </div>
         </div>
-      </div>
-      <Row>
-        <Col>
-          <hr />
-        </Col>
-      </Row>
-      <Row>
-        <Col>
-          <CandleSerieViewer
-            candleSerie={candleSerie}
-            otherSeries={movingAvg}
-            fit
-            shorten={false}
-            normalyze={false}
-            chartHeight="50rem"
-          />
-        </Col>
-      </Row>
-      <Row>
-        <Col>
-          <CandleGridViewer selectCallback={handleSelect} allTes={options} />
-        </Col>
-      </Row>
-    </Container>
+        <Row>
+          <Col>
+            <hr />
+          </Col>
+        </Row>
+        <Row>
+          <Col>
+            <CandleSerieViewer
+              candleSerie={candleSerie}
+              otherSeries={movingAvg}
+              fit
+              shorten={false}
+              normalyze={false}
+              chartHeight="50rem"
+            />
+          </Col>
+        </Row>
+        <Row>
+          <Col>
+            <CandleGridViewer
+              selectCallback={handleSelect}
+              allTes={options}
+              currentSelection={serieId}
+            />
+          </Col>
+        </Row>
+      </Container>
     </CoreLayout>
   );
-  
 }
-

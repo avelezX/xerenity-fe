@@ -7,11 +7,13 @@ import NewPrevTag from '@components/price/NewPrevPriceTag';
 export interface GridViewProps {
   selectCallback: (eventKey: ChangeEvent<HTMLFormElement>) => void;
   allTes: GridEntry[];
+  currentSelection?: string;
 }
 
 export default function CandleGridViewer({
   selectCallback,
   allTes,
+  currentSelection,
 }: GridViewProps) {
   return (
     <Form onChange={(e) => selectCallback(e as ChangeEvent<HTMLFormElement>)}>
@@ -49,6 +51,7 @@ export default function CandleGridViewer({
                 <td>
                   <Form.Check
                     inline
+                    checked={currentSelection === tesValue.tes}
                     placeholder={tesValue.displayname}
                     type="radio"
                     label={tesValue.displayname
@@ -56,6 +59,7 @@ export default function CandleGridViewer({
                       .toString()}
                     name="group1"
                     id={tesValue.tes}
+                    readOnly
                   />
                 </td>
                 <td>
