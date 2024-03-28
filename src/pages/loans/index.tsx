@@ -17,9 +17,17 @@ import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faTrashCan } from '@fortawesome/free-regular-svg-icons';
-import { faExclamation } from '@fortawesome/free-solid-svg-icons';
+import { 
+faExclamation, 
+faFileCsv,
+faMoneyBill 
+} from '@fortawesome/free-solid-svg-icons';
 import SimpleModal from '@components/modals/genericModal';
 import PriceTagTd from '@components/price/CopDisplay';
+
+import ToolbarItem from '@components/UI/Toolbar/ToolbarItem';
+import Toolbar from '@components/UI/Toolbar';
+
 
 export default function NextPage() {
   const supabase = createClientComponentClient();
@@ -264,27 +272,28 @@ export default function NextPage() {
         icon={faExclamation}
       />
       <Container fluid>
-        <Row>
-          <Col sm={8}>
-            <Row>
-              <Col>
-                <h1>Mis Creditos</h1>
-              </Col>
-            </Row>
-          </Col>
-          <Col>
-            <Row>
-              <Col>
-                <Button onClick={() => setShowDialog(!showDialog)}>
-                  Nuevo credito
-                </Button>
-              </Col>
-              <Col>
-                <Button onClick={downloadSeries}>Exportar csv</Button>
-              </Col>
-            </Row>
-          </Col>
-        </Row>
+
+      <div className="row">
+          <div className="col-xs-12 py-3">
+            <Toolbar>
+              <div className="section">
+                  <ToolbarItem
+                    className="py-3"
+                    name='Nuevo Credito'
+                    onClick={() => setShowDialog(!showDialog)}
+                    icon={faMoneyBill}
+                  />
+                  <ToolbarItem
+                    className="py-3"
+                    name='Descargar'
+                    onClick={downloadSeries}
+                    icon={faFileCsv}
+                  />                  
+              </div>
+            </Toolbar>
+          </div>
+        </div>
+
         <Row>
           <Col>
             <hr />
