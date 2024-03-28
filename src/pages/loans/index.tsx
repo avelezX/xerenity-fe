@@ -253,19 +253,6 @@ export default function NextPage() {
     [selectedLoans, setSelectLoans, calculateCashFlow, calculateCashFlowIbr]
   );
 
-  const TOOLBAR_ITEMS = [
-    {
-      name: 'Nuevo Credito',
-      onClick:() => setShowDialog(!showDialog),
-      icon: faMoneyBill,
-    },
-    {
-      name: 'Descargar',
-      onClick:downloadSeries,      
-      icon: faFileCsv,
-    }
-  ];
-
   return (
     <CoreLayout>
       <LoanForm
@@ -290,15 +277,18 @@ export default function NextPage() {
           <div className="col-xs-12 py-3">
             <Toolbar>
               <div className="section">
-                {TOOLBAR_ITEMS.map(({ name, onClick, icon }) => (
                   <ToolbarItem
                     className="py-3"
-                    key={name}
-                    name={name}
-                    onClick={onClick}
-                    icon={icon}
+                    name='Nuevo Credito'
+                    onClick={() => setShowDialog(!showDialog)}
+                    icon={faMoneyBill}
                   />
-                ))}                  
+                  <ToolbarItem
+                    className="py-3"
+                    name='Descargar'
+                    onClick={downloadSeries}
+                    icon={faFileCsv}
+                  />                  
               </div>
             </Toolbar>
           </div>

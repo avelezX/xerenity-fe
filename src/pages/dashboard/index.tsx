@@ -235,19 +235,6 @@ export default function Dashboard() {
     downloadBlob(csv, 'xerenity_series.csv', 'text/csv;charset=utf-8;');
   };
 
-  const TOOLBAR_ITEMS = [
-    {
-      name: 'Normalizar',
-      onClick:() => setNormalize(!normalize),
-      icon: faAlignJustify,
-    },
-    {
-      name: 'Descargar',
-      onClick:downloadSeries,      
-      icon: faFileCsv,
-    }
-  ];
-
   return(
     <CoreLayout>
 <Container fluid>
@@ -258,15 +245,18 @@ export default function Dashboard() {
           <div className="col-xs-12 py-3">
             <Toolbar>
               <div className="section">
-                {TOOLBAR_ITEMS.map(({ name, onClick, icon }) => (
                   <ToolbarItem
                     className="py-3"
-                    key={name}
-                    name={name}
-                    onClick={onClick}
-                    icon={icon}
+                    name='Normalizar'
+                    onClick={() => setNormalize(!normalize)}
+                    icon={faAlignJustify}
                   />
-                ))}                  
+                  <ToolbarItem
+                    className="py-3"
+                    name='Descargar'
+                    onClick={downloadSeries}
+                    icon={faFileCsv}
+                  />                                   
               </div>
               <div className="section">
                 <Button variant="primary" onClick={handleShow}>
