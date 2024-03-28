@@ -31,11 +31,12 @@ import {
 import CandleGridViewer from '@components/grid/CandleGrid';
 import CandleSerieViewer from '@components/compare/candleViewer';
 import Toolbar from '@components/UI/Toolbar';
+import tokens from 'design-tokens/tokens.json';
 
 const TOOLBAR_ITEMS = [
   {
     name: 'Coltes/COP',
-    property: 'Coltes/COP',
+    property: 'COLTES-COP',
     icon: faLineChart,
   },
   {
@@ -49,6 +50,9 @@ const TOOLBAR_ITEMS = [
     icon: faAreaChart,
   },
 ];
+
+const designSystem = tokens.xerenity;
+const PURPLE_COLOR = designSystem['purple-100'].value;
 
 const OPCIONES = 'Opciones';
 
@@ -66,7 +70,7 @@ export default function FullTesViewer() {
 
   const [displayName, setDisplayName] = useState('');
 
-  const [ibrData, setIbrData] = useState<Map<string, GridEntry>>(new Map());
+  const [ibrData] = useState<Map<string, GridEntry>>(new Map());
 
   const [serieId, setSerieId] = useState('tes_24');
 
@@ -76,50 +80,6 @@ export default function FullTesViewer() {
 
   const [movingAvgDays, setMovingAvgDays] = useState(20);
 
-  const fetchTesNames = useCallback(async () => {
-    if (currencyType === 'COLTES-COP' || currencyType === 'COLTES-UVR') {
-      const { data, error } = await supabase
-        .schema('xerenity')
-        .rpc('get_tes_grid_raw', { money: currencyType });
-
-      if (error) {
-        setOptions([]);
-      }
-
-      if (data) {
-        setOptions(data as GridEntry[]);
-      } else {
-        setOptions([] as GridEntry[]);
-      }
-    } else {
-      const { data, error } = await supabase
-        .schema('xerenity')
-        .rpc('get_ibr_grid_raw', {});
-
-      if (error) {
-        setOptions([]);
-        toast.error(error.message);
-      }
-
-      if (data) {
-        const allIbr = data as GridEntry[];
-        const mapping = new Map<string, GridEntry>();
-        allIbr.forEach((entry) => {
-          mapping.set(entry.tes, entry);
-        });
-
-        setIbrData(mapping);
-
-        setOptions(data as GridEntry[]);
-      } else {
-        setOptions([] as GridEntry[]);
-      }
-    }
-  }, [supabase, currencyType]);
-
-  useEffect(() => {
-    fetchTesNames();
-  }, [fetchTesNames]);
 
   const fetchTesRawData = useCallback(
     async (view_tes: string) => {
@@ -142,43 +102,7 @@ export default function FullTesViewer() {
     [supabase]
   );
 
-  const fetchTesMvingAvg = useCallback(
-    async (
-      selected_name: string,
-      moving_days: number,
-      display_name: string
-    ) => {
-      const data = await supabase.schema('xerenity').rpc('tes_moving_average', {
-        tes_name: selected_name,
-        average_days: moving_days,
-      });
 
-      if (data) {
-        setMovingAvg([]);
-      }
-
-      if (data.data) {
-        const avgValues = data.data.moving_avg as MovingAvgValue[];
-        const avgSerie = Array<LightSerieValue>();
-        avgValues.forEach((avgval) => {
-          avgSerie.push({
-            value: avgval.avg,
-            time: avgval.close_date.split('T')[0],
-          });
-        });
-        setMovingAvg([
-          {
-            serie: avgSerie,
-            color: '#2270E2',
-            name: display_name,
-            type: 'line',
-            priceFormat: defaultCustomFormat,
-          },
-        ]);
-      }
-    },
-    [supabase, setMovingAvg]
-  );
 
   const fetchTesMvingAvgIbr = useCallback(
     async (
@@ -211,7 +135,7 @@ export default function FullTesViewer() {
           setMovingAvg([
             {
               serie: avgSerie,
-              color: '#2270E2',
+              color: PURPLE_COLOR,
               name: display_name,
               type: 'line',
               priceFormat: defaultCustomFormat,
@@ -219,38 +143,118 @@ export default function FullTesViewer() {
           ]);
         }
       }
-    },
-    [supabase, setMovingAvg, ibrData]
-  );
+    },[ibrData, supabase]);
 
-  const handleSelect = useCallback(
-    (eventKey: ChangeEvent<HTMLFormElement>) => {
-      setSerieId(eventKey.target.id);
-      fetchTesRawData(eventKey.target.id);
-      setDisplayName(eventKey.target.placeholder);
-      if (eventKey.target.id.includes('ibr')) {
-        fetchTesMvingAvgIbr(
-          eventKey.target.id,
-          movingAvgDays,
-          eventKey.target.placeholder
-        );
-      } else {
-        fetchTesMvingAvg(
-          eventKey.target.id,
-          movingAvgDays,
-          eventKey.target.placeholder
-        );
+  const fetchTesMvingAvg = useCallback(
+    async (
+      selected_name: string,
+      moving_days: number,
+      display_name: string
+    ) => {
+      const data = await supabase.schema('xerenity').rpc('tes_moving_average', {
+        tes_name: selected_name,
+        average_days: moving_days,
+      });
+
+      if (data) {
+        setMovingAvg([]);
+      }
+
+      if (data.data) {
+        const avgValues = data.data.moving_avg as MovingAvgValue[];
+        const avgSerie = Array<LightSerieValue>();
+        avgValues.forEach((avgval) => {
+          avgSerie.push({
+            value: avgval.avg,
+            time: avgval.close_date.split('T')[0],
+          });
+        });
+        setMovingAvg([
+          {
+            serie: avgSerie,
+            color: PURPLE_COLOR,
+            name: display_name,
+            type: 'line',
+            priceFormat: defaultCustomFormat,
+          },
+        ]);
       }
     },
-    [
-      fetchTesMvingAvg,
-      fetchTesMvingAvgIbr,
-      setSerieId,
-      fetchTesRawData,
-      setDisplayName,
-      movingAvgDays,
-    ]
+    [supabase, setMovingAvg]
   );
+
+  const changeSelection = useCallback(
+    async (id: string, placeholder: string) => {
+      setSerieId(id);
+      fetchTesRawData(id);
+      setDisplayName(placeholder);
+
+      if (id.includes('ibr')) {
+        fetchTesMvingAvgIbr(id, movingAvgDays, placeholder);
+      } else {
+        fetchTesMvingAvg(id, movingAvgDays, placeholder);
+      }
+    },
+    [fetchTesMvingAvg, fetchTesMvingAvgIbr, fetchTesRawData, movingAvgDays]
+  );
+
+
+  const fetchTesNames = useCallback(async () => {
+    if (currencyType === 'COLTES-COP' || currencyType === 'COLTES-UVR') {
+      const { data, error } = await supabase
+        .schema('xerenity')
+        .rpc('get_tes_grid_raw', { money: currencyType });
+
+      if (error) {
+        setOptions([]);
+      }
+
+      if (data) {
+        const allData = data as GridEntry[];
+        
+        if (allData.length > 0) {
+          changeSelection(allData[0].tes, allData[0].displayname);
+        }
+        setOptions(allData);
+      } else {
+        setOptions([] as GridEntry[]);
+      }
+    } else {
+      const { data, error } = await supabase
+        .schema('xerenity')
+        .rpc('get_ibr_grid_raw', {});
+
+      if (error) {
+        setOptions([]);
+        toast.error(error.message);
+      }
+
+      if (data) {
+        const allIbr = data as GridEntry[];
+        const mapping = new Map<string, GridEntry>();
+        if (allIbr.length > 0) {
+          allIbr.forEach((entry) => {
+            mapping.set(entry.tes, entry);
+          });
+          
+          changeSelection(allIbr[0].tes, allIbr[0].displayname);
+        } else {
+          setOptions([]);
+        }
+        setOptions(allIbr);
+      } else {
+        setOptions([] as GridEntry[]);
+      }
+    }
+  }, [currencyType, supabase, changeSelection]);
+
+  useEffect(() => {
+    fetchTesNames();
+  }, [fetchTesNames]);
+
+  const handleSelect = (eventKey: ChangeEvent<HTMLFormElement>) => {
+    changeSelection(eventKey.target.id, eventKey.target.placeholder);
+  };
 
   const handleCurrencyChange = (eventKey: string) => {
     setCurrencyType(eventKey);
@@ -336,7 +340,7 @@ export default function FullTesViewer() {
         </Row>
         <Row>
           <Col>
-            <CandleGridViewer selectCallback={handleSelect} allTes={options} />
+            <CandleGridViewer selectCallback={handleSelect} allTes={options}  currentSelection={serieId}/>
           </Col>
         </Row>
       </Container>
