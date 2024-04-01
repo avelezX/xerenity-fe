@@ -93,7 +93,7 @@ export default function CandleSerieViewer({
               priceFormat: {
                 type: 'volume',
               },
-              priceScaleId: 'volume',
+              priceScaleId: 'left',
               title: 'volume',
             });
 
@@ -130,7 +130,9 @@ export default function CandleSerieViewer({
 
             let scaleid = 'right';
 
-            if (index === 0) {
+            if(other.axisName){
+              scaleid = other.axisName;
+            }else if (index === 0) {
               scaleid = 'left';
             } else if (index === 1) {
               scaleid = 'right';
