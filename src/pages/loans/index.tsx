@@ -2,7 +2,7 @@
 
 import React, { useCallback, useState, useEffect, ChangeEvent } from 'react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
-import { Container, Row, Col, Table, Button, Badge } from 'react-bootstrap';
+import { Container, Row, Col, Table, Button } from 'react-bootstrap';
 import { Loan, LoanCashFlowIbr } from '@models/loans';
 import Form from 'react-bootstrap/Form';
 import ProgressBar from 'react-bootstrap/ProgressBar';
@@ -27,7 +27,12 @@ import PriceTagTd from '@components/price/CopDisplay';
 
 import ToolbarItem from '@components/UI/Toolbar/ToolbarItem';
 import Toolbar from '@components/UI/Toolbar';
+import tokens from 'design-tokens/tokens.json';
+import Badge from '@components/UI/Badge';
 
+const designSystem = tokens.xerenity;
+const PURPLE_COLOR_100 = designSystem['purple-100'].value;
+const GRAY_COLOR_300 = designSystem['gray-300'].value;
 
 export default function NextPage() {
   const supabase = createClientComponentClient();
@@ -215,7 +220,7 @@ export default function NextPage() {
 
       const balance: LightSerie = {
         name: 'Balance final',
-        color: '#FAC863',
+        color: GRAY_COLOR_300,
         serie: [],
         type: 'bar',
         priceFormat: defaultCustomFormat,
@@ -223,7 +228,7 @@ export default function NextPage() {
 
       const payment: LightSerie = {
         name: 'Pago cuota',
-        color: '#2270E2',
+        color: PURPLE_COLOR_100,
         serie: [],
         type: 'line',
         priceFormat: defaultCustomFormat,
@@ -333,11 +338,11 @@ export default function NextPage() {
                     <td>{loan.interest_rate}</td>
                     <td>
                       {loan.type === 'ibr' ? (
-                        <Badge pill bg="primary">
+                        <Badge pill bg={PURPLE_COLOR_100}>
                           {loan.type}
                         </Badge>
                       ) : (
-                        <Badge pill bg="warning">
+                        <Badge pill bg={GRAY_COLOR_300}>
                           {loan.type}
                         </Badge>
                       )}
