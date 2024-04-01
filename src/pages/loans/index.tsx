@@ -32,7 +32,7 @@ import Badge from '@components/UI/Badge';
 
 const designSystem = tokens.xerenity;
 const PURPLE_COLOR_100 = designSystem['purple-100'].value;
-const GRAY_COLOR_300 = designSystem['gray-300'].value;
+const GREY_COLOR_300 = designSystem['gray-300'].value;
 
 export default function NextPage() {
   const supabase = createClientComponentClient();
@@ -219,15 +219,15 @@ export default function NextPage() {
       const longCashFlow = new Array<LoanCashFlowIbr>();
 
       const balance: LightSerie = {
-        name: 'Balance final',
-        color: GRAY_COLOR_300,
+        name: 'Balance final (Izquierdo)',
+        color: GREY_COLOR_300,
         serie: [],
         type: 'bar',
         priceFormat: defaultCustomFormat,
       };
 
       const payment: LightSerie = {
-        name: 'Pago cuota',
+        name: 'Pago cuota (Derecho)',
         color: PURPLE_COLOR_100,
         serie: [],
         type: 'line',
@@ -342,7 +342,7 @@ export default function NextPage() {
                           {loan.type}
                         </Badge>
                       ) : (
-                        <Badge pill bg={GRAY_COLOR_300}>
+                        <Badge pill bg={GREY_COLOR_300}>
                           {loan.type}
                         </Badge>
                       )}
