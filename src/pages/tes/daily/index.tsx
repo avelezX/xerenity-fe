@@ -139,6 +139,7 @@ export default function FullTesViewer() {
               name: display_name,
               type: 'line',
               priceFormat: defaultCustomFormat,
+              axisName:'right'
             },
           ]);
         }
@@ -176,6 +177,7 @@ export default function FullTesViewer() {
             name: display_name,
             type: 'line',
             priceFormat: defaultCustomFormat,
+            axisName:'right'
           },
         ]);
       }
@@ -313,7 +315,7 @@ export default function FullTesViewer() {
                     {MONTH_OPTIONS.map((month) => (
                       <Dropdown.Item key={month}>
                         <ToolbarItem
-                          name={`cambio ${month}`}
+                          name={`Promedio Movil ${month}`}
                           onClick={() => handleMonthChange(month)}
                           icon={faLongArrowAltRight}
                           key={month}

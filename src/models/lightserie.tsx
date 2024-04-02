@@ -35,6 +35,7 @@ export interface LightSerie {
   serie: LightSerieValue[];
   type: 'bar' | 'line';
   priceFormat: PriceFormat | CustomFormat;
+  axisName?:'left'| 'right' | string;
 }
 
 export const defaultPriceFormat: PriceFormat = {

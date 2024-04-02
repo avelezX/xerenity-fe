@@ -33,6 +33,7 @@ export default function normalizeSeries(
           color: lSerie.color,
           type: lSerie.type,
           priceFormat: lSerie.priceFormat,
+          axisName:lSerie.axisName
         });
       });
 
@@ -78,6 +79,7 @@ export default function normalizeSeries(
         color: lSerie.color,
         type: lSerie.type,
         priceFormat: lSerie.priceFormat,
+        axisName:lSerie.axisName
       });
     });
   }
