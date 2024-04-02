@@ -11,8 +11,11 @@ import {
 import React, { useEffect, useRef } from 'react';
 import { Card } from 'react-bootstrap';
 import { LightSerie, defaultCustomFormat } from '@models/lightserie';
+import tokens from 'design-tokens/tokens.json';
 import normalizeSeries from './normalize';
 import charOptions, { legendStyles } from './candleViewerOptions';
+
+
 
 type ViewerProps = {
   candleSerie?: CandleSerie | null;
@@ -22,6 +25,9 @@ type ViewerProps = {
   shorten: boolean;
   chartHeight: string;
 };
+
+const designSystem = tokens.xerenity;
+const GREY_COLOR_300 = designSystem['gray-300'].value;
 
 export default function CandleSerieViewer({
   candleSerie,
@@ -89,7 +95,7 @@ export default function CandleSerieViewer({
             });
 
             const volumeSeries = chart.current.addHistogramSeries({
-              color: '#2270E2',
+              color: GREY_COLOR_300,
               priceFormat: {
                 type: 'volume',
               },

@@ -1,19 +1,15 @@
 'use client';
 
-import styled from 'styled-components';
-import { Badge as BsBadge, Stack } from 'react-bootstrap';
+import { Stack } from 'react-bootstrap';
 import React, { PropsWithChildren, useEffect, useState } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faArrowDown, faArrowUp } from '@fortawesome/free-solid-svg-icons';
 import tokens from 'design-tokens/tokens.json';
+import Badge from '@components/UI/Badge';
 
 const designSystem = tokens.xerenity;
 const SUCCESS_COLOR = designSystem['green-500'].value;
 const DANGER_COLOR = designSystem['red-600'].value;
-
-const Badge = styled(BsBadge)`
-  background-color: ${(props) => props.bg};
-`;
 
 type NewPrevProps = {
   current: number;
