@@ -103,7 +103,7 @@ export default function Dashboard() {
   const fetchData = useCallback(async () => {
     const { data, error } = await supabase
       .schema('xerenity')
-      .from('search')
+      .from('search_mv')
       .select();
 
     if (error) {
