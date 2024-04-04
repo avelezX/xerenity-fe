@@ -20,6 +20,7 @@ export interface LoanCashFlow {
 
 export interface LoanCashFlowIbr extends LoanCashFlow {
   rate: number;
+  rate_tot: number;
 }
 
 export interface LoanType {
