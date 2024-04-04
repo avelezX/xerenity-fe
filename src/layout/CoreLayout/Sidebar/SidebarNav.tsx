@@ -34,7 +34,7 @@ const NAV_ITEMS: NavItemProps[] = [
     active: false,
   },
   {
-    name: 'tes',
+    name: 'Tasas COP',
     path: '/tes/daily',
     icon: faLineChart,
     active: false,

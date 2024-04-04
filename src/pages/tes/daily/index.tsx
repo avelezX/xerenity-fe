@@ -45,7 +45,7 @@ const TOOLBAR_ITEMS = [
     icon: faBarChart,
   },
   {
-    name: 'Coltes/IBR',
+    name: 'Swaps/IBR',
     property: 'COLTES-IBR',
     icon: faAreaChart,
   },
