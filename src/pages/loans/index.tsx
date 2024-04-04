@@ -429,7 +429,7 @@ export default function NextPage() {
                   <tr key={`row-credit${loan.date}`}>
                     <td>{loan.date.split(' ')[0]}</td>
                     <PriceTagTd value={loan.beginning_balance} />
-                    <td>{loan.rate_tot.toFixed(2)}%</td>
+                    <td>{loan.rate_tot?(loan.rate_tot.toFixed(2)):(loan.rate.toFixed(2))}%</td>
                     <PriceTagTd value={loan.payment} />
                     <td>{loan.interest.toFixed(2)}</td>
                     <td>{loan.principal.toFixed(2)}</td>
