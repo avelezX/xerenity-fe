@@ -6,10 +6,9 @@ import { Container, Row, Col, Table, Button } from 'react-bootstrap';
 import { Loan, LoanCashFlowIbr } from '@models/loans';
 import Form from 'react-bootstrap/Form';
 import ProgressBar from 'react-bootstrap/ProgressBar';
-import CandleSerieViewer from '@components/compare/candleViewer';
 
 import { CoreLayout } from '@layout';
-import { LightSerie, defaultCustomFormat } from '@models/lightserie';
+import {  LightSerieValue } from '@models/lightserie';
 import LoanForm from '@components/forms/loanForm';
 import { ExportToCsv, downloadBlob } from '@components/csvDownload/cscDownload';
 
@@ -30,9 +29,24 @@ import Toolbar from '@components/UI/Toolbar';
 import tokens from 'design-tokens/tokens.json';
 import Badge from '@components/UI/Badge';
 
+
+import Chart from '@components/chart/Chart';
+import LineSerie from '@components/chart/LineSerie';
+
+
 const designSystem = tokens.xerenity;
 const PURPLE_COLOR_100 = designSystem['purple-100'].value;
 const GREY_COLOR_300 = designSystem['gray-300'].value;
+
+
+const initialData = [
+  { time: '2018-10-11', value: 52.89 },
+  { time: '2018-10-12', value: 51.65 },
+  { time: '2018-10-13', value: 51.56 },
+  { time: '2018-10-14', value: 50.19 },
+  { time: '2018-10-15', value: 51.86 },
+  { time: '2018-10-16', value: 51.25 },
+];
 
 export default function NextPage() {
   const supabase = createClientComponentClient();
@@ -43,7 +57,9 @@ export default function NextPage() {
 
   const [fetching, setFetching] = useState<boolean>(false);
 
-  const [cashFlowView, setCashFlowView] = useState<LightSerie[]>([]);
+  const [pagoCuotaSerie,setPagoCuotaSerie] = useState<LightSerieValue[]>([]);
+
+  const [balanceSerie,setBalanceSerie] = useState<LightSerieValue[]>([]);
 
   const [showDialog, setShowDialog] = useState<boolean>(false);
 
@@ -55,28 +71,7 @@ export default function NextPage() {
     Map<string, LoanCashFlowIbr[]>
   >(new Map());
 
-  const fetchLoanNames = useCallback(async () => {
-    setShowDialog(false);
-    setFetching(true);
-
-    const { data, error } = await supabase.schema('xerenity').rpc('get_loans');
-
-    if (error) {
-      setAllCredits([]);
-      toast.error(error.message, { position: toast.POSITION.TOP_CENTER });
-    } else if (data) {
-      setAllCredits(data as Loan[]);
-    } else {
-      setAllCredits([]);
-    }
-
-    setFetching(false);
-  }, [supabase]);
-
-  useEffect(() => {
-    fetchLoanNames();
-  }, [fetchLoanNames]);
-
+  
   const calculateCashFlow = useCallback(
     async (cred_id: string) => {
       setFetching(true);
@@ -151,25 +146,6 @@ export default function NextPage() {
     downloadBlob(csv, 'xerenity_flujo_de_caja.csv', 'text/csv;charset=utf-8;');
   };
 
-  const borrarCredito = async (cred_id: string) => {
-    setFetching(true);
-
-    const { error } = await supabase
-      .schema('xerenity')
-      .rpc('erase_loan', { credito_id: cred_id });
-
-    if (error) {
-      toast.error(error.message, { position: toast.POSITION.BOTTOM_RIGHT });
-    } else {
-      toast.info('El credito fue borrado exitosamente', {
-        position: toast.POSITION.BOTTOM_RIGHT,
-      });
-      fetchLoanNames();
-    }
-    setShowConfirm(false);
-    setFetching(false);
-  };
-
   const handleLoanCheckChnage = useCallback(
     async (
       event: ChangeEvent<HTMLInputElement>,
@@ -219,21 +195,9 @@ export default function NextPage() {
 
       const longCashFlow = new Array<LoanCashFlowIbr>();
 
-      const balance: LightSerie = {
-        name: 'Balance final (Izquierdo)',
-        color: GREY_COLOR_300,
-        serie: [],
-        type: 'bar',
-        priceFormat: defaultCustomFormat,
-      };
+      const balance: LightSerieValue[] = [];
 
-      const payment: LightSerie = {
-        name: 'Pago cuota (Derecho)',
-        color: PURPLE_COLOR_100,
-        serie: [],
-        type: 'line',
-        priceFormat: defaultCustomFormat,
-      };
+      const payment: LightSerieValue[] = [];
 
       Array.from(newCashFlow.entries()).forEach((val) => {
         longCashFlow.push(val[1]);
@@ -242,22 +206,65 @@ export default function NextPage() {
       longCashFlow.sort((a, b) => (a.date < b.date ? -1 : 1));
 
       longCashFlow.forEach((value) => {
-        balance.serie.push({
+        balance.push({
           time: value.date.split(' ')[0],
           value: value.ending_balance,
         });
-        payment.serie.push({
+        payment.push({
           time: value.date.split(' ')[0],
           value: value.payment,
         });
       });
 
-      setCashFlowView([balance, payment]);
+      setPagoCuotaSerie(payment);     
+
+      setBalanceSerie(balance);
 
       setCashFlow(longCashFlow);
     },
     [selectedLoans, setSelectLoans, calculateCashFlow, calculateCashFlowIbr]
   );
+
+  const fetchLoanNames = useCallback(async () => {
+    setShowDialog(false);
+
+    const { data, error } = await supabase.schema('xerenity').rpc('get_loans');
+
+    if (error) {
+      setAllCredits([]);
+      toast.error(error.message, { position: toast.POSITION.TOP_CENTER });
+    } else if (data) {
+      setAllCredits(data as Loan[]);
+    } else {
+      setAllCredits([]);
+    }
+
+  }, [supabase]);
+
+  
+  useEffect(() => {
+    fetchLoanNames();
+  }, [fetchLoanNames]);  
+
+
+  const borrarCredito = async (cred_id: string) => {
+    setFetching(true);
+
+    const { error } = await supabase
+      .schema('xerenity')
+      .rpc('erase_loan', { credito_id: cred_id });
+
+    if (error) {
+      toast.error(error.message, { position: toast.POSITION.BOTTOM_RIGHT });
+    } else {
+      toast.info('El credito fue borrado exitosamente', {
+        position: toast.POSITION.BOTTOM_RIGHT,
+      });
+      fetchLoanNames();
+    }
+    setShowConfirm(false);
+    setFetching(false);
+  };  
 
   return (
     <CoreLayout>
@@ -395,13 +402,15 @@ export default function NextPage() {
         </Row>
 
         <Row>
-          <Col>
-            <CandleSerieViewer
-              otherSeries={cashFlowView}
-              fit
-              shorten
-              chartHeight="50rem"
-            />
+          <Col>            
+            <Chart>
+              <LineSerie
+                data={initialData}
+                color={GREY_COLOR_300}
+                scaleId='left'
+                title='Balance final (Izquierdo)'
+              />
+            </Chart>
           </Col>
         </Row>
 

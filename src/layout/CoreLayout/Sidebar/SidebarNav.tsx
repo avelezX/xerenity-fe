@@ -39,6 +39,12 @@ const NAV_ITEMS: NavItemProps[] = [
     icon: faLineChart,
     active: false,
   },
+  {
+    name: 'Prueba',
+    path: '/panel',
+    icon: faLineChart,
+    active: false,
+  },
 ];
 
 const NavigationItem = (props: NavItemProps) => {
