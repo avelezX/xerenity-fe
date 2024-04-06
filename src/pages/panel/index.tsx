@@ -6,8 +6,7 @@ import { CoreLayout } from '@layout';
 import 'react-toastify/dist/ReactToastify.css';
 import tokens from 'design-tokens/tokens.json';
 import Chart from '@components/chart/Chart';
-import LineSerie from '@components/chart/LineSerie';
-import BarSerie from '@components/chart/BarSerie';
+
 
 
 const designSystem = tokens.xerenity;
@@ -40,13 +39,13 @@ export default function NextPage() {
         <Row>
           <Col>            
             <Chart>
-              <LineSerie
+              <Chart.Line
                 data={initialData}
                 color={GREY_COLOR_300}
                 scaleId='left'
                 title='Balance final (Izquierdo)'
               />
-              <BarSerie
+              <Chart.Bar
                 data={initialData2}
                 color={PURPLE_COLOR_100}
                 scaleId='right'

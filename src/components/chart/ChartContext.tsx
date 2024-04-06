@@ -1,6 +1,11 @@
-import { createContext } from "react";
-import { ChartRefObject } from "./Models";
+import { createContext, useContext } from "react";
+import { IChartApi } from "lightweight-charts";
 
-const ChartContext = createContext<ChartRefObject | undefined>( undefined);
+export const ChartContext = createContext<IChartApi | undefined>( undefined);
 
-export default ChartContext;
+export function useChartContext(){
+    const context = useContext(ChartContext);
+    return context;
+}
+
+export default useChartContext;

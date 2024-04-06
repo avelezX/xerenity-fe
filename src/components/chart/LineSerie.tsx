@@ -1,39 +1,34 @@
 import React, {
     forwardRef,
-    useContext,
-    useImperativeHandle,
-    useRef,
+    useEffect,
 } from 'react';
 import { defaultCustomFormat } from '@models/lightserie';
 
-import { ChartRefObject,TimeValueSerie } from './Models';
-import ChartContext from './ChartContext';
+import { TimeValueSerie } from './Models';
+import {useChartContext} from './ChartContext';
 
 
-const LineSerie = forwardRef(({data,color,title,children,scaleId}:TimeValueSerie,ref) => {
-    const parent = useContext(ChartContext);
+const LineSerie = forwardRef(({data,color,title,children,scaleId}:TimeValueSerie) => {
+    const chartContext = useChartContext();
 
-    const context = useRef<ChartRefObject>({
-        isRemoved: false,
-        api:parent?.api,
-    });
-
-    if(parent){
-        if(parent.api){
-            
-            const newSerie=parent.api.addLineSeries(
+    useEffect(() => {
+        if(chartContext){
+        const newSerie=chartContext.addLineSeries(
             {
-                color,priceFormat: defaultCustomFormat,priceScaleId: scaleId || title,title,}
-            );                
+                color,
+                priceFormat: defaultCustomFormat,
+                priceScaleId: scaleId || title,
+                title
+            }
+        );                
             newSerie.setData(data);
         }
-    }
-    useImperativeHandle(ref, () => context.current.api, []);
+    }); 
 
     return (
-        <ChartContext.Provider value={context.current}>
+        <div>
             {children}
-        </ChartContext.Provider>
+        </div>  
     );
 });
 
