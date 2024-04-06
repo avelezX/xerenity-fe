@@ -4,7 +4,7 @@ import React, {
     PropsWithChildren,
     useEffect,
 } from 'react';
-import { Card, Container } from 'react-bootstrap';
+import {Container } from 'react-bootstrap';
 
 import charOptions from './ChartOptions';
 import {ChartContext} from './ChartContext';
@@ -28,6 +28,7 @@ export default function ChartContainer({children}:PropsWithChildren) {
 
     useEffect(() => {
         resizeObserver.current = new ResizeObserver((entries) => {
+            
             if (entries.length === 0) {
                 return;
             }
@@ -52,19 +53,19 @@ export default function ChartContainer({children}:PropsWithChildren) {
             return () => resizeObserver.current?.disconnect();
     }, []);
 
+
+
     return (
-        <Card style={{ width: '100%', height: '100%' }}>
-            <Card.Body style={{ width: '100%', height: 1000 }}>
-                <Container
-                    ref={chartContainerRef}
-                    className="chart-container"
-                    style={{ width: '100%', height: '100%' }}
-                >
-                    <ChartContext.Provider value={chart.current}>
-                        {children}
-                    </ChartContext.Provider>
-                </Container>
-            </Card.Body>
-        </Card>
+        <Container
+            style={{ width: '100%', height: 800 }}
+            ref={chartContainerRef}
+            className="chart-container"
+        >
+            <ChartContext.Provider value={chart.current}>
+                {children}
+            </ChartContext.Provider>
+        </Container>
     );
 }
+
+
