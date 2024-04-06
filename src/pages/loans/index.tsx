@@ -32,6 +32,7 @@ import Badge from '@components/UI/Badge';
 
 import Chart from '@components/chart/Chart';
 import LineSerie from '@components/chart/LineSerie';
+import BarSerie from '@components/chart/BarSerie';
 
 
 const designSystem = tokens.xerenity;
@@ -403,14 +404,18 @@ export default function NextPage() {
 
         <Row>
           <Col>            
+          {balanceSerie.length>0?(
             <Chart>
-              <LineSerie
-                data={initialData}
-                color={GREY_COLOR_300}
-                scaleId='left'
-                title='Balance final (Izquierdo)'
-              />
+                  <LineSerie
+                    data={balanceSerie}
+                    color={GREY_COLOR_300}
+                    scaleId='left'
+                    title='Balance final (Izquierdo)'
+                />
             </Chart>
+            ):(
+              null
+            )}
           </Col>
         </Row>
 

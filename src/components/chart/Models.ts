@@ -8,7 +8,7 @@ export interface ChartRefObject {
     api?:IChartApi;
 }
 
-export type LineSeriesProps={
+export type TimeValueSerie={
     data:LightSerieValue[];
     color:string;
     title:string;
