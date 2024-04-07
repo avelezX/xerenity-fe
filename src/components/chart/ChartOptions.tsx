@@ -37,8 +37,8 @@ const CHART_OPTIONS = {
   },
   timeScale: {
     borderColor: '#485c7b',
-    fixLeftEdge: true,
-    uniformDistribution: true,
+    fixLeftEdge: false,
+    uniformDistribution: false,
     visible: true,
   },
   rightPriceScale: {

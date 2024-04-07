@@ -10,7 +10,7 @@ import charOptions from './ChartOptions';
 import {ChartContext} from './ChartContext';
 
 type ChartProps={
-    chartHeight:number;
+    chartHeight:number | string;
 } &PropsWithChildren;
 
 export default function ChartContainer({children,chartHeight}:ChartProps) {

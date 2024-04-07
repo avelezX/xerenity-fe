@@ -1,5 +1,6 @@
 import { LightSerieValue } from "@models/lightserie";
-import { IChartApi } from "lightweight-charts";
+import { TesYields } from "@models/tes";
+import { DeepPartial, IChartApi, PriceScaleOptions } from "lightweight-charts";
 import { PropsWithChildren } from "react";
 
 
@@ -12,5 +13,11 @@ export type TimeValueSerie={
     data:LightSerieValue[];
     color:string;
     title:string;
+    scaleId?:string;
+}& PropsWithChildren & DeepPartial<PriceScaleOptions>;
+
+export type CandleSerieProps={
+    data: TesYields[];
+    title?:string;
     scaleId?:string;
 }& PropsWithChildren;

@@ -29,9 +29,10 @@ import {
   TesEntryToArray,
 } from '@models/tes';
 import CandleGridViewer from '@components/grid/CandleGrid';
-import CandleSerieViewer from '@components/compare/candleViewer';
 import Toolbar from '@components/UI/Toolbar';
 import tokens from 'design-tokens/tokens.json';
+import Chart from '@components/chart/Chart';
+import {scaleMargins} from '@components/chart/Series/Bar/Options';
 
 const TOOLBAR_ITEMS = [
   {
@@ -54,6 +55,7 @@ const TOOLBAR_ITEMS = [
 const designSystem = tokens.xerenity;
 
 const PURPLE_COLOR = designSystem['purple-100'].value;
+const GRAY_COLOR_300 = designSystem['gray-300'].value;
 
 const OPCIONES = 'Opciones';
 
@@ -79,7 +81,12 @@ export default function FullTesViewer() {
 
   const [currencyType, setCurrencyType] = useState('COLTES-COP');
 
-  const [movingAvg, setMovingAvg] = useState<LightSerie[]>([]);
+  const [movingAvg, setMovingAvg] = useState<LightSerie>();
+
+  const [movingAvgDays, setMovingAvgDays] = useState(20);
+
+  const [volumenSerie,setvolumenSerie] = useState<LightSerieValue[]>([]);
+
 
   const fetchTesRawData = useCallback(
     async (view_tes: string) => {
@@ -94,7 +101,17 @@ export default function FullTesViewer() {
       }
 
       if (data) {
-        setCandleSerie({ name: '', values: data as TesYields[] });
+        const allData=data as TesYields[];
+
+        const volData:{ time: string; value: number }[] = [];
+
+        allData.forEach((tes) => {
+          volData.push({time:tes.day.split('T')[0],value:tes.volume});
+        });
+
+        setvolumenSerie(volData);
+        setCandleSerie({ name: '', values: allData });
+        
       } else {
         setCandleSerie({ name: '', values: [] });
       }
@@ -119,31 +136,30 @@ export default function FullTesViewer() {
               average_days: moving_days,
             });
 
-            if(error){
-              toast.error(error.message, { position: toast.POSITION.TOP_CENTER });
-            }else if (data) {
-              const avgValues = data.moving_avg as MovingAvgValue[];
-              const avgSerie = Array<LightSerieValue>();
-              avgValues.forEach((avgval) => {
-                avgSerie.push({
-                  value: avgval.avg,
-                  time: avgval.close_date.split('T')[0],
-                });
-              });
-              setMovingAvg([
-                {
-                  serie: avgSerie,
-                  color: PURPLE_COLOR,
-                  name: display_name,
-                  type: 'line',
-                  priceFormat: defaultCustomFormat,
-                  axisName:'right'
-                },
-              ]);
-          }
+        if (data) {
+          setMovingAvg(undefined);
+        }
+
+        if (data.data) {
+          const avgValues = data.data.moving_avg as MovingAvgValue[];
+          const avgSerie = Array<LightSerieValue>();
+          avgValues.forEach((avgval) => {
+            avgSerie.push({
+              value: avgval.avg,
+              time: avgval.close_date.split('T')[0],
+            });
+          });
+          setMovingAvg({
+            serie: avgSerie,
+            color: PURPLE_COLOR,
+            name: display_name,
+            type: 'line',
+            priceFormat: defaultCustomFormat,
+            axisName:'right'
+          });
         }
       }
-    },[supabase]);
+    },[ibrData, supabase]);
 
   const fetchTesMvingAvg = useCallback(
     async (
@@ -156,10 +172,12 @@ export default function FullTesViewer() {
         average_days: moving_days,
       });
 
-      if(error){
-        toast.error(error.message, { position: toast.POSITION.TOP_CENTER });
-      }else if (data) {
-        const avgValues = data.moving_avg as MovingAvgValue[];
+      if (data) {
+        setMovingAvg(undefined);
+      }
+
+      if (data.data) {
+        const avgValues = data.data.moving_avg as MovingAvgValue[];
         const avgSerie = Array<LightSerieValue>();
         avgValues.forEach((avgval) => {
           avgSerie.push({
@@ -167,7 +185,7 @@ export default function FullTesViewer() {
             time: avgval.close_date.split('T')[0],
           });
         });
-        setMovingAvg([
+        setMovingAvg(
           {
             serie: avgSerie,
             color: PURPLE_COLOR,
@@ -176,7 +194,7 @@ export default function FullTesViewer() {
             priceFormat: defaultCustomFormat,
             axisName:'right'
           },
-        ]);
+        );
       }
     },
     [supabase, setMovingAvg]
@@ -232,6 +250,7 @@ export default function FullTesViewer() {
       if (data) {
         const allIbr = data as GridEntry[];
         const mapping = new Map<string, GridEntry>();
+
         if (allIbr.length > 0) {
           allIbr.forEach((entry) => {
             mapping.set(entry.tes, entry);
@@ -333,14 +352,28 @@ export default function FullTesViewer() {
         </div>
         <Row>
           <Col>
-            <CandleSerieViewer
-              candleSerie={candleSerie}
-              otherSeries={movingAvg}
-              fit
-              shorten={false}
-              normalyze={false}
-              chartHeight="50rem"
-            />
+            <Chart chartHeight={800}>
+                <Chart.Candle
+                  data={candleSerie.values}
+                  scaleId='right'
+                />
+                <Chart.Bar
+                  data={volumenSerie}
+                  scaleId='volume'
+                  title='Volumen'
+                  color={GRAY_COLOR_300}
+                  scaleMargins={scaleMargins}
+                />
+              {
+                movingAvg?(<Chart.Line
+                      data={movingAvg.serie}
+                      color={PURPLE_COLOR}
+                      scaleId='left'
+                      title={movingAvg.name}
+                />)
+                :(null)
+              }
+            </Chart>
           </Col>
         </Row>
         <Row>

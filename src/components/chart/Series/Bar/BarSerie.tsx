@@ -15,7 +15,7 @@ import {useChartContext} from '../../ChartContext';
 
     https://tradingview.github.io/lightweight-charts/docs/api/interfaces/IChartApi#addhistogramseries
 */
-const BarSerie = forwardRef(({data,color,title,children,scaleId}:TimeValueSerie) => {
+const BarSerie = forwardRef(({data,color,title,children,scaleId,scaleMargins}:TimeValueSerie) => {
     const chartContext = useChartContext();
 
     const thisChart = useRef<ISeriesApi<"Histogram"> | null>(null);
@@ -41,8 +41,12 @@ const BarSerie = forwardRef(({data,color,title,children,scaleId}:TimeValueSerie)
                 );                
                 thisChart.current=serie;
             }
-
-            thisChart.current.setData(data);            
+            if(data){
+                thisChart.current.setData(data);
+            }
+            if(scaleMargins){
+                thisChart.current.priceScale().applyOptions({scaleMargins});         
+            }
             chartContext.timeScale().fitContent();
             
         }

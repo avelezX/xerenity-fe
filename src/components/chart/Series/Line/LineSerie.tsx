@@ -41,8 +41,9 @@ const LineSerie = forwardRef(({data,color,title,children,scaleId}:TimeValueSerie
                 );                
                 thisChart.current=serie;
             }
-
-            thisChart.current.setData(data);            
+            if(data){
+                thisChart.current.setData(data);
+            }          
             chartContext.timeScale().fitContent();
             
         }
