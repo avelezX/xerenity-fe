@@ -32,7 +32,6 @@ const BarSerie = forwardRef(({data,color,title,children,scaleId}:TimeValueSerie)
             );
             
             serie.setData(data);
-            serie.priceScale().applyOptions(BarSeriesOptions.Margin);
             thisChart.current=serie;
             chartContext.timeScale().fitContent();
             

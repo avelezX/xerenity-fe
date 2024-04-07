@@ -5,7 +5,6 @@ import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { Container, Row, Col, Table, Button } from 'react-bootstrap';
 import { Loan, LoanCashFlowIbr } from '@models/loans';
 import Form from 'react-bootstrap/Form';
-import ProgressBar from 'react-bootstrap/ProgressBar';
 
 import { CoreLayout } from '@layout';
 import {  LightSerieValue } from '@models/lightserie';
@@ -384,11 +383,6 @@ export default function NextPage() {
           </Col>
         </Row>
 
-        <Row>
-          <Col>
-            <ProgressBar animated={fetching} now={100} />
-          </Col>
-        </Row>
 
         <Row>
           <Col>            
@@ -398,7 +392,7 @@ export default function NextPage() {
                     data={pagoCuotaSerie}
                     color={PURPLE_COLOR_100}
                     scaleId='rigth'
-                    title='Pago final (Izquierdo)'
+                    title='Pago final (Derecho)'
                 />              
                 <Chart.Line
                     data={balanceSerie}
