@@ -22,7 +22,6 @@ import {
   LightSerieValueArray,
   defaultPriceFormat,
 } from '@models/lightserie';
-import CandleSerieViewer from '@components/compare/candleViewer';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faAlignJustify,
@@ -36,7 +35,7 @@ import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import ToolbarItem from '@components/UI/Toolbar/ToolbarItem';
 import Toolbar from '@components/UI/Toolbar';
-
+import Chart from '@components/chart/Chart';
 
 
 export default function Dashboard() {
@@ -335,14 +334,16 @@ export default function Dashboard() {
       </Row>
       <Row>
         <Col>
-          <CandleSerieViewer
-            candleSerie={null}
-            otherSeries={Array.from(selectedSeries.values())}
-            fit
-            shorten
-            normalyze={normalize}
-            chartHeight="50rem"
-          />
+          <Chart>
+            {Array.from(selectedSeries.values()).map((data)=>(
+              <Chart.Line
+                key={`chart-${data.name}`}
+                data={data.serie}
+                color={data.color}
+                title={data.name}
+              />
+            ))}
+          </Chart>
         </Col>
       </Row>
       <Row>

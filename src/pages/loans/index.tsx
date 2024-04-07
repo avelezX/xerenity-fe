@@ -27,8 +27,6 @@ import ToolbarItem from '@components/UI/Toolbar/ToolbarItem';
 import Toolbar from '@components/UI/Toolbar';
 import tokens from 'design-tokens/tokens.json';
 import Badge from '@components/UI/Badge';
-
-
 import Chart from '@components/chart/Chart';
 
 const designSystem = tokens.xerenity;
