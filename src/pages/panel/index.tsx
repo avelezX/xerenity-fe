@@ -38,7 +38,7 @@ export default function NextPage() {
     <CoreLayout>
         <Row>
           <Col>            
-            <Chart>
+            <Chart chartHeight={800}>
               <Chart.Bar
                 data={initialData2}
                 color={PURPLE_COLOR_100}

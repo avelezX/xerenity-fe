@@ -4,13 +4,16 @@ import React, {
     PropsWithChildren,
     useEffect,
 } from 'react';
-import {Container } from 'react-bootstrap';
+import {Card, Container } from 'react-bootstrap';
 
 import charOptions from './ChartOptions';
 import {ChartContext} from './ChartContext';
 
+type ChartProps={
+    chartHeight:number;
+} &PropsWithChildren;
 
-export default function ChartContainer({children}:PropsWithChildren) {
+export default function ChartContainer({children,chartHeight}:ChartProps) {
     
     const chart = useRef<IChartApi>();
     const chartContainerRef = useRef<HTMLInputElement | null>(null);
@@ -56,15 +59,19 @@ export default function ChartContainer({children}:PropsWithChildren) {
 
 
     return (
-        <Container
-            style={{ width: '100%', height: 800 }}
-            ref={chartContainerRef}
-            className="chart-container"
-        >
-            <ChartContext.Provider value={chart.current}>
-                {children}
-            </ChartContext.Provider>
-        </Container>
+        <Card style={{ width: '100%', height: '100%' }}>
+            <Card.Body style={{ width: '100%', height: chartHeight }}>
+                <Container
+                    style={{ width: '100%', height: '100%' }}
+                    ref={chartContainerRef}
+                    className="chart-container"
+                >
+                    <ChartContext.Provider value={chart.current}>
+                        {children}
+                    </ChartContext.Provider>
+                </Container>
+            </Card.Body>
+        </Card>        
     );
 }
 

@@ -334,7 +334,7 @@ export default function Dashboard() {
       </Row>
       <Row>
         <Col>
-          <Chart>
+          <Chart chartHeight={800}>
             {Array.from(selectedSeries.values()).map((data,index)=>(
               <Chart.Line
                 key={`chart-${data.name}`}

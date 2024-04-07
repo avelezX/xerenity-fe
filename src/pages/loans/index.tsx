@@ -384,8 +384,7 @@ export default function NextPage() {
 
         <Row>
           <Col>            
-          {balanceSerie.length>0?(
-            <Chart>
+            <Chart chartHeight={800}>
                 <Chart.Bar
                     data={pagoCuotaSerie}
                     color={PURPLE_COLOR_100}
@@ -399,9 +398,6 @@ export default function NextPage() {
                     title='Balance final (Izquierdo)'
                 />                
             </Chart>
-            ):(
-              null
-            )}
           </Col>
         </Row>
 
