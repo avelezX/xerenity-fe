@@ -335,12 +335,13 @@ export default function Dashboard() {
       <Row>
         <Col>
           <Chart>
-            {Array.from(selectedSeries.values()).map((data)=>(
+            {Array.from(selectedSeries.values()).map((data,index)=>(
               <Chart.Line
                 key={`chart-${data.name}`}
                 data={data.serie}
                 color={data.color}
                 title={data.name}
+                scaleId={index %2 === 0 ? 'left':'right'}
               />
             ))}
           </Chart>
