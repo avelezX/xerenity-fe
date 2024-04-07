@@ -39,16 +39,16 @@ export default function NextPage() {
         <Row>
           <Col>            
             <Chart>
-              <Chart.Line
-                data={initialData}
-                color={GREY_COLOR_300}
-                scaleId='left'
-                title='Balance final (Izquierdo)'
-              />
               <Chart.Bar
                 data={initialData2}
                 color={PURPLE_COLOR_100}
                 scaleId='right'
+                title='Balance final (Izquierdo)'
+              />
+              <Chart.Line
+                data={initialData}
+                color={GREY_COLOR_300}
+                scaleId='left'
                 title='Balance final (Izquierdo)'
               />
             </Chart>
