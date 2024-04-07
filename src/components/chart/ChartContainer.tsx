@@ -51,7 +51,7 @@ export default function ChartContainer({children}:PropsWithChildren) {
         }
     
             return () => resizeObserver.current?.disconnect();
-    }, []);
+    });
 
 
 

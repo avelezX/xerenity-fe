@@ -18,7 +18,7 @@ import {useChartContext} from '../../ChartContext';
 const BarSerie = forwardRef(({data,color,title,children,scaleId}:TimeValueSerie) => {
     const chartContext = useChartContext();
 
-    const thisChart = useRef<ISeriesApi| null>(null);
+    const thisChart = useRef<ISeriesApi<"Histogram"> | null>(null);
 
     useEffect(() => {
         if(chartContext){
