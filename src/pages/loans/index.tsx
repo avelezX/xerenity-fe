@@ -394,17 +394,17 @@ export default function NextPage() {
           <Col>            
           {balanceSerie.length>0?(
             <Chart>
-                <Chart.Line
-                    data={balanceSerie}
-                    color={GREY_COLOR_300}
-                    scaleId='left'
-                    title='Balance final (Izquierdo)'
-                />
                 <Chart.Bar
                     data={pagoCuotaSerie}
                     color={PURPLE_COLOR_100}
                     scaleId='rigth'
                     title='Pago final (Izquierdo)'
+                />              
+                <Chart.Line
+                    data={balanceSerie}
+                    color={GREY_COLOR_300}
+                    scaleId='left'
+                    title='Balance final (Izquierdo)'
                 />                
             </Chart>
             ):(

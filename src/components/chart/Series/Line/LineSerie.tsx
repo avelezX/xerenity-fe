@@ -6,8 +6,8 @@ import React, {
 import { defaultCustomFormat } from '@models/lightserie';
 import { ISeriesApi, } from 'lightweight-charts';
 
-import { TimeValueSerie } from './Models';
-import {useChartContext} from './ChartContext';
+import { TimeValueSerie } from '../../Models';
+import {useChartContext} from '../../ChartContext';
 
 
 

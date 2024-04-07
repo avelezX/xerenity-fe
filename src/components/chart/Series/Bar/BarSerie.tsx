@@ -6,9 +6,9 @@ import React, {
 import { defaultCustomFormat } from '@models/lightserie';
 import { ISeriesApi, } from 'lightweight-charts';
 
-import { TimeValueSerie } from './Models';
-import {useChartContext} from './ChartContext';
-
+import { TimeValueSerie } from '../../Models';
+import {useChartContext} from '../../ChartContext';
+import BarSeriesOptions from './Options';
 
 const BarSerie = forwardRef(({data,color,title,children,scaleId}:TimeValueSerie) => {
     const chartContext = useChartContext();
@@ -17,9 +17,11 @@ const BarSerie = forwardRef(({data,color,title,children,scaleId}:TimeValueSerie)
 
     useEffect(() => {
         if(chartContext){
+            
             if(thisChart.current){
                 chartContext.removeSeries(thisChart.current);
             }
+
             const serie=chartContext.addHistogramSeries(
                 {
                     color,
@@ -28,9 +30,12 @@ const BarSerie = forwardRef(({data,color,title,children,scaleId}:TimeValueSerie)
                     title
                 }
             );
+            
             serie.setData(data);
+            serie.priceScale().applyOptions(BarSeriesOptions.Margin);
             thisChart.current=serie;
             chartContext.timeScale().fitContent();
+            
         }
     }); 
 

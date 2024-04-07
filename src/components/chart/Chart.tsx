@@ -1,6 +1,6 @@
 import ChartContainer from "./ChartContainer";
-import LineSerie from "./LineSerie";
-import BarSerie from "./BarSerie";
+import LineSerie from "./Series/Line/LineSerie";
+import BarSerie from "./Series/Bar/BarSerie";
 
 
 
