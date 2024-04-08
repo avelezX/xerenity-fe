@@ -1,5 +1,4 @@
 import React, {
-    forwardRef,
     useEffect,
     useRef,
 } from 'react';
@@ -15,7 +14,7 @@ import {useChartContext} from '../../ChartContext';
 
     https://tradingview.github.io/lightweight-charts/docs/api/interfaces/IChartApi#addhistogramseries
 */
-const BarSerie = forwardRef(({data,color,title,children,scaleId,scaleMargins}:TimeValueSerie) => {
+function BarSerie({data,color,title,children,scaleId,scaleMargins}:TimeValueSerie) {
     const chartContext = useChartContext();
 
     const thisChart = useRef<ISeriesApi<"Histogram"> | null>(null);
@@ -59,8 +58,6 @@ const BarSerie = forwardRef(({data,color,title,children,scaleId,scaleMargins}:Ti
             {children}
         </div>  
     );
-});
-
-BarSerie.displayName = 'BarSerie';
+};
 
 export default BarSerie;

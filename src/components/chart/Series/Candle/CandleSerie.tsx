@@ -1,5 +1,4 @@
 import React, {
-    forwardRef,
     useEffect,
     useRef,
 } from 'react';
@@ -14,7 +13,7 @@ import {useChartContext} from '../../ChartContext';
     https://tradingview.github.io/lightweight-charts/docs/series-types#candlestick
 
 */
-const CandleSerie = forwardRef(({data,title,children,scaleId}:CandleSerieProps) => {
+function CandleSerie({data,title,children,scaleId}:CandleSerieProps) {
 
     const chartContext = useChartContext();
 
@@ -76,8 +75,6 @@ const CandleSerie = forwardRef(({data,title,children,scaleId}:CandleSerieProps) 
             {children}
         </div>  
     );
-});
-
-CandleSerie.displayName = 'CandleSerie';
+};
 
 export default CandleSerie;

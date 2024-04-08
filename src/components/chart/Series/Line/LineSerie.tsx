@@ -1,5 +1,4 @@
 import React, {
-    forwardRef,
     useEffect,
     useRef,
 } from 'react';
@@ -14,7 +13,7 @@ import {useChartContext} from '../../ChartContext';
     Documentation can be found
     https://tradingview.github.io/lightweight-charts/docs/series-types#line
 */
-const LineSerie = forwardRef(({data,color,title,children,scaleId}:TimeValueSerie) => {
+function LineSerie({data,color,title,children,scaleId}:TimeValueSerie) {
     const chartContext = useChartContext();
 
     const thisChart = useRef<ISeriesApi<"Line"> | null>(null);
@@ -53,8 +52,6 @@ const LineSerie = forwardRef(({data,color,title,children,scaleId}:TimeValueSerie
             {children}
         </div>  
     );
-});
-
-LineSerie.displayName = 'LineSeries';
+};
 
 export default LineSerie;
