@@ -10,7 +10,6 @@ import { TimeValueSerie } from '../../Models';
 import {useChartContext} from '../../ChartContext';
 
 
-
 /*
     Documentation can be found
     https://tradingview.github.io/lightweight-charts/docs/series-types#line
@@ -22,8 +21,7 @@ const LineSerie = forwardRef(({data,color,title,children,scaleId}:TimeValueSerie
 
     useEffect(() => {
         if(chartContext){
-            
-            if(thisChart.current){                
+            if(thisChart.current){
                 thisChart.current.applyOptions({
                     color,
                     priceFormat: defaultCustomFormat,
@@ -43,14 +41,13 @@ const LineSerie = forwardRef(({data,color,title,children,scaleId}:TimeValueSerie
             }
             if(data){
                 thisChart.current.setData(data);
-            }          
-            chartContext.timeScale().fitContent();
-            
+            }
+            chartContext.timeScale().fitContent();            
         }
-    });  
+    });
 
     return (
-        <div>
+        <div >
             {children}
         </div>  
     );
