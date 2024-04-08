@@ -67,7 +67,9 @@ const CandleSerie = forwardRef(({data,title,children,scaleId}:CandleSerieProps) 
             chartContext.timeScale().fitContent();
             
         }
-    }); 
+    });
+
+    useEffect(() => () =>{if(thisChart.current)chartContext?.removeSeries(thisChart.current);}, [chartContext]);
 
     return (
         <div>

@@ -46,6 +46,8 @@ const LineSerie = forwardRef(({data,color,title,children,scaleId}:TimeValueSerie
         }
     });
 
+    useEffect(() => () =>{if(thisChart.current)chartContext?.removeSeries(thisChart.current);}, [chartContext]);
+
     return (
         <div >
             {children}

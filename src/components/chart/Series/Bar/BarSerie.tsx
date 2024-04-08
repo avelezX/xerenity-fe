@@ -52,6 +52,8 @@ const BarSerie = forwardRef(({data,color,title,children,scaleId,scaleMargins}:Ti
         }
     }); 
 
+    useEffect(() => () =>{if(thisChart.current)chartContext?.removeSeries(thisChart.current);}, [chartContext]);
+    
     return (
         <div>
             {children}
