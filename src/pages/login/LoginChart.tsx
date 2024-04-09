@@ -3,7 +3,6 @@ import { Carousel } from 'react-bootstrap';
 import { CandleSerie, TesYields } from '@models/tes';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import Chart from '@components/chart/Chart';
-import BarSeriesOptions from '@components/chart/Series/Bar/Options';
 import tokens from 'design-tokens/tokens.json';
 import { LightSerieValue } from '@models/lightserie';
 
@@ -49,17 +48,17 @@ function LoginChart() {
       <div className="w-100 h-100 d-flex justify-content-center align-items-center">
         <Carousel className="w-100">
           <Carousel.Item>
-            <Chart chartHeight={300}>
-              <Chart.Candle
+            <Chart chartHeight={400}>
+                <Chart.Candle
                   data={tesCandeSerie.values}
                   scaleId='right'
                 />
-                <Chart.Bar
+                <Chart.Volume
                   data={volumenSerie}
+                  scaleId='left'
                   title='Volumen'
                   color={GRAY_COLOR_300}
-                  scaleMargins={BarSeriesOptions.Margin}
-                />                
+                />                                
             </Chart>
           </Carousel.Item>
         </Carousel>
