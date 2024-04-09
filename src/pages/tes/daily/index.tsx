@@ -69,18 +69,17 @@ export default function FullTesViewer() {
     values: [],
   });
 
-  const [displayName, setDisplayName] = useState('');
-
   const ibrAllData= useRef<Map<string, GridEntry>>();
 
-  const [serieId, setSerieId] = useState('tes_24');
+  const serieId = useRef<string>('tes_24');
+
+  const movingAvgDays = useRef<number>(20);
+
+  const displayName = useRef<string>('');
 
   const [currencyType, setCurrencyType] = useState('COLTES-COP');
 
   const [movingAvg, setMovingAvg] = useState<LightSerie[]>([]);
-
-  const [movingAvgDays, setMovingAvgDays] = useState(20);
-
 
   const fetchTesRawData = useCallback(
     async (view_tes: string) => {
@@ -113,36 +112,34 @@ export default function FullTesViewer() {
         const ibrIdentifier = ibrAllData.current.get(selected_name)?.tes_months;
 
         if (ibrIdentifier) {
-          const data = await supabase
+          const {data,error} = await supabase
             .schema('xerenity')
             .rpc('ibr_moving_average', {
               ibr_months: ibrIdentifier,
               average_days: moving_days,
             });
 
-          if (data) {
-            setMovingAvg([]);
-          }
-
-          if (data.data) {
-            const avgValues = data.data.moving_avg as MovingAvgValue[];
-            const avgSerie = Array<LightSerieValue>();
-            avgValues.forEach((avgval) => {
-              avgSerie.push({
-                value: avgval.avg,
-                time: avgval.close_date.split('T')[0],
+            if(error){
+              toast.error(error.message, { position: toast.POSITION.TOP_CENTER });
+            }else if (data) {
+              const avgValues = data.moving_avg as MovingAvgValue[];
+              const avgSerie = Array<LightSerieValue>();
+              avgValues.forEach((avgval) => {
+                avgSerie.push({
+                  value: avgval.avg,
+                  time: avgval.close_date.split('T')[0],
+                });
               });
-            });
-            setMovingAvg([
-              {
-                serie: avgSerie,
-                color: PURPLE_COLOR,
-                name: display_name,
-                type: 'line',
-                priceFormat: defaultCustomFormat,
-                axisName:'right'
-              },
-            ]);
+              setMovingAvg([
+                {
+                  serie: avgSerie,
+                  color: PURPLE_COLOR,
+                  name: display_name,
+                  type: 'line',
+                  priceFormat: defaultCustomFormat,
+                  axisName:'right'
+                },
+              ]);
           }
         }
       }
@@ -154,17 +151,15 @@ export default function FullTesViewer() {
       moving_days: number,
       display_name: string
     ) => {
-      const data = await supabase.schema('xerenity').rpc('tes_moving_average', {
+      const {data,error} = await supabase.schema('xerenity').rpc('tes_moving_average', {
         tes_name: selected_name,
         average_days: moving_days,
       });
 
-      if (data) {
-        setMovingAvg([]);
-      }
-
-      if (data.data) {
-        const avgValues = data.data.moving_avg as MovingAvgValue[];
+      if(error){
+        toast.error(error.message, { position: toast.POSITION.TOP_CENTER });
+      }else if (data) {
+        const avgValues = data.moving_avg as MovingAvgValue[];
         const avgSerie = Array<LightSerieValue>();
         avgValues.forEach((avgval) => {
           avgSerie.push({
@@ -188,15 +183,16 @@ export default function FullTesViewer() {
   );
 
   const changeSelection = useCallback(
-    async (id: string, placeholder: string) => {
-      setSerieId(id);
-      fetchTesRawData(id);
-      setDisplayName(placeholder);
+    async (id: string, placeholder: string) => {      
+      serieId.current=id;
+      displayName.current=placeholder;
+
+      fetchTesRawData(serieId.current);
 
       if (id.includes('ibr')) {
-        fetchTesMvingAvgIbr(id, movingAvgDays, placeholder);
+        fetchTesMvingAvgIbr(serieId.current, movingAvgDays.current, placeholder);
       } else {
-        fetchTesMvingAvg(id, movingAvgDays, placeholder);
+        fetchTesMvingAvg(serieId.current, movingAvgDays.current, placeholder);
       }
     },
     [fetchTesMvingAvg, fetchTesMvingAvgIbr, fetchTesRawData, movingAvgDays]
@@ -268,12 +264,13 @@ export default function FullTesViewer() {
   };
 
   const handleMonthChange = (eventKey: number) => {
-    setMovingAvgDays(eventKey);
     
-    if (serieId.includes('ibr')) {
-      fetchTesMvingAvgIbr(serieId, eventKey, displayName);
+    movingAvgDays.current=eventKey;
+    
+    if (serieId.current.includes('ibr')) {
+      fetchTesMvingAvgIbr(serieId.current, eventKey, displayName.current);
     } else {
-      fetchTesMvingAvg(serieId, eventKey, displayName);
+      fetchTesMvingAvg(serieId.current, eventKey, displayName.current);
     }
   };
 
@@ -348,7 +345,7 @@ export default function FullTesViewer() {
         </Row>
         <Row>
           <Col>
-            <CandleGridViewer selectCallback={handleSelect} allTes={options}  currentSelection={serieId}/>
+            <CandleGridViewer selectCallback={handleSelect} allTes={options}  currentSelection={serieId.current}/>
           </Col>
         </Row>
       </Container>
