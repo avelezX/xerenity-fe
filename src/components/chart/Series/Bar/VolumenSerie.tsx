@@ -2,7 +2,6 @@ import React, {
     useEffect,
     useRef,
 } from 'react';
-import { defaultCustomFormat } from '@models/lightserie';
 import { ISeriesApi, } from 'lightweight-charts';
 
 import { TimeValueSerie } from '../../Models';
@@ -14,7 +13,7 @@ import {useChartContext} from '../../ChartContext';
 
     https://tradingview.github.io/lightweight-charts/docs/api/interfaces/IChartApi#addhistogramseries
 */
-function BarSerie({data,color,title,children,scaleId}:TimeValueSerie) {
+function VolumenBarSerie({data,color,title,children,scaleId}:TimeValueSerie) {
     const chartContext = useChartContext();
 
     const thisChart = useRef<ISeriesApi<"Histogram"> | null>(null);
@@ -25,7 +24,9 @@ function BarSerie({data,color,title,children,scaleId}:TimeValueSerie) {
             if(thisChart.current){                
                 thisChart.current.applyOptions({
                     color,              
-                    priceFormat: defaultCustomFormat,
+                    priceFormat: {
+                        type: 'volume',
+                    },
                     priceScaleId: scaleId,
                     title,
                 });                
@@ -33,7 +34,9 @@ function BarSerie({data,color,title,children,scaleId}:TimeValueSerie) {
                 const serie=chartContext.addHistogramSeries(
                     {
                         color,              
-                        priceFormat: defaultCustomFormat,
+                        priceFormat: {
+                            type: 'volume',
+                        },
                         priceScaleId: scaleId,
                         title,
                     }
@@ -43,20 +46,30 @@ function BarSerie({data,color,title,children,scaleId}:TimeValueSerie) {
             if(data){
                 thisChart.current.setData(data);
             }
+            
+            thisChart.current.priceScale().applyOptions({
+                // set the positioning of the volume series
+                scaleMargins: {
+                    top: 0.8, // highest point of the series will be 70% away from the top
+                    bottom: 0.0,
+                },
+            });      
+            
             if(chartContext !== undefined){
                 chartContext.timeScale().fitContent();
             }
             
         }
-    }); 
-
+    });
+    
     useEffect(() => () =>{
         if(thisChart.current){
             if(chartContext){
                 chartContext.removeSeries(thisChart.current);
             }
         }
-    }, [chartContext]);  
+    }, [chartContext]);      
+
     
     return (
         <div>
@@ -65,4 +78,4 @@ function BarSerie({data,color,title,children,scaleId}:TimeValueSerie) {
     );
 };
 
-export default BarSerie;
+export default VolumenBarSerie;

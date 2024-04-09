@@ -62,17 +62,19 @@ function CandleSerie({data,title,children,scaleId}:CandleSerieProps) {
             if(serieData){
                 thisChart.current.setData(serieData);
             }
-            
-            chartContext.timeScale().fitContent();
-            
+            if(chartContext !== undefined){
+                chartContext.timeScale().fitContent();
+            }
         }
     });
 
     useEffect(() => () =>{
         if(thisChart.current){
-            chartContext?.removeSeries(thisChart.current);
+            if(chartContext){
+                chartContext.removeSeries(thisChart.current);
+            }
         }
-    }, [chartContext]);
+    }, [chartContext]);      
 
     return (
         <div>

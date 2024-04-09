@@ -32,8 +32,6 @@ import CandleGridViewer from '@components/grid/CandleGrid';
 import Toolbar from '@components/UI/Toolbar';
 import tokens from 'design-tokens/tokens.json';
 import Chart from '@components/chart/Chart';
-import BarSeriesOptions from '@components/chart/Series/Bar/Options';
-
 
 const TOOLBAR_ITEMS = [
   {
@@ -351,18 +349,17 @@ export default function FullTesViewer() {
                   data={candleSerie.values}
                   scaleId='right'
                 />
-                <Chart.Bar
+                <Chart.Volume
                   data={volumenSerie}
-                  scaleId='volume'
+                  scaleId='left'
                   title='Volumen'
                   color={GRAY_COLOR_300}
-                  scaleMargins={BarSeriesOptions.Margin}
                 />
               {
                 movingAvg?(<Chart.Line
                       data={movingAvg.serie}
                       color={PURPLE_COLOR}
-                      scaleId='left'
+                      scaleId='right'
                       title={movingAvg.name}
                 />)
                 :(null)

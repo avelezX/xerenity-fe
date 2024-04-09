@@ -60,8 +60,6 @@ export default function ChartContainer({children,chartHeight}:ChartProps) {
         };
     });
 
-
-
     return (
         <Card style={{ width: '100%', height: '100%' }}>
             <Card.Body style={{ width: '100%', height: chartHeight }}>
