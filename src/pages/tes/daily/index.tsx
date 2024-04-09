@@ -4,7 +4,7 @@ import { CoreLayout } from '@layout';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { Row, Col, DropdownDivider } from 'react-bootstrap';
 import Dropdown from 'react-bootstrap/Dropdown';
-import React, { useState, useEffect, useCallback, ChangeEvent } from 'react';
+import React, { useState, useEffect, useCallback, ChangeEvent, useRef } from 'react';
 import Container from 'react-bootstrap/Container';
 import {
   LightSerie,
@@ -52,6 +52,7 @@ const TOOLBAR_ITEMS = [
 ];
 
 const designSystem = tokens.xerenity;
+
 const PURPLE_COLOR = designSystem['purple-100'].value;
 
 const OPCIONES = 'Opciones';
@@ -68,18 +69,17 @@ export default function FullTesViewer() {
     values: [],
   });
 
-  const [displayName, setDisplayName] = useState('');
+  const ibrAllData= useRef<Map<string, GridEntry>>();
 
-  const [ibrData] = useState<Map<string, GridEntry>>(new Map());
+  const serieId = useRef<string>('tes_24');
 
-  const [serieId, setSerieId] = useState('tes_24');
+  const movingAvgDays = useRef<number>(20);
+
+  const displayName = useRef<string>('');
 
   const [currencyType, setCurrencyType] = useState('COLTES-COP');
 
   const [movingAvg, setMovingAvg] = useState<LightSerie[]>([]);
-
-  const [movingAvgDays, setMovingAvgDays] = useState(20);
-
 
   const fetchTesRawData = useCallback(
     async (view_tes: string) => {
@@ -102,49 +102,48 @@ export default function FullTesViewer() {
     [supabase]
   );
 
-
-
   const fetchTesMvingAvgIbr = useCallback(
     async (
       selected_name: string,
       moving_days: number,
       display_name: string
     ) => {
-      const ibrIdentifier = ibrData.get(selected_name)?.tes_months;
-      if (ibrIdentifier) {
-        const data = await supabase
-          .schema('xerenity')
-          .rpc('ibr_moving_average', {
-            ibr_months: ibrIdentifier,
-            average_days: moving_days,
-          });
+      if(ibrAllData.current){
+        const ibrIdentifier = ibrAllData.current.get(selected_name)?.tes_months;
 
-        if (data) {
-          setMovingAvg([]);
-        }
-
-        if (data.data) {
-          const avgValues = data.data.moving_avg as MovingAvgValue[];
-          const avgSerie = Array<LightSerieValue>();
-          avgValues.forEach((avgval) => {
-            avgSerie.push({
-              value: avgval.avg,
-              time: avgval.close_date.split('T')[0],
+        if (ibrIdentifier) {
+          const {data,error} = await supabase
+            .schema('xerenity')
+            .rpc('ibr_moving_average', {
+              ibr_months: ibrIdentifier,
+              average_days: moving_days,
             });
-          });
-          setMovingAvg([
-            {
-              serie: avgSerie,
-              color: PURPLE_COLOR,
-              name: display_name,
-              type: 'line',
-              priceFormat: defaultCustomFormat,
-              axisName:'right'
-            },
-          ]);
+
+            if(error){
+              toast.error(error.message, { position: toast.POSITION.TOP_CENTER });
+            }else if (data) {
+              const avgValues = data.moving_avg as MovingAvgValue[];
+              const avgSerie = Array<LightSerieValue>();
+              avgValues.forEach((avgval) => {
+                avgSerie.push({
+                  value: avgval.avg,
+                  time: avgval.close_date.split('T')[0],
+                });
+              });
+              setMovingAvg([
+                {
+                  serie: avgSerie,
+                  color: PURPLE_COLOR,
+                  name: display_name,
+                  type: 'line',
+                  priceFormat: defaultCustomFormat,
+                  axisName:'right'
+                },
+              ]);
+          }
         }
       }
-    },[ibrData, supabase]);
+    },[supabase]);
 
   const fetchTesMvingAvg = useCallback(
     async (
@@ -152,17 +151,15 @@ export default function FullTesViewer() {
       moving_days: number,
       display_name: string
     ) => {
-      const data = await supabase.schema('xerenity').rpc('tes_moving_average', {
+      const {data,error} = await supabase.schema('xerenity').rpc('tes_moving_average', {
         tes_name: selected_name,
         average_days: moving_days,
       });
 
-      if (data) {
-        setMovingAvg([]);
-      }
-
-      if (data.data) {
-        const avgValues = data.data.moving_avg as MovingAvgValue[];
+      if(error){
+        toast.error(error.message, { position: toast.POSITION.TOP_CENTER });
+      }else if (data) {
+        const avgValues = data.moving_avg as MovingAvgValue[];
         const avgSerie = Array<LightSerieValue>();
         avgValues.forEach((avgval) => {
           avgSerie.push({
@@ -186,15 +183,16 @@ export default function FullTesViewer() {
   );
 
   const changeSelection = useCallback(
-    async (id: string, placeholder: string) => {
-      setSerieId(id);
-      fetchTesRawData(id);
-      setDisplayName(placeholder);
+    async (id: string, placeholder: string) => {      
+      serieId.current=id;
+      displayName.current=placeholder;
+
+      fetchTesRawData(serieId.current);
 
       if (id.includes('ibr')) {
-        fetchTesMvingAvgIbr(id, movingAvgDays, placeholder);
+        fetchTesMvingAvgIbr(serieId.current, movingAvgDays.current, placeholder);
       } else {
-        fetchTesMvingAvg(id, movingAvgDays, placeholder);
+        fetchTesMvingAvg(serieId.current, movingAvgDays.current, placeholder);
       }
     },
     [fetchTesMvingAvg, fetchTesMvingAvgIbr, fetchTesRawData, movingAvgDays]
@@ -243,6 +241,9 @@ export default function FullTesViewer() {
         } else {
           setOptions([]);
         }
+        
+        ibrAllData.current=mapping;
+
         setOptions(allIbr);
       } else {
         setOptions([] as GridEntry[]);
@@ -263,11 +264,13 @@ export default function FullTesViewer() {
   };
 
   const handleMonthChange = (eventKey: number) => {
-    setMovingAvgDays(eventKey);
-    if (serieId.includes('ibr')) {
-      fetchTesMvingAvgIbr(serieId, eventKey, displayName);
+    
+    movingAvgDays.current=eventKey;
+    
+    if (serieId.current.includes('ibr')) {
+      fetchTesMvingAvgIbr(serieId.current, eventKey, displayName.current);
     } else {
-      fetchTesMvingAvg(serieId, eventKey, displayName);
+      fetchTesMvingAvg(serieId.current, eventKey, displayName.current);
     }
   };
 
@@ -342,7 +345,7 @@ export default function FullTesViewer() {
         </Row>
         <Row>
           <Col>
-            <CandleGridViewer selectCallback={handleSelect} allTes={options}  currentSelection={serieId}/>
+            <CandleGridViewer selectCallback={handleSelect} allTes={options}  currentSelection={serieId.current}/>
           </Col>
         </Row>
       </Container>

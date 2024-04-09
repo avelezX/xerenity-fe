@@ -65,7 +65,7 @@ export default function CandleGridViewer({
                 </td>
                 <td>
                   <NewPrevTag current={tesValue.close} prev={tesValue.prev}>
-                    {((tesValue.prev - tesValue.close) * 100).toFixed(1)} bps
+                    {((tesValue.prev - tesValue.close) * 100*-1).toFixed(1)} bps
                   </NewPrevTag>
                 </td>
                 <td>{tesValue.close.toFixed(2)}</td>
@@ -73,7 +73,7 @@ export default function CandleGridViewer({
                 <td>{tesValue.open.toFixed(2)}</td>
                 <td>{tesValue.low.toFixed(2)}</td>
                 <td>{tesValue.high.toFixed(2)}</td>
-                <td>{(tesValue.volume / 1000000000).toFixed(2)} MMM</td>
+                <td>{(tesValue.volume).toFixed(2)} MMM</td>
                 <td>{tesValue.operation_time}</td>
               </tr>,
             ])}
