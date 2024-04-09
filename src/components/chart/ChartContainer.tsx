@@ -18,6 +18,7 @@ export default function ChartContainer({children,chartHeight}:ChartProps) {
     const chart = useRef<IChartApi>();
     const chartContainerRef = useRef<HTMLInputElement | null>(null);
     const resizeObserver = useRef<ResizeObserver | null>(null);
+    const timeoutId = useRef<NodeJS.Timeout>();
 
     useEffect(() => {
         if (chartContainerRef.current) {
@@ -42,7 +43,7 @@ export default function ChartContainer({children,chartHeight}:ChartProps) {
                     width: newRect.width,
                 });
             }
-            setTimeout(() => {
+            timeoutId.current= setTimeout(() => {
                 if (chart.current) {
                 chart.current.timeScale().fitContent();
             }
@@ -53,7 +54,10 @@ export default function ChartContainer({children,chartHeight}:ChartProps) {
             resizeObserver.current.observe(chartContainerRef.current);
         }
     
-            return () => resizeObserver.current?.disconnect();
+        return () => {
+            resizeObserver.current?.disconnect();
+            clearTimeout(timeoutId.current);
+        };
     });
 
 

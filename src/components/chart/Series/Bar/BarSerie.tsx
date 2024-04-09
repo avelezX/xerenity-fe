@@ -51,7 +51,11 @@ function BarSerie({data,color,title,children,scaleId,scaleMargins}:TimeValueSeri
         }
     }); 
 
-    useEffect(() => () =>{if(thisChart.current)chartContext?.removeSeries(thisChart.current);}, [chartContext]);
+    useEffect(() => () =>{
+        if(thisChart.current){
+            chartContext?.removeSeries(thisChart.current);
+        }
+    }, [chartContext]);
     
     return (
         <div>
