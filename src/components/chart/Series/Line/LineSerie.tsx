@@ -2,7 +2,9 @@ import React, {
     useEffect,
     useRef,
 } from 'react';
-import { defaultCustomFormat } from '@models/lightserie';
+
+import normalizeSeries from '@components/chart/functions/normalize';
+import { LightSerieValue, defaultCustomFormat } from '@models/lightserie';
 import { ISeriesApi, } from 'lightweight-charts';
 
 import { TimeValueSerie } from '../../Models';
@@ -13,7 +15,7 @@ import {useChartContext} from '../../ChartContext';
     Documentation can be found
     https://tradingview.github.io/lightweight-charts/docs/series-types#line
 */
-function LineSerie({data,color,title,children,scaleId}:TimeValueSerie) {
+function LineSerie({data,color,title,children,scaleId,applyFunctions}:TimeValueSerie) {
     const chartContext = useChartContext();
 
     const thisChart = useRef<ISeriesApi<"Line"> | null>(null);
@@ -39,7 +41,24 @@ function LineSerie({data,color,title,children,scaleId}:TimeValueSerie) {
                 thisChart.current=serie;
             }
             if(data){
-                thisChart.current.setData(data);
+
+                let newData:LightSerieValue[]=data;
+
+                if(applyFunctions){
+                    applyFunctions.forEach((funcName)=>{
+                    
+                        switch (funcName){
+                            case 'normalize':
+                                newData = normalizeSeries(data);
+                                break;
+                            default:
+                                break;                                
+                        }
+
+                    });
+                }
+                
+                thisChart.current.setData(newData);
             }
             if(chartContext !== undefined){
                 chartContext.timeScale().fitContent();

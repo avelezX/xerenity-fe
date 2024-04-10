@@ -14,7 +14,7 @@ import {
   Container,
   Accordion,
 } from 'react-bootstrap';
-import React, { useState, useEffect, useCallback, ChangeEvent } from 'react';
+import React, { useState, useEffect, useCallback, ChangeEvent, useRef } from 'react';
 import {
   LightSerie,
   LightSerieValue,
@@ -57,7 +57,9 @@ export default function Dashboard() {
     Map<string, LightSerieEntry>
   >(new Map());
 
-  const [normalize, setNormalize] = useState(false);
+  const normalize = useRef<boolean>(false);
+
+  const [applyFunctions,setApplyunctions] = useState<string[]>([]);
 
   const [showCanvs, setShowCanvas] = useState(false);
 
@@ -247,7 +249,14 @@ export default function Dashboard() {
                   <ToolbarItem
                     className="py-3"
                     name='Normalizar'
-                    onClick={() => setNormalize(!normalize)}
+                    onClick={() => {
+                      normalize.current=!normalize.current;
+                      if(normalize.current){
+                        setApplyunctions(['normalize']);
+                      }else{
+                        setApplyunctions([]);
+                      }
+                    }}
                     icon={faAlignJustify}
                   />
                   <ToolbarItem
@@ -341,7 +350,8 @@ export default function Dashboard() {
                 data={data.serie}
                 color={data.color}
                 title={data.name}
-                scaleId={index %2 === 0 ? 'left':'right'}
+                scaleId={index %2 === 0 ? 'right':'left'}
+                applyFunctions={applyFunctions}
               />
             ))}
           </Chart>

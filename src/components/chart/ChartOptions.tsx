@@ -13,12 +13,12 @@ const CHART_OPTIONS = {
     background: {
       color: 'transparent',
     },
-    textColor: '#D3D3D3',
+    textColor: '#a6a6a6',
   },
   watermark: {
     visible: true,
     fontSize: 100,
-    color: '#D3D3D3',
+    color: '#a6a6a6',
     text: 'Xerenity',
   },
   grid: {
