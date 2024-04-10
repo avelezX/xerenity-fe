@@ -29,9 +29,9 @@ import {
   TesEntryToArray,
 } from '@models/tes';
 import CandleGridViewer from '@components/grid/CandleGrid';
-import CandleSerieViewer from '@components/compare/candleViewer';
 import Toolbar from '@components/UI/Toolbar';
 import tokens from 'design-tokens/tokens.json';
+import Chart from '@components/chart/Chart';
 
 const TOOLBAR_ITEMS = [
   {
@@ -54,6 +54,7 @@ const TOOLBAR_ITEMS = [
 const designSystem = tokens.xerenity;
 
 const PURPLE_COLOR = designSystem['purple-100'].value;
+const GRAY_COLOR_300 = designSystem['gray-300'].value;
 
 const OPCIONES = 'Opciones';
 
@@ -79,7 +80,9 @@ export default function FullTesViewer() {
 
   const [currencyType, setCurrencyType] = useState('COLTES-COP');
 
-  const [movingAvg, setMovingAvg] = useState<LightSerie[]>([]);
+  const [movingAvg, setMovingAvg] = useState<LightSerie>();
+
+  const [volumenSerie,setvolumenSerie] = useState<LightSerieValue[]>([]);
 
   const fetchTesRawData = useCallback(
     async (view_tes: string) => {
@@ -91,10 +94,18 @@ export default function FullTesViewer() {
 
       if (error) {
         setCandleSerie({ name: '', values: [] });
-      }
+      }else if (data) {
+        const allData=data as TesYields[];
 
-      if (data) {
-        setCandleSerie({ name: '', values: data as TesYields[] });
+        const volData:{ time: string; value: number }[] = [];
+
+        allData.forEach((tes) => {
+          volData.push({time:tes.day.split('T')[0],value:tes.volume});
+        });
+
+        setvolumenSerie(volData);
+        setCandleSerie({ name: '', values: allData });
+        
       } else {
         setCandleSerie({ name: '', values: [] });
       }
@@ -130,7 +141,7 @@ export default function FullTesViewer() {
                   time: avgval.close_date.split('T')[0],
                 });
               });
-              setMovingAvg([
+              setMovingAvg(
                 {
                   serie: avgSerie,
                   color: PURPLE_COLOR,
@@ -139,7 +150,7 @@ export default function FullTesViewer() {
                   priceFormat: defaultCustomFormat,
                   axisName:'right'
                 },
-              ]);
+              );
           }
         }
       }
@@ -167,7 +178,7 @@ export default function FullTesViewer() {
             time: avgval.close_date.split('T')[0],
           });
         });
-        setMovingAvg([
+        setMovingAvg(
           {
             serie: avgSerie,
             color: PURPLE_COLOR,
@@ -176,7 +187,7 @@ export default function FullTesViewer() {
             priceFormat: defaultCustomFormat,
             axisName:'right'
           },
-        ]);
+        );
       }
     },
     [supabase, setMovingAvg]
@@ -333,14 +344,27 @@ export default function FullTesViewer() {
         </div>
         <Row>
           <Col>
-            <CandleSerieViewer
-              candleSerie={candleSerie}
-              otherSeries={movingAvg}
-              fit
-              shorten={false}
-              normalyze={false}
-              chartHeight="50rem"
-            />
+            <Chart chartHeight={800}>
+                <Chart.Candle
+                  data={candleSerie.values}
+                  scaleId='right'
+                />
+                <Chart.Volume
+                  data={volumenSerie}
+                  scaleId='left'
+                  title='Volumen'
+                  color={GRAY_COLOR_300}
+                />
+              {
+                movingAvg?(<Chart.Line
+                      data={movingAvg.serie}
+                      color={PURPLE_COLOR}
+                      scaleId='right'
+                      title={movingAvg.name}
+                />)
+                :(null)
+              }
+            </Chart>
           </Col>
         </Row>
         <Row>

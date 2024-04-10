@@ -14,7 +14,7 @@ import {
   Container,
   Accordion,
 } from 'react-bootstrap';
-import React, { useState, useEffect, useCallback, ChangeEvent } from 'react';
+import React, { useState, useEffect, useCallback, ChangeEvent, useRef } from 'react';
 import {
   LightSerie,
   LightSerieValue,
@@ -22,7 +22,6 @@ import {
   LightSerieValueArray,
   defaultPriceFormat,
 } from '@models/lightserie';
-import CandleSerieViewer from '@components/compare/candleViewer';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faAlignJustify,
@@ -36,7 +35,7 @@ import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import ToolbarItem from '@components/UI/Toolbar/ToolbarItem';
 import Toolbar from '@components/UI/Toolbar';
-
+import Chart from '@components/chart/Chart';
 
 
 export default function Dashboard() {
@@ -58,7 +57,9 @@ export default function Dashboard() {
     Map<string, LightSerieEntry>
   >(new Map());
 
-  const [normalize, setNormalize] = useState(false);
+  const normalize = useRef<boolean>(false);
+
+  const [applyFunctions,setApplyunctions] = useState<string[]>([]);
 
   const [showCanvs, setShowCanvas] = useState(false);
 
@@ -248,7 +249,14 @@ export default function Dashboard() {
                   <ToolbarItem
                     className="py-3"
                     name='Normalizar'
-                    onClick={() => setNormalize(!normalize)}
+                    onClick={() => {
+                      normalize.current=!normalize.current;
+                      if(normalize.current){
+                        setApplyunctions(['normalize']);
+                      }else{
+                        setApplyunctions([]);
+                      }
+                    }}
                     icon={faAlignJustify}
                   />
                   <ToolbarItem
@@ -335,14 +343,18 @@ export default function Dashboard() {
       </Row>
       <Row>
         <Col>
-          <CandleSerieViewer
-            candleSerie={null}
-            otherSeries={Array.from(selectedSeries.values())}
-            fit
-            shorten
-            normalyze={normalize}
-            chartHeight="50rem"
-          />
+          <Chart chartHeight={800}>
+            {Array.from(selectedSeries.values()).map((data,index)=>(
+              <Chart.Line
+                key={`chart-${data.name}`}
+                data={data.serie}
+                color={data.color}
+                title={data.name}
+                scaleId={index %2 === 0 ? 'right':'left'}
+                applyFunctions={applyFunctions}
+              />
+            ))}
+          </Chart>
         </Col>
       </Row>
       <Row>

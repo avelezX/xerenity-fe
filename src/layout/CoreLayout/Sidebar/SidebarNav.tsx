@@ -38,7 +38,7 @@ const NAV_ITEMS: NavItemProps[] = [
     path: '/tes/daily',
     icon: faLineChart,
     active: false,
-  },
+  }
 ];
 
 const NavigationItem = (props: NavItemProps) => {
