@@ -1,7 +1,6 @@
 import React, { PropsWithChildren, useCallback, useEffect } from 'react';
 import Head from 'next/head';
 import Sidebar from '@layout/CoreLayout/Sidebar/Sidebar';
-import Header from '@layout/CoreLayout/Header/Header';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { deleteCookie, getCookie } from 'cookies-next';
 import { useRouter } from 'next/router';
@@ -43,7 +42,6 @@ export default function CoreLayout({ children }: PropsWithChildren) {
       <div className="layout-wrapper">
         <Sidebar />
         <div className="layout-content">
-          <Header />
           <div>{children}</div>
         </div>
       </div>
