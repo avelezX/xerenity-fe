@@ -93,12 +93,6 @@ export default function CurrecnyViewer() {
     [supabase]
   );
 
-  const handleCurrencyChange = (eventKey: string) => {
-    currencyName.current=eventKey;
-    fetchCurrencyRawData();
-  };
-
-
   const fecthMovingAverag = useCallback(
     async (
     ) => {
@@ -126,6 +120,12 @@ export default function CurrecnyViewer() {
       }
     },[supabase]);  
 
+
+    const handleCurrencyChange = (eventKey: string) => {
+      currencyName.current=eventKey;
+      fetchCurrencyRawData();
+      fecthMovingAverag();
+    };
 
   const handleMonthChange = (eventKey: number) => {
     movingAvgDays.current=eventKey;
