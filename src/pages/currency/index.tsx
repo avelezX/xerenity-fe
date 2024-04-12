@@ -6,10 +6,8 @@ import { Row, Col, Table, DropdownDivider} from 'react-bootstrap';
 import Dropdown from 'react-bootstrap/Dropdown';
 import React, { useState,  useCallback,  useRef, useEffect } from 'react';
 import Container from 'react-bootstrap/Container';
-import { 
-  LightSerie,
+import {
   LightSerieValue,
-  defaultCustomFormat,
 } from '@models/lightserie';
 import { ExportToCsv, downloadBlob } from '@components/csvDownload/cscDownload';
 import {
@@ -67,7 +65,7 @@ export default function CurrecnyViewer() {
 
   const movingAvgDays = useRef<number>(20);
 
-  const [movingAvg, setMovingAvg] = useState<LightSerie>();
+  const [movingAvg, setMovingAvg] = useState<LightSerieValue[]>([]);
 
   const fetchCurrencyRawData = useCallback(async () => {
       
@@ -95,22 +93,11 @@ export default function CurrecnyViewer() {
     [supabase]
   );
 
-
   const handleCurrencyChange = (eventKey: string) => {
     currencyName.current=eventKey;
     fetchCurrencyRawData();
   };
 
-  const downloadGrid = () => {
-    const allValues: string[][] = [];
-    allValues.push(['open', 'high', 'low', 'close', 'volume', 'day']);
-    candleSerie.values.forEach((entry) => {
-      allValues.push(TesEntryToArray(entry));
-    });
-
-    const csv = ExportToCsv(allValues);
-    downloadBlob(csv, `xerenity_${currencyName.current}.csv`, 'text/csv;charset=utf-8;');
-  };
 
   const fecthMovingAverag = useCallback(
     async (
@@ -134,23 +121,13 @@ export default function CurrecnyViewer() {
               time: avgval.close_date.split('T')[0],
             });
           });
-          setMovingAvg(
-            {
-              serie: avgSerie,
-              color: PURPLE_COLOR,
-              name: currencyName.current,
-              type: 'line',
-              priceFormat: defaultCustomFormat,
-              axisName:'right'
-            },
-          );
+          setMovingAvg(avgSerie);
       }
       }
     },[supabase]);  
 
 
   const handleMonthChange = (eventKey: number) => {
-    
     movingAvgDays.current=eventKey;
     fecthMovingAverag();
   };  
@@ -159,6 +136,17 @@ export default function CurrecnyViewer() {
     fetchCurrencyRawData();
     fecthMovingAverag();
   }, [fetchCurrencyRawData,fecthMovingAverag]);
+
+  const downloadGrid = () => {
+    const allValues: string[][] = [];
+    allValues.push(['open', 'high', 'low', 'close', 'volume', 'day']);
+    candleSerie.values.forEach((entry) => {
+      allValues.push(TesEntryToArray(entry));
+    });
+
+    const csv = ExportToCsv(allValues);
+    downloadBlob(csv, `xerenity_${currencyName.current}.csv`, 'text/csv;charset=utf-8;');
+  };
 
   return (
     <CoreLayout>
@@ -220,10 +208,10 @@ export default function CurrecnyViewer() {
                 />
                 {
                   movingAvg?(<Chart.Line
-                        data={movingAvg.serie}
+                        data={movingAvg}
                         color={PURPLE_COLOR}
                         scaleId='right'
-                        title={movingAvg.name}
+                        title={currencyName.current}
                   />)
                   :(null)
                 }                
@@ -260,7 +248,7 @@ export default function CurrecnyViewer() {
                 {candleSerie.values.map((tesValue) => [
                   
                   <tr key={`tr-grid-row${tesValue.day}`}>     
-                    <td>{tesValue.day}</td>
+                    <td>{tesValue.day.split('T')[0]}</td>
                     <td>
                       <NewPrevTag current={tesValue.open} prev={tesValue.close}>
                         {((tesValue.close - tesValue.open) * 100*-1).toFixed(1)} bps
