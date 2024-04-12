@@ -121,8 +121,8 @@ export default function CurrecnyViewer() {
     },[supabase]);  
 
 
-    const handleCurrencyChange = (eventKey: string) => {
-      currencyName.current=eventKey;
+    const handleCurrencyChange = (chosenCurrency: string) => {
+      currencyName.current=chosenCurrency;
       fetchCurrencyRawData();
       fecthMovingAverag();
     };
