@@ -7,6 +7,7 @@ import {
   faLandmark,
   IconDefinition,
   faLineChart,
+  faMoneyBill,
 } from '@fortawesome/free-solid-svg-icons';
 
 type NavItemProps = {
@@ -37,6 +38,12 @@ const NAV_ITEMS: NavItemProps[] = [
     name: 'Tasas COP',
     path: '/tes/daily',
     icon: faLineChart,
+    active: false,
+  },
+  {
+    name: 'monedas',
+    path: '/currency',
+    icon: faMoneyBill,
     active: false,
   }
 ];
