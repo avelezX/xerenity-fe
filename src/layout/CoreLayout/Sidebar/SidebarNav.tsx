@@ -36,7 +36,7 @@ const NAV_ITEMS: NavItemProps[] = [
   },
   {
     name: 'Tasas COP',
-    path: '/tes/daily',
+    path: '/tes',
     icon: faLineChart,
     active: false,
   },
@@ -45,7 +45,7 @@ const NAV_ITEMS: NavItemProps[] = [
     path: '/currency',
     icon: faMoneyBill,
     active: false,
-  }
+  },
 ];
 
 const NavigationItem = (props: NavItemProps) => {
@@ -65,19 +65,14 @@ const NavigationItem = (props: NavItemProps) => {
 };
 
 const SidebarNav = ({ currentPath }: SidebarNavProps) => {
+  const router = useRouter();
   const [activePath, setActivePath] = useState('');
 
   useEffect(() => {
     setActivePath(currentPath);
   }, [currentPath]);
 
-  const checkActivePaths = ({ name }: NavItemProps) => {
-    // TODO: Find a better scalable solution for mixed lang in the future
-    if (activePath.includes('loans') && name === 'creditos') {
-      return true;
-    }
-    return activePath.includes(name);
-  };
+  const checkActivePaths = ({ path }: NavItemProps) => path === router.pathname;
 
   return (
     <ul className="sidebar-nav">
