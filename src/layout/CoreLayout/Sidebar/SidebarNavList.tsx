@@ -64,29 +64,32 @@ const NavigationItem = (props: NavItemProps) => {
   );
 };
 
-const SidebarNav = ({ currentPath }: SidebarNavProps) => {
+const SidebarNavList = ({ currentPath }: SidebarNavProps) => {
   const router = useRouter();
-  const [activePath, setActivePath] = useState('');
+  const [navLinks, setNavLinks] = useState<NavItemProps[]>([]);
 
   useEffect(() => {
-    setActivePath(currentPath);
-  }, [currentPath]);
-
-  const isActivePage = ({ path }: NavItemProps) => path === router.pathname;
+    const links = NAV_ITEMS.map((item) => ({
+      ...item,
+      active: item.path === router.pathname,
+    }));
+    setNavLinks(links);
+  }, [currentPath, router]);
 
   return (
     <ul className="sidebar-nav">
-      {NAV_ITEMS.map((item) => (
-        <NavigationItem
-          active={isActivePage(item)}
-          icon={item.icon}
-          name={item.name}
-          path={item.path}
-          key={item.name}
-        />
-      ))}
+      {navLinks?.length > 0 &&
+        navLinks.map(({ active, name, path, icon }) => (
+          <NavigationItem
+            active={active}
+            name={name}
+            path={path}
+            icon={icon}
+            key={`${name}${path}`}
+          />
+        ))}
     </ul>
   );
 };
 
-export default SidebarNav;
+export default SidebarNavList;
