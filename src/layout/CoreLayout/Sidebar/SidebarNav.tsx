@@ -72,13 +72,13 @@ const SidebarNav = ({ currentPath }: SidebarNavProps) => {
     setActivePath(currentPath);
   }, [currentPath]);
 
-  const checkActivePaths = ({ path }: NavItemProps) => path === router.pathname;
+  const isActivePage = ({ path }: NavItemProps) => path === router.pathname;
 
   return (
     <ul className="sidebar-nav">
       {NAV_ITEMS.map((item) => (
         <NavigationItem
-          active={checkActivePaths(item)}
+          active={isActivePage(item)}
           icon={item.icon}
           name={item.name}
           path={item.path}
