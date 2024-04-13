@@ -65,16 +65,15 @@ const NavigationItem = (props: NavItemProps) => {
 };
 
 const SidebarNavList = ({ currentPath }: SidebarNavProps) => {
-  const router = useRouter();
   const [navLinks, setNavLinks] = useState<NavItemProps[]>([]);
 
   useEffect(() => {
     const links = NAV_ITEMS.map((item) => ({
       ...item,
-      active: item.path === router.pathname,
+      active: item.path === currentPath,
     }));
     setNavLinks(links);
-  }, [currentPath, router]);
+  }, [currentPath]);
 
   return (
     <ul className="sidebar-nav">
