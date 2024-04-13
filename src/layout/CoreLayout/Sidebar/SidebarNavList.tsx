@@ -36,7 +36,7 @@ const NAV_ITEMS: NavItemProps[] = [
   },
   {
     name: 'Tasas COP',
-    path: '/tes/daily',
+    path: '/tes',
     icon: faLineChart,
     active: false,
   },
@@ -45,7 +45,7 @@ const NAV_ITEMS: NavItemProps[] = [
     path: '/currency',
     icon: faMoneyBill,
     active: false,
-  }
+  },
 ];
 
 const NavigationItem = (props: NavItemProps) => {
@@ -64,34 +64,31 @@ const NavigationItem = (props: NavItemProps) => {
   );
 };
 
-const SidebarNav = ({ currentPath }: SidebarNavProps) => {
-  const [activePath, setActivePath] = useState('');
+const SidebarNavList = ({ currentPath }: SidebarNavProps) => {
+  const [navLinks, setNavLinks] = useState<NavItemProps[]>([]);
 
   useEffect(() => {
-    setActivePath(currentPath);
+    const links = NAV_ITEMS.map((item) => ({
+      ...item,
+      active: item.path === currentPath,
+    }));
+    setNavLinks(links);
   }, [currentPath]);
-
-  const checkActivePaths = ({ name }: NavItemProps) => {
-    // TODO: Find a better scalable solution for mixed lang in the future
-    if (activePath.includes('loans') && name === 'creditos') {
-      return true;
-    }
-    return activePath.includes(name);
-  };
 
   return (
     <ul className="sidebar-nav">
-      {NAV_ITEMS.map((item) => (
-        <NavigationItem
-          active={checkActivePaths(item)}
-          icon={item.icon}
-          name={item.name}
-          path={item.path}
-          key={item.name}
-        />
-      ))}
+      {navLinks?.length > 0 &&
+        navLinks.map(({ active, name, path, icon }) => (
+          <NavigationItem
+            active={active}
+            name={name}
+            path={path}
+            icon={icon}
+            key={`${name}${path}`}
+          />
+        ))}
     </ul>
   );
 };
 
-export default SidebarNav;
+export default SidebarNavList;
