@@ -20,7 +20,6 @@ import {
   LightSerieValue,
   LightSerieEntry,
   LightSerieValueArray,
-  defaultPriceFormat,
 } from '@models/lightserie';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
@@ -192,9 +191,7 @@ export default function Dashboard() {
           newSelection.set(key, {
             serie: value.serie,
             color: newColor,
-            name: value.name,
-            type: 'line',
-            priceFormat: defaultPriceFormat,
+            name: value.name
           });
         } else {
           newSelection.set(key, value);

@@ -18,6 +18,7 @@ export interface TesYields {
   day: string;
 }
 
+
 export interface CandleSerie {
   name: string;
   values: TesYields[];
