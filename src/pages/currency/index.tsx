@@ -28,6 +28,8 @@ import tokens from 'design-tokens/tokens.json';
 import Chart from '@components/chart/Chart';
 import NewPrevTag from '@components/price/NewPrevPriceTag';
 import { MovingAvgValue } from '@models/movingAvg';
+import { CurrencySerie } from '@models/currency';
+
 
 const TOOLBAR_ITEMS = [
   {
@@ -57,6 +59,10 @@ export default function CurrecnyViewer() {
     name: '',
     values: [],
   });
+
+  const [selectedSeries, setSelectedSeries] = useState<Map<string, CurrencySerie>>(
+    new Map()
+  );
 
 
   const currencyName = useRef<string>('USD:COP');
