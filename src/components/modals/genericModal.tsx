@@ -1,17 +1,17 @@
 import { IconProp } from '@fortawesome/fontawesome-svg-core';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { PropsWithChildren } from 'react';
 import { Button, Modal } from 'react-bootstrap';
 
-interface ModalProps {
+type ModalProps = {
   cancelCallback: () => void;
   cancelMessage: string;
   saveCallback: () => void;
   saveMessage: string;
   title: string;
-  message: string;
   display: boolean;
   icon: IconProp;
-}
+} & PropsWithChildren;
 
 function SimpleModal({
   display,
@@ -20,8 +20,8 @@ function SimpleModal({
   saveCallback,
   saveMessage,
   title,
-  message,
   icon,
+  children,
 }: ModalProps) {
   return (
     <div
@@ -36,14 +36,14 @@ function SimpleModal({
         </Modal.Header>
 
         <Modal.Body>
-          <p>{message}</p>
+          {children}
         </Modal.Body>
 
         <Modal.Footer>
-          <Button variant="primary" onClick={cancelCallback}>
+          <Button variant="danger"  onClick={cancelCallback}>
             {cancelMessage}
           </Button>
-          <Button variant="danger" onClick={saveCallback}>
+          <Button variant="primary" onClick={saveCallback}>
             {saveMessage}
           </Button>
         </Modal.Footer>

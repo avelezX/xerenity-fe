@@ -12,6 +12,7 @@ import {
 } from '@models/lightserie';
 import { ExportToCsv, downloadBlob } from '@components/csvDownload/cscDownload';
 import {
+  faAlignJustify,
   faClose,
   faDollarSign,
   faEuro,
@@ -33,7 +34,7 @@ import NewPrevTag from '@components/price/NewPrevPriceTag';
 import { MovingAvgValue } from '@models/movingAvg';
 import { CurrencySerie } from '@models/currency';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-
+import SimpleModal from '@components/modals/genericModal';
 
 
 
@@ -42,7 +43,7 @@ const designSystem = tokens.xerenity;
 const PURPLE_COLOR = designSystem['purple-100'].value;
 const GRAY_COLOR_300 = designSystem['gray-300'].value;
 const OPCIONES = 'Opciones';
-
+const ALL_COINS=["NOK", "JPY", "CHF", "SEK", "HUF", "PLN", "CNY", "INR", "IDR", "HKD", "MYR", "SGD", "USD" ,"EUR"];
 
 
 
@@ -53,6 +54,15 @@ export function LightSerieValueArray(entry: LightSerieValue) {
 export default function CurrecnyViewer() {
   const supabase = createClientComponentClient();
 
+  const [addCurrencyModal,setAddCurrencyModal] = useState<boolean>(false);
+
+  const [currencyFrom,setCurrencyFrom] = useState<string>('HUF');
+  
+  const [currencyTo,setCurrencyTo] = useState<string>('EUR');
+  
+  const [applyFunctions,setApplyunctions] = useState<string[]>([]);
+
+  const normalize = useRef<boolean>(false);
 
   const [selectedSeries, setSelectedSeries] = useState<Map<string, LightSerie>>(
     new Map()
@@ -160,6 +170,58 @@ export default function CurrecnyViewer() {
 
   return (
     <CoreLayout>
+      <SimpleModal 
+        cancelCallback={()=>setAddCurrencyModal(false)} 
+        cancelMessage='Cancelar' 
+        saveCallback={
+          ()=>{
+            handleAddSerie(`${currencyFrom}:${currencyTo}`,GRAY_COLOR_300);
+            setAddCurrencyModal(false);
+          }
+        }       
+          saveMessage='anadir' 
+          title='Anadir moneda a la grafica' 
+          display={addCurrencyModal} 
+          icon={faDollarSign}
+        >
+        <div className="row">
+          <div className="col-xs-6 py-3">
+            <Dropdown >
+              <Dropdown.Toggle variant="success" id="dropdown-basic">
+                {currencyFrom}
+              </Dropdown.Toggle>
+              <Dropdown.Menu>
+                {ALL_COINS.map((curr)=>(
+                  <Dropdown.Item 
+                    key={`drop-curr-${curr}`}
+                    onClick={() => {
+                      setCurrencyFrom(curr);
+                    }}
+                  >{curr}</Dropdown.Item>
+                ))}                
+              </Dropdown.Menu>
+            </Dropdown>
+          </div>
+          <div className="col-xs-6 py-3">
+            <Dropdown>
+              <Dropdown.Toggle variant="success" id="dropdown-basic">
+                {currencyTo}
+              </Dropdown.Toggle>
+              <Dropdown.Menu>
+                {ALL_COINS.map((curr)=>(
+                  <Dropdown.Item 
+                    key={`drop-curr-${curr}`}
+                    onClick={() => {
+                      setCurrencyTo(curr);
+                    }}
+                    >{curr}</Dropdown.Item>
+                ))}                
+              </Dropdown.Menu>
+            </Dropdown>
+          </div>    
+        </div>
+      </SimpleModal>
+
       <Container fluid>
         <div className="row">
           <div className="col-xs-12 py-3">
@@ -167,12 +229,22 @@ export default function CurrecnyViewer() {
               <div className="section">
               <ToolbarItem
                     className="py-3"
+                    name='Normalizar'
+                    onClick={() => {
+                      normalize.current=!normalize.current;
+                      if(normalize.current){
+                        setApplyunctions(['normalize']);
+                      }else{
+                        setApplyunctions([]);
+                      }
+                    }}
+                    icon={faAlignJustify}
+                />                
+              <ToolbarItem
+                    className="py-3"
                     name='Anadir'
                     onClick={() => {
-                      const name = prompt("Enter your name:", "John");
-                      if(name){
-                        handleAddSerie(name,PURPLE_COLOR);
-                      }
+                      setAddCurrencyModal(true);
                     }}
                     icon={faPlus}
                   />
@@ -190,6 +262,7 @@ export default function CurrecnyViewer() {
                   color={data.color}
                   title={data.name}
                   scaleId={(index +1) %2 === 0 ? 'right':'left'}
+                  applyFunctions={applyFunctions}
                 />
               ))}                              
             </Chart>
