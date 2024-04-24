@@ -1,11 +1,13 @@
-import React, { PropsWithChildren } from 'react';
-import ToolbarContainer from './ToolbarContainer';
+import styled from 'styled-components';
+import tokens from 'design-tokens/tokens.json';
 
-export default function ToolBar(props: PropsWithChildren) {
-  const { children } = props;
-  return (
-    <ToolbarContainer>
-      <div className="toolbar-items">{children}</div>
-    </ToolbarContainer>
-  );
-}
+const designSystem = tokens.xerenity;
+
+const ToolbarContainer = styled.div`
+  width: auto;
+  display: flex;
+  gap: 8px;
+  border-radius: ${designSystem['radius-md'].value}px;
+`;
+
+export default ToolbarContainer;
