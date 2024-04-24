@@ -43,7 +43,7 @@ const designSystem = tokens.xerenity;
 const PURPLE_COLOR = designSystem['purple-100'].value;
 const GRAY_COLOR_300 = designSystem['gray-300'].value;
 const OPCIONES = 'Opciones';
-const ALL_COINS=["NOK", "JPY", "CHF", "SEK", "HUF", "PLN", "CNY", "INR", "IDR", "HKD", "MYR", "SGD", "USD" ,"EUR"];
+const ALL_COINS=["NOK", "JPY", "CHF", "SEK", "HUF", "PLN", "CNY", "INR", "IDR", "HKD", "MYR", "SGD", "USD" ,"EUR","COP"];
 
 
 
