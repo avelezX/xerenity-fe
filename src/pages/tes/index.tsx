@@ -38,10 +38,10 @@ import CandleGridViewer from '@components/grid/CandleGrid';
 import Toolbar from '@components/UI/Toolbar';
 import tokens from 'design-tokens/tokens.json';
 import Chart from '@components/chart/Chart';
-import { Tab, Tabs } from '@components/UI/Tabs';
+import { Tab, Tabs, TabItemType } from '@components/UI/Tabs';
 import PageTitle from '@components/PageTitle';
 
-const TAB_ITEMS = [
+const TAB_ITEMS: TabItemType[] = [
   {
     name: 'Coltes/COP',
     property: 'COLTES-COP',
@@ -63,37 +63,26 @@ const TAB_ITEMS = [
 ];
 
 const designSystem = tokens.xerenity;
-
 const PURPLE_COLOR = designSystem['purple-100'].value;
 const GRAY_COLOR_300 = designSystem['gray-300'].value;
-
 const OPCIONES = 'Opciones';
-
 const MONTH_OPTIONS = [20, 30, 50];
 
 export default function FullTesViewer() {
   const supabase = createClientComponentClient();
-
   const [options, setOptions] = useState<GridEntry[]>([]);
-
   const [candleSerie, setCandleSerie] = useState<CandleSerie>({
     name: '',
     values: [],
   });
-
   const ibrAllData = useRef<Map<string, GridEntry>>();
-
   const serieId = useRef<string>('tes_24');
-
   const movingAvgDays = useRef<number>(20);
-
   const displayName = useRef<string>('');
-
-  const [currencyType, setCurrencyType] = useState('COLTES-COP');
-
+  const [currencyType, setCurrencyType] = useState(TAB_ITEMS[0].property);
   const [movingAvg, setMovingAvg] = useState<LightSerie>();
-
   const [volumenSerie, setvolumenSerie] = useState<LightSerieValue[]>([]);
+  const [pageTabs, setTabsState] = useState<TabItem[]>(TAB_ITEMS);
 
   const fetchTesRawData = useCallback(
     async (view_tes: string) => {
@@ -279,22 +268,27 @@ export default function FullTesViewer() {
     fetchTesNames();
   }, [fetchTesNames]);
 
-  const handleSelect = (eventKey: ChangeEvent<HTMLFormElement>) => {
-    changeSelection(eventKey.target.id, eventKey.target.placeholder);
+  const handleSelect = (e: ChangeEvent<HTMLFormElement>) => {
+    const { id, placeholder } = e.target;
+    changeSelection(id, placeholder);
   };
 
-  const handleCurrencyChange = (eventKey: string) => {
-    setCurrencyType(eventKey);
+  const handleCurrencyChange = (tabProp: string) => {
+    setCurrencyType(tabProp);
+    setTabsState((prevState) =>
+      prevState.map((tab) => ({
+        ...tab,
+        active: tab.property === tabProp,
+      }))
+    );
   };
 
-  const handleMonthChange = (eventKey: number) => {
-    movingAvgDays.current = eventKey;
-
+  const handleMonthChange = (month: number) => {
+    movingAvgDays.current = month;
     if (serieId.current.includes('ibr')) {
-      fetchTesMvingAvgIbr(serieId.current, eventKey, displayName.current);
-    } else {
-      fetchTesMvingAvg(serieId.current, eventKey, displayName.current);
+      return fetchTesMvingAvgIbr(serieId.current, month, displayName.current);
     }
+    return fetchTesMvingAvg(serieId.current, month, displayName.current);
   };
 
   const downloadGrid = () => {
@@ -305,7 +299,6 @@ export default function FullTesViewer() {
     });
 
     const csv = ExportToCsv(allValues);
-
     downloadBlob(csv, `xerenity_${displayName}.csv`, 'text/csv;charset=utf-8;');
   };
 
@@ -324,7 +317,7 @@ export default function FullTesViewer() {
           <div className="d-flex justify-content-between pb-3">
             <div className="d-flex gap-2">
               <Tabs>
-                {TAB_ITEMS.map(({ active, name, property, icon }) => (
+                {pageTabs.map(({ active, name, property, icon }) => (
                   <Tab
                     active={active}
                     key={name}

@@ -23,10 +23,10 @@ import tokens from 'design-tokens/tokens.json';
 import Chart from '@components/chart/Chart';
 import NewPrevTag from '@components/price/NewPrevPriceTag';
 import { MovingAvgValue } from '@models/movingAvg';
-import { Tab, Tabs } from '@components/UI/Tabs';
+import { Tab, Tabs, TabItemType } from '@components/UI/Tabs';
 import PageTitle from '@components/PageTitle';
 
-const TAB_ITEMS = [
+const TAB_ITEMS: TabItemType[] = [
   {
     name: 'USD:COP',
     property: 'USD:COP',
@@ -51,19 +51,15 @@ const OPCIONES = 'Opciones';
 
 export default function CurrecnyViewer() {
   const supabase = createClientComponentClient();
-
   const [candleSerie, setCandleSerie] = useState<CandleSerie>({
     name: '',
     values: [],
   });
-
   const currencyName = useRef<string>('USD:COP');
-
   const [volumenSerie, setvolumenSerie] = useState<LightSerieValue[]>([]);
-
   const movingAvgDays = useRef<number>(20);
-
   const [movingAvg, setMovingAvg] = useState<LightSerieValue[]>([]);
+  const [pageTabs, setTabsState] = useState<TabItemType[]>(TAB_ITEMS);
 
   const fetchCurrencyRawData = useCallback(async () => {
     const { data, error } = await supabase
@@ -114,10 +110,16 @@ export default function CurrecnyViewer() {
     }
   }, [supabase]);
 
-  const handleCurrencyChange = (chosenCurrency: string) => {
-    currencyName.current = chosenCurrency;
+  const handleCurrencyChange = (tabProp: string) => {
+    currencyName.current = tabProp;
     fetchCurrencyRawData();
     fecthMovingAverag();
+    setTabsState((prevState) =>
+      prevState.map((tab) => ({
+        ...tab,
+        active: tab.property === tabProp,
+      }))
+    );
   };
 
   const handleMonthChange = (eventKey: number) => {
@@ -159,7 +161,7 @@ export default function CurrecnyViewer() {
         <Row>
           <div className="d-flex justify-content-between pb-3">
             <Tabs>
-              {TAB_ITEMS.map(({ active, name, property, icon }) => (
+              {pageTabs.map(({ active, name, property, icon }) => (
                 <Tab
                   active={active}
                   key={name}
