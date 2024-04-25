@@ -82,7 +82,7 @@ export default function FullTesViewer() {
   const [currencyType, setCurrencyType] = useState(TAB_ITEMS[0].property);
   const [movingAvg, setMovingAvg] = useState<LightSerie>();
   const [volumenSerie, setvolumenSerie] = useState<LightSerieValue[]>([]);
-  const [pageTabs, setTabsState] = useState<TabItem[]>(TAB_ITEMS);
+  const [pageTabs, setTabsState] = useState<TabItemType[]>(TAB_ITEMS);
 
   const fetchTesRawData = useCallback(
     async (view_tes: string) => {
