@@ -3,7 +3,6 @@ import {
   ButtonProps as BsButtonProps,
 } from 'react-bootstrap';
 import { FC } from 'react';
-
 import styled from 'styled-components';
 
 interface ButtonProps extends BsButtonProps {

@@ -2,37 +2,38 @@
 
 import React, { useCallback, useState, useEffect, ChangeEvent } from 'react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
-import { Container, Row, Col, Table, Button } from 'react-bootstrap';
+import { Container, Row, Col, Table } from 'react-bootstrap';
 import { Loan, LoanCashFlowIbr } from '@models/loans';
 import Form from 'react-bootstrap/Form';
 
 import { CoreLayout } from '@layout';
-import {  LightSerieValue } from '@models/lightserie';
+import { LightSerieValue } from '@models/lightserie';
 import LoanForm from '@components/forms/loanForm';
 import { ExportToCsv, downloadBlob } from '@components/csvDownload/cscDownload';
 
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { FontAwesomeIcon as Icon } from '@fortawesome/react-fontawesome';
 import { faTrashCan } from '@fortawesome/free-regular-svg-icons';
-import { 
-faExclamation, 
-faFileCsv,
-faMoneyBill 
+import {
+  faExclamation,
+  faFileCsv,
+  faMoneyBill,
+  faLandmark,
 } from '@fortawesome/free-solid-svg-icons';
 import SimpleModal from '@components/modals/genericModal';
 import PriceTagTd from '@components/price/CopDisplay';
 
-import ToolbarItem from '@components/UI/Toolbar/ToolbarItem';
 import Toolbar from '@components/UI/Toolbar';
 import tokens from 'design-tokens/tokens.json';
 import Badge from '@components/UI/Badge';
 import Chart from '@components/chart/Chart';
+import Button from '@components/UI/Button';
+import PageTitle from '@components/PageTitle';
 
 const designSystem = tokens.xerenity;
 const PURPLE_COLOR_100 = designSystem['purple-100'].value;
 const GREY_COLOR_300 = designSystem['gray-300'].value;
-
 
 export default function NextPage() {
   const supabase = createClientComponentClient();
@@ -43,9 +44,9 @@ export default function NextPage() {
 
   const [fetching, setFetching] = useState<boolean>(false);
 
-  const [pagoCuotaSerie,setPagoCuotaSerie] = useState<LightSerieValue[]>([]);
+  const [pagoCuotaSerie, setPagoCuotaSerie] = useState<LightSerieValue[]>([]);
 
-  const [balanceSerie,setBalanceSerie] = useState<LightSerieValue[]>([]);
+  const [balanceSerie, setBalanceSerie] = useState<LightSerieValue[]>([]);
 
   const [showDialog, setShowDialog] = useState<boolean>(false);
 
@@ -57,7 +58,6 @@ export default function NextPage() {
     Map<string, LoanCashFlowIbr[]>
   >(new Map());
 
-  
   const calculateCashFlow = useCallback(
     async (cred_id: string) => {
       setFetching(true);
@@ -170,7 +170,7 @@ export default function NextPage() {
               payment: au.payment + entr.payment,
               interest: au.payment + entr.payment,
               ending_balance: au.ending_balance + entr.ending_balance,
-              rate_tot:au.rate_tot
+              rate_tot: au.rate_tot,
             };
             newCashFlow.set(newentry.date, newentry);
           } else {
@@ -202,7 +202,7 @@ export default function NextPage() {
         });
       });
 
-      setPagoCuotaSerie(payment);     
+      setPagoCuotaSerie(payment);
 
       setBalanceSerie(balance);
 
@@ -224,14 +224,11 @@ export default function NextPage() {
     } else {
       setAllCredits([]);
     }
-
   }, [supabase]);
 
-  
   useEffect(() => {
     fetchLoanNames();
-  }, [fetchLoanNames]);  
-
+  }, [fetchLoanNames]);
 
   const borrarCredito = async (cred_id: string) => {
     setFetching(true);
@@ -250,7 +247,7 @@ export default function NextPage() {
     }
     setShowConfirm(false);
     setFetching(false);
-  };  
+  };
 
   return (
     <CoreLayout>
@@ -270,34 +267,30 @@ export default function NextPage() {
         display={showConfirm}
         icon={faExclamation}
       />
-      <Container fluid>
-
-      <div className="row">
-          <div className="col-xs-12 py-3">
-            <Toolbar>
-              <div className="section">
-                  <ToolbarItem
-                    className="py-3"
-                    name='Nuevo Credito'
-                    onClick={() => setShowDialog(!showDialog)}
-                    icon={faMoneyBill}
-                  />
-                  <ToolbarItem
-                    className="py-3"
-                    name='Descargar'
-                    onClick={downloadSeries}
-                    icon={faFileCsv}
-                  />                  
-              </div>
-            </Toolbar>
-          </div>
-        </div>
-
+      <Container fluid className="px-4">
         <Row>
-          <Col>
-            <hr />
-          </Col>
+          <div className="d-flex align-items-center gap-2 py-1">
+            <PageTitle>
+              <Icon icon={faLandmark} size="1x" />
+              <h4>Creditos</h4>
+            </PageTitle>
+          </div>
         </Row>
+        <div className="d-flex justify-content-end pb-3">
+          <Toolbar>
+            <Button
+              variant="outline-primary"
+              onClick={() => setShowDialog(!showDialog)}
+            >
+              <Icon icon={faMoneyBill} className="mr-4" />
+              Nuevo Credito
+            </Button>
+            <Button variant="outline-primary" onClick={downloadSeries}>
+              <Icon icon={faFileCsv} className="mr-4" />
+              Descargar
+            </Button>
+          </Toolbar>
+        </div>
         <Row>
           <Col>
             <Table
@@ -345,16 +338,13 @@ export default function NextPage() {
                       {' '}
                       <Row>
                         <Col sm={{ span: 3 }}>
-                          <Button
-                            size="sm"
-                            variant="outline-danger"
+                          <Icon
+                            icon={faTrashCan}
                             onClick={() => {
                               setEraseLoan(loan.id);
                               setShowConfirm(true);
                             }}
-                          >
-                            <FontAwesomeIcon icon={faTrashCan} />
-                          </Button>
+                          />
                         </Col>
                         <Col sm={{ offset: 2, span: 3 }}>
                           <Form.Check
@@ -374,29 +364,21 @@ export default function NextPage() {
             </Table>
           </Col>
         </Row>
-
         <Row>
           <Col>
-            <hr />
-          </Col>
-        </Row>
-
-
-        <Row>
-          <Col>            
             <Chart chartHeight={800}>
-                <Chart.Bar
-                    data={pagoCuotaSerie}
-                    color={PURPLE_COLOR_100}
-                    scaleId='rigth'
-                    title='Pago final (Derecho)'
-                />              
-                <Chart.Line
-                    data={balanceSerie}
-                    color={GREY_COLOR_300}
-                    scaleId='left'
-                    title='Balance final (Izquierdo)'
-                />                
+              <Chart.Bar
+                data={pagoCuotaSerie}
+                color={PURPLE_COLOR_100}
+                scaleId="rigth"
+                title="Pago final (Derecho)"
+              />
+              <Chart.Line
+                data={balanceSerie}
+                color={GREY_COLOR_300}
+                scaleId="left"
+                title="Balance final (Izquierdo)"
+              />
             </Chart>
           </Col>
         </Row>
@@ -425,7 +407,12 @@ export default function NextPage() {
                   <tr key={`row-credit${loan.date}`}>
                     <td>{loan.date.split(' ')[0]}</td>
                     <PriceTagTd value={loan.beginning_balance} />
-                    <td>{loan.rate_tot?(loan.rate_tot.toFixed(2)):(loan.rate.toFixed(2))}%</td>
+                    <td>
+                      {loan.rate_tot
+                        ? loan.rate_tot.toFixed(2)
+                        : loan.rate.toFixed(2)}
+                      %
+                    </td>
                     <PriceTagTd value={loan.payment} />
                     <td>{loan.interest.toFixed(2)}</td>
                     <td>{loan.principal.toFixed(2)}</td>

@@ -4,7 +4,6 @@ import { CoreLayout } from '@layout';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import {
   Table,
-  Button,
   Stack,
   ListGroup,
   Offcanvas,
@@ -14,7 +13,13 @@ import {
   Container,
   Accordion,
 } from 'react-bootstrap';
-import React, { useState, useEffect, useCallback, ChangeEvent, useRef } from 'react';
+import React, {
+  useState,
+  useEffect,
+  useCallback,
+  ChangeEvent,
+  useRef,
+} from 'react';
 import {
   LightSerie,
   LightSerieValue,
@@ -22,45 +27,37 @@ import {
   LightSerieValueArray,
   defaultPriceFormat,
 } from '@models/lightserie';
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { FontAwesomeIcon as Icon } from '@fortawesome/react-fontawesome';
 import {
-  faAlignJustify,
+  faSquarePollHorizontal,
   faClose,
   faFileCsv,
-  faLinesLeaning,
+  faMagnifyingGlass,
+  faChartSimple,
 } from '@fortawesome/free-solid-svg-icons';
 import SeriePicker from '@components/serie/SeriePicker';
 import { ExportToCsv, downloadBlob } from '@components/csvDownload/cscDownload';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-import ToolbarItem from '@components/UI/Toolbar/ToolbarItem';
 import Toolbar from '@components/UI/Toolbar';
 import Chart from '@components/chart/Chart';
-
+import Button from '@components/UI/Button';
+import PageTitle from '@components/PageTitle';
 
 export default function Dashboard() {
-
-  
   const supabase = createClientComponentClient();
-
   const [loadingSerie, setLowdingSerie] = useState(false);
-
   const [selectedSeries, setSelectedSeries] = useState<Map<string, LightSerie>>(
     new Map()
   );
-
   const [selectionOptionsSbg, setSelectionOptionsSbg] = useState<
     Map<string, Map<string, LightSerieEntry[]>>
   >(new Map());
-
   const [serieNameInfo, setSerieNameInfo] = useState<
     Map<string, LightSerieEntry>
   >(new Map());
-
   const normalize = useRef<boolean>(false);
-
-  const [applyFunctions,setApplyunctions] = useState<string[]>([]);
-
+  const [applyFunctions, setApplyunctions] = useState<string[]>([]);
   const [showCanvs, setShowCanvas] = useState(false);
 
   const handleClose = () => setShowCanvas(false);
@@ -69,6 +66,7 @@ export default function Dashboard() {
 
   const FetchSerieValues = useCallback(
     async (idSerie: string, newColor: string) => {
+      // TODO: Take this out to an outside function
       const { data, error } = await supabase
         .schema('xerenity')
         .rpc('search', { name: idSerie });
@@ -102,6 +100,7 @@ export default function Dashboard() {
   );
 
   const fetchData = useCallback(async () => {
+    // TODO: Take this out to an outside function
     const { data, error } = await supabase
       .schema('xerenity')
       .from('search_mv')
@@ -236,172 +235,171 @@ export default function Dashboard() {
     downloadBlob(csv, 'xerenity_series.csv', 'text/csv;charset=utf-8;');
   };
 
-  return(
-    <CoreLayout>
-<Container fluid>
-      <ToastContainer />
-      <Row>
+  const handleNormalize = () => {
+    normalize.current = !normalize.current;
+    if (normalize.current) {
+      setApplyunctions(['normalize']);
+    } else {
+      setApplyunctions([]);
+    }
+  };
 
-        <div className="row">
-          <div className="col-xs-12 py-3">
+  return (
+    <CoreLayout>
+      <Container fluid className="px-4">
+        <ToastContainer />
+        <Row>
+          <div className="d-flex align-items-center gap-2 py-1">
+            <PageTitle>
+              <Icon icon={faChartSimple} size="1x" />
+              <h4>Dashboard</h4>
+            </PageTitle>
+          </div>
+        </Row>
+        <Row>
+          <div className="d-flex justify-content-end pb-3">
             <Toolbar>
-              <div className="section">
-                  <ToolbarItem
-                    className="py-3"
-                    name='Normalizar'
-                    onClick={() => {
-                      normalize.current=!normalize.current;
-                      if(normalize.current){
-                        setApplyunctions(['normalize']);
-                      }else{
-                        setApplyunctions([]);
-                      }
-                    }}
-                    icon={faAlignJustify}
-                  />
-                  <ToolbarItem
-                    className="py-3"
-                    name='Descargar'
-                    onClick={downloadSeries}
-                    icon={faFileCsv}
-                  />                                   
-              </div>
-              <div className="section">
-                <Button variant="primary" onClick={handleShow}>
-                    Ver serie <FontAwesomeIcon icon={faLinesLeaning} />
-                </Button>
-              </div>
+              <Button variant="outline-primary" onClick={handleNormalize}>
+                <Icon icon={faSquarePollHorizontal} className="mr-4" />
+                Normalizar
+              </Button>
+              <Button variant="outline-primary" onClick={downloadSeries}>
+                <Icon icon={faFileCsv} className="mr-4" />
+                Descargar
+              </Button>
+              <Button variant="primary" onClick={handleShow}>
+                <Icon icon={faMagnifyingGlass} className="mr-4" />
+                Explorar Series
+              </Button>
             </Toolbar>
           </div>
-        </div>
-
+        </Row>
         <Row>
           <Col>
-            <hr />
+            <Chart chartHeight={800}>
+              {Array.from(selectedSeries.values()).map((data, index) => (
+                <Chart.Line
+                  key={`chart-${data.name}`}
+                  data={data.serie}
+                  color={data.color}
+                  title={data.name}
+                  scaleId={index % 2 === 0 ? 'right' : 'left'}
+                  applyFunctions={applyFunctions}
+                />
+              ))}
+            </Chart>
           </Col>
         </Row>
-
-        <Offcanvas
-          id="offcanvasNavbar-expand-false"
-          aria-labelledby="offcanvasNavbarLabel-expand-false"
-          placement="end"
-          scroll
-          show={showCanvs}
-          onHide={handleClose}
-        >
-          <Offcanvas.Header closeButton>
-            <Offcanvas.Title id="offcanvasNavbarLabel-expand-false">
-              <Row>
-                <Col>Series</Col>
-                <Col>
-                  {loadingSerie ? <Spinner animation="border" /> : null}
-                </Col>
-              </Row>
-            </Offcanvas.Title>
-          </Offcanvas.Header>
-          <Offcanvas.Body>
-            <Stack gap={3}>
-              {Array.from(selectionOptionsSbg.entries()).map(([key, value]) => [
-                <Accordion key={`serie-group-${key}`}>
-                  <Accordion.Item eventKey={key}>
-                    <Accordion.Header>{key}</Accordion.Header>
-                    <Accordion.Body>
-                      <Stack gap={2}>
-                        {Array.from(value.entries()).map(([skey, svalue]) => [
-                          <Accordion key={`serie-group-${skey}`}>
-                            <Accordion.Item eventKey={skey}>
-                              <Accordion.Header>{skey}</Accordion.Header>
-                              <Accordion.Body>
-                                <Stack gap={2}>
-                                  {svalue.map((serie) => [
-                                    <SeriePicker
-                                      key={`serie-${serie.source_name}`}
-                                      handleSeriePick={handleCheckboxChange}
-                                      handleColorPicker={handleColorChnage}
-                                      showColor
-                                      displayName={serie.display_name}
-                                      serieID={serie.source_name}
-                                      disable={loadingSerie}
-                                      checked={selectedSeries.has(
-                                        serie.source_name
-                                      )}
-                                    />,
-                                  ])}
-                                </Stack>
-                              </Accordion.Body>
-                            </Accordion.Item>
-                          </Accordion>,
-                        ])}
-                      </Stack>
-                    </Accordion.Body>
-                  </Accordion.Item>
-                </Accordion>,
-              ])}
-            </Stack>
-          </Offcanvas.Body>
-        </Offcanvas>
-      </Row>
-      <Row>
-        <Col>
-          <Chart chartHeight={800}>
-            {Array.from(selectedSeries.values()).map((data,index)=>(
-              <Chart.Line
-                key={`chart-${data.name}`}
-                data={data.serie}
-                color={data.color}
-                title={data.name}
-                scaleId={index %2 === 0 ? 'right':'left'}
-                applyFunctions={applyFunctions}
-              />
-            ))}
-          </Chart>
-        </Col>
-      </Row>
-      <Row>
-        <Col>
-          <Table bordered hover responsive="sm" style={{ textAlign: 'center' }}>
-            <thead>
-              <tr>
-                <th>Nombre</th>
-                <th>Descripcion</th>
-                <th>Fuente</th>
-                <th style={{ width: '2%' }}> Quitar</th>
-              </tr>
-            </thead>
-            <tbody>
-              {Array.from(serieNameInfo.entries()).map(([key, value]) => [
-                selectedSeries.has(key) ? (
-                  <tr key={`t-row-serie${key}`}>
-                    <td>
-                      <ListGroup>
-                        <ListGroup.Item
-                          style={{
-                            backgroundColor: selectedSeries.get(key)?.color,
-                          }}
+        <Row>
+          <Col>
+            <Table
+              bordered
+              hover
+              responsive="sm"
+              style={{ textAlign: 'center' }}
+            >
+              <thead>
+                <tr>
+                  <th>Nombre</th>
+                  <th>Descripcion</th>
+                  <th>Fuente</th>
+                  <th style={{ width: '2%' }}> Quitar</th>
+                </tr>
+              </thead>
+              <tbody>
+                {Array.from(serieNameInfo.entries()).map(([key, value]) => [
+                  selectedSeries.has(key) ? (
+                    <tr key={`t-row-serie${key}`}>
+                      <td>
+                        <ListGroup>
+                          <ListGroup.Item
+                            style={{
+                              backgroundColor: selectedSeries.get(key)?.color,
+                            }}
+                          >
+                            {value.display_name}
+                          </ListGroup.Item>
+                        </ListGroup>
+                      </td>
+                      <td>{value.description}</td>
+                      <td>{value.fuente}</td>
+                      <td>
+                        <Button
+                          aria-label="descargar"
+                          variant="outline-primary"
                         >
-                          {value.display_name}
-                        </ListGroup.Item>
-                      </ListGroup>
-                    </td>
-                    <td>{value.description}</td>
-                    <td>{value.fuente}</td>
-                    <td>
-                      <Button aria-label="descargar" variant="outline-primary">
-                        <FontAwesomeIcon
-                          size="xs"
-                          icon={faClose}
-                          onClick={() => handleRemoveSerie(value.source_name)}
-                        />
-                      </Button>
-                    </td>
-                  </tr>
-                ) : null,
-              ])}
-            </tbody>
-          </Table>
-        </Col>
-      </Row>
-    </Container>
+                          <Icon
+                            size="xs"
+                            icon={faClose}
+                            onClick={() => handleRemoveSerie(value.source_name)}
+                          />
+                        </Button>
+                      </td>
+                    </tr>
+                  ) : null,
+                ])}
+              </tbody>
+            </Table>
+          </Col>
+        </Row>
+      </Container>
+      <Offcanvas
+        id="offcanvasNavbar-expand-false"
+        aria-labelledby="offcanvasNavbarLabel-expand-false"
+        placement="end"
+        scroll
+        show={showCanvs}
+        onHide={handleClose}
+      >
+        <Offcanvas.Header closeButton>
+          <Offcanvas.Title id="offcanvasNavbarLabel-expand-false">
+            <Row>
+              <Col>Series</Col>
+              <Col>{loadingSerie ? <Spinner animation="border" /> : null}</Col>
+            </Row>
+          </Offcanvas.Title>
+        </Offcanvas.Header>
+        <Offcanvas.Body>
+          <Stack gap={3}>
+            {Array.from(selectionOptionsSbg.entries()).map(([key, value]) => [
+              <Accordion key={`serie-group-${key}`}>
+                <Accordion.Item eventKey={key}>
+                  <Accordion.Header>{key}</Accordion.Header>
+                  <Accordion.Body>
+                    <Stack gap={2}>
+                      {Array.from(value.entries()).map(([skey, svalue]) => [
+                        <Accordion key={`serie-group-${skey}`}>
+                          <Accordion.Item eventKey={skey}>
+                            <Accordion.Header>{skey}</Accordion.Header>
+                            <Accordion.Body>
+                              <Stack gap={2}>
+                                {svalue.map((serie) => [
+                                  <SeriePicker
+                                    key={`serie-${serie.source_name}`}
+                                    handleSeriePick={handleCheckboxChange}
+                                    handleColorPicker={handleColorChnage}
+                                    showColor
+                                    displayName={serie.display_name}
+                                    serieID={serie.source_name}
+                                    disable={loadingSerie}
+                                    checked={selectedSeries.has(
+                                      serie.source_name
+                                    )}
+                                  />,
+                                ])}
+                              </Stack>
+                            </Accordion.Body>
+                          </Accordion.Item>
+                        </Accordion>,
+                      ])}
+                    </Stack>
+                  </Accordion.Body>
+                </Accordion.Item>
+              </Accordion>,
+            ])}
+          </Stack>
+        </Offcanvas.Body>
+      </Offcanvas>
     </CoreLayout>
   );
 }
