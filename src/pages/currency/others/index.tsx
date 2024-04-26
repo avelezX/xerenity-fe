@@ -2,7 +2,7 @@
 
 import { CoreLayout } from '@layout';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
-import { Row, Col, Table, Button} from 'react-bootstrap';
+import { Row, Col, Table} from 'react-bootstrap';
 import Dropdown from 'react-bootstrap/Dropdown';
 import React, { useState,  useCallback,  useRef } from 'react';
 import Container from 'react-bootstrap/Container';
@@ -12,24 +12,26 @@ import {
 } from '@models/lightserie';
 import { ExportToCsv, downloadBlob } from '@components/csvDownload/cscDownload';
 import {
-  faAlignJustify,
   faClose,
   faDollarSign,
+  faFileCsv,
+  faMoneyBill,
   faPlus,
+  faSquarePollHorizontal,
 } from '@fortawesome/free-solid-svg-icons';
 import { toast } from 'react-toastify';
-import ToolbarItem from '@components/UI/Toolbar/ToolbarItem';
-
-import Toolbar from '@components/UI/Toolbar';
 import tokens from 'design-tokens/tokens.json';
 import Chart from '@components/chart/Chart';
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { FontAwesomeIcon as Icon } from '@fortawesome/react-fontawesome';
 import SimpleModal from '@components/modals/genericModal';
+import Toolbar from '@components/UI/Toolbar';
+import Button from '@components/UI/Button';
+import PageTitle from '@components/PageTitle';
+
 
 const designSystem = tokens.xerenity;
 const GRAY_COLOR_300 = designSystem['gray-300'].value;
 const ALL_COINS=["NOK", "JPY", "CHF", "SEK", "HUF", "PLN", "CNY", "INR", "IDR", "HKD", "MYR", "SGD", "USD" ,"EUR","COP","MXN", "BRL", "AUD"];
-
 
 
 export function LightSerieValueArray(entry: LightSerieValue) {
@@ -38,7 +40,7 @@ export function LightSerieValueArray(entry: LightSerieValue) {
 
 const randomColor = (): string => {
   let result = '';
-  for (let i = 0; i < 6; ++i) {
+  for (let i = 0; i < 6; i+=1) {
     const value = Math.floor(16 * Math.random());
     result += value.toString(16);
   }
@@ -49,8 +51,6 @@ export default function CurrecnyViewer() {
   const supabase = createClientComponentClient();
 
   const [addCurrencyModal,setAddCurrencyModal] = useState<boolean>(false);
-
-  const [chnageColorModal,setChnageColorModal] = useState<boolean>(false);
 
   const [currencyFrom,setCurrencyFrom] = useState<string>('HUF');
   
@@ -63,6 +63,10 @@ export default function CurrecnyViewer() {
   const [selectedSeries, setSelectedSeries] = useState<Map<string, LightSerie>>(
     new Map()
   );
+
+  const handleCloseModal = () => setAddCurrencyModal(false);
+
+  const handleShowModal = () => setAddCurrencyModal(true);
 
   const FetchSerieValues = useCallback(
     async (idSerie: string, newColor: string) => {
@@ -167,15 +171,24 @@ export default function CurrecnyViewer() {
     downloadBlob(csv, 'xerenity_series.csv', 'text/csv;charset=utf-8;');
   };
 
+  const handleNormalize = () => {
+    normalize.current = !normalize.current;
+    if (normalize.current) {
+      setApplyunctions(['normalize']);
+    } else {
+      setApplyunctions([]);
+    }
+  };
+
   return (
     <CoreLayout>
       <SimpleModal 
-        cancelCallback={()=>setAddCurrencyModal(false)} 
+        cancelCallback={handleCloseModal} 
         cancelMessage='Cancelar' 
         saveCallback={
           ()=>{
             handleAddSerie(`${currencyFrom}:${currencyTo}`,GRAY_COLOR_300);
-            setAddCurrencyModal(false);
+            handleCloseModal();
           }
         }       
           saveMessage='anadir' 
@@ -222,36 +235,33 @@ export default function CurrecnyViewer() {
       </SimpleModal>
 
 
-      <Container fluid>
-        <div className="row">
-          <div className="col-xs-12 py-3">
+      <Container fluid className="px-4">
+        <Row>
+          <div className="d-flex align-items-center gap-2 py-1">
+            <PageTitle>
+              <Icon icon={faMoneyBill} size="1x" />
+              <h4>Monedas</h4>
+            </PageTitle>
+          </div>
+        </Row>        
+        <Row>
+          <div className="d-flex justify-content-end pb-3">
             <Toolbar>
-              <div className="section">
-              <ToolbarItem
-                    className="py-3"
-                    name='Normalizar'
-                    onClick={() => {
-                      normalize.current=!normalize.current;
-                      if(normalize.current){
-                        setApplyunctions(['normalize']);
-                      }else{
-                        setApplyunctions([]);
-                      }
-                    }}
-                    icon={faAlignJustify}
-                />                
-              <ToolbarItem
-                    className="py-3"
-                    name='Anadir'
-                    onClick={() => {
-                      setAddCurrencyModal(true);
-                    }}
-                    icon={faPlus}
-                  />
-              </div>
+              <Button variant="outline-primary" onClick={handleNormalize}>
+                <Icon icon={faSquarePollHorizontal} className="mr-4" />
+                Normalizar
+              </Button>
+              <Button variant="outline-primary" onClick={downloadSeries}>
+                <Icon icon={faFileCsv} className="mr-4" />
+                Descargar
+              </Button>              
+              <Button variant="primary" onClick={handleShowModal}>
+                <Icon icon={faPlus} className="mr-4" />
+                Anadir Moneda
+              </Button>                
             </Toolbar>
           </div>
-        </div>
+        </Row>
         <Row>
           <Col>
             <Chart chartHeight={800}>
@@ -291,7 +301,7 @@ export default function CurrecnyViewer() {
                   </td>
                   <td>
                       <Button aria-label="descargar" variant="outline-primary">
-                        <FontAwesomeIcon
+                        <Icon
                           size="xs"
                           icon={faClose}
                           onClick={() => handleRemoveSerie(data.name)}

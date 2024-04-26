@@ -11,32 +11,25 @@ import {
 } from '@models/lightserie';
 import { ExportToCsv, downloadBlob } from '@components/csvDownload/cscDownload';
 import {
-  faDollarSign,
+  faCaretRight,
   faFileCsv,
-  faLongArrowAltRight,
+  faMoneyBill,
 } from '@fortawesome/free-solid-svg-icons';
 import { toast } from 'react-toastify';
-import ToolbarItem from '@components/UI/Toolbar/ToolbarItem';
 import {
   TesYields,
   CandleSerie,
   TesEntryToArray,
 } from '@models/tes';
-import Toolbar from '@components/UI/Toolbar';
 import tokens from 'design-tokens/tokens.json';
 import Chart from '@components/chart/Chart';
+import { FontAwesomeIcon as Icon } from '@fortawesome/react-fontawesome';
 import { MovingAvgValue } from '@models/movingAvg';
+import Toolbar from '@components/UI/Toolbar';
+import PageTitle from '@components/PageTitle';
 
-const TOOLBAR_ITEMS = [
-  {
-    name: 'USD:COP',
-    property: 'USD:COP',
-    icon: faDollarSign,
-  }
-];
 
 const MONTH_OPTIONS = [20, 30, 50];
-
 const designSystem = tokens.xerenity;
 const PURPLE_COLOR = designSystem['purple-100'].value;
 const GRAY_COLOR_300 = designSystem['gray-300'].value;
@@ -50,7 +43,6 @@ export default function CurrecnyViewer() {
     name: '',
     values: [],
   });
-
 
   const currencyName = useRef<string>('USD:COP');
 
@@ -113,13 +105,6 @@ export default function CurrecnyViewer() {
       }
     },[supabase]);  
 
-
-    const handleCurrencyChange = (chosenCurrency: string) => {
-      currencyName.current=chosenCurrency;
-      fetchCurrencyRawData();
-      fecthMovingAverag();
-    };
-
   const handleMonthChange = (eventKey: number) => {
     movingAvgDays.current=eventKey;
     fecthMovingAverag();
@@ -141,51 +126,47 @@ export default function CurrecnyViewer() {
     downloadBlob(csv, `xerenity_${currencyName.current}.csv`, 'text/csv;charset=utf-8;');
   };
 
+
   return (
     <CoreLayout>
-      <Container fluid>
-        <div className="row">
-          <div className="col-xs-12 py-3">
+      <Container fluid className="px-4">
+        <Row>
+          <div className="d-flex align-items-center gap-2 py-1">
+            <PageTitle>
+              <Icon icon={faMoneyBill} size="1x" />
+              <h4>USD:COP</h4>
+            </PageTitle>
+          </div>
+        </Row>        
+        <Row>
+          <div className="d-flex justify-content-end pb-3">
             <Toolbar>
-              <div className="section">
-                {TOOLBAR_ITEMS.map(({ name, property, icon }) => (
-                  <ToolbarItem
-                    className="py-3"
-                    key={name}
-                    name={name}
-                    onClick={() => handleCurrencyChange(property)}
-                    icon={icon}
-                  />
-                ))}
-              </div>
-              <div className="section">
-                <Dropdown>
-                  <Dropdown.Toggle>{OPCIONES}</Dropdown.Toggle>
-                  <Dropdown.Menu>
-                    <Dropdown.Item>
-                      <ToolbarItem
-                        name="Descargar"
-                        onClick={downloadGrid}
-                        icon={faFileCsv}
-                      />
+              <Dropdown>
+                <Dropdown.Toggle>{OPCIONES}</Dropdown.Toggle>
+                <Dropdown.Menu>
+                  <Dropdown.Item onClick={downloadGrid}>
+                    <div className="d-flex gap-2 align-items-center">
+                      <Icon icon={faFileCsv} />
+                      <span>Descargar</span>
+                    </div>
+                  </Dropdown.Item>
+                  <DropdownDivider />
+                  {MONTH_OPTIONS.map((month) => (
+                    <Dropdown.Item
+                      key={month}
+                      onClick={() => handleMonthChange(month)}
+                    >
+                      <div className="d-flex gap-2 align-items-center">
+                        <Icon icon={faCaretRight} />
+                        <span>{`Promedio Movil ${month}`}</span>
+                      </div>
                     </Dropdown.Item>
-                    <DropdownDivider />
-                    {MONTH_OPTIONS.map((month) => (
-                      <Dropdown.Item key={month}>
-                        <ToolbarItem
-                          name={`Promedio Movil ${month}`}
-                          onClick={() => handleMonthChange(month)}
-                          icon={faLongArrowAltRight}
-                          key={month}
-                        />
-                      </Dropdown.Item>
-                    ))}                    
-                  </Dropdown.Menu>
-                </Dropdown>
-              </div>
+                  ))}
+                </Dropdown.Menu>
+              </Dropdown>              
             </Toolbar>
           </div>
-        </div>
+        </Row>
         <Row>
           <Col>
             <Chart chartHeight={800}>
