@@ -263,10 +263,11 @@ export default function NextPage() {
         saveCallback={() => borrarCredito(eraseLoan)}
         saveMessage="Borrar"
         title="Confirmar"
-        message="Desea Borrar el credito"
         display={showConfirm}
         icon={faExclamation}
-      />
+      >
+        Desea Borrar el credito?
+      </SimpleModal>
       <Container fluid className="px-4">
         <Row>
           <div className="d-flex align-items-center gap-2 py-1">
