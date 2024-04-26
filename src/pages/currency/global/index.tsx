@@ -240,7 +240,7 @@ export default function CurrecnyViewer() {
           <div className="d-flex align-items-center gap-2 py-1">
             <PageTitle>
               <Icon icon={faMoneyBill} size="1x" />
-              <h4>Monedas</h4>
+              <h4>Global</h4>
             </PageTitle>
           </div>
         </Row>        

@@ -134,7 +134,7 @@ export default function CurrecnyViewer() {
           <div className="d-flex align-items-center gap-2 py-1">
             <PageTitle>
               <Icon icon={faMoneyBill} size="1x" />
-              <h4>USD:COP</h4>
+              <h4>COP</h4>
             </PageTitle>
           </div>
         </Row>        
@@ -180,15 +180,12 @@ export default function CurrecnyViewer() {
                   title={currencyName.current}
                   color={GRAY_COLOR_300}
                 />
-                {
-                  movingAvg?(<Chart.Line
-                        data={movingAvg}
-                        color={PURPLE_COLOR}
-                        scaleId='right'
-                        title={currencyName.current}
-                  />)
-                  :(null)
-                }                
+                <Chart.Line
+                  data={movingAvg}
+                  color={PURPLE_COLOR}
+                  scaleId='right'
+                  title={currencyName.current}
+                />               
             </Chart>
           </Col>
         </Row>

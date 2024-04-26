@@ -54,13 +54,13 @@ const NAV_ITEMS: NavItemProps[] = [
 const NAV_ITEMS_OVERLAY: NavItemProps[] = [
   {
     name: 'USD:COP',
-    path: '/currency/usdcop',
+    path: '/currency/cop',
     icon: faMoneyBill,
     active: false,
   },
   {
     name: 'monedas',
-    path: '/currency/others',
+    path: '/currency/global',
     icon: faMoneyBill,
     active: false,
   }
