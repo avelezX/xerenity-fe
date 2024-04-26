@@ -1,3 +1,4 @@
+import { FC } from 'react';
 import {
   Button as BsButton,
   ButtonProps as BsButtonProps,
