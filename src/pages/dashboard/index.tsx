@@ -3,9 +3,7 @@
 import { CoreLayout } from '@layout';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import {
-  Table,
   Stack,
-  ListGroup,
   Offcanvas,
   Spinner,
   Row,
@@ -30,10 +28,11 @@ import {
 import { FontAwesomeIcon as Icon } from '@fortawesome/react-fontawesome';
 import {
   faSquarePollHorizontal,
-  faClose,
   faFileCsv,
   faMagnifyingGlass,
   faChartSimple,
+  faTrash,
+  faLineChart,
 } from '@fortawesome/free-solid-svg-icons';
 import SeriePicker from '@components/serie/SeriePicker';
 import { ExportToCsv, downloadBlob } from '@components/csvDownload/cscDownload';
@@ -43,6 +42,7 @@ import Toolbar from '@components/UI/Toolbar';
 import Chart from '@components/chart/Chart';
 import Button from '@components/UI/Button';
 import PageTitle from '@components/PageTitle';
+import Card from '@components/UI/Card';
 
 export default function Dashboard() {
   const supabase = createClientComponentClient();
@@ -290,58 +290,26 @@ export default function Dashboard() {
             </Chart>
           </Col>
         </Row>
-        <Row>
-          <Col>
-            <Table
-              bordered
-              hover
-              responsive="sm"
-              style={{ textAlign: 'center' }}
-            >
-              <thead>
-                <tr>
-                  <th>Nombre</th>
-                  <th>Descripcion</th>
-                  <th>Fuente</th>
-                  <th style={{ width: '2%' }}> Quitar</th>
-                </tr>
-              </thead>
-              <tbody>
-                {Array.from(serieNameInfo.entries()).map(([key, value]) => [
-                  selectedSeries.has(key) ? (
-                    <tr key={`t-row-serie${key}`}>
-                      <td>
-                        <ListGroup>
-                          <ListGroup.Item
-                            style={{
-                              backgroundColor: selectedSeries.get(key)?.color,
-                            }}
-                          >
-                            {value.display_name}
-                          </ListGroup.Item>
-                        </ListGroup>
-                      </td>
-                      <td>{value.description}</td>
-                      <td>{value.fuente}</td>
-                      <td>
-                        <Button
-                          aria-label="descargar"
-                          variant="outline-primary"
-                        >
-                          <Icon
-                            size="xs"
-                            icon={faClose}
-                            onClick={() => handleRemoveSerie(value.source_name)}
-                          />
-                        </Button>
-                      </td>
-                    </tr>
-                  ) : null,
-                ])}
-              </tbody>
-            </Table>
-          </Col>
-        </Row>
+        <div className="d-flex flex-column gap-3 py-3">
+          {Array.from(serieNameInfo.entries()).map(([key, value]) => [
+            selectedSeries.has(key) && (
+              <Card
+                title={value.display_name}
+                icon={faLineChart}
+                color={selectedSeries.get(key)?.color}
+                actions={[
+                  {
+                    name: 'delete',
+                    actionIcon: faTrash,
+                    actionEvent: () => handleRemoveSerie(value.source_name),
+                  },
+                ]}
+                description={value.description}
+                fuente={value.fuente}
+              />
+            ),
+          ])}
+        </div>
       </Container>
       <Offcanvas
         id="offcanvasNavbar-expand-false"
