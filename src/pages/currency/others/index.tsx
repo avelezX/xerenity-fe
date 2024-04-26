@@ -2,9 +2,9 @@
 
 import { CoreLayout } from '@layout';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
-import { Row, Col, Table, DropdownDivider, Button} from 'react-bootstrap';
+import { Row, Col, Table, Button} from 'react-bootstrap';
 import Dropdown from 'react-bootstrap/Dropdown';
-import React, { useState,  useCallback,  useRef, useEffect } from 'react';
+import React, { useState,  useCallback,  useRef } from 'react';
 import Container from 'react-bootstrap/Container';
 import {
   LightSerie,
@@ -15,35 +15,20 @@ import {
   faAlignJustify,
   faClose,
   faDollarSign,
-  faEuro,
-  faFileCsv,
-  faLongArrowAltRight,
   faPlus,
 } from '@fortawesome/free-solid-svg-icons';
 import { toast } from 'react-toastify';
 import ToolbarItem from '@components/UI/Toolbar/ToolbarItem';
-import {
-  TesYields,
-  CandleSerie,
-  TesEntryToArray,
-} from '@models/tes';
+
 import Toolbar from '@components/UI/Toolbar';
 import tokens from 'design-tokens/tokens.json';
 import Chart from '@components/chart/Chart';
-import NewPrevTag from '@components/price/NewPrevPriceTag';
-import { MovingAvgValue } from '@models/movingAvg';
-import { CurrencySerie } from '@models/currency';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import SimpleModal from '@components/modals/genericModal';
-import Circle from '@uiw/react-color-circle';
 
-
-const MONTH_OPTIONS = [20, 30, 50];
 const designSystem = tokens.xerenity;
-const PURPLE_COLOR = designSystem['purple-100'].value;
 const GRAY_COLOR_300 = designSystem['gray-300'].value;
-const OPCIONES = 'Opciones';
-const ALL_COINS=["NOK", "JPY", "CHF", "SEK", "HUF", "PLN", "CNY", "INR", "IDR", "HKD", "MYR", "SGD", "USD" ,"EUR","COP"];
+const ALL_COINS=["NOK", "JPY", "CHF", "SEK", "HUF", "PLN", "CNY", "INR", "IDR", "HKD", "MYR", "SGD", "USD" ,"EUR","COP","MXN", "BRL", "AUD"];
 
 
 
@@ -270,13 +255,13 @@ export default function CurrecnyViewer() {
         <Row>
           <Col>
             <Chart chartHeight={800}>
-              {Array.from(selectedSeries.values()).map((data,index)=>(
+              {Array.from(selectedSeries.values()).map((data)=>(
                 <Chart.Line
                   key={`chart-${data.name}`}
                   data={data.serie}
                   color={data.color}
                   title={data.name}
-                  scaleId={(index +1) %2 === 0 ? 'right':'left'}
+                  scaleId='right'
                   applyFunctions={applyFunctions}
                 />
               ))}                              
