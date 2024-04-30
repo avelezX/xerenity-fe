@@ -244,6 +244,13 @@ export default function Dashboard() {
     }
   };
 
+  function decideAxis(index:number) {
+    if(normalize.current){
+      return 'right';
+    }
+    return  index % 2 === 0 ? 'right' : 'left';
+  };
+
   return (
     <CoreLayout>
       <Container fluid className="px-4">
@@ -283,7 +290,7 @@ export default function Dashboard() {
                   data={data.serie}
                   color={data.color}
                   title={data.name}
-                  scaleId={index % 2 === 0 ? 'right' : 'left'}
+                  scaleId={decideAxis(index)}
                   applyFunctions={applyFunctions}
                 />
               ))}
