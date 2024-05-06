@@ -1,29 +1,12 @@
-import { useState, useEffect, useRef, PropsWithChildren } from 'react';
-import { useRouter } from 'next/router';
-import { Nav, NavItem } from 'react-bootstrap';
-import { FontAwesomeIcon as Icon } from '@fortawesome/react-fontawesome';
+import { useState, useEffect } from 'react';
 import {
   faChartSimple,
   faLandmark,
-  IconDefinition,
   faLineChart,
   faMoneyBill,
 } from '@fortawesome/free-solid-svg-icons';
-import Overlay from 'react-bootstrap/Overlay';
-import Popover from 'react-bootstrap/Popover';
-
-type NavItemProps = {
-  name: string;
-  path: string;
-  icon: IconDefinition;
-  active: boolean;
-};
-
-type NavItemPropsOverlay = {
-  name: string;
-  icon: IconDefinition;
-  active: boolean;
-} & PropsWithChildren;
+import SubNavItem from './SubNavItem';
+import NavigationItem, { NavItemProps } from './NavigationItem';
 
 type SidebarNavProps = {
   currentPath: string;
@@ -50,7 +33,7 @@ const NAV_ITEMS: NavItemProps[] = [
   },
 ];
 
-const NAV_ITEMS_OVERLAY: NavItemProps[] = [
+const MONEDAS_SUBNAV: NavItemProps[] = [
   {
     name: 'Peso Colombiano',
     path: '/currency/cop',
@@ -65,46 +48,7 @@ const NAV_ITEMS_OVERLAY: NavItemProps[] = [
   },
 ];
 
-const NavigationItem = (props: NavItemProps) => {
-  const router = useRouter();
-  const { active, icon, name, path } = props;
-  return (
-    <NavItem
-      className={active ? 'active' : ''}
-      onClick={() => router.push(path)}
-    >
-      <Nav.Link>
-        <Icon className="mr-5" icon={icon} />
-        <span>{name}</span>
-      </Nav.Link>
-    </NavItem>
-  );
-};
-
-const NavigationItemOverlay = (props: NavItemPropsOverlay) => {
-  const { active, icon, name, children } = props;
-  const [show, setShow] = useState(false);
-  const target = useRef(null);
-  return (
-    <>
-      <Overlay target={target.current} show={show} placement="right">
-        <Popover id="popover-basic">
-          <Popover.Body>{children}</Popover.Body>
-        </Popover>
-      </Overlay>
-      <NavItem
-        className={active ? 'active' : ''}
-        ref={target}
-        onClick={() => setShow(!show)}
-      >
-        <Nav.Link>
-          <Icon className="mr-5" icon={icon} />
-          <span>{name}</span>
-        </Nav.Link>
-      </NavItem>
-    </>
-  );
-};
+const MONEDAS_PREFIX = '/currency';
 
 const SidebarNavList = ({ currentPath }: SidebarNavProps) => {
   const [navLinks, setNavLinks] = useState<NavItemProps[]>([]);
@@ -112,7 +56,7 @@ const SidebarNavList = ({ currentPath }: SidebarNavProps) => {
   useEffect(() => {
     const links = NAV_ITEMS.map((item) => ({
       ...item,
-      active: item.path === currentPath,
+      active: item.path.includes(currentPath),
     }));
     setNavLinks(links);
   }, [currentPath]);
@@ -129,18 +73,21 @@ const SidebarNavList = ({ currentPath }: SidebarNavProps) => {
             key={`${name}${path}`}
           />
         ))}
-      <NavigationItemOverlay name="Monedas" icon={faMoneyBill} active={false}>
-        {NAV_ITEMS_OVERLAY?.length > 0 &&
-          NAV_ITEMS_OVERLAY.map(({ active, name, path, icon }) => (
-            <NavigationItem
-              active={active}
-              name={name}
-              path={path}
-              icon={icon}
-              key={`${name}${path}`}
-            />
-          ))}
-      </NavigationItemOverlay>
+      <SubNavItem
+        name="Monedas"
+        icon={faMoneyBill}
+        active={currentPath.includes(MONEDAS_PREFIX)}
+      >
+        {MONEDAS_SUBNAV.map(({ name, path, icon }) => (
+          <NavigationItem
+            active={currentPath.includes(path)}
+            name={name}
+            path={path}
+            icon={icon}
+            key={`${name}${path}`}
+          />
+        ))}
+      </SubNavItem>
     </ul>
   );
 };
