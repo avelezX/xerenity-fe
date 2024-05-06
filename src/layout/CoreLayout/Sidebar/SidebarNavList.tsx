@@ -1,28 +1,12 @@
-import { useState, useEffect, useRef, PropsWithChildren } from 'react';
-import { useRouter } from 'next/router';
-import { Nav, NavItem } from 'react-bootstrap';
-import { FontAwesomeIcon as Icon } from '@fortawesome/react-fontawesome';
+import { useState, useEffect } from 'react';
 import {
   faChartSimple,
   faLandmark,
-  IconDefinition,
   faLineChart,
   faMoneyBill,
 } from '@fortawesome/free-solid-svg-icons';
-import SubNavOverlay from '@components/UI/SubNavOverlay';
-
-type NavItemProps = {
-  name: string;
-  path: string;
-  icon: IconDefinition;
-  active: boolean;
-};
-
-type NavItemPropsOverlay = {
-  name: string;
-  icon: IconDefinition;
-  active: boolean;
-} & PropsWithChildren;
+import SubNavItem from './SubNavItem';
+import NavigationItem, { NavItemProps } from './NavigationItem';
 
 type SidebarNavProps = {
   currentPath: string;
@@ -64,44 +48,7 @@ const MONEDAS_SUBNAV: NavItemProps[] = [
   },
 ];
 
-const NavigationItem = (props: NavItemProps) => {
-  const router = useRouter();
-  const { active, icon, name, path } = props;
-  return (
-    <NavItem
-      className={active ? 'active' : ''}
-      onClick={() => router.push(path)}
-    >
-      <Nav.Link>
-        <Icon className="mr-5" icon={icon} />
-        <span>{name}</span>
-      </Nav.Link>
-    </NavItem>
-  );
-};
-
-const SubNavItem = (props: NavItemPropsOverlay) => {
-  const { active, icon, name, children } = props;
-  const [show, setShow] = useState(false);
-  const target = useRef<HTMLDivElement>(null);
-  return (
-    <>
-      <SubNavOverlay target={target} show={show} onHide={() => setShow(false)}>
-        {children}
-      </SubNavOverlay>
-      <NavItem
-        className={active ? 'active' : ''}
-        ref={target}
-        onClick={() => setShow(!show)}
-      >
-        <Nav.Link>
-          <Icon className="mr-5" icon={icon} />
-          <span>{name}</span>
-        </Nav.Link>
-      </NavItem>
-    </>
-  );
-};
+const MONEDAS_PREFIX = '/currency';
 
 const SidebarNavList = ({ currentPath }: SidebarNavProps) => {
   const [navLinks, setNavLinks] = useState<NavItemProps[]>([]);
@@ -109,7 +56,7 @@ const SidebarNavList = ({ currentPath }: SidebarNavProps) => {
   useEffect(() => {
     const links = NAV_ITEMS.map((item) => ({
       ...item,
-      active: item.path === currentPath,
+      active: item.path.includes(currentPath),
     }));
     setNavLinks(links);
   }, [currentPath]);
@@ -126,10 +73,14 @@ const SidebarNavList = ({ currentPath }: SidebarNavProps) => {
             key={`${name}${path}`}
           />
         ))}
-      <SubNavItem name="Monedas" icon={faMoneyBill} active={false}>
-        {MONEDAS_SUBNAV.map(({ active, name, path, icon }) => (
+      <SubNavItem
+        name="Monedas"
+        icon={faMoneyBill}
+        active={currentPath.includes(MONEDAS_PREFIX)}
+      >
+        {MONEDAS_SUBNAV.map(({ name, path, icon }) => (
           <NavigationItem
-            active={active}
+            active={currentPath.includes(path)}
             name={name}
             path={path}
             icon={icon}
