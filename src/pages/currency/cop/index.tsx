@@ -2,13 +2,11 @@
 
 import { CoreLayout } from '@layout';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
-import { Row, Col, DropdownDivider} from 'react-bootstrap';
+import { Row, Col, DropdownDivider } from 'react-bootstrap';
 import Dropdown from 'react-bootstrap/Dropdown';
-import React, { useState,  useCallback,  useRef, useEffect } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import Container from 'react-bootstrap/Container';
-import {
-  LightSerieValue,
-} from '@models/lightserie';
+import { LightSerieValue } from '@models/lightserie';
 import { ExportToCsv, downloadBlob } from '@components/csvDownload/cscDownload';
 import {
   faCaretRight,
@@ -16,18 +14,13 @@ import {
   faMoneyBill,
 } from '@fortawesome/free-solid-svg-icons';
 import { toast } from 'react-toastify';
-import {
-  TesYields,
-  CandleSerie,
-  TesEntryToArray,
-} from '@models/tes';
+import { TesYields, CandleSerie, TesEntryToArray } from '@models/tes';
 import tokens from 'design-tokens/tokens.json';
 import Chart from '@components/chart/Chart';
 import { FontAwesomeIcon as Icon } from '@fortawesome/react-fontawesome';
 import { MovingAvgValue } from '@models/movingAvg';
 import Toolbar from '@components/UI/Toolbar';
 import PageTitle from '@components/PageTitle';
-
 
 const MONTH_OPTIONS = [20, 30, 50];
 const designSystem = tokens.xerenity;
@@ -46,74 +39,70 @@ export default function CurrecnyViewer() {
 
   const currencyName = useRef<string>('USD:COP');
 
-  const [volumenSerie,setvolumenSerie] = useState<LightSerieValue[]>([]);
+  const [volumenSerie, setvolumenSerie] = useState<LightSerieValue[]>([]);
 
   const movingAvgDays = useRef<number>(20);
 
   const [movingAvg, setMovingAvg] = useState<LightSerieValue[]>([]);
 
   const fetchCurrencyRawData = useCallback(async () => {
-      
-      const { data, error } = await supabase.schema('xerenity').rpc('currency_exchange',{currency_name:currencyName.current});
+    const { data, error } = await supabase
+      .schema('xerenity')
+      .rpc('currency_exchange', { currency_name: currencyName.current });
 
-      if (error) {
-        setCandleSerie({ name: '', values: [] });
-        toast.error(error.message);
-      }else if (data) {
-        const allData=data as TesYields[];
+    if (error) {
+      setCandleSerie({ name: '', values: [] });
+      toast.error(error.message);
+    } else if (data) {
+      const allData = data as TesYields[];
 
-        const volData:{ time: string; value: number }[] = [];
+      const volData: { time: string; value: number }[] = [];
 
-        allData.forEach((tes) => {
-          volData.push({time:tes.day.split('T')[0],value:tes.volume});
-        });
+      allData.forEach((tes) => {
+        volData.push({ time: tes.day.split('T')[0], value: tes.volume });
+      });
 
-        setvolumenSerie(volData);
-        setCandleSerie({ name: '', values: allData });
-        
-      } else {
-        setCandleSerie({ name: '', values: [] });
-      }
-    },
-    [supabase]
-  );
+      setvolumenSerie(volData);
+      setCandleSerie({ name: '', values: allData });
+    } else {
+      setCandleSerie({ name: '', values: [] });
+    }
+  }, [supabase]);
 
-  const fecthMovingAverag = useCallback(
-    async (
-    ) => {
-      if(currencyName.current){
-        const {data,error} = await supabase
+  const fecthMovingAverag = useCallback(async () => {
+    if (currencyName.current) {
+      const { data, error } = await supabase
         .schema('xerenity')
         .rpc('currency_moving_average', {
           currency_name: currencyName.current,
           average_days: movingAvgDays.current,
         });
 
-        if(error){
-          toast.error(error.message, { position: toast.POSITION.TOP_CENTER });
-        }else if (data) {
-          const avgValues = data.moving_avg as MovingAvgValue[];
-          const avgSerie = Array<LightSerieValue>();
-          avgValues.forEach((avgval) => {
-            avgSerie.push({
-              value: avgval.avg,
-              time: avgval.close_date.split('T')[0],
-            });
+      if (error) {
+        toast.error(error.message, { position: toast.POSITION.TOP_CENTER });
+      } else if (data) {
+        const avgValues = data.moving_avg as MovingAvgValue[];
+        const avgSerie = Array<LightSerieValue>();
+        avgValues.forEach((avgval) => {
+          avgSerie.push({
+            value: avgval.avg,
+            time: avgval.close_date.split('T')[0],
           });
-          setMovingAvg(avgSerie);
+        });
+        setMovingAvg(avgSerie);
       }
-      }
-    },[supabase]);  
+    }
+  }, [supabase]);
 
   const handleMonthChange = (eventKey: number) => {
-    movingAvgDays.current=eventKey;
+    movingAvgDays.current = eventKey;
     fecthMovingAverag();
-  };  
+  };
 
   useEffect(() => {
     fetchCurrencyRawData();
     fecthMovingAverag();
-  }, [fetchCurrencyRawData,fecthMovingAverag]);
+  }, [fetchCurrencyRawData, fecthMovingAverag]);
 
   const downloadGrid = () => {
     const allValues: string[][] = [];
@@ -123,9 +112,12 @@ export default function CurrecnyViewer() {
     });
 
     const csv = ExportToCsv(allValues);
-    downloadBlob(csv, `xerenity_${currencyName.current}.csv`, 'text/csv;charset=utf-8;');
+    downloadBlob(
+      csv,
+      `xerenity_${currencyName.current}.csv`,
+      'text/csv;charset=utf-8;'
+    );
   };
-
 
   return (
     <CoreLayout>
@@ -134,10 +126,10 @@ export default function CurrecnyViewer() {
           <div className="d-flex align-items-center gap-2 py-1">
             <PageTitle>
               <Icon icon={faMoneyBill} size="1x" />
-              <h4>COP</h4>
+              <h4>Peso Colombiano</h4>
             </PageTitle>
           </div>
-        </Row>        
+        </Row>
         <Row>
           <div className="d-flex justify-content-end pb-3">
             <Toolbar>
@@ -163,29 +155,26 @@ export default function CurrecnyViewer() {
                     </Dropdown.Item>
                   ))}
                 </Dropdown.Menu>
-              </Dropdown>              
+              </Dropdown>
             </Toolbar>
           </div>
         </Row>
         <Row>
           <Col>
             <Chart chartHeight={800}>
-                <Chart.Candle
-                  data={candleSerie.values}
-                  scaleId='right'
-                />
-                <Chart.Volume
-                  data={volumenSerie}
-                  scaleId='left'
-                  title={currencyName.current}
-                  color={GRAY_COLOR_300}
-                />
-                <Chart.Line
-                  data={movingAvg}
-                  color={PURPLE_COLOR}
-                  scaleId='right'
-                  title={currencyName.current}
-                />               
+              <Chart.Candle data={candleSerie.values} scaleId="right" />
+              <Chart.Volume
+                data={volumenSerie}
+                scaleId="left"
+                title={currencyName.current}
+                color={GRAY_COLOR_300}
+              />
+              <Chart.Line
+                data={movingAvg}
+                color={PURPLE_COLOR}
+                scaleId="right"
+                title={currencyName.current}
+              />
             </Chart>
           </Col>
         </Row>

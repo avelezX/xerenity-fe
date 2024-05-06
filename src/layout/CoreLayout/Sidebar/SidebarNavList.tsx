@@ -9,8 +9,7 @@ import {
   faLineChart,
   faMoneyBill,
 } from '@fortawesome/free-solid-svg-icons';
-import Overlay from 'react-bootstrap/Overlay';
-import Popover from 'react-bootstrap/Popover';
+import SubNavOverlay from '@components/UI/SubNavOverlay';
 
 type NavItemProps = {
   name: string;
@@ -50,7 +49,7 @@ const NAV_ITEMS: NavItemProps[] = [
   },
 ];
 
-const NAV_ITEMS_OVERLAY: NavItemProps[] = [
+const MONEDAS_SUBNAV: NavItemProps[] = [
   {
     name: 'Peso Colombiano',
     path: '/currency/cop',
@@ -81,17 +80,15 @@ const NavigationItem = (props: NavItemProps) => {
   );
 };
 
-const NavigationItemOverlay = (props: NavItemPropsOverlay) => {
+const SubNavItem = (props: NavItemPropsOverlay) => {
   const { active, icon, name, children } = props;
   const [show, setShow] = useState(false);
-  const target = useRef(null);
+  const target = useRef<HTMLDivElement>(null);
   return (
     <>
-      <Overlay target={target.current} show={show} placement="right">
-        <Popover id="popover-basic">
-          <Popover.Body>{children}</Popover.Body>
-        </Popover>
-      </Overlay>
+      <SubNavOverlay target={target} show={show} onHide={() => setShow(false)}>
+        {children}
+      </SubNavOverlay>
       <NavItem
         className={active ? 'active' : ''}
         ref={target}
@@ -129,18 +126,17 @@ const SidebarNavList = ({ currentPath }: SidebarNavProps) => {
             key={`${name}${path}`}
           />
         ))}
-      <NavigationItemOverlay name="Monedas" icon={faMoneyBill} active={false}>
-        {NAV_ITEMS_OVERLAY?.length > 0 &&
-          NAV_ITEMS_OVERLAY.map(({ active, name, path, icon }) => (
-            <NavigationItem
-              active={active}
-              name={name}
-              path={path}
-              icon={icon}
-              key={`${name}${path}`}
-            />
-          ))}
-      </NavigationItemOverlay>
+      <SubNavItem name="Monedas" icon={faMoneyBill} active={false}>
+        {MONEDAS_SUBNAV.map(({ active, name, path, icon }) => (
+          <NavigationItem
+            active={active}
+            name={name}
+            path={path}
+            icon={icon}
+            key={`${name}${path}`}
+          />
+        ))}
+      </SubNavItem>
     </ul>
   );
 };
