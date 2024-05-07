@@ -5,7 +5,7 @@ export interface LightSerieValue {
   time: string;
 }
 
-export function LightSerieValueArray(entry: LightSerieValue) {
+export function lightSerieValueArray(entry: LightSerieValue) {
   return [entry.time.toString(), entry.value.toFixed(2).toString()];
 }
 
@@ -35,7 +35,7 @@ export interface LightSerie {
   serie: LightSerieValue[];
   type: 'bar' | 'line';
   priceFormat: PriceFormat | CustomFormat;
-  axisName?:'left'| 'right' | string;
+  axisName?: 'left' | 'right' | string;
 }
 
 export const defaultPriceFormat: PriceFormat = {

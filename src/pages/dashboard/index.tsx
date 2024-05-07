@@ -22,7 +22,7 @@ import {
   LightSerie,
   LightSerieValue,
   LightSerieEntry,
-  LightSerieValueArray,
+  lightSerieValueArray,
   defaultPriceFormat,
 } from '@models/lightserie';
 import { FontAwesomeIcon as Icon } from '@fortawesome/react-fontawesome';
@@ -226,7 +226,7 @@ export default function Dashboard() {
 
     Array.from(selectedSeries.values()).forEach((value) => {
       value.serie.forEach((entry) => {
-        allValues.push([value.name].concat(LightSerieValueArray(entry)));
+        allValues.push([value.name].concat(lightSerieValueArray(entry)));
       });
     });
 
@@ -244,12 +244,12 @@ export default function Dashboard() {
     }
   };
 
-  function decideAxis(index:number) {
-    if(normalize.current){
+  function decideAxis(index: number) {
+    if (normalize.current) {
       return 'right';
     }
-    return  index % 2 === 0 ? 'right' : 'left';
-  };
+    return index % 2 === 0 ? 'right' : 'left';
+  }
 
   return (
     <CoreLayout>
