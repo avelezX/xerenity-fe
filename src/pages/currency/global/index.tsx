@@ -24,7 +24,7 @@ import { FontAwesomeIcon as Icon } from '@fortawesome/react-fontawesome';
 import Toolbar from '@components/UI/Toolbar';
 import Button from '@components/UI/Button';
 import PageTitle from '@components/PageTitle';
-import randomColor from 'src/utils/generateRandomColor';
+import getRandomColor from 'src/utils/getRandomColor';
 import MonedasModal from './MonedasModal';
 
 const designSystem = tokens.xerenity;
@@ -218,7 +218,7 @@ export default function CurrecnyViewer() {
                     <td>
                       <Button
                         onClick={() =>
-                          handleColorChnage(data.name, randomColor())
+                          handleColorChnage(data.name, getRandomColor())
                         }
                       >
                         Cambiar color

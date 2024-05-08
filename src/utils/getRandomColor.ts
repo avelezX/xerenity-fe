@@ -1,4 +1,4 @@
-const randomColor = (): string => {
+const getRandomColor = (): string => {
   let result = '';
   for (let i = 0; i < 6; i += 1) {
     const value = Math.floor(16 * Math.random());
@@ -7,4 +7,4 @@ const randomColor = (): string => {
   return `#${result}`;
 };
 
-export default randomColor;
+export default getRandomColor;
