@@ -16,12 +16,11 @@ import 'react-toastify/dist/ReactToastify.css';
 import { FontAwesomeIcon as Icon } from '@fortawesome/react-fontawesome';
 import { faTrashCan } from '@fortawesome/free-regular-svg-icons';
 import {
-  faExclamation,
   faFileCsv,
   faMoneyBill,
   faLandmark,
 } from '@fortawesome/free-solid-svg-icons';
-import SimpleModal from '@components/modals/genericModal';
+import Modal from '@components/UI/Modal';
 import PriceTagTd from '@components/price/CopDisplay';
 
 import Toolbar from '@components/UI/Toolbar';
@@ -34,6 +33,10 @@ import PageTitle from '@components/PageTitle';
 const designSystem = tokens.xerenity;
 const PURPLE_COLOR_100 = designSystem['purple-100'].value;
 const GREY_COLOR_300 = designSystem['gray-300'].value;
+const CONFIRMATION_TXT = 'Desea Borrar El Crédito?';
+const MODAL_TITLE = 'Borrar Crédito';
+const MODA_SAVE_TXT = 'Borrar';
+const MODAL_CANCEL_TXT = 'Cancelar';
 
 export default function NextPage() {
   const supabase = createClientComponentClient();
@@ -257,17 +260,6 @@ export default function NextPage() {
         showCallBack={setShowDialog}
       />
       <ToastContainer />
-      <SimpleModal
-        cancelCallback={() => setShowConfirm(false)}
-        cancelMessage="Cancelar"
-        saveCallback={() => borrarCredito(eraseLoan)}
-        saveMessage="Borrar"
-        title="Confirmar"
-        display={showConfirm}
-        icon={faExclamation}
-      >
-        Desea Borrar el credito?
-      </SimpleModal>
       <Container fluid className="px-4">
         <Row>
           <div className="d-flex align-items-center gap-2 py-1">
@@ -425,6 +417,16 @@ export default function NextPage() {
           </Col>
         </Row>
       </Container>
+      <Modal
+        cancelCallback={() => setShowConfirm(false)}
+        cancelMessage={MODAL_CANCEL_TXT}
+        saveCallback={() => borrarCredito(eraseLoan)}
+        saveMessage={MODA_SAVE_TXT}
+        title={MODAL_TITLE}
+        display={showConfirm}
+      >
+        {CONFIRMATION_TXT}
+      </Modal>
     </CoreLayout>
   );
 }

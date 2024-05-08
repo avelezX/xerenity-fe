@@ -26,7 +26,7 @@ const MONTH_OPTIONS = [20, 30, 50];
 const designSystem = tokens.xerenity;
 const PURPLE_COLOR = designSystem['purple-100'].value;
 const GRAY_COLOR_300 = designSystem['gray-300'].value;
-
+const PAGE_TITLE = 'Monedas: Peso Colombiano';
 const OPCIONES = 'Opciones';
 
 export default function CurrecnyViewer() {
@@ -126,7 +126,7 @@ export default function CurrecnyViewer() {
           <div className="d-flex align-items-center gap-2 py-1">
             <PageTitle>
               <Icon icon={faMoneyBill} size="1x" />
-              <h4>Peso Colombiano</h4>
+              <h4>{PAGE_TITLE}</h4>
             </PageTitle>
           </div>
         </Row>
