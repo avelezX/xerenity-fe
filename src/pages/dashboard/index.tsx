@@ -43,6 +43,7 @@ import Chart from '@components/chart/Chart';
 import Button from '@components/UI/Button';
 import PageTitle from '@components/PageTitle';
 import Card from '@components/UI/Card';
+import CardGrid from '@components/UI/CardGrid';
 
 export default function Dashboard() {
   const supabase = createClientComponentClient();
@@ -297,7 +298,7 @@ export default function Dashboard() {
             </Chart>
           </Col>
         </Row>
-        <div className="d-flex flex-column gap-3 py-3">
+        <CardGrid>
           {Array.from(serieNameInfo.entries()).map(([key, value]) => [
             selectedSeries.has(key) && (
               <Card
@@ -316,7 +317,7 @@ export default function Dashboard() {
               />
             ),
           ])}
-        </div>
+        </CardGrid>
       </Container>
       <Offcanvas
         id="offcanvasNavbar-expand-false"
