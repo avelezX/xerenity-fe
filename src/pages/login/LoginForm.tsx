@@ -1,6 +1,5 @@
 import { FontAwesomeIcon as Icon } from '@fortawesome/react-fontawesome';
-import { faUser } from '@fortawesome/free-regular-svg-icons';
-import { faLock } from '@fortawesome/free-solid-svg-icons';
+import { faLock,faUser } from '@fortawesome/free-solid-svg-icons';
 import { Form, InputGroup, Collapse } from 'react-bootstrap';
 import { useState } from 'react';
 import { useRouter } from 'next/router';
