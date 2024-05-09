@@ -20,8 +20,8 @@ const { form } = strings;
 
 function SingUpForm() {
     const supabase = createClientComponentClient();
-    const [loginErrorMsg, setLoginErrorMsg] = useState('');
-    const [newErrorSignUp, setNewErrorSignUp] = useState<boolean>(false);
+    const [signUpMsg, setSignUpMsg] = useState('');
+    const [newSignUpAction, setNewSignUpAction] = useState<boolean>(false);
 
     const signUpSchema = Yup.object().shape({
         email: Yup.string().email(form.emailInvalid).required(form.required),
@@ -44,7 +44,7 @@ function SingUpForm() {
             prepareDataForValidation(formValues)
         );
         
-        setNewErrorSignUp(false);
+        setNewSignUpAction(false);
         const res = await supabase.auth.signUp(  {
             email: preparedValues.email,
             password: preparedValues.password,
@@ -58,12 +58,11 @@ function SingUpForm() {
         );
 
         if (res.error) {
-            setNewErrorSignUp(true);
-            setLoginErrorMsg(res.error.message);
+            setSignUpMsg(res.error.message);
         } else {
-            setNewErrorSignUp(true);
-            setLoginErrorMsg(form.confirmacion);
+            setSignUpMsg(form.confirmacion);
         }
+        setNewSignUpAction(true);
 };
 
   return (
@@ -166,10 +165,10 @@ function SingUpForm() {
                 {form.action}
               </Button>
             </div>
-            <Collapse in={newErrorSignUp}>
+            <Collapse in={newSignUpAction}>
               <div className="row">
                 <div className="col">
-                  <Alert>{loginErrorMsg}</Alert>
+                  <Alert>{signUpMsg}</Alert>
                 </div>
               </div>
             </Collapse>
