@@ -171,10 +171,9 @@ function SingUpForm() {
                 {(msg: string) => <ErrorMsg>{msg}</ErrorMsg>}
               </ErrorMessage>
             </Form.Group>
-
             <HCaptcha
               ref={captcha}
-              sitekey="e1499659-ec91-48f8-81d0-6a9feb00b8f7"
+              sitekey="593e53a4-0b84-4d8a-a7e6-a3dc4098b152"
               onVerify={(token) => {
                 setCaptchaToken(token);
               }}
