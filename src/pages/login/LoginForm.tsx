@@ -13,6 +13,7 @@ import {
   FormikConfig,
   prepareDataForValidation,
 } from 'formik';
+import Spinner from '@components/UI/Spinner';
 import * as Yup from 'yup';
 import HCaptcha from '@hcaptcha/react-hcaptcha';
 import strings from '../../strings/login.json';
@@ -142,6 +143,9 @@ function LoginForm() {
                 disabled={captchaToken === undefined && !isSubmitting}
               >
                 {form.action}
+                <Collapse in={isSubmitting}>
+                  <Spinner/>
+                </Collapse>
               </Button>
             </div>
             

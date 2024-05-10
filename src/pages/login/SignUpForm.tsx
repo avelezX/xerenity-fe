@@ -12,6 +12,7 @@ import {
   prepareDataForValidation,
 } from 'formik';
 import HCaptcha from '@hcaptcha/react-hcaptcha';
+import Spinner from '@components/UI/Spinner';
 import * as Yup from 'yup';
 import strings from '../../strings/signup.json';
 import ErrorMsg from './ErrorMsg';
@@ -184,6 +185,9 @@ function SingUpForm() {
                 type="submit" 
                 disabled={captchaToken === undefined && !isSubmitting}>
                 {form.action}
+                <Collapse in={isSubmitting}>
+                  <Spinner/>
+                </Collapse>                
               </Button>
             </div>
             <Collapse in={newSignUpAction}>
