@@ -1,7 +1,7 @@
 import { FontAwesomeIcon as Icon } from '@fortawesome/react-fontawesome';
 import { faEnvelope, faLock,faUser,faEarthAmericas } from '@fortawesome/free-solid-svg-icons';
 import { Form, InputGroup, Collapse } from 'react-bootstrap';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import Button from '@components/UI/Button';
 import Alert from '@components/UI/Alert';
@@ -11,10 +11,13 @@ import {
   FormikConfig,
   prepareDataForValidation,
 } from 'formik';
+import HCaptcha from '@hcaptcha/react-hcaptcha';
+import Spinner from '@components/UI/Spinner';
 import * as Yup from 'yup';
 import strings from '../../strings/signup.json';
 import ErrorMsg from './ErrorMsg';
 import countries from '../../strings/countries.json';
+
 
 const { form } = strings;
 
@@ -22,6 +25,9 @@ function SingUpForm() {
     const supabase = createClientComponentClient();
     const [signUpMsg, setSignUpMsg] = useState('');
     const [newSignUpAction, setNewSignUpAction] = useState<boolean>(false);
+    const [captchaToken, setCaptchaToken] = useState<string | undefined>(undefined);
+    const captcha = useRef<HCaptcha>(null);
+
 
     const signUpSchema = Yup.object().shape({
         email: Yup.string().email(form.emailInvalid).required(form.required),
@@ -49,6 +55,7 @@ function SingUpForm() {
             email: preparedValues.email,
             password: preparedValues.password,
             options: {
+                captchaToken,
                 data: {
                     full_name: preparedValues.name,
                     country: preparedValues.country,
@@ -63,6 +70,12 @@ function SingUpForm() {
             setSignUpMsg(form.confirmacion);
         }
         setNewSignUpAction(true);
+
+        if(captcha.current){
+          captcha.current.resetCaptcha();
+          setCaptchaToken(undefined);
+        }
+        
 };
 
   return (
@@ -159,10 +172,22 @@ function SingUpForm() {
                 {(msg: string) => <ErrorMsg>{msg}</ErrorMsg>}
               </ErrorMessage>
             </Form.Group>
+            <HCaptcha
+              ref={captcha}
+              sitekey="593e53a4-0b84-4d8a-a7e6-a3dc4098b152"
+              onVerify={(token) => {
+                setCaptchaToken(token);
+              }}
+            />
 
             <div className="d-flex justify-content-center p-4">
-              <Button type="submit" disabled={isSubmitting}>
+              <Button 
+                type="submit" 
+                disabled={captchaToken === undefined && !isSubmitting}>
                 {form.action}
+                <Collapse in={isSubmitting}>
+                  <Spinner/>
+                </Collapse>                
               </Button>
             </div>
             <Collapse in={newSignUpAction}>

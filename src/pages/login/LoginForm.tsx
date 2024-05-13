@@ -1,7 +1,7 @@
 import { FontAwesomeIcon as Icon } from '@fortawesome/react-fontawesome';
 import { faLock,faUser } from '@fortawesome/free-solid-svg-icons';
 import { Form, InputGroup, Collapse } from 'react-bootstrap';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useRouter } from 'next/router';
 import { deleteCookie, getCookie } from 'cookies-next';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
@@ -13,7 +13,9 @@ import {
   FormikConfig,
   prepareDataForValidation,
 } from 'formik';
+import Spinner from '@components/UI/Spinner';
 import * as Yup from 'yup';
+import HCaptcha from '@hcaptcha/react-hcaptcha';
 import strings from '../../strings/login.json';
 import ErrorMsg from './ErrorMsg';
 
@@ -24,6 +26,9 @@ function LoginForm() {
   const supabase = createClientComponentClient();
   const [loginErrorMsg, setLoginErrorMsg] = useState('');
   const [newErrorLogin, setNewErrorLogin] = useState<boolean>(false);
+  const [captchaToken, setCaptchaToken] = useState<string | undefined>(undefined);
+  const captcha = useRef<HCaptcha>(null);
+
 
   const signInSchema = Yup.object().shape({
     email: Yup.string().email(form.emailInvalid).required(form.required),
@@ -51,8 +56,15 @@ function LoginForm() {
     const preparedValues = signInSchema.cast(
       prepareDataForValidation(formValues)
     );
+    
     setNewErrorLogin(false);
-    const res = await supabase.auth.signInWithPassword(preparedValues);
+    const res = await supabase.auth.signInWithPassword({
+      email:preparedValues.email,
+      password:preparedValues.password,
+      options: {
+        captchaToken
+      }
+    });
 
     if (res.error) {
       setNewErrorLogin(true);
@@ -60,6 +72,11 @@ function LoginForm() {
     } else {
       setNewErrorLogin(false);
       router.push(getRedirect());
+    }
+
+    if(captcha.current){
+      captcha.current.resetCaptcha();
+      setCaptchaToken(undefined);
     }
   };
 
@@ -113,11 +130,25 @@ function LoginForm() {
                 {(msg: string) => <ErrorMsg>{msg}</ErrorMsg>}
               </ErrorMessage>
             </Form.Group>
+            <HCaptcha
+              ref={captcha}
+              sitekey="593e53a4-0b84-4d8a-a7e6-a3dc4098b152"
+              onVerify={(token) => {
+                setCaptchaToken(token);
+              }}
+            />            
             <div className="d-flex justify-content-center p-4">
-              <Button type="submit" disabled={isSubmitting}>
+              <Button 
+                type="submit" 
+                disabled={captchaToken === undefined && !isSubmitting}
+              >
                 {form.action}
+                <Collapse in={isSubmitting}>
+                  <Spinner/>
+                </Collapse>
               </Button>
             </div>
+            
             <Collapse in={newErrorLogin}>
               <div className="row">
                 <div className="col">
