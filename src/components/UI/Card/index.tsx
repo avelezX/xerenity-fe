@@ -11,6 +11,7 @@ import {
   CardBody,
   ColorPicker,
   CardFooter,
+  SourcePill,
 } from './Card.styled';
 import IconButton from '../IconButton';
 
@@ -79,9 +80,9 @@ const Card = ({
       </CardBody>
       {fuente && (
         <CardFooter>
-          <span>
+          <SourcePill>
             {FUENTE_TXT}: {fuente}
-          </span>
+          </SourcePill>
         </CardFooter>
       )}
     </CardContainer>
