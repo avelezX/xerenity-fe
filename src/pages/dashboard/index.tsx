@@ -33,6 +33,7 @@ import {
   faChartSimple,
   faTrash,
   faLineChart,
+  faEye,
 } from '@fortawesome/free-solid-svg-icons';
 import SeriePicker from '@components/serie/SeriePicker';
 import { ExportToCsv, downloadBlob } from '@components/csvDownload/cscDownload';
@@ -43,10 +44,14 @@ import Chart from '@components/chart/Chart';
 import Button from '@components/UI/Button';
 import PageTitle from '@components/PageTitle';
 import Card from '@components/UI/Card';
+import CardGrid from '@components/UI/CardGrid';
+import SerieInfoModal from './SerieInfoModal';
 
 export default function Dashboard() {
   const supabase = createClientComponentClient();
   const [loadingSerie, setLowdingSerie] = useState(false);
+  const [selectedInfoSerie, handleSelectInfoSerie] =
+    useState<LightSerieEntry | null>(null);
   const [selectedSeries, setSelectedSeries] = useState<Map<string, LightSerie>>(
     new Map()
   );
@@ -244,12 +249,12 @@ export default function Dashboard() {
     }
   };
 
-  function decideAxis(index: number) {
+  const decideAxis = (index: number) => {
     if (normalize.current) {
       return 'right';
     }
     return index % 2 === 0 ? 'right' : 'left';
-  }
+  };
 
   return (
     <CoreLayout>
@@ -297,26 +302,33 @@ export default function Dashboard() {
             </Chart>
           </Col>
         </Row>
-        <div className="d-flex flex-column gap-3 py-3">
-          {Array.from(serieNameInfo.entries()).map(([key, value]) => [
-            selectedSeries.has(key) && (
-              <Card
-                title={value.display_name}
-                icon={faLineChart}
-                color={selectedSeries.get(key)?.color}
-                actions={[
-                  {
-                    name: 'delete',
-                    actionIcon: faTrash,
-                    actionEvent: () => handleRemoveSerie(value.source_name),
-                  },
-                ]}
-                description={value.description}
-                fuente={value.fuente}
-              />
-            ),
-          ])}
-        </div>
+        <Col>
+          <CardGrid>
+            {Array.from(serieNameInfo.entries()).map(([key, value]) => [
+              selectedSeries.has(key) && (
+                <Card
+                  title={value.display_name}
+                  icon={faLineChart}
+                  color={selectedSeries.get(key)?.color}
+                  actions={[
+                    {
+                      name: 'details',
+                      actionIcon: faEye,
+                      actionEvent: () => handleSelectInfoSerie(value),
+                    },
+                    {
+                      name: 'delete',
+                      actionIcon: faTrash,
+                      actionEvent: () => handleRemoveSerie(value.source_name),
+                    },
+                  ]}
+                  description={value.description}
+                  fuente={value.fuente}
+                />
+              ),
+            ])}
+          </CardGrid>
+        </Col>
       </Container>
       <Offcanvas
         id="offcanvasNavbar-expand-false"
@@ -375,6 +387,11 @@ export default function Dashboard() {
           </Stack>
         </Offcanvas.Body>
       </Offcanvas>
+      <SerieInfoModal
+        onCancel={() => handleSelectInfoSerie(null)}
+        show={selectedInfoSerie !== null}
+        serie={selectedInfoSerie}
+      />
     </CoreLayout>
   );
 }

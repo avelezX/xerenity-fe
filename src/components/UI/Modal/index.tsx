@@ -2,12 +2,13 @@ import { IconProp } from '@fortawesome/fontawesome-svg-core';
 import { FontAwesomeIcon as Icon } from '@fortawesome/react-fontawesome';
 import { PropsWithChildren } from 'react';
 import { Button, Modal as BsModal } from 'react-bootstrap';
+import ModalBody from './ModalBody.styled';
 
 type ModalProps = {
-  cancelCallback: () => void;
-  cancelMessage: string;
-  saveCallback: () => void;
-  saveMessage: string;
+  onCancel?: () => void;
+  cancelText?: string;
+  onSave?: () => void;
+  saveText?: string;
   title: string;
   display: boolean;
   icon?: IconProp;
@@ -15,30 +16,32 @@ type ModalProps = {
 
 const Modal = ({
   display,
-  cancelCallback,
-  cancelMessage,
-  saveCallback,
-  saveMessage,
+  onCancel,
+  cancelText,
+  onSave,
+  saveText,
   title,
   icon,
   children,
 }: ModalProps) => (
   <div className="modal show" style={{ display: 'block', position: 'initial' }}>
-    <BsModal show={display} onHide={cancelCallback}>
+    <BsModal show={display} onHide={onCancel}>
       <BsModal.Header closeButton>
         <BsModal.Title>
           {icon && <Icon icon={icon} style={{ marginRight: '8px' }} />}
           {title}
         </BsModal.Title>
       </BsModal.Header>
-      <BsModal.Body>{children}</BsModal.Body>
+      <ModalBody>{children}</ModalBody>
       <BsModal.Footer>
-        <Button variant="outline-primary" onClick={cancelCallback}>
-          {cancelMessage}
+        <Button variant="outline-primary" onClick={onCancel}>
+          {cancelText}
         </Button>
-        <Button variant="primary" onClick={saveCallback}>
-          {saveMessage}
-        </Button>
+        {saveText && (
+          <Button variant="primary" onClick={onSave}>
+            {saveText}
+          </Button>
+        )}
       </BsModal.Footer>
     </BsModal>
   </div>

@@ -42,10 +42,10 @@ const MonedasModal = ({ show, onCancel, onSave }: MonedasModalProps) => {
 
   return (
     <Modal
-      cancelCallback={onCancel}
-      cancelMessage={CANCEL_TXT}
-      saveCallback={() => onSave(currencyFrom, currencyTo)}
-      saveMessage={SAVE_TXT}
+      onCancel={onCancel}
+      cancelText={CANCEL_TXT}
+      onSave={() => onSave(currencyFrom, currencyTo)}
+      saveText={SAVE_TXT}
       title={MODAL_TITLE}
       display={show}
       icon={faDollarSign}

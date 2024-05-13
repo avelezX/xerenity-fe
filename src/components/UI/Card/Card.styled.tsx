@@ -81,12 +81,12 @@ export const CardFooter = styled(BsCardFooter)`
   justify-content: center;
   background-color: white;
   padding-top: 0;
+`;
 
-  span {
-    border-radius: 100px;
-    padding: 5px 15px;
-    background-color: ${LIGHT_PURPLE};
-    font-weight: ${FONT_MEDIUM};
-    color: ${GRAY_500};
-  }
+export const SourcePill = styled.span`
+  border-radius: 100px;
+  padding: 5px 15px;
+  background-color: ${LIGHT_PURPLE};
+  font-weight: ${FONT_MEDIUM};
+  color: ${GRAY_500};
 `;

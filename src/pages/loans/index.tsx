@@ -418,10 +418,10 @@ export default function NextPage() {
         </Row>
       </Container>
       <Modal
-        cancelCallback={() => setShowConfirm(false)}
-        cancelMessage={MODAL_CANCEL_TXT}
-        saveCallback={() => borrarCredito(eraseLoan)}
-        saveMessage={MODA_SAVE_TXT}
+        onCancel={() => setShowConfirm(false)}
+        cancelText={MODAL_CANCEL_TXT}
+        onSave={() => borrarCredito(eraseLoan)}
+        saveText={MODA_SAVE_TXT}
         title={MODAL_TITLE}
         display={showConfirm}
       >
