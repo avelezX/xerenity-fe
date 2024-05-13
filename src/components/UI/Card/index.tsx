@@ -1,6 +1,10 @@
+'use client';
+
+import { PropsWithChildren, MouseEventHandler, useRef, useState } from 'react';
+import { Overlay, Tooltip } from 'react-bootstrap';
 import { FontAwesomeIcon as Icon } from '@fortawesome/react-fontawesome';
 import { IconDefinition } from '@fortawesome/free-solid-svg-icons';
-import { PropsWithChildren, MouseEventHandler } from 'react';
+import truncateStr from 'src/utils/truncateStr';
 import {
   CardTitle,
   CardContainer,
@@ -34,35 +38,54 @@ const Card = ({
   actions,
   fuente,
   description,
-}: CardProps) => (
-  <CardContainer>
-    <CardTitle>
-      <div className="title-section">
-        <Icon icon={icon} />
-        <h5>{title}</h5>
-      </div>
-      <div className="title-section">
-        {actions.map(({ name, actionIcon, actionEvent }) => (
-          <IconButton key={name} onClick={actionEvent}>
-            <Icon icon={actionIcon} />
-          </IconButton>
-        ))}
-      </div>
-    </CardTitle>
-    <CardBody>
-      <div className="picker">{color && <ColorPicker color={color} />}</div>
-      <div className="description">
-        <p>{description}</p>
-      </div>
-    </CardBody>
-    {fuente && (
-      <CardFooter>
-        <span>
-          {FUENTE_TXT}: {fuente}
-        </span>
-      </CardFooter>
-    )}
-  </CardContainer>
-);
+}: CardProps) => {
+  const titleTarget = useRef(null);
+  const [showeFullTitle, onShowTitle] = useState<boolean>(false);
+
+  return (
+    <CardContainer>
+      <CardTitle>
+        <div className="title-section">
+          <Icon icon={icon} />
+          <h5
+            style={{ cursor: 'pointer' }}
+            ref={titleTarget}
+            onMouseEnter={() => onShowTitle(true)}
+            onMouseLeave={() => onShowTitle(false)}
+          >
+            {truncateStr(title, 30)}
+          </h5>
+          <Overlay
+            target={titleTarget.current}
+            show={showeFullTitle}
+            placement="top"
+          >
+            <Tooltip>{title}</Tooltip>
+          </Overlay>
+        </div>
+        <div className="title-section">
+          {actions.map(({ name, actionIcon, actionEvent }) => (
+            <IconButton key={name} onClick={actionEvent}>
+              <Icon icon={actionIcon} />
+            </IconButton>
+          ))}
+        </div>
+      </CardTitle>
+      <CardBody>
+        <div className="picker">{color && <ColorPicker color={color} />}</div>
+        <div className="description">
+          <p>{truncateStr(description, 120)}</p>
+        </div>
+      </CardBody>
+      {fuente && (
+        <CardFooter>
+          <span>
+            {FUENTE_TXT}: {fuente}
+          </span>
+        </CardFooter>
+      )}
+    </CardContainer>
+  );
+};
 
 export default Card;
