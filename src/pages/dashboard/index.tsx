@@ -298,26 +298,28 @@ export default function Dashboard() {
             </Chart>
           </Col>
         </Row>
-        <CardGrid>
-          {Array.from(serieNameInfo.entries()).map(([key, value]) => [
-            selectedSeries.has(key) && (
-              <Card
-                title={value.display_name}
-                icon={faLineChart}
-                color={selectedSeries.get(key)?.color}
-                actions={[
-                  {
-                    name: 'delete',
-                    actionIcon: faTrash,
-                    actionEvent: () => handleRemoveSerie(value.source_name),
-                  },
-                ]}
-                description={value.description}
-                fuente={value.fuente}
-              />
-            ),
-          ])}
-        </CardGrid>
+        <Col>
+          <CardGrid>
+            {Array.from(serieNameInfo.entries()).map(([key, value]) => [
+              selectedSeries.has(key) && (
+                <Card
+                  title={value.display_name}
+                  icon={faLineChart}
+                  color={selectedSeries.get(key)?.color}
+                  actions={[
+                    {
+                      name: 'delete',
+                      actionIcon: faTrash,
+                      actionEvent: () => handleRemoveSerie(value.source_name),
+                    },
+                  ]}
+                  description={value.description}
+                  fuente={value.fuente}
+                />
+              ),
+            ])}
+          </CardGrid>
+        </Col>
       </Container>
       <Offcanvas
         id="offcanvasNavbar-expand-false"

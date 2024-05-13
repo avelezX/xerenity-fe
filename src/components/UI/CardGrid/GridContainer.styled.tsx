@@ -2,8 +2,8 @@ import styled from 'styled-components';
 
 const GridContainer = styled.div`
   display: grid;
-  grid-template-columns: 33.3% 33.3% 33.3%;
-  gap: 10px;
+  grid-template-columns: 32% 32% 32%;
+  gap: 2%;
   padding: 14px 0;
 `;
 
