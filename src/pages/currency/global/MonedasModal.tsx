@@ -50,7 +50,7 @@ const MonedasModal = ({ show, onCancel, onSave }: MonedasModalProps) => {
       display={show}
       icon={faDollarSign}
     >
-      <div className="row">
+      <div className="row px-4">
         <div className="col-xs-6 py-3">
           <Dropdown>
             <Dropdown.Toggle variant="success" id="dropdown-basic">
