@@ -6,7 +6,7 @@ import { Row, Col, DropdownDivider } from 'react-bootstrap';
 import Dropdown from 'react-bootstrap/Dropdown';
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import Container from 'react-bootstrap/Container';
-import { LightSerieValue } from '@models/lightserie';
+import { LightSerieValue } from 'src/types/lightserie';
 import { ExportToCsv, downloadBlob } from '@components/csvDownload/cscDownload';
 import {
   faCaretRight,
@@ -14,11 +14,11 @@ import {
   faMoneyBill,
 } from '@fortawesome/free-solid-svg-icons';
 import { toast } from 'react-toastify';
-import { TesYields, CandleSerie, TesEntryToArray } from '@models/tes';
+import { TesYields, CandleSerie, TesEntryToArray } from 'src/types/tes';
 import tokens from 'design-tokens/tokens.json';
 import Chart from '@components/chart/Chart';
 import { FontAwesomeIcon as Icon } from '@fortawesome/react-fontawesome';
-import { MovingAvgValue } from '@models/movingAvg';
+import { MovingAvgValue } from 'src/types/movingAvg';
 import Toolbar from '@components/UI/Toolbar';
 import PageTitle from '@components/PageTitle';
 

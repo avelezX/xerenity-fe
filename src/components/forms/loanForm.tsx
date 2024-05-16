@@ -4,7 +4,7 @@ import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import React, { useState, useEffect } from 'react';
 import { Formik, ErrorMessage } from 'formik';
 import { Form, Modal, Col, Row, Button, Alert } from 'react-bootstrap';
-import { LoanType } from '@models/loans';
+import { LoanType } from 'src/types/loans';
 
 interface LoanFormProps {
   showStart: boolean;

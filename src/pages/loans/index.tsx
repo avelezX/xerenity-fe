@@ -3,11 +3,11 @@
 import React, { useCallback, useState, useEffect, ChangeEvent } from 'react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { Container, Row, Col, Table } from 'react-bootstrap';
-import { Loan, LoanCashFlowIbr } from '@models/loans';
+import { Loan, LoanCashFlowIbr } from 'src/types/loans';
 import Form from 'react-bootstrap/Form';
 
 import { CoreLayout } from '@layout';
-import { LightSerieValue } from '@models/lightserie';
+import { LightSerieValue } from 'src/types/lightserie';
 import LoanForm from '@components/forms/loanForm';
 import { ExportToCsv, downloadBlob } from '@components/csvDownload/cscDownload';
 

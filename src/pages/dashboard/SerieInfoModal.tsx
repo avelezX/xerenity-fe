@@ -1,4 +1,4 @@
-import { LightSerieEntry } from '@models/lightserie';
+import { LightSerieEntry } from 'src/types/lightserie';
 import Modal from '@components/UI/Modal';
 import styled from 'styled-components';
 import { faLineChart } from '@fortawesome/free-solid-svg-icons';

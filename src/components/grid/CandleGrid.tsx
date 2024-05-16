@@ -1,7 +1,7 @@
 import { Table } from 'react-bootstrap';
 import React, { ChangeEvent } from 'react';
 import Form from 'react-bootstrap/Form';
-import { GridEntry } from '@models/tes';
+import { GridEntry } from 'src/types/tes';
 import NewPrevTag from '@components/price/NewPrevPriceTag';
 
 export interface GridViewProps {
@@ -14,7 +14,6 @@ export default function CandleGridViewer({
   selectCallback,
   allTes,
   currentSelection,
-
 }: GridViewProps) {
   return (
     <Form onChange={(e) => selectCallback(e as ChangeEvent<HTMLFormElement>)}>
@@ -53,19 +52,20 @@ export default function CandleGridViewer({
                   <Form.Check
                     inline
                     readOnly
-                    checked={tesValue.tes===currentSelection}
+                    checked={tesValue.tes === currentSelection}
                     placeholder={tesValue.displayname}
                     type="radio"
                     label={tesValue.displayname
                       ?.replace('COLTES', 'T')
                       .toString()}
                     name="group1"
-                    id={tesValue.tes}                    
+                    id={tesValue.tes}
                   />
                 </td>
                 <td>
                   <NewPrevTag current={tesValue.close} prev={tesValue.prev}>
-                    {((tesValue.prev - tesValue.close) * 100*-1).toFixed(1)} bps
+                    {((tesValue.prev - tesValue.close) * 100 * -1).toFixed(1)}{' '}
+                    bps
                   </NewPrevTag>
                 </td>
                 <td>{tesValue.close.toFixed(2)}</td>
@@ -73,7 +73,7 @@ export default function CandleGridViewer({
                 <td>{tesValue.open.toFixed(2)}</td>
                 <td>{tesValue.low.toFixed(2)}</td>
                 <td>{tesValue.high.toFixed(2)}</td>
-                <td>{(tesValue.volume).toFixed(2)} MMM</td>
+                <td>{tesValue.volume.toFixed(2)} MMM</td>
                 <td>{tesValue.operation_time}</td>
               </tr>,
             ])}

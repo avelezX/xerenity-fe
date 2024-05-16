@@ -1,5 +1,5 @@
 import React from 'react';
-import { Resource } from '@models/resource';
+import { Resource } from 'src/types/resource';
 import Summary from './Summary';
 import RowsPerPage from './RowsPerPage';
 import Paginate from './Paginate';

@@ -1,6 +1,6 @@
 import React, { PropsWithChildren } from 'react';
 import { AreaChart, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { LightSerieValue } from '@models/lightserie';
+import { LightSerieValue } from 'src/types/lightserie';
 
 type SimpleLineProps = {
   data: LightSerieValue[];
