@@ -5,6 +5,7 @@ import React, { useState, useEffect } from 'react';
 import { Formik, ErrorMessage } from 'formik';
 import { Form, Modal, Col, Row, Button, Alert } from 'react-bootstrap';
 import { LoanType,Banks } from '@models/loans';
+import { toast } from 'react-toastify';
 
 interface LoanFormProps {
   showStart: boolean;
@@ -66,6 +67,9 @@ export default function LoanForm({
           .rpc('create_credit', values);
 
         if (data) {
+          toast.info('El credito fue creado exitosamente', {
+            position: toast.POSITION.BOTTOM_RIGHT,
+          });
           createCallback();
         }
 

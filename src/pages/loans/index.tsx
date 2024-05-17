@@ -5,7 +5,6 @@ import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { Container, Row, Col, Table } from 'react-bootstrap';
 import { Loan, LoanCashFlowIbr,Banks } from '@models/loans';
 import Form from 'react-bootstrap/Form';
-import Dropdown from 'react-bootstrap/Dropdown';
 import { CoreLayout } from '@layout';
 import { LightSerieValue } from '@models/lightserie';
 import LoanForm from '@components/forms/loanForm';
@@ -29,7 +28,7 @@ import Badge from '@components/UI/Badge';
 import Chart from '@components/chart/Chart';
 import Button from '@components/UI/Button';
 import PageTitle from '@components/PageTitle';
-
+import Select,{MultiValue} from "react-select";
 
 const designSystem = tokens.xerenity;
 const PURPLE_COLOR_100 = designSystem['purple-100'].value;
@@ -38,6 +37,7 @@ const CONFIRMATION_TXT = 'Desea Borrar El Crédito?';
 const MODAL_TITLE = 'Borrar Crédito';
 const MODA_SAVE_TXT = 'Borrar';
 const MODAL_CANCEL_TXT = 'Cancelar';
+
 
 export default function NextPage() {
   const supabase = createClientComponentClient();
@@ -60,7 +60,7 @@ export default function NextPage() {
 
   const [banks,setBanks]= useState<Banks[]>([]);
 
-  const filterBank= useRef<string[]>([]);
+  const selectedBanks=useRef<string[]>([]);
 
   const [selectedLoans, setSelectLoans] = useState<
     Map<string, LoanCashFlowIbr[]>
@@ -225,8 +225,16 @@ export default function NextPage() {
 
 
   const fetchLoans = useCallback(async () => {
-    const { data, error } = await supabase.schema('xerenity').rpc('get_loans',{'bank_name_filter':filterBank.current});
+    let filter:string[]=[];
 
+    if(selectedBanks.current.length > 0){
+      filter=selectedBanks.current.map((bck)=>(bck));
+    }else{
+      filter=banks.map((bck)=>(bck.bank_name));
+    }
+
+    const { data, error } = await supabase.schema('xerenity').rpc('get_loans',{'bank_name_filter':filter});
+    
     if (error) {
       setAllCredits([]);
       toast.error(error.message, { position: toast.POSITION.TOP_CENTER });
@@ -235,21 +243,9 @@ export default function NextPage() {
     } else {
       setAllCredits([]);
     }
-  }, [supabase,filterBank]);
+    setShowDialog(false);
+  }, [supabase,selectedBanks,banks]);
 
-
-  const handleBankCheck = 
-    async (
-      event: ChangeEvent<HTMLInputElement>
-    ) => {
-      
-      if (event.target.checked) {
-        filterBank.current=[...filterBank.current, event.target.value];
-      }else{
-        filterBank.current=filterBank.current.filter((item) => item !== event.target.value);
-      }
-      fetchLoans();
-  };
 
 
   const borrarCredito = async (cred_id: string) => {
@@ -295,10 +291,10 @@ export default function NextPage() {
     }else{
       const bankList= data as Banks[];
       
-      setBanks(data as Banks[]);
-      filterBank.current=bankList.map((bck)=>(bck.bank_name));
+      setBanks(bankList);
+      
       const response = await supabase.schema('xerenity').rpc('get_loans',{'bank_name_filter':bankList.map((bck)=>(bck.bank_name))});
-  
+      
       if (response.error) {
         setAllCredits([]);
         toast.error(response.error.message, { position: toast.POSITION.TOP_CENTER });
@@ -312,9 +308,14 @@ export default function NextPage() {
 
   }, [supabase]);
 
+  const handleOption = useCallback(async (selections: MultiValue<{ value: string; label: string }>) => {
+    selectedBanks.current=selections.map((sele)=>(sele.value));
+    fetchLoans();
+  }, [selectedBanks,fetchLoans]);
 
   useEffect(() => {
     fetchInitLoans();
+    
   }, [fetchInitLoans]);  
 
 
@@ -339,34 +340,15 @@ export default function NextPage() {
         <Row>
           <div className="d-flex justify-content-end pb-3">
             <Toolbar>
-              <Dropdown >
-                <Dropdown.Toggle>Filtrar por banco</Dropdown.Toggle>
-                <Dropdown.Menu>
-                  <Dropdown.Item
-                    onClick={() => {filterBank.current=banks.map((bck)=>(bck.bank_name));}}
+                <Select 
+                  isMulti 
+                  options={banks.map((bck)=>({value:bck.bank_name,label:bck.bank_name}))} 
+                  onChange={handleOption} 
+                />           
+                  <Button
+                    variant="outline-primary"
+                    onClick={() => setShowDialog(!showDialog)}
                   >
-                    Todos
-                  </Dropdown.Item>
-                    
-                      {banks.map((bck) => (
-                          <div key={`div-${bck.bank_name}`} className="d-flex">
-                            <Form.Check
-                              key={bck.bank_name}
-                              type="checkbox"
-                              id={`checkbox-${bck.bank_name}`}
-                              label={bck.bank_name}
-                              value={bck.bank_name}
-                              onChange={handleBankCheck}
-                              checked={filterBank.current.includes(bck.bank_name)}
-                            />
-                          </div>
-                      ))}
-                </Dropdown.Menu>
-              </Dropdown>              
-              <Button
-                variant="outline-primary"
-                onClick={() => setShowDialog(!showDialog)}
-              >
                 <Icon icon={faMoneyBill} className="mr-4" />
                 Nuevo Credito
               </Button>
