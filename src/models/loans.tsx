@@ -7,6 +7,7 @@ export interface Loan {
   periodicity: string;
   interest_rate: number;
   type: string;
+  bank: string;
 }
 
 export interface LoanCashFlow {
@@ -26,4 +27,8 @@ export interface LoanCashFlowIbr extends LoanCashFlow {
 export interface LoanType {
   value: string;
   display: string;
+}
+
+export interface Banks {
+  bank_name: string;
 }
