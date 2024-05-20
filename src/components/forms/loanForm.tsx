@@ -4,10 +4,12 @@ import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import React, { useState, useEffect } from 'react';
 import { Formik, ErrorMessage } from 'formik';
 import { Form, Modal, Col, Row, Button, Alert } from 'react-bootstrap';
-import { LoanType } from '@models/loans';
+import { LoanType,Banks } from '@models/loans';
+import { toast } from 'react-toastify';
 
 interface LoanFormProps {
   showStart: boolean;
+  bankList:Banks[];
   createCallback: () => void;
   showCallBack: (show: boolean) => void;
 }
@@ -20,6 +22,7 @@ const loanTypes: LoanType[] = [
 export default function LoanForm({
   showStart,
   createCallback,
+  bankList,
   showCallBack,
 }: LoanFormProps) {
   const [show, setShow] = useState<boolean>(false);
@@ -38,6 +41,7 @@ export default function LoanForm({
     periodicity: '',
     interest_rate: '',
     type: 'fija',
+    bank:''
   };
 
   useEffect(() => {
@@ -63,6 +67,9 @@ export default function LoanForm({
           .rpc('create_credit', values);
 
         if (data) {
+          toast.info('El credito fue creado exitosamente', {
+            position: toast.POSITION.BOTTOM_RIGHT,
+          });
           createCallback();
         }
 
@@ -126,6 +133,22 @@ export default function LoanForm({
                   <ErrorMessage name="periodicity" component="div" />
                 </Form.Group>
               </Alert>
+
+              <Alert variant="light">
+                <Form.Group controlId="bank">
+                  <Form.Label>Entidad Banacaria</Form.Label>
+                  <Form.Select
+                    value={values.bank}
+                    onChange={handleChange}
+                  >
+                    <option>Selecione una periodicidad</option>
+                    {bankList.map((bck)=>(
+                      <option key={`select-opto-${bck.bank_name}`} value={bck.bank_name}>{bck.bank_name}</option>
+                    ))}
+                  </Form.Select>
+                  <ErrorMessage name="bank" component="div" />
+                </Form.Group>
+              </Alert>              
 
               <Alert variant="light">
                 <Form.Group controlId="number_of_payments">

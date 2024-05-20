@@ -1,11 +1,10 @@
 'use client';
 
-import React, { useCallback, useState, useEffect, ChangeEvent } from 'react';
+import React, { useCallback, useState, useEffect, ChangeEvent, useRef } from 'react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { Container, Row, Col, Table } from 'react-bootstrap';
-import { Loan, LoanCashFlowIbr } from '@models/loans';
+import { Loan, LoanCashFlowIbr,Banks } from '@models/loans';
 import Form from 'react-bootstrap/Form';
-
 import { CoreLayout } from '@layout';
 import { LightSerieValue } from '@models/lightserie';
 import LoanForm from '@components/forms/loanForm';
@@ -29,6 +28,7 @@ import Badge from '@components/UI/Badge';
 import Chart from '@components/chart/Chart';
 import Button from '@components/UI/Button';
 import PageTitle from '@components/PageTitle';
+import Select,{MultiValue} from "react-select";
 
 const designSystem = tokens.xerenity;
 const PURPLE_COLOR_100 = designSystem['purple-100'].value;
@@ -37,6 +37,7 @@ const CONFIRMATION_TXT = 'Desea Borrar El Crédito?';
 const MODAL_TITLE = 'Borrar Crédito';
 const MODA_SAVE_TXT = 'Borrar';
 const MODAL_CANCEL_TXT = 'Cancelar';
+
 
 export default function NextPage() {
   const supabase = createClientComponentClient();
@@ -56,6 +57,10 @@ export default function NextPage() {
   const [showConfirm, setShowConfirm] = useState<boolean>(false);
 
   const [eraseLoan, setEraseLoan] = useState<string>('');
+
+  const [banks,setBanks]= useState<Banks[]>([]);
+
+  const selectedBanks=useRef<string[]>([]);
 
   const [selectedLoans, setSelectLoans] = useState<
     Map<string, LoanCashFlowIbr[]>
@@ -135,6 +140,60 @@ export default function NextPage() {
     downloadBlob(csv, 'xerenity_flujo_de_caja.csv', 'text/csv;charset=utf-8;');
   };
 
+  function calculatLoanCharts(newSelection:Map<string, LoanCashFlowIbr[]>){
+    const newCashFlow = new Map<string, LoanCashFlowIbr>();
+
+    Array.from(newSelection.entries()).forEach((val) => {
+      val[1].forEach((entr) => {
+        const au = newCashFlow.get(entr.date);
+        if (au) {
+          const newentry = {
+            principal: au.principal + entr.principal,
+            rate: au.rate,
+            date: entr.date,
+            beginning_balance: au.beginning_balance + entr.beginning_balance,
+            payment: au.payment + entr.payment,
+            interest: au.payment + entr.payment,
+            ending_balance: au.ending_balance + entr.ending_balance,
+            rate_tot: au.rate_tot,
+          };
+          newCashFlow.set(newentry.date, newentry);
+        } else {
+          newCashFlow.set(entr.date, entr);
+        }
+      });
+    });
+
+    const longCashFlow = new Array<LoanCashFlowIbr>();
+
+    const balance: LightSerieValue[] = [];
+
+    const payment: LightSerieValue[] = [];
+
+    Array.from(newCashFlow.entries()).forEach((val) => {
+      longCashFlow.push(val[1]);
+    });
+
+    longCashFlow.sort((a, b) => (a.date < b.date ? -1 : 1));
+
+    longCashFlow.forEach((value) => {
+      balance.push({
+        time: value.date.split(' ')[0],
+        value: value.ending_balance,
+      });
+      payment.push({
+        time: value.date.split(' ')[0],
+        value: value.payment,
+      });
+    });
+
+    setPagoCuotaSerie(payment);
+
+    setBalanceSerie(balance);
+
+    setCashFlow(longCashFlow);    
+  }  
+
   const handleLoanCheckChnage = useCallback(
     async (
       event: ChangeEvent<HTMLInputElement>,
@@ -159,66 +218,23 @@ export default function NextPage() {
 
       setSelectLoans(newSelection);
 
-      const newCashFlow = new Map<string, LoanCashFlowIbr>();
-
-      Array.from(newSelection.entries()).forEach((val) => {
-        val[1].forEach((entr) => {
-          const au = newCashFlow.get(entr.date);
-          if (au) {
-            const newentry = {
-              principal: au.principal + entr.principal,
-              rate: au.rate,
-              date: entr.date,
-              beginning_balance: au.beginning_balance + entr.beginning_balance,
-              payment: au.payment + entr.payment,
-              interest: au.payment + entr.payment,
-              ending_balance: au.ending_balance + entr.ending_balance,
-              rate_tot: au.rate_tot,
-            };
-            newCashFlow.set(newentry.date, newentry);
-          } else {
-            newCashFlow.set(entr.date, entr);
-          }
-        });
-      });
-
-      const longCashFlow = new Array<LoanCashFlowIbr>();
-
-      const balance: LightSerieValue[] = [];
-
-      const payment: LightSerieValue[] = [];
-
-      Array.from(newCashFlow.entries()).forEach((val) => {
-        longCashFlow.push(val[1]);
-      });
-
-      longCashFlow.sort((a, b) => (a.date < b.date ? -1 : 1));
-
-      longCashFlow.forEach((value) => {
-        balance.push({
-          time: value.date.split(' ')[0],
-          value: value.ending_balance,
-        });
-        payment.push({
-          time: value.date.split(' ')[0],
-          value: value.payment,
-        });
-      });
-
-      setPagoCuotaSerie(payment);
-
-      setBalanceSerie(balance);
-
-      setCashFlow(longCashFlow);
+      calculatLoanCharts(newSelection);
     },
     [selectedLoans, setSelectLoans, calculateCashFlow, calculateCashFlowIbr]
   );
 
-  const fetchLoanNames = useCallback(async () => {
-    setShowDialog(false);
 
-    const { data, error } = await supabase.schema('xerenity').rpc('get_loans');
+  const fetchLoans = useCallback(async () => {
+    let filter:string[]=[];
 
+    if(selectedBanks.current.length > 0){
+      filter=selectedBanks.current.map((bck)=>(bck));
+    }else{
+      filter=banks.map((bck)=>(bck.bank_name));
+    }
+
+    const { data, error } = await supabase.schema('xerenity').rpc('get_loans',{'bank_name_filter':filter});
+    
     if (error) {
       setAllCredits([]);
       toast.error(error.message, { position: toast.POSITION.TOP_CENTER });
@@ -227,11 +243,10 @@ export default function NextPage() {
     } else {
       setAllCredits([]);
     }
-  }, [supabase]);
+    setShowDialog(false);
+  }, [supabase,selectedBanks,banks]);
 
-  useEffect(() => {
-    fetchLoanNames();
-  }, [fetchLoanNames]);
+
 
   const borrarCredito = async (cred_id: string) => {
     setFetching(true);
@@ -246,18 +261,71 @@ export default function NextPage() {
       toast.info('El credito fue borrado exitosamente', {
         position: toast.POSITION.BOTTOM_RIGHT,
       });
-      fetchLoanNames();
+      
+
+      const newSelection = new Map<string, LoanCashFlowIbr[]>();
+
+      Array.from(selectedLoans.entries()).forEach(([key, value]) => {
+        if(key !== cred_id){
+          newSelection.set(key, value);
+        }
+        
+      });
+      
+      setSelectLoans(newSelection);
+
+      fetchLoans();
+
+      calculatLoanCharts(newSelection);
     }
     setShowConfirm(false);
     setFetching(false);
   };
 
+  const fetchInitLoans = useCallback(async () => {
+    setFetching(true);
+    const { data, error } = await supabase.schema('xerenity').rpc('get_banks');
+    
+    if(error){
+      toast.error(error.message, { position: toast.POSITION.TOP_CENTER });
+    }else{
+      const bankList= data as Banks[];
+      
+      setBanks(bankList);
+      
+      const response = await supabase.schema('xerenity').rpc('get_loans',{'bank_name_filter':bankList.map((bck)=>(bck.bank_name))});
+      
+      if (response.error) {
+        setAllCredits([]);
+        toast.error(response.error.message, { position: toast.POSITION.TOP_CENTER });
+      } else if (data) {
+        setAllCredits(response.data as Loan[]);
+      } else {
+        setAllCredits([]);
+      }
+    }
+    setFetching(false);
+
+  }, [supabase]);
+
+  const handleOption = useCallback(async (selections: MultiValue<{ value: string; label: string }>) => {
+    selectedBanks.current=selections.map((sele)=>(sele.value));
+    fetchLoans();
+  }, [selectedBanks,fetchLoans]);
+
+  useEffect(() => {
+    fetchInitLoans();
+    
+  }, [fetchInitLoans]);  
+
+
   return (
     <CoreLayout>
       <LoanForm
         showStart={showDialog}
-        createCallback={fetchLoanNames}
+        createCallback={fetchLoans}
         showCallBack={setShowDialog}
+        bankList={banks}
       />
       <ToastContainer />
       <Container fluid className="px-4">
@@ -269,21 +337,28 @@ export default function NextPage() {
             </PageTitle>
           </div>
         </Row>
-        <div className="d-flex justify-content-end pb-3">
-          <Toolbar>
-            <Button
-              variant="outline-primary"
-              onClick={() => setShowDialog(!showDialog)}
-            >
-              <Icon icon={faMoneyBill} className="mr-4" />
-              Nuevo Credito
-            </Button>
-            <Button variant="outline-primary" onClick={downloadSeries}>
-              <Icon icon={faFileCsv} className="mr-4" />
-              Descargar
-            </Button>
-          </Toolbar>
+        <Row>
+          <div className="d-flex justify-content-end pb-3">
+            <Toolbar>
+                <Select 
+                  isMulti 
+                  options={banks.map((bck)=>({value:bck.bank_name,label:bck.bank_name}))} 
+                  onChange={handleOption} 
+                />           
+                  <Button
+                    variant="outline-primary"
+                    onClick={() => setShowDialog(!showDialog)}
+                  >
+                <Icon icon={faMoneyBill} className="mr-4" />
+                Nuevo Credito
+              </Button>
+              <Button variant="outline-primary" onClick={downloadSeries}>
+                <Icon icon={faFileCsv} className="mr-4" />
+                Descargar
+              </Button>
+            </Toolbar>
         </div>
+        </Row>
         <Row>
           <Col>
             <Table
@@ -300,6 +375,7 @@ export default function NextPage() {
                   <th>Numero de pagos</th>
                   <th>Interes</th>
                   <th>Tipo</th>
+                  <th>Entidad Bancaria</th>
                   <th>Acciones</th>
                 </tr>
               </thead>
@@ -328,6 +404,9 @@ export default function NextPage() {
                       )}
                     </td>
                     <td>
+                      {loan.bank}
+                    </td>
+                    <td>
                       {' '}
                       <Row>
                         <Col sm={{ span: 3 }}>
@@ -342,6 +421,7 @@ export default function NextPage() {
                         <Col sm={{ offset: 2, span: 3 }}>
                           <Form.Check
                             type="switch"
+                            checked={selectedLoans.has(loan.id)}
                             id={`check-${loan.id}`}
                             disabled={fetching}
                             onChange={(e) =>
