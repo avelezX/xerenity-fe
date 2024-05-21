@@ -2,9 +2,8 @@
 
 import React, { useCallback, useState, useEffect, ChangeEvent, useRef } from 'react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
-import { Container, Row, Col, Table } from 'react-bootstrap';
+import { Container, Row, Table } from 'react-bootstrap';
 import { Loan, LoanCashFlowIbr,Banks } from '@models/loans';
-import Form from 'react-bootstrap/Form';
 import { CoreLayout } from '@layout';
 import { LightSerieValue } from '@models/lightserie';
 import LoanForm from '@components/forms/loanForm';
@@ -18,17 +17,18 @@ import {
   faFileCsv,
   faMoneyBill,
   faLandmark,
+  faEye,
 } from '@fortawesome/free-solid-svg-icons';
 import Modal from '@components/UI/Modal';
 import PriceTagTd from '@components/price/CopDisplay';
 
 import Toolbar from '@components/UI/Toolbar';
 import tokens from 'design-tokens/tokens.json';
-import Badge from '@components/UI/Badge';
 import Chart from '@components/chart/Chart';
 import Button from '@components/UI/Button';
 import PageTitle from '@components/PageTitle';
 import Select,{MultiValue} from "react-select";
+import LoanDisplay from '@components/loans/loanDisplay';
 
 const designSystem = tokens.xerenity;
 const PURPLE_COLOR_100 = designSystem['purple-100'].value;
@@ -56,11 +56,13 @@ export default function NextPage() {
 
   const [showConfirm, setShowConfirm] = useState<boolean>(false);
 
-  const [eraseLoan, setEraseLoan] = useState<string>('');
-
   const [banks,setBanks]= useState<Banks[]>([]);
 
+  const selectedLoan=useRef<Loan>();
   const selectedBanks=useRef<string[]>([]);
+  
+
+  const [showLoanModal, setShowLoanModal] = useState<boolean>(false);
 
   const [selectedLoans, setSelectLoans] = useState<
     Map<string, LoanCashFlowIbr[]>
@@ -321,192 +323,164 @@ export default function NextPage() {
 
   return (
     <CoreLayout>
-      <LoanForm
-        showStart={showDialog}
-        createCallback={fetchLoans}
-        showCallBack={setShowDialog}
-        bankList={banks}
-      />
-      <ToastContainer />
-      <Container fluid className="px-4">
-        <Row>
-          <div className="d-flex align-items-center gap-2 py-1">
-            <PageTitle>
-              <Icon icon={faLandmark} size="1x" />
-              <h4>Creditos</h4>
-            </PageTitle>
-          </div>
-        </Row>
-        <Row>
-          <div className="d-flex justify-content-end pb-3">
-            <Toolbar>
-                <Select 
-                  isMulti 
-                  options={banks.map((bck)=>({value:bck.bank_name,label:bck.bank_name}))} 
-                  onChange={handleOption} 
-                />           
-                  <Button
-                    variant="outline-primary"
-                    onClick={() => setShowDialog(!showDialog)}
-                  >
-                <Icon icon={faMoneyBill} className="mr-4" />
-                Nuevo Credito
-              </Button>
-              <Button variant="outline-primary" onClick={downloadSeries}>
-                <Icon icon={faFileCsv} className="mr-4" />
-                Descargar
-              </Button>
-            </Toolbar>
-        </div>
-        </Row>
-        <Row>
-          <Col>
-            <Table
-              bordered
-              hover
-              responsive="sm"
-              style={{ textAlign: 'center' }}
-            >
-              <thead>
-                <tr>
-                  <th>Fecha de inicio</th>
-                  <th>Balance</th>
-                  <th>Periodicidad</th>
-                  <th>Numero de pagos</th>
-                  <th>Interes</th>
-                  <th>Tipo</th>
-                  <th>Entidad Bancaria</th>
-                  <th>Acciones</th>
-                </tr>
-              </thead>
-              <tbody>
-                {allCredits?.map((loan) => [
-                  <tr key={`row-credit${loan.id}`}>
-                    <td>{loan.start_date}</td>
-                    <td>
-                      {loan.original_balance.toLocaleString('us-US', {
-                        style: 'currency',
-                        currency: 'COP',
-                      })}
-                    </td>
-                    <td>{loan.periodicity}</td>
-                    <td>{loan.number_of_payments}</td>
-                    <td>{loan.interest_rate}</td>
-                    <td>
-                      {loan.type === 'ibr' ? (
-                        <Badge pill bg={PURPLE_COLOR_100}>
-                          {loan.type}
-                        </Badge>
-                      ) : (
-                        <Badge pill bg={GREY_COLOR_300}>
-                          {loan.type}
-                        </Badge>
-                      )}
-                    </td>
-                    <td>
-                      {loan.bank}
-                    </td>
-                    <td>
-                      {' '}
-                      <Row>
-                        <Col sm={{ span: 3 }}>
-                          <Icon
-                            icon={faTrashCan}
-                            onClick={() => {
-                              setEraseLoan(loan.id);
-                              setShowConfirm(true);
-                            }}
-                          />
-                        </Col>
-                        <Col sm={{ offset: 2, span: 3 }}>
-                          <Form.Check
-                            type="switch"
-                            checked={selectedLoans.has(loan.id)}
-                            id={`check-${loan.id}`}
-                            disabled={fetching}
-                            onChange={(e) =>
-                              handleLoanCheckChnage(e, loan.id, loan.type)
-                            }
-                          />
-                        </Col>
-                      </Row>
-                    </td>
-                  </tr>,
-                ])}
-              </tbody>
-            </Table>
-          </Col>
-        </Row>
-        <Row>
-          <Col>
-            <Chart chartHeight={800}>
-              <Chart.Bar
-                data={pagoCuotaSerie}
-                color={PURPLE_COLOR_100}
-                scaleId="rigth"
-                title="Pago final (Derecho)"
-              />
-              <Chart.Line
-                data={balanceSerie}
-                color={GREY_COLOR_300}
-                scaleId="left"
-                title="Balance final (Izquierdo)"
-              />
-            </Chart>
-          </Col>
-        </Row>
-
-        <Row>
-          <Col>
-            <Table
-              bordered
-              hover
-              responsive="sm"
-              style={{ textAlign: 'center' }}
-            >
-              <thead>
-                <tr>
-                  <th>Fecha de inicio</th>
-                  <th>Balance inicial</th>
-                  <th>Tasa</th>
-                  <th>Pago cuota</th>
-                  <th>Intereses</th>
-                  <th>Principal</th>
-                  <th>Balance Final</th>
-                </tr>
-              </thead>
-              <tbody>
-                {cashFlow?.map((loan) => [
-                  <tr key={`row-credit${loan.date}`}>
-                    <td>{loan.date.split(' ')[0]}</td>
-                    <PriceTagTd value={loan.beginning_balance} />
-                    <td>
-                      {loan.rate_tot
-                        ? loan.rate_tot.toFixed(2)
-                        : loan.rate.toFixed(2)}
-                      %
-                    </td>
-                    <PriceTagTd value={loan.payment} />
-                    <td>{loan.interest.toFixed(2)}</td>
-                    <td>{loan.principal.toFixed(2)}</td>
-                    <PriceTagTd value={loan.ending_balance} />
-                  </tr>,
-                ])}
-              </tbody>
-            </Table>
-          </Col>
-        </Row>
-      </Container>
       <Modal
         onCancel={() => setShowConfirm(false)}
         cancelText={MODAL_CANCEL_TXT}
-        onSave={() => borrarCredito(eraseLoan)}
+        onSave={() => {
+          if(selectedLoan.current){
+            borrarCredito(selectedLoan.current.id);
+          }
+        }}
         saveText={MODA_SAVE_TXT}
         title={MODAL_TITLE}
         display={showConfirm}
       >
         {CONFIRMATION_TXT}
       </Modal>
+      
+      <Modal 
+        title={`Credito ${selectedLoan.current?.type}`} 
+        display={showLoanModal}  
+        cancelText='Cerrar'
+        onCancel={() => setShowLoanModal(false)}
+      >
+        {selectedLoan.current?.bank}
+      </Modal>
+
+      <LoanForm
+        showStart={showDialog}
+        createCallback={fetchLoans}
+        showCallBack={setShowDialog}
+        bankList={banks}
+      />
+      <ToastContainer />      
+      <Container fluid>
+          <Row>
+            <div className="d-flex align-items-center gap-2 py-1">
+              <PageTitle>
+                <Icon icon={faLandmark} size="1x" />
+                <h4>Creditos</h4>
+              </PageTitle>
+            </div>
+          </Row>
+          <Row>
+            <div className="d-flex justify-content-end pb-3">
+              <Toolbar>
+                  <Select 
+                    isMulti 
+                    options={banks.map((bck)=>({value:bck.bank_name,label:bck.bank_name}))} 
+                    onChange={handleOption} 
+                  />           
+                    <Button
+                      variant="outline-primary"
+                      onClick={() => setShowDialog(!showDialog)}
+                    >
+                  <Icon icon={faMoneyBill} className="mr-4" />
+                  Nuevo Credito
+                </Button>
+                <Button variant="outline-primary" onClick={downloadSeries}>
+                  <Icon icon={faFileCsv} className="mr-4" />
+                  Descargar
+                </Button>
+              </Toolbar>
+          </div>
+          </Row>
+      </Container>
+
+      <div className="px-1 row min-vh-100">
+        <div className="col-sm">
+          
+          <div className='row'>
+            <div className="col">
+              <Chart chartHeight={400}> 
+                <Chart.Bar
+                  data={pagoCuotaSerie}
+                  color={PURPLE_COLOR_100}
+                  scaleId="rigth"
+                  title="Pago final (Derecho)"
+                />
+                <Chart.Line
+                  data={balanceSerie}
+                  color={GREY_COLOR_300}
+                  scaleId="left"
+                  title="Balance final (Izquierdo)"
+                />
+              </Chart>  
+            </div>          
+          </div>
+          <div className="row">
+            <div className="col min-vh-100">
+              <Table
+                bordered
+                hover
+                responsive="sm"
+                style={{ textAlign: 'center' }}
+              >
+                <thead>
+                  <tr>
+                    <th>Fecha de inicio</th>
+                    <th>Balance inicial</th>
+                    <th>Tasa</th>
+                    <th>Pago cuota</th>
+                    <th>Intereses</th>
+                    <th>Principal</th>
+                    <th>Balance Final</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {cashFlow?.map((loan) => [
+                    <tr key={`row-credit${loan.date}`}>
+                      <td>{loan.date.split(' ')[0]}</td>
+                      <PriceTagTd value={loan.beginning_balance} />
+                      <td>
+                        {loan.rate_tot
+                          ? loan.rate_tot.toFixed(2)
+                          : loan.rate.toFixed(2)}
+                        %
+                      </td>
+                      <PriceTagTd value={loan.payment} />
+                      <td>{loan.interest.toFixed(2)}</td>
+                      <td>{loan.principal.toFixed(2)}</td>
+                      <PriceTagTd value={loan.ending_balance} />
+                    </tr>,
+                  ])}
+                </tbody>
+              </Table>              
+            </div>
+          </div>
+        </div>
+
+        <div className="col-sm">
+          {allCredits?.map((loan)=>(
+              <LoanDisplay 
+                key={`row-key${loan.id}`} 
+                loan={loan}
+                checked={selectedLoans.has(loan.id)}
+                disabled={fetching}
+                onSelect={handleLoanCheckChnage}
+                actions={[
+                  {
+                    name: 'details',
+                    actionIcon: faEye,
+                    actionEvent: () => {
+                      selectedLoan.current=loan;
+                      setShowLoanModal(true);
+                    }
+                  },
+                  {
+                    name: 'details',
+                    actionIcon: faTrashCan,
+                    actionEvent: () => {
+                      selectedLoan.current=loan;
+                      setShowConfirm(true);
+                    }
+                  }
+                ]}
+              />   
+          ))}
+        </div>
+      </div>
+
     </CoreLayout>
   );
 }
