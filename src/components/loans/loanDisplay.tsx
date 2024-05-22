@@ -24,16 +24,20 @@ type LoanDisplayProps = {
     actions:LoanAction[];
     checked:boolean;
     disabled:boolean;
+    index:number;
     onSelect:(event: ChangeEvent<HTMLInputElement>,loanId: string,loanType: string)=>void;
 }
 
-export default function LoanDisplay({loan,actions,onSelect,checked,disabled}: LoanDisplayProps) {
+export default function LoanDisplay({loan,actions,onSelect,checked,disabled,index}: LoanDisplayProps) {
 
 
     return (
         <Alert >
             <div className="container">
                 <div className="row">
+                    <div className="col-1">
+                        {index}
+                    </div>
                     <div className="col-1">
                         <Form.Check
                             type="switch"

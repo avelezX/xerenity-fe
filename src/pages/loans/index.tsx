@@ -32,7 +32,6 @@ import LoanDisplay from '@components/loans/loanDisplay';
 
 const designSystem = tokens.xerenity;
 const PURPLE_COLOR_100 = designSystem['purple-100'].value;
-const GREY_COLOR_300 = designSystem['gray-300'].value;
 const CONFIRMATION_TXT = 'Desea Borrar El Crédito?';
 const MODAL_TITLE = 'Borrar Crédito';
 const MODA_SAVE_TXT = 'Borrar';
@@ -49,8 +48,6 @@ export default function NextPage() {
   const [fetching, setFetching] = useState<boolean>(false);
 
   const [pagoCuotaSerie, setPagoCuotaSerie] = useState<LightSerieValue[]>([]);
-
-  const [balanceSerie, setBalanceSerie] = useState<LightSerieValue[]>([]);
 
   const [showDialog, setShowDialog] = useState<boolean>(false);
 
@@ -168,8 +165,6 @@ export default function NextPage() {
 
     const longCashFlow = new Array<LoanCashFlowIbr>();
 
-    const balance: LightSerieValue[] = [];
-
     const payment: LightSerieValue[] = [];
 
     Array.from(newCashFlow.entries()).forEach((val) => {
@@ -179,10 +174,6 @@ export default function NextPage() {
     longCashFlow.sort((a, b) => (a.date < b.date ? -1 : 1));
 
     longCashFlow.forEach((value) => {
-      balance.push({
-        time: value.date.split(' ')[0],
-        value: value.ending_balance,
-      });
       payment.push({
         time: value.date.split(' ')[0],
         value: value.payment,
@@ -191,7 +182,6 @@ export default function NextPage() {
 
     setPagoCuotaSerie(payment);
 
-    setBalanceSerie(balance);
 
     setCashFlow(longCashFlow);    
   }  
@@ -392,18 +382,12 @@ export default function NextPage() {
           
           <div className='row'>
             <div className="col">
-              <Chart chartHeight={400}> 
+              <Chart chartHeight={300}> 
                 <Chart.Bar
                   data={pagoCuotaSerie}
                   color={PURPLE_COLOR_100}
-                  scaleId="rigth"
+                  scaleId="right"
                   title="Pago final (Derecho)"
-                />
-                <Chart.Line
-                  data={balanceSerie}
-                  color={GREY_COLOR_300}
-                  scaleId="left"
-                  title="Balance final (Izquierdo)"
                 />
               </Chart>  
             </div>          
@@ -429,7 +413,7 @@ export default function NextPage() {
                 </thead>
                 <tbody>
                   {cashFlow?.map((loan) => [
-                    <tr key={`row-credit${loan.date}`}>
+                    <tr key={`row-credit-${loan.date}-${loan.ending_balance}`}>
                       <td>{loan.date.split(' ')[0]}</td>
                       <PriceTagTd value={loan.beginning_balance} />
                       <td>
@@ -450,9 +434,10 @@ export default function NextPage() {
           </div>
         </div>
 
-        <div className="col-sm">
-          {allCredits?.map((loan)=>(
+        <div className="col-sm" style={{ maxHeight: "600px", overflowY: "auto" }}>
+          {allCredits?.map((loan,index)=>(
               <LoanDisplay 
+                index={index}
                 key={`row-key${loan.id}`} 
                 loan={loan}
                 checked={selectedLoans.has(loan.id)}
