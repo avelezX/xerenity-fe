@@ -54,7 +54,7 @@ const Card = ({
             onMouseEnter={() => onShowTitle(true)}
             onMouseLeave={() => onShowTitle(false)}
           >
-            <small>{truncateStr(title, 30)}</small>
+            {truncateStr(title, 30)}
           </h5>
           <Overlay
             target={titleTarget.current}
