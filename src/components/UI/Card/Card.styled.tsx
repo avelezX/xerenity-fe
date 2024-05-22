@@ -13,6 +13,7 @@ const LG_RADIUS = designSystem['radius-lg'].value;
 const PRIMARY_COLOR = designSystem['purple-200'].value;
 const LIGHT_PURPLE = designSystem['purple-10'].value;
 const FONT_MEDIUM = designSystem.medium.value;
+const FONT_SMALL = designSystem['text-sm'].value;
 const GRAY_500 = designSystem['gray-500'].value;
 
 export const CardContainer = styled(BsCard)`
@@ -36,6 +37,7 @@ export const CardTitle = styled(BsCardTitle)`
   h5 {
     margin-bottom: 0;
     color: ${PRIMARY_COLOR};
+    font-size: ${FONT_SMALL}px;
   }
 
   path,

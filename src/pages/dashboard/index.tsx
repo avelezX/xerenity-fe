@@ -34,6 +34,8 @@ import {
   faTrash,
   faLineChart,
   faEye,
+  faAlignLeft,
+  faAlignRight,
 } from '@fortawesome/free-solid-svg-icons';
 import SeriePicker from '@components/serie/SeriePicker';
 import { ExportToCsv, downloadBlob } from '@components/csvDownload/cscDownload';
@@ -161,6 +163,13 @@ export default function Dashboard() {
     fetchData();
   }, [fetchData]);
 
+  const decideAxis = (index: number) => {
+    if (normalize.current) {
+      return 'right';
+    }
+    return index % 2 === 0 ? 'right' : 'left';
+  };
+
   const handleCheckboxChange = useCallback(
     async (
       event: ChangeEvent<HTMLInputElement>,
@@ -174,8 +183,11 @@ export default function Dashboard() {
       Array.from(selectedSeries.entries()).forEach(([key, value]) => {
         newSelection.set(key, value);
       });
+
       if (event.target.checked) {
-        newSelection.set(checkboxId, await FetchSerieValues(checkboxId, color));
+        const newSerie=await FetchSerieValues(checkboxId, color);
+        newSerie.axisName=decideAxis(newSelection.size);
+        newSelection.set(checkboxId, newSerie);
       } else {
         newSelection.delete(checkboxId);
       }
@@ -249,12 +261,33 @@ export default function Dashboard() {
     }
   };
 
-  const decideAxis = (index: number) => {
-    if (normalize.current) {
-      return 'right';
-    }
-    return index % 2 === 0 ? 'right' : 'left';
-  };
+
+  const handleAxisChnage = useCallback(
+    async (serieId: string) => {
+      const newSelection = new Map<string, LightSerie>();
+
+      Array.from(selectedSeries.entries()).forEach(([key, value]) => {
+          if(key===serieId){
+            const newSerie:LightSerie=value;
+            
+            if(value.axisName==='left'){
+              newSerie.axisName='right';
+            }else{
+              newSerie.axisName='left';
+            }
+
+            newSelection.set(key, newSerie);
+          }else{
+            newSelection.set(key, value);
+          }
+        
+      });
+
+      setSelectedSeries(newSelection);
+    },
+    [selectedSeries]
+  );
+
 
   return (
     <CoreLayout>
@@ -289,13 +322,13 @@ export default function Dashboard() {
         <Row>
           <Col>
             <Chart chartHeight={800}>
-              {Array.from(selectedSeries.values()).map((data, index) => (
+              {Array.from(selectedSeries.values()).map((data) => (
                 <Chart.Line
                   key={`chart-${data.name}`}
                   data={data.serie}
                   color={data.color}
                   title={data.name}
-                  scaleId={decideAxis(index)}
+                  scaleId={data.axisName}
                   applyFunctions={applyFunctions}
                 />
               ))}
@@ -311,6 +344,11 @@ export default function Dashboard() {
                   icon={faLineChart}
                   color={selectedSeries.get(key)?.color}
                   actions={[
+                    {
+                      name: 'axis',
+                      actionIcon: selectedSeries.get(key)?.axisName==='left'?(faAlignLeft):(faAlignRight),
+                      actionEvent: () => handleAxisChnage(value.source_name),
+                    },
                     {
                       name: 'details',
                       actionIcon: faEye,
