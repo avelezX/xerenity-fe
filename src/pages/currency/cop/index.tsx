@@ -2,14 +2,13 @@
 
 import { CoreLayout } from '@layout';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
-import { Row, Col, DropdownDivider } from 'react-bootstrap';
+import { Row, Col } from 'react-bootstrap';
 import Dropdown from 'react-bootstrap/Dropdown';
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import Container from 'react-bootstrap/Container';
 import { LightSerieValue } from '@models/lightserie';
 import { ExportToCsv, downloadBlob } from '@components/csvDownload/cscDownload';
 import {
-  faCaretRight,
   faFileCsv,
   faMoneyBill,
 } from '@fortawesome/free-solid-svg-icons';
@@ -18,13 +17,10 @@ import { TesYields, CandleSerie, TesEntryToArray } from '@models/tes';
 import tokens from 'design-tokens/tokens.json';
 import Chart from '@components/chart/Chart';
 import { FontAwesomeIcon as Icon } from '@fortawesome/react-fontawesome';
-import { MovingAvgValue } from '@models/movingAvg';
 import Toolbar from '@components/UI/Toolbar';
 import PageTitle from '@components/PageTitle';
 
-const MONTH_OPTIONS = [20, 30, 50];
 const designSystem = tokens.xerenity;
-const PURPLE_COLOR = designSystem['purple-100'].value;
 const GRAY_COLOR_300 = designSystem['gray-300'].value;
 const PAGE_TITLE = 'Monedas: Peso Colombiano';
 const OPCIONES = 'Opciones';
@@ -40,10 +36,6 @@ export default function CurrecnyViewer() {
   const currencyName = useRef<string>('USD:COP');
 
   const [volumenSerie, setvolumenSerie] = useState<LightSerieValue[]>([]);
-
-  const movingAvgDays = useRef<number>(20);
-
-  const [movingAvg, setMovingAvg] = useState<LightSerieValue[]>([]);
 
   const fetchCurrencyRawData = useCallback(async () => {
     const { data, error } = await supabase
@@ -69,40 +61,9 @@ export default function CurrecnyViewer() {
     }
   }, [supabase]);
 
-  const fecthMovingAverag = useCallback(async () => {
-    if (currencyName.current) {
-      const { data, error } = await supabase
-        .schema('xerenity')
-        .rpc('currency_moving_average', {
-          currency_name: currencyName.current,
-          average_days: movingAvgDays.current,
-        });
-
-      if (error) {
-        toast.error(error.message, { position: toast.POSITION.TOP_CENTER });
-      } else if (data) {
-        const avgValues = data.moving_avg as MovingAvgValue[];
-        const avgSerie = Array<LightSerieValue>();
-        avgValues.forEach((avgval) => {
-          avgSerie.push({
-            value: avgval.avg,
-            time: avgval.close_date.split('T')[0],
-          });
-        });
-        setMovingAvg(avgSerie);
-      }
-    }
-  }, [supabase]);
-
-  const handleMonthChange = (eventKey: number) => {
-    movingAvgDays.current = eventKey;
-    fecthMovingAverag();
-  };
-
   useEffect(() => {
     fetchCurrencyRawData();
-    fecthMovingAverag();
-  }, [fetchCurrencyRawData, fecthMovingAverag]);
+  }, [fetchCurrencyRawData]);
 
   const downloadGrid = () => {
     const allValues: string[][] = [];
@@ -142,18 +103,6 @@ export default function CurrecnyViewer() {
                       <span>Descargar</span>
                     </div>
                   </Dropdown.Item>
-                  <DropdownDivider />
-                  {MONTH_OPTIONS.map((month) => (
-                    <Dropdown.Item
-                      key={month}
-                      onClick={() => handleMonthChange(month)}
-                    >
-                      <div className="d-flex gap-2 align-items-center">
-                        <Icon icon={faCaretRight} />
-                        <span>{`Promedio Movil ${month}`}</span>
-                      </div>
-                    </Dropdown.Item>
-                  ))}
                 </Dropdown.Menu>
               </Dropdown>
             </Toolbar>
@@ -168,12 +117,6 @@ export default function CurrecnyViewer() {
                 scaleId="left"
                 title={currencyName.current}
                 color={GRAY_COLOR_300}
-              />
-              <Chart.Line
-                data={movingAvg}
-                color={PURPLE_COLOR}
-                scaleId="right"
-                title={currencyName.current}
               />
             </Chart>
           </Col>
