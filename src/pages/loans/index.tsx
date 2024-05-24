@@ -427,7 +427,7 @@ export default function LoansPage() {
                   onChange={handleOption}
                 />
                 <Button
-                  variant="outline-primary"
+                  variant="primary"
                   onClick={() => setShowDialog(!showDialog)}
                 >
                   <Icon icon={faMoneyBill} className="mr-4" />

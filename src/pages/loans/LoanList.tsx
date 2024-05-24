@@ -51,13 +51,16 @@ type LoanListProps = {
 };
 
 const ListContainer = styled.section`
-  list-decoration: none;
   display: flex;
   flex-direction: column;
   gap: 10px;
+  overflow-y: scroll;
+  height: 100%;
 `;
 
 const ItemActions = styled.div`
+  height: 62px;
+  align-items: center;
   display: flex;
   gap: 10px;
 `;
