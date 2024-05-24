@@ -23,7 +23,6 @@ import {
   LightSerieValue,
   LightSerieEntry,
   lightSerieValueArray,
-  defaultPriceFormat,
 } from '@models/lightserie';
 import { FontAwesomeIcon as Icon } from '@fortawesome/react-fontawesome';
 import {
@@ -204,15 +203,11 @@ export default function Dashboard() {
       const newSelection = new Map<string, LightSerie>();
 
       Array.from(selectedSeries.entries()).forEach(([key, value]) => {
-        if (key === checkboxId) {
-          newSelection.set(key, {
-            serie: value.serie,
-            color: newColor,
-            name: value.name,
-            type: 'line',
-            priceFormat: defaultPriceFormat,
-          });
-        } else {
+        if(key===checkboxId){
+          const newSerie:LightSerie=value;
+          newSerie.color=newColor;
+          newSelection.set(key,newSerie); 
+        }else{
           newSelection.set(key, value);
         }
       });
@@ -342,6 +337,8 @@ export default function Dashboard() {
                 <Card
                   title={value.display_name}
                   icon={faLineChart}
+                  handleColorPicker={handleColorChnage}
+                  serieId={key}
                   color={selectedSeries.get(key)?.color}
                   actions={[
                     {

@@ -1,19 +1,24 @@
 'use client';
 
 import { PropsWithChildren, MouseEventHandler, useRef, useState } from 'react';
-import { Overlay, Tooltip } from 'react-bootstrap';
+import { Overlay, Toast, ToastContainer, Tooltip } from 'react-bootstrap';
 import { FontAwesomeIcon as Icon } from '@fortawesome/react-fontawesome';
 import { IconDefinition } from '@fortawesome/free-solid-svg-icons';
 import truncateStr from 'src/utils/truncateStr';
+import Circle from '@uiw/react-color-circle';
+import { XerenityHexColors } from '@models/hexColors';
+import ColoredButton from '../ColoredButton';
 import {
   CardTitle,
   CardContainer,
   CardBody,
-  ColorPicker,
   CardFooter,
   SourcePill,
 } from './Card.styled';
+
 import IconButton from '../IconButton';
+
+
 
 const FUENTE_TXT = 'Fuente';
 
@@ -30,6 +35,8 @@ type CardProps = {
   actions: CardAction[];
   fuente: string;
   description: string;
+  handleColorPicker?: (serieid: string, color: string) => void;
+  serieId:string;
 } & PropsWithChildren;
 
 const Card = ({
@@ -39,9 +46,19 @@ const Card = ({
   actions,
   fuente,
   description,
+  handleColorPicker,
+  serieId
 }: CardProps) => {
   const titleTarget = useRef(null);
   const [showeFullTitle, onShowTitle] = useState<boolean>(false);
+  const [showColorToast, setShowColorToast] = useState(false);
+
+  const HandleColorSelect = async (newColor: {hex: React.SetStateAction<string>}) => {
+    if (handleColorPicker) {
+      handleColorPicker(serieId, newColor.hex.toString());
+    }
+    setShowColorToast(false);
+  };
 
   return (
     <CardContainer>
@@ -73,7 +90,28 @@ const Card = ({
         </div>
       </CardTitle>
       <CardBody>
-        <div className="picker">{color && <ColorPicker color={color} />}</div>
+      <ToastContainer>
+        <Toast
+          onClose={() => setShowColorToast(false)}
+          show={showColorToast}
+          animation
+          >
+          <Toast.Body>
+            <Circle    
+              style={{ width: '100%', height: '100%' }}
+              colors={XerenityHexColors}
+              onChange={HandleColorSelect}
+            />
+          </Toast.Body>
+        </Toast>
+        </ToastContainer>
+        
+        <ColoredButton
+          color={color||'white'}
+          onClick={()=>setShowColorToast(!showColorToast)}
+        />
+        
+        
         <div className="description">
           <p>{truncateStr(description, 120)}</p>
         </div>
