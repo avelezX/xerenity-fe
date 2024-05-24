@@ -25,7 +25,7 @@ import Toolbar from '@components/UI/Toolbar';
 import Button from '@components/UI/Button';
 import PageTitle from '@components/PageTitle';
 import randomColor from 'src/utils/generateRandomColor';
-import MonedasModal from './MonedasModal';
+import MonedasModal from './_MonedasModal';
 
 const designSystem = tokens.xerenity;
 const GRAY_COLOR_300 = designSystem['gray-300'].value;

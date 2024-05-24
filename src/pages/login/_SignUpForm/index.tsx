@@ -1,5 +1,10 @@
 import { FontAwesomeIcon as Icon } from '@fortawesome/react-fontawesome';
-import { faEnvelope, faLock,faUser,faEarthAmericas } from '@fortawesome/free-solid-svg-icons';
+import {
+  faEnvelope,
+  faLock,
+  faUser,
+  faEarthAmericas,
+} from '@fortawesome/free-solid-svg-icons';
 import { Form, InputGroup, Collapse } from 'react-bootstrap';
 import { useRef, useState } from 'react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
@@ -14,69 +19,67 @@ import {
 import HCaptcha from '@hcaptcha/react-hcaptcha';
 import Spinner from '@components/UI/Spinner';
 import * as Yup from 'yup';
-import strings from '../../strings/signup.json';
-import ErrorMsg from './ErrorMsg';
-import countries from '../../strings/countries.json';
-
+import strings from '../../../strings/signup.json';
+import ErrorMsg from '../_ErrorMsg';
+import countries from '../../../strings/countries.json';
 
 const { form } = strings;
 
 function SingUpForm() {
-    const supabase = createClientComponentClient();
-    const [signUpMsg, setSignUpMsg] = useState('');
-    const [newSignUpAction, setNewSignUpAction] = useState<boolean>(false);
-    const [captchaToken, setCaptchaToken] = useState<string | undefined>(undefined);
-    const captcha = useRef<HCaptcha>(null);
+  const supabase = createClientComponentClient();
+  const [signUpMsg, setSignUpMsg] = useState('');
+  const [newSignUpAction, setNewSignUpAction] = useState<boolean>(false);
+  const [captchaToken, setCaptchaToken] = useState<string | undefined>(
+    undefined
+  );
+  const captcha = useRef<HCaptcha>(null);
 
+  const signUpSchema = Yup.object().shape({
+    email: Yup.string().email(form.emailInvalid).required(form.required),
+    password: Yup.string().min(10).required(form.required),
+    name: Yup.string().min(2).required(form.required),
+    country: Yup.string().min(2).required(form.required),
+  });
 
-    const signUpSchema = Yup.object().shape({
-        email: Yup.string().email(form.emailInvalid).required(form.required),
-        password: Yup.string().min(10).required(form.required),
-        name:Yup.string().min(2).required(form.required),
-        country:Yup.string().min(2).required(form.required)
+  const initialValues = {
+    email: '',
+    password: '',
+    name: '',
+    country: 'CO',
+  };
+
+  const onSubmit: FormikConfig<typeof initialValues>['onSubmit'] = async (
+    formValues
+  ) => {
+    const preparedValues = signUpSchema.cast(
+      prepareDataForValidation(formValues)
+    );
+
+    setNewSignUpAction(false);
+    const res = await supabase.auth.signUp({
+      email: preparedValues.email,
+      password: preparedValues.password,
+      options: {
+        captchaToken,
+        data: {
+          full_name: preparedValues.name,
+          country: preparedValues.country,
+        },
+      },
     });
 
-    const initialValues = {
-        email: '',
-        password: '',
-        name:'',
-        country:'CO'
-    };
+    if (res.error) {
+      setSignUpMsg(res.error.message);
+    } else {
+      setSignUpMsg(form.confirmacion);
+    }
+    setNewSignUpAction(true);
 
-    const onSubmit: FormikConfig<typeof initialValues>['onSubmit'] = async (
-        formValues
-    ) => {
-        const preparedValues = signUpSchema.cast(
-            prepareDataForValidation(formValues)
-        );
-        
-        setNewSignUpAction(false);
-        const res = await supabase.auth.signUp(  {
-            email: preparedValues.email,
-            password: preparedValues.password,
-            options: {
-                captchaToken,
-                data: {
-                    full_name: preparedValues.name,
-                    country: preparedValues.country,
-                }
-            }
-        }
-        );
-
-        if (res.error) {
-            setSignUpMsg(res.error.message);
-        } else {
-            setSignUpMsg(form.confirmacion);
-        }
-        setNewSignUpAction(true);
-
-        if(captcha.current){
-          captcha.current.resetCaptcha();
-          setCaptchaToken(undefined);
-        }
-        
-};
+    if (captcha.current) {
+      captcha.current.resetCaptcha();
+      setCaptchaToken(undefined);
+    }
+  };
 
   return (
     <Formik
@@ -156,16 +159,18 @@ function SingUpForm() {
             >
               <InputGroup>
                 <InputGroup.Text className="bg-white border-right-none">
-                  <Icon className="text-primary" icon={faEarthAmericas} fixedWidth />
+                  <Icon
+                    className="text-primary"
+                    icon={faEarthAmericas}
+                    fixedWidth
+                  />
                 </InputGroup.Text>
-                <Form.Select
-                  value={values.country}
-                  onChange={handleChange}
-                > 
-                    {countries.map((cty)=>(
-                      <option key={cty.code} value={cty.code}>{cty.name}</option>
-                    ))}
-
+                <Form.Select value={values.country} onChange={handleChange}>
+                  {countries.map((cty) => (
+                    <option key={cty.code} value={cty.code}>
+                      {cty.name}
+                    </option>
+                  ))}
                 </Form.Select>
               </InputGroup>
               <ErrorMessage name="country">
@@ -181,13 +186,14 @@ function SingUpForm() {
             />
 
             <div className="d-flex justify-content-center p-4">
-              <Button 
-                type="submit" 
-                disabled={captchaToken === undefined && !isSubmitting}>
+              <Button
+                type="submit"
+                disabled={captchaToken === undefined && !isSubmitting}
+              >
                 {form.action}
                 <Collapse in={isSubmitting}>
-                  <Spinner/>
-                </Collapse>                
+                  <Spinner />
+                </Collapse>
               </Button>
             </div>
             <Collapse in={newSignUpAction}>

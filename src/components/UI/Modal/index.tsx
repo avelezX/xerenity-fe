@@ -25,7 +25,7 @@ const Modal = ({
   children,
 }: ModalProps) => (
   <div className="modal show" style={{ display: 'block', position: 'initial' }}>
-    <BsModal show={display} onHide={onCancel}>
+    <BsModal show={display} onHide={onCancel} centered>
       <BsModal.Header closeButton>
         <BsModal.Title>
           {icon && <Icon icon={icon} style={{ marginRight: '8px' }} />}

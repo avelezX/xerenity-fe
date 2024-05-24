@@ -20,7 +20,7 @@ const NAV_ITEMS: NavItemProps[] = [
     active: false,
   },
   {
-    name: 'creditos',
+    name: 'créditos',
     path: '/loans',
     icon: faLandmark,
     active: false,

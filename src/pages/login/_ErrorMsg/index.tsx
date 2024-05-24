@@ -1,5 +1,5 @@
 import styled from 'styled-components';
-import tokens from '../../../design-tokens/tokens.json';
+import tokens from '../../../../design-tokens/tokens.json';
 
 const { xerenity } = tokens;
 

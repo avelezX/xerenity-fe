@@ -1,10 +1,10 @@
 'use client';
 
 import { NextPage } from 'next';
-import { Image,Tabs,Tab } from 'react-bootstrap';
-import LoginForm from './LoginForm';
+import { Image, Tabs, Tab } from 'react-bootstrap';
+import LoginForm from './_LoginForm';
 import LoginChart from './LoginChart';
-import SingUpForm from './SignUpForm';
+import SingUpForm from './_SignUpForm';
 
 const LoginPage: NextPage = () => (
   <div className="container-fluid h-100">
@@ -17,14 +17,14 @@ const LoginPage: NextPage = () => (
           alt="xerenity logo"
           className="mx-auto d-block"
         />
-        <div className="justify-content-center pb-3" >
+        <div className="justify-content-center pb-3">
           <div className="gap-2">
-          <Tabs defaultActiveKey="login">
-              <Tab eventKey="login" title='Iniciar Session'>
+            <Tabs defaultActiveKey="login">
+              <Tab eventKey="login" title="Iniciar Session">
                 <LoginForm />
               </Tab>
-              <Tab eventKey="signup" title='Crear Cuenta'>
-                <SingUpForm/>
+              <Tab eventKey="signup" title="Crear Cuenta">
+                <SingUpForm />
               </Tab>
             </Tabs>
           </div>
