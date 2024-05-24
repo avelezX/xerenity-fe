@@ -1,3 +1,5 @@
+'use client';
+
 import { useState, useRef, ChangeEvent, MouseEventHandler } from 'react';
 import { Form, Overlay, Tooltip } from 'react-bootstrap';
 import IconButton from '@components/UI/IconButton';
