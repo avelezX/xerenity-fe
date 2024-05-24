@@ -110,8 +110,6 @@ const Card = ({
           color={color||'white'}
           onClick={()=>setShowColorToast(!showColorToast)}
         />
-        
-        
         <div className="description">
           <p>{truncateStr(description, 120)}</p>
         </div>
