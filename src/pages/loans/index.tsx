@@ -349,7 +349,7 @@ export default function LoansPage() {
           <div className="d-flex align-items-center gap-2 py-1">
             <PageTitle>
               <Icon icon={faLandmark} size="1x" />
-              <h4>Creditos</h4>
+              <h4>Créditos</h4>
             </PageTitle>
           </div>
         </Row>
@@ -425,6 +425,7 @@ export default function LoansPage() {
                 <MultipleSelect
                   data={bankSelectItems}
                   onChange={handleOption}
+                  placeholder="Selecciona Un Banco"
                 />
                 <Button
                   variant="primary"
