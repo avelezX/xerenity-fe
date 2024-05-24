@@ -13,6 +13,7 @@ import {
 import { FontAwesomeIcon as Icon } from '@fortawesome/react-fontawesome';
 import styled from 'styled-components';
 import Badge from '@components/UI/Badge';
+
 const designSystem = tokens.xerenity;
 
 const LIGHT_PURPLE = designSystem['purple-10'].value;

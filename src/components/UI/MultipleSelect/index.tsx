@@ -16,7 +16,11 @@ const SelectContainer = styled(Select)`
 `;
 
 const MultipleSelect = ({ data, onChange }: MultipleSelectProps) => (
-  <SelectContainer isMulti options={data} onChange={onChange} />
+  <SelectContainer
+    isMulti
+    options={data}
+    onChange={onChange as (newValue: unknown) => void}
+  />
 );
 
 export default MultipleSelect;
