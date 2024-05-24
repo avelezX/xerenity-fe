@@ -29,11 +29,11 @@ import Chart from '@components/chart/Chart';
 import Button from '@components/UI/Button';
 import PageTitle from '@components/PageTitle';
 import { MultiValue } from 'react-select';
-import LoanList from 'src/pages/loans/LoanList';
+import LoanList from 'src/pages/loans/_LoanList';
 import Panel from '@components/Panel';
 import MultipleSelect from '@components/UI/MultipleSelect';
 import ConfirmationModal from '@components/UI/ConfirmationModal';
-import LoanDetailsModal from './LoanDetailsModal';
+import LoanDetailsModal from './_LoanDetailsModal';
 
 const designSystem = tokens.xerenity;
 const PURPLE_COLOR_100 = designSystem['purple-100'].value;

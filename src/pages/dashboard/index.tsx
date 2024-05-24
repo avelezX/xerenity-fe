@@ -45,7 +45,7 @@ import Button from '@components/UI/Button';
 import PageTitle from '@components/PageTitle';
 import Card from '@components/UI/Card';
 import CardGrid from '@components/UI/CardGrid';
-import SerieInfoModal from './SerieInfoModal';
+import SerieInfoModal from './_SerieInfoModal';
 
 export default function Dashboard() {
   const supabase = createClientComponentClient();

@@ -3,7 +3,7 @@
 import { ChangeEvent } from 'react';
 import { Loan, LoanCashFlowIbr } from '@models/loans';
 import { faEye, faTrash } from '@fortawesome/free-solid-svg-icons';
-import styled from 'styled-components';
+import GroupList from '@components/UI/GroupList';
 import LoanItem from './LoanItem';
 
 type LoanListProps = {
@@ -19,14 +19,6 @@ type LoanListProps = {
   onShowDetails: (loan: Loan) => void;
 };
 
-const ListContainer = styled.section`
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  overflow-y: scroll;
-  height: 100%;
-`;
-
 const LoanList = ({
   list,
   onSelect,
@@ -35,7 +27,7 @@ const LoanList = ({
   onDelete,
   onShowDetails,
 }: LoanListProps) => (
-  <ListContainer>
+  <GroupList>
     {list?.map((loan) => (
       <LoanItem
         key={`row-key${loan.id}`}
@@ -57,7 +49,7 @@ const LoanList = ({
         ]}
       />
     ))}
-  </ListContainer>
+  </GroupList>
 );
 
 export default LoanList;
