@@ -132,6 +132,7 @@ function LoginForm() {
               </ErrorMessage>
             </Form.Group>
             <HCaptcha
+              languageOverride='es'
               ref={captcha}
               sitekey="593e53a4-0b84-4d8a-a7e6-a3dc4098b152"
               onVerify={(token) => {
