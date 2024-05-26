@@ -5,6 +5,7 @@ import { SourcePill } from '@components/UI/Card/Card.styled';
 import ModalContent from '@components/UI/Modal/ModalContent.styled';
 import { Loan } from '@models/loans';
 import styled from 'styled-components';
+import currencyFormat from 'src/utils/currencyFormat';
 
 type LoanDetailsModalProps = {
   onCancel: () => void;
@@ -49,15 +50,23 @@ const LoanDetailsModal = ({ show, onCancel, loan }: LoanDetailsModalProps) => (
         <div className="d-flex flex-column justify-content-center">
           <ItemDetail>
             <h6>Balance Original:</h6>
-            <span>{loan?.original_balance}</span>
+            <span>
+              <strong>
+                {loan ? currencyFormat(loan.original_balance) : ''}
+              </strong>
+            </span>
           </ItemDetail>
           <ItemDetail>
             <h6>Periodicidad:</h6>
-            <span>{loan?.periodicity}</span>
+            <span>
+              <strong>{loan?.periodicity}</strong>
+            </span>
           </ItemDetail>
           <ItemDetail>
             <h6>Interés:</h6>
-            <span>{`${loan?.interest_rate}%`}</span>
+            <span>
+              <strong>{`${loan?.interest_rate}%`}</strong>
+            </span>
           </ItemDetail>
         </div>
       </div>
