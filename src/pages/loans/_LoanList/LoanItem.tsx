@@ -10,6 +10,7 @@ import { Loan } from '@models/loans';
 import { IconDefinition } from '@fortawesome/free-solid-svg-icons';
 import styled from 'styled-components';
 import { ListItem, ListItemActions } from '@components/UI/GroupList';
+import currencyFormat from 'src/utils/currencyFormat';
 
 const designSystem = tokens.xerenity;
 const PURPLE_200 = designSystem['purple-200'].value;
@@ -95,7 +96,9 @@ const LoanItem = ({
         </span>
       </Badge>
       <ItemInformation>
-        <span>{loan?.original_balance}</span>
+        <span>
+          <strong>{loan ? currencyFormat(loan.original_balance) : ''}</strong>
+        </span>
       </ItemInformation>
       <ItemInformation>
         <span>{loan?.periodicity}</span>

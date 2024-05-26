@@ -8,7 +8,7 @@ import React, {
   useRef,
 } from 'react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
-import { Container, Row, Table, Col } from 'react-bootstrap';
+import { Container, Row, Col } from 'react-bootstrap';
 import { Loan, LoanCashFlowIbr, Banks } from '@models/loans';
 import { CoreLayout } from '@layout';
 import { LightSerieValue } from '@models/lightserie';
@@ -22,7 +22,6 @@ import {
   faMoneyBill,
   faLandmark,
 } from '@fortawesome/free-solid-svg-icons';
-import PriceTagTd from '@components/price/CopDisplay';
 import Toolbar from '@components/UI/Toolbar';
 import tokens from 'design-tokens/tokens.json';
 import Chart from '@components/chart/Chart';
@@ -34,6 +33,7 @@ import Panel from '@components/Panel';
 import MultipleSelect from '@components/UI/MultipleSelect';
 import ConfirmationModal from '@components/UI/ConfirmationModal';
 import LoanDetailsModal from './_LoanDetailsModal';
+import CashFlowTable from './_CashflowTable';
 
 const designSystem = tokens.xerenity;
 const PURPLE_COLOR_100 = designSystem['purple-100'].value;
@@ -374,42 +374,7 @@ export default function LoansPage() {
                   title="Pago final (Derecho)"
                 />
               </Chart>
-              {/* TODO: move to it's own component */}
-              <div style={{ height: '800px', overflowY: 'scroll' }}>
-                <Table hover responsive="sm">
-                  <thead>
-                    <tr>
-                      <th>Fecha de inicio</th>
-                      <th>Balance inicial</th>
-                      <th>Tasa</th>
-                      <th>Pago cuota</th>
-                      <th>Intereses</th>
-                      <th>Principal</th>
-                      <th>Balance Final</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {cashFlow?.map((loan) => [
-                      <tr
-                        key={`row-credit-${loan.date}-${loan.ending_balance}`}
-                      >
-                        <td>{loan.date.split(' ')[0]}</td>
-                        <PriceTagTd value={loan.beginning_balance} />
-                        <td>
-                          {loan.rate_tot
-                            ? loan.rate_tot.toFixed(2)
-                            : loan.rate.toFixed(2)}
-                          %
-                        </td>
-                        <PriceTagTd value={loan.payment} />
-                        <td>{loan.interest.toFixed(2)}</td>
-                        <td>{loan.principal.toFixed(2)}</td>
-                        <PriceTagTd value={loan.ending_balance} />
-                      </tr>,
-                    ])}
-                  </tbody>
-                </Table>
-              </div>
+              <CashFlowTable data={cashFlow} />
             </Panel>
           </Col>
           <Col sm={12} md={4}>

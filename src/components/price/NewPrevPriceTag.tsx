@@ -18,14 +18,14 @@ type NewPrevProps = {
 
 const NewPrevTag = ({ current, prev, children }: NewPrevProps) => {
   const [bg, setBackground] = useState<string>(SUCCESS_COLOR);
-  const [icon, setIcon] = useState(faArrowDown);
+  const [icon, setIcon] = useState(faArrowUp);
 
   useEffect(() => {
     if (current - prev <= 0) {
       return;
     }
     setBackground(DANGER_COLOR);
-    setIcon(faArrowUp);
+    setIcon(faArrowDown);
   }, [current, prev]);
 
   return (
