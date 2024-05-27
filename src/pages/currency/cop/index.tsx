@@ -10,6 +10,7 @@ import { LightSerieValue } from '@models/lightserie';
 import { ExportToCsv, downloadBlob } from '@components/csvDownload/cscDownload';
 import {
   faCaretRight,
+  faEye,
   faFileCsv,
   faMoneyBill,
 } from '@fortawesome/free-solid-svg-icons';
@@ -21,11 +22,11 @@ import { FontAwesomeIcon as Icon } from '@fortawesome/react-fontawesome';
 import { MovingAvgValue } from '@models/movingAvg';
 import Toolbar from '@components/UI/Toolbar';
 import PageTitle from '@components/PageTitle';
+import { faEyeSlash } from '@fortawesome/free-regular-svg-icons';
 
 const MONTH_OPTIONS = [20, 30, 50];
 const designSystem = tokens.xerenity;
 const PURPLE_COLOR = designSystem['purple-100'].value;
-const GRAY_COLOR_300 = designSystem['gray-300'].value;
 const PAGE_TITLE = 'Monedas: Peso Colombiano';
 const OPCIONES = 'Opciones';
 
@@ -39,7 +40,7 @@ export default function CurrecnyViewer() {
 
   const currencyName = useRef<string>('USD:COP');
 
-  const [volumenSerie, setvolumenSerie] = useState<LightSerieValue[]>([]);
+  const [hidewAvg,setHideAvg]= useState<boolean>(true);
 
   const movingAvgDays = useRef<number>(20);
 
@@ -62,7 +63,6 @@ export default function CurrecnyViewer() {
         volData.push({ time: tes.day.split('T')[0], value: tes.volume });
       });
 
-      setvolumenSerie(volData);
       setCandleSerie({ name: '', values: allData });
     } else {
       setCandleSerie({ name: '', values: [] });
@@ -143,7 +143,26 @@ export default function CurrecnyViewer() {
                     </div>
                   </Dropdown.Item>
                   <DropdownDivider />
-                  {MONTH_OPTIONS.map((month) => (
+                  <Dropdown.Item onClick={()=>setHideAvg(!hidewAvg)}>
+                    <div className="d-flex gap-2 align-items-center">
+                      {hidewAvg?
+                        (
+                          <>
+                            <Icon icon={faEye} />
+                            <span>Ver promedio</span>
+                          </>
+                        ):
+                        (
+                          <>
+                            <Icon icon={faEyeSlash} />
+                            <span>Ocultar promedio</span>
+                          </>
+                        )
+                      }
+                    </div>
+                  </Dropdown.Item>
+                  
+                  {hidewAvg || MONTH_OPTIONS.map((month) => (
                     <Dropdown.Item
                       key={month}
                       onClick={() => handleMonthChange(month)}
@@ -163,18 +182,14 @@ export default function CurrecnyViewer() {
           <Col>
             <Chart chartHeight={800}>
               <Chart.Candle data={candleSerie.values} scaleId="right" />
-              <Chart.Volume
-                data={volumenSerie}
-                scaleId="left"
-                title={currencyName.current}
-                color={GRAY_COLOR_300}
-              />
-              <Chart.Line
+              {hidewAvg||(
+                <Chart.Line
                 data={movingAvg}
                 color={PURPLE_COLOR}
                 scaleId="right"
                 title={currencyName.current}
-              />
+                />
+              )}              
             </Chart>
           </Col>
         </Row>
