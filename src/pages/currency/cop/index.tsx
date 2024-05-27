@@ -13,6 +13,7 @@ import {
   faEye,
   faFileCsv,
   faMoneyBill,
+  faEyeSlash
 } from '@fortawesome/free-solid-svg-icons';
 import { toast } from 'react-toastify';
 import { TesYields, CandleSerie, TesEntryToArray } from '@models/tes';
@@ -22,7 +23,6 @@ import { FontAwesomeIcon as Icon } from '@fortawesome/react-fontawesome';
 import { MovingAvgValue } from '@models/movingAvg';
 import Toolbar from '@components/UI/Toolbar';
 import PageTitle from '@components/PageTitle';
-import { faEyeSlash } from '@fortawesome/free-regular-svg-icons';
 
 const MONTH_OPTIONS = [20, 30, 50];
 const designSystem = tokens.xerenity;
