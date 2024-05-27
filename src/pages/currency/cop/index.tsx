@@ -29,6 +29,8 @@ const designSystem = tokens.xerenity;
 const PURPLE_COLOR = designSystem['purple-100'].value;
 const PAGE_TITLE = 'Monedas: Peso Colombiano';
 const OPCIONES = 'Opciones';
+const VER_PROMEDIO = 'Ver promedio';
+const OCULTAR_PROMEDIO = 'Ocultar promedio';
 
 export default function CurrecnyViewer() {
   const supabase = createClientComponentClient();
@@ -40,7 +42,7 @@ export default function CurrecnyViewer() {
 
   const currencyName = useRef<string>('USD:COP');
 
-  const [hidewAvg,setHideAvg]= useState<boolean>(true);
+  const [hideAvg,setHideAvg]= useState<boolean>(true);
 
   const movingAvgDays = useRef<number>(20);
 
@@ -143,26 +145,13 @@ export default function CurrecnyViewer() {
                     </div>
                   </Dropdown.Item>
                   <DropdownDivider />
-                  <Dropdown.Item onClick={()=>setHideAvg(!hidewAvg)}>
+                  <Dropdown.Item onClick={()=>setHideAvg(!hideAvg)}>
                     <div className="d-flex gap-2 align-items-center">
-                      {hidewAvg?
-                        (
-                          <>
-                            <Icon icon={faEye} />
-                            <span>Ver promedio</span>
-                          </>
-                        ):
-                        (
-                          <>
-                            <Icon icon={faEyeSlash} />
-                            <span>Ocultar promedio</span>
-                          </>
-                        )
-                      }
+                        <Icon icon={hideAvg ? faEye : faEyeSlash} />
+                        <span>{hideAvg ? VER_PROMEDIO : OCULTAR_PROMEDIO}</span>
                     </div>
                   </Dropdown.Item>
-                  
-                  {hidewAvg || MONTH_OPTIONS.map((month) => (
+                  {hideAvg && MONTH_OPTIONS.map((month) => (
                     <Dropdown.Item
                       key={month}
                       onClick={() => handleMonthChange(month)}
@@ -182,7 +171,7 @@ export default function CurrecnyViewer() {
           <Col>
             <Chart chartHeight={800}>
               <Chart.Candle data={candleSerie.values} scaleId="right" />
-              {hidewAvg||(
+              {hideAvg || (
                 <Chart.Line
                 data={movingAvg}
                 color={PURPLE_COLOR}
