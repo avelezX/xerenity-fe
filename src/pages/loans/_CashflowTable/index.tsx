@@ -1,28 +1,11 @@
 import currencyFormat from 'src/utils/currencyFormat';
 import { LoanCashFlowIbr } from '@models/loans';
 import { Table } from 'react-bootstrap';
-import styled from 'styled-components';
+import { TableCell,TableHeader,TableRow,HeaderCell } from '@components/UI/Table';
 
 type CashFlowTableProps = {
   data: LoanCashFlowIbr[] | undefined;
 };
-
-const TableHeader = styled.thead`
-  height: 50px;
-`;
-
-const HeaderCell = styled.th<{ alignRight?: boolean }>`
-  text-align: ${(props) => (props.alignRight ? 'right' : 'left')};
-`;
-
-const TableCell = styled.td<{ alignRight?: boolean }>`
-  text-align: ${(props) => (props.alignRight ? 'right' : 'left')};
-  vertical-align: middle;
-`;
-
-const TableRow = styled.tr`
-  height: 50px;
-`;
 
 // TODO: Implement a shared common Table component
 const CashFlowTable = ({ data }: CashFlowTableProps) => (

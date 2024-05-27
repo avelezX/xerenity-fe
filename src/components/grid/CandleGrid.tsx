@@ -3,6 +3,8 @@ import React, { ChangeEvent } from 'react';
 import Form from 'react-bootstrap/Form';
 import { GridEntry } from '@models/tes';
 import NewPrevTag from '@components/price/NewPrevPriceTag';
+import currencyFormat from 'src/utils/currencyFormat';
+import { TableCell,TableHeader,TableRow,HeaderCell } from '@components/UI/Table';
 
 export interface GridViewProps {
   selectCallback: (eventKey: ChangeEvent<HTMLFormElement>) => void;
@@ -19,37 +21,34 @@ export default function CandleGridViewer({
   return (
     <Form onChange={(e) => selectCallback(e as ChangeEvent<HTMLFormElement>)}>
       <div style={{ maxHeight: '500px', overflowY: 'auto' }}>
-        <Table
-          bordered
-          hover
-          responsive="sm"
-          style={{ fontSize: 13, textAlign: 'center' }}
-        >
-          <thead>
-            <tr>
-              <th>Name</th>
+        <Table hover>
+          <TableHeader>
+            <TableRow>
+              <HeaderCell>Name</HeaderCell>
 
-              <th>Change</th>
+              <HeaderCell>Change</HeaderCell>
 
-              <th>Last</th>
+              <HeaderCell >Date/Hour</HeaderCell>
 
-              <th>Prev</th>
+              <HeaderCell alignRight>Last</HeaderCell>
 
-              <th>Open</th>
+              <HeaderCell alignRight>Prev</HeaderCell>
 
-              <th>Low</th>
+              <HeaderCell alignRight>Open</HeaderCell>
 
-              <th>High</th>
+              <HeaderCell alignRight>Low</HeaderCell>
 
-              <th>Volume</th>
+              <HeaderCell alignRight>High</HeaderCell>
 
-              <th>Date/Hour</th>
-            </tr>
-          </thead>
+              <HeaderCell alignRight>Volume</HeaderCell>
+
+              
+            </TableRow>
+          </TableHeader>
           <tbody>
             {allTes.map((tesValue) => [
-              <tr key={`tr-grid-row${tesValue.tes}`}>
-                <td>
+              <TableRow key={`tr-grid-row${tesValue.tes}`}>
+                <TableCell>
                   <Form.Check
                     inline
                     readOnly
@@ -62,20 +61,20 @@ export default function CandleGridViewer({
                     name="group1"
                     id={tesValue.tes}                    
                   />
-                </td>
-                <td>
+                </TableCell>
+                <TableCell>
                   <NewPrevTag current={tesValue.close} prev={tesValue.prev}>
                     {((tesValue.prev - tesValue.close) * 100*-1).toFixed(1)} bps
                   </NewPrevTag>
-                </td>
-                <td>{tesValue.close.toFixed(2)}</td>
-                <td>{tesValue.prev.toFixed(2)}</td>
-                <td>{tesValue.open.toFixed(2)}</td>
-                <td>{tesValue.low.toFixed(2)}</td>
-                <td>{tesValue.high.toFixed(2)}</td>
-                <td>{(tesValue.volume).toFixed(2)} MMM</td>
-                <td>{tesValue.operation_time}</td>
-              </tr>,
+                </TableCell>
+                <TableCell >{tesValue.operation_time}</TableCell>
+                <TableCell alignRight>{tesValue.close.toFixed(2)}</TableCell>
+                <TableCell alignRight>{tesValue.prev.toFixed(2)}</TableCell>
+                <TableCell alignRight>{tesValue.open.toFixed(2)}</TableCell>
+                <TableCell alignRight>{tesValue.low.toFixed(2)}</TableCell>
+                <TableCell alignRight>{tesValue.high.toFixed(2)}</TableCell>
+                <TableCell alignRight>{currencyFormat(tesValue.volume)}</TableCell>
+              </TableRow>,
             ])}
           </tbody>
         </Table>
