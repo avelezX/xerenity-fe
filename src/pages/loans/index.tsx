@@ -12,7 +12,6 @@ import { Container, Row, Col } from 'react-bootstrap';
 import { Loan, LoanCashFlowIbr, Banks } from '@models/loans';
 import { CoreLayout } from '@layout';
 import { LightSerieValue } from '@models/lightserie';
-import LoanForm from '@components/forms/loanForm';
 import { ExportToCsv, downloadBlob } from '@components/csvDownload/cscDownload';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
@@ -32,6 +31,7 @@ import LoanList from 'src/pages/loans/_LoanList';
 import Panel from '@components/Panel';
 import MultipleSelect from '@components/UI/MultipleSelect';
 import ConfirmationModal from '@components/UI/ConfirmationModal';
+import NewCreditModal from './_NewCreditModal';
 import LoanDetailsModal from './_LoanDetailsModal';
 import CashFlowTable from './_CashflowTable';
 
@@ -337,12 +337,6 @@ export default function LoansPage() {
 
   return (
     <CoreLayout>
-      <LoanForm
-        showStart={showDialog}
-        createCallback={fetchLoans}
-        showCallBack={setShowDialog}
-        bankList={banks}
-      />
       <ToastContainer />
       <Container fluid className="px-4 pb-3">
         <Row>
@@ -423,6 +417,12 @@ export default function LoansPage() {
         loan={selectedLoan.current}
         show={showLoanModal}
         onCancel={() => setShowLoanModal(false)}
+      />
+      <NewCreditModal
+        showStart={showDialog}
+        createCallback={fetchLoans}
+        showCallBack={setShowDialog}
+        bankList={banks}
       />
     </CoreLayout>
   );
