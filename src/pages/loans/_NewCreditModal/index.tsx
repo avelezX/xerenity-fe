@@ -31,6 +31,15 @@ type FormValues = {
   bank: string;
 };
 
+type FormActions = {
+  setSubmitting: (val: boolean) => void;
+};
+
+type FormikSubmitHandler = (
+  values: FormValues,
+  actions: FormActions
+) => Promise<void>;
+
 const initialValues: FormValues = {
   start_date: '',
   number_of_payments: 12,
@@ -49,6 +58,8 @@ const nameMapping: { [id: string]: string } = {
   Mensual: 'Meses',
 };
 
+const NUMERO_PAGOS = 'Número de pagos';
+
 const NewCreditModal = ({
   showStart,
   createCallback,
@@ -58,198 +69,197 @@ const NewCreditModal = ({
   const supabase = createClientComponentClient();
   const [show, setShow] = useState<boolean>(false);
 
+  useEffect(() => {
+    setShow(showStart);
+  }, [showStart]);
+
   const handleClose = () => {
     setShow(false);
     showCallBack(false);
   };
 
-  useEffect(() => {
-    setShow(showStart);
-  }, [showStart]);
+  const onFormSubmit: FormikSubmitHandler = async (
+    values,
+    { setSubmitting }
+  ) => {
+    setSubmitting(true);
+
+    // Format original_balance back to number before sending values to DB
+    const valuesCopy = {
+      ...values,
+      original_balance: values.original_balance
+        ? Number(values.original_balance.split(',').join(''))
+        : undefined,
+    };
+
+    const { data } = await supabase
+      .schema('xerenity')
+      .rpc('create_credit', valuesCopy);
+
+    if (data) {
+      toast.info('El credito fue creado exitosamente', {
+        position: toast.POSITION.BOTTOM_RIGHT,
+      });
+      createCallback();
+    }
+
+    setSubmitting(false);
+  };
 
   return (
-    <Formik
-      initialValues={initialValues}
-      onSubmit={async (values, { setSubmitting }) => {
-        setSubmitting(true);
-
-        // Format original_balance back to number before sending values to DB
-        const valuesCopy = {
-          ...values,
-          original_balance: values.original_balance
-            ? Number(values.original_balance.split(',').join(''))
-            : undefined,
-        };
-
-        const { data } = await supabase
-          .schema('xerenity')
-          .rpc('create_credit', valuesCopy);
-
-        if (data) {
-          toast.info('El credito fue creado exitosamente', {
-            position: toast.POSITION.BOTTOM_RIGHT,
-          });
-          createCallback();
-        }
-
-        setSubmitting(false);
-      }}
-    >
-      {({
-        values,
-        // errors,
-        //  touched,
-        handleChange,
-        //  handleBlur,
-        setFieldValue,
-        handleSubmit,
-        isSubmitting,
-        /* and other goodies */
-      }) => (
-        <Modal size="lg" show={show} onHide={handleClose} centered>
-          <Modal.Header closeButton>
-            <Modal.Title>Crear Nuevo Crédito</Modal.Title>
-          </Modal.Header>
-          <Form onSubmit={handleSubmit}>
-            <Modal.Body>
-              <Row className="pb-5">
-                <Form.Group controlId="type">
-                  <Form.Label>Tipo de credito</Form.Label>
-                  <Row>
-                    <Col>
-                      {loanTypes.map(({ display, value }) => [
-                        <Form.Check
-                          inline
-                          label={display}
-                          name="type"
-                          checked={values.type === value}
-                          onChange={() => setFieldValue('type', value)}
-                          type="radio"
-                          value={values.type}
-                          key={`inline-${value}-1`}
-                        />,
-                      ])}
-                    </Col>
-                  </Row>
-                  <ErrorMessage name="type" component="div" />
-                </Form.Group>
-              </Row>
-              <Row className="pb-5">
-                <Col sm={12} md={6}>
-                  <Form.Group controlId="bank">
-                    <Form.Label>Entidad Banacaria</Form.Label>
-                    <Form.Select value={values.bank} onChange={handleChange}>
-                      <option>Selecione una periodicidad</option>
-                      {bankList.map((bck) => (
-                        <option
-                          key={`select-opto-${bck.bank_name}`}
-                          value={bck.bank_name}
-                        >
-                          {bck.bank_name}
-                        </option>
-                      ))}
-                    </Form.Select>
-                    <ErrorMessage name="bank" component="div" />
-                  </Form.Group>
-                </Col>
-                <Col sm={12} md={6}>
-                  <Form.Group controlId="periodicity">
-                    <Form.Label>Periodicdad</Form.Label>
-                    <Form.Select
-                      value={values.periodicity}
-                      onChange={handleChange}
-                    >
-                      <option>Selecione una periodicidad</option>
-                      <option value="Anual">Anual</option>
-                      <option value="Semestral">Semestral</option>
-                      <option value="Trimestral">Trimestral</option>
-                      <option value="Bimensual">Bimensual</option>
-                      <option value="Mensual">Mensual</option>
-                    </Form.Select>
-                    <ErrorMessage name="periodicity" component="div" />
-                  </Form.Group>
-                </Col>
-              </Row>
-              <Row className="pb-5">
-                <Col sm={12} md={6}>
-                  <Form.Group controlId="interest_rate">
-                    <Form.Label>
-                      Interes nominal anual {values.interest_rate}%
-                    </Form.Label>
-                    <Form.Control
-                      placeholder="10.0%"
-                      type="number"
-                      value={values.interest_rate}
-                      onChange={handleChange}
-                    />
-                    <ErrorMessage name="interest_rate" component="div" />
-                  </Form.Group>
-                </Col>
-                <Col sm={12} md={6}>
-                  <Form.Group controlId="start_date">
-                    <Form.Label>Fecha de inicio</Form.Label>
-                    <Form.Control
-                      type="date"
-                      value={values.start_date}
-                      onChange={handleChange}
-                    />
-                    <ErrorMessage name="start_date" component="div" />
-                  </Form.Group>
-                </Col>
-              </Row>
-              <Row className="d-flex align-items-center">
-                <Col sm={12} md={6}>
-                  <Form.Group controlId="original_balance">
-                    <Form.Label>Balance original</Form.Label>
-                    <NumericFormat
-                      thousandSeparator
-                      value={values.original_balance}
-                      placeholder="Añade un balance"
-                      onValueChange={({ formattedValue }) => {
-                        setFieldValue('original_balance', formattedValue);
-                      }}
-                      customInput={BalanceField}
-                    />
-                    <ErrorMessage name="original_balance" component="div" />
-                  </Form.Group>
-                </Col>
-                <Col sm={12} md={6}>
-                  <Form.Group controlId="number_of_payments">
-                    <Form.Label>
-                      Numero de pagos {values.number_of_payments}
-                      {nameMapping[values.periodicity]}
-                    </Form.Label>
+    <div>
+      <Formik initialValues={initialValues} onSubmit={onFormSubmit}>
+        {({
+          values,
+          handleChange,
+          setFieldValue,
+          handleSubmit,
+          isSubmitting,
+        }) => (
+          <Modal size="lg" show={show} onHide={handleClose} centered>
+            <Modal.Header closeButton>
+              <Modal.Title>Crear Nuevo Crédito</Modal.Title>
+            </Modal.Header>
+            <Form onSubmit={handleSubmit}>
+              <Modal.Body>
+                <Row className="pb-5">
+                  <Form.Group controlId="type">
+                    <Form.Label>Tipo de credito</Form.Label>
                     <Row>
                       <Col>
-                        <Form.Range
-                          min={1}
-                          max={100}
-                          value={values.number_of_payments}
-                          onChange={handleChange}
-                        />
+                        {loanTypes?.map(({ display, value }) => [
+                          <Form.Check
+                            inline
+                            label={display}
+                            name="type"
+                            checked={values.type === value}
+                            onChange={() => setFieldValue('type', value)}
+                            type="radio"
+                            value={values.type}
+                            key={`inline-${value}-1`}
+                          />,
+                        ])}
                       </Col>
                     </Row>
-                    <ErrorMessage name="number_of_payments" component="div" />
+                    <ErrorMessage name="type" component="div" />
                   </Form.Group>
-                </Col>
-              </Row>
-            </Modal.Body>
-            <Modal.Footer>
-              <Button
-                onClick={() => setShow(false)}
-                variant="outline-primary"
-                disabled={isSubmitting}
-              >
-                Cancelar
-              </Button>
-              <Button type="submit" disabled={isSubmitting}>
-                Crear Crédito
-              </Button>
-            </Modal.Footer>
-          </Form>
-        </Modal>
-      )}
-    </Formik>
+                </Row>
+                <Row className="pb-5">
+                  <Col sm={12} md={6}>
+                    <Form.Group controlId="bank">
+                      <Form.Label>Entidad Banacaria</Form.Label>
+                      <Form.Select value={values.bank} onChange={handleChange}>
+                        <option>Selecione una periodicidad</option>
+                        {bankList?.map((bck) => (
+                          <option
+                            key={`select-opto-${bck.bank_name}`}
+                            value={bck.bank_name}
+                          >
+                            {bck.bank_name}
+                          </option>
+                        ))}
+                      </Form.Select>
+                      <ErrorMessage name="bank" component="div" />
+                    </Form.Group>
+                  </Col>
+                  <Col sm={12} md={6}>
+                    <Form.Group controlId="periodicity">
+                      <Form.Label>Periodicdad</Form.Label>
+                      <Form.Select
+                        value={values.periodicity}
+                        onChange={handleChange}
+                      >
+                        <option>Selecione una periodicidad</option>
+                        <option value="Anual">Anual</option>
+                        <option value="Semestral">Semestral</option>
+                        <option value="Trimestral">Trimestral</option>
+                        <option value="Bimensual">Bimensual</option>
+                        <option value="Mensual">Mensual</option>
+                      </Form.Select>
+                      <ErrorMessage name="periodicity" component="div" />
+                    </Form.Group>
+                  </Col>
+                </Row>
+                <Row className="pb-5">
+                  <Col sm={12} md={6}>
+                    <Form.Group controlId="interest_rate">
+                      <Form.Label>
+                        Interes nominal anual {values.interest_rate}%
+                      </Form.Label>
+                      <Form.Control
+                        placeholder="10.0%"
+                        type="number"
+                        value={values.interest_rate}
+                        onChange={handleChange}
+                      />
+                      <ErrorMessage name="interest_rate" component="div" />
+                    </Form.Group>
+                  </Col>
+                  <Col sm={12} md={6}>
+                    <Form.Group controlId="start_date">
+                      <Form.Label>Fecha de inicio</Form.Label>
+                      <Form.Control
+                        type="date"
+                        value={values.start_date}
+                        onChange={handleChange}
+                      />
+                      <ErrorMessage name="start_date" component="div" />
+                    </Form.Group>
+                  </Col>
+                </Row>
+                <Row className="d-flex align-items-center">
+                  <Col sm={12} md={6}>
+                    <Form.Group controlId="original_balance">
+                      <Form.Label>Balance original</Form.Label>
+                      <NumericFormat
+                        thousandSeparator
+                        value={values.original_balance}
+                        placeholder="Añade un balance"
+                        onValueChange={({ formattedValue }) => {
+                          setFieldValue('original_balance', formattedValue);
+                        }}
+                        customInput={BalanceField}
+                      />
+                      <ErrorMessage name="original_balance" component="div" />
+                    </Form.Group>
+                  </Col>
+                  <Col sm={12} md={6}>
+                    <Form.Group controlId="number_of_payments">
+                      <Form.Label>
+                        {`${NUMERO_PAGOS} ${values.number_of_payments} ${nameMapping[values.periodicity]}`}
+                      </Form.Label>
+                      <Row>
+                        <Col>
+                          <Form.Range
+                            min={1}
+                            max={100}
+                            value={values.number_of_payments}
+                            onChange={handleChange}
+                          />
+                        </Col>
+                      </Row>
+                      <ErrorMessage name="number_of_payments" component="div" />
+                    </Form.Group>
+                  </Col>
+                </Row>
+              </Modal.Body>
+              <Modal.Footer>
+                <Button
+                  onClick={() => setShow(false)}
+                  variant="outline-primary"
+                  disabled={isSubmitting}
+                >
+                  Cancelar
+                </Button>
+                <Button type="submit" disabled={isSubmitting}>
+                  Crear Crédito
+                </Button>
+              </Modal.Footer>
+            </Form>
+          </Modal>
+        )}
+      </Formik>
+    </div>
   );
 };
 
