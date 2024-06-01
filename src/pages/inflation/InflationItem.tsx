@@ -2,16 +2,16 @@
 
 import { Form } from 'react-bootstrap';
 
-import { Canasta } from '@models/canasta';
+import { ConsumerPrice } from '@models/consumerprice';
 import styled from 'styled-components';
 import { ListItem, } from '@components/UI/GroupList';
 
-type CanastaItemProps = {
-    canasta: Canasta | undefined;
+type ConsumerPriceItemProps = {
+    price: ConsumerPrice | undefined;
     checked: boolean;
     disabled: boolean;
     onSelect: (
-        canastaId: number,
+        priceId: number,
     ) => void;
 };
 
@@ -28,24 +28,24 @@ const ItemInformation = styled.div`
     }
 `;
 
-const CanastaItem = ({
-    canasta,
+const ConsumerPriceItem = ({
+    price,
     onSelect,
     checked,
     disabled,
-}: CanastaItemProps) => (
+}: ConsumerPriceItemProps) => (
     <ListItem isActive={checked}>
         <Form.Check
             type="checkbox"
             checked={checked}
-            id={`check-${canasta?.id}`}
+            id={`check-${price?.id}`}
             disabled={disabled}
-            onChange={() => canasta && onSelect(canasta.id)}
+            onChange={() => price && onSelect(price.id)}
         />
         <ItemInformation >
-            <span >{canasta?.nombre}</span>
+            <span >{price?.nombre}</span>
         </ItemInformation>
     </ListItem>
 );
 
-export default CanastaItem;
+export default ConsumerPriceItem;

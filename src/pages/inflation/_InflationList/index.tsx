@@ -1,28 +1,28 @@
 'use client';
 
-import { Canasta } from '@models/canasta';
+import { ConsumerPrice } from '@models/consumerprice';
 import GroupList from '@components/UI/GroupList';
-import CanastaItem from '../InflationItem';
+import ConsumerPriceItem from '../InflationItem';
 
-type LoanListProps = {
-  list: Canasta[] | undefined;
+type ConsumerPriceListProps = {
+  list: ConsumerPrice[] | undefined;
   onSelect: (
-    canastaId: number,
+    priceId: number,
   ) => Promise<void>;
   selected:number;
 };
 
-const CanastaList = ({
+const ConsumerPriceList = ({
   list,
   onSelect,
   selected,
-}: LoanListProps) => (
+}: ConsumerPriceListProps) => (
   <GroupList>
-    {list?.map((canasta) => (
-      <CanastaItem 
-        key={`item-tr-${canasta.id}`}
-        canasta={canasta} 
-        checked={selected===canasta.id} 
+    {list?.map((cpi) => (
+      <ConsumerPriceItem 
+        key={`item-tr-${cpi.id}`}
+        price={cpi} 
+        checked={selected===cpi.id} 
         disabled={false} 
         onSelect={onSelect}
         />
@@ -30,4 +30,4 @@ const CanastaList = ({
   </GroupList>
 );
 
-export default CanastaList;
+export default ConsumerPriceList;

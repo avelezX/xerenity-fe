@@ -24,13 +24,13 @@ import Chart from '@components/chart/Chart';
 import Button from '@components/UI/Button';
 import PageTitle from '@components/PageTitle';
 import Panel from '@components/Panel';
-import { Canasta } from '@models/canasta';
+import { ConsumerPrice } from '@models/consumerprice';
 
 import InflationTable from './_InflationTable';
 
 
 
-import CanastaList from './_InflationList';
+import ConsumerPriceList from './_InflationList';
 
 const designSystem = tokens.xerenity;
 const PURPLE_COLOR_100 = designSystem['purple-100'].value;
@@ -39,24 +39,24 @@ const PURPLE_COLOR_100 = designSystem['purple-100'].value;
 export default function LoansPage() {
     const supabase = createClientComponentClient();
 
-    const [canastas,setCanastas] = useState<Canasta[]>([]);
+    const [prices,setConsumerPrices] = useState<ConsumerPrice[]>([]);
 
-    const [selectedCanasta,setSelectecCanasta] = useState<number>(1);
+    const [selectedPrices,setSelectecConsumerPrice] = useState<number>(1);
 
     const [lagValue,setLagValue]= useState<number>(12);
 
-    const [canastaValues,setCanastaValues]= useState<LightSerieValue[]>([]);
+    const [priceValues,setPriceValues]= useState<LightSerieValue[]>([]);
 
-    const fetchCanastas = useCallback(async () => {
+    const fetchPrices = useCallback(async () => {
         
         const { data, error } = await supabase.schema('xerenity').from('canasta').select('*').order('id',{ascending:true});
 
         if(error){
             toast.error('Error leyendo datos de inflacion');
         }else{
-            const allCanastas = data as Canasta[];
+            const allPrices = data as ConsumerPrice[];
 
-            setCanastas(allCanastas);
+            setConsumerPrices(allPrices);
         }
 
     
@@ -64,32 +64,32 @@ export default function LoansPage() {
 
     useEffect(() => {
       async function fetchData() {
-        const { data, error } = await supabase.schema('xerenity').rpc('cpi_index_change', { lag_value: lagValue,id_canasta_search:selectedCanasta });
+        const { data, error } = await supabase.schema('xerenity').rpc('cpi_index_change', { lag_value: lagValue,id_canasta_search:selectedPrices });
 
         if(error){
           toast.error('Error al calcular el cpi index');
         }else{
-          setCanastaValues(data as LightSerieValue[]);
+          setPriceValues(data as LightSerieValue[]);
         }
       }
 
       fetchData();
-    }, [supabase,selectedCanasta,lagValue]);
+    }, [supabase,selectedPrices,lagValue]);
 
 
-    const onCanastaSelect = useCallback(
+    const onPriceSelect = useCallback(
         async (
-            canastaId: number,
+            priceId: number,
         ) => {
-            setSelectecCanasta(canastaId);
+            setSelectecConsumerPrice(priceId);
         },
-        [setSelectecCanasta]
+        [setSelectecConsumerPrice]
     );
 
 
     useEffect(() => {
-        fetchCanastas();
-      }, [fetchCanastas]);
+        fetchPrices();
+      }, [fetchPrices]);
 
 
     const downloadSeries = () => {
@@ -99,8 +99,8 @@ export default function LoansPage() {
           'Indice CPI',
         ]);
         
-        canastaValues.forEach((val)=>{
-          allValues.push([val.time,val.value.toString()]);
+        priceValues.forEach((price)=>{
+          allValues.push([price.time,price.value.toString()]);
         });
 
         const csv = ExportToCsv(allValues);
@@ -136,13 +136,13 @@ export default function LoansPage() {
             <Panel>
               <Chart chartHeight={600} noCard>
                 <Chart.Bar
-                  data={canastaValues}
+                  data={priceValues}
                   color={PURPLE_COLOR_100}
                   scaleId="right"
-                  title={canastas.findLast((e)=>e.id ===selectedCanasta)?.nombre || ''}
+                  title={prices.findLast((e)=>e.id ===selectedPrices)?.nombre || ''}
                 />
               </Chart>
-              <InflationTable data={canastaValues} meses={lagValue}/>
+              <InflationTable data={priceValues} meses={lagValue}/>
             </Panel>
           </Col>
           <Col sm={12} md={4}>
@@ -169,10 +169,10 @@ export default function LoansPage() {
                   }
                 </Form.Select>
               </div>              
-              <CanastaList 
-                list={canastas}
-                onSelect={onCanastaSelect}
-                selected={selectedCanasta}
+              <ConsumerPriceList 
+                list={prices}
+                onSelect={onPriceSelect}
+                selected={selectedPrices}
             />
             </Panel>
           </Col>
