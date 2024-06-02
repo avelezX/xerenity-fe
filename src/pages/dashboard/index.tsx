@@ -36,6 +36,7 @@ import {
   faEye,
   faAlignLeft,
   faAlignRight,
+  faClipboard,
 } from '@fortawesome/free-solid-svg-icons';
 import SeriePicker from '@components/serie/SeriePicker';
 import { ExportToCsv, downloadBlob } from '@components/csvDownload/cscDownload';
@@ -48,6 +49,9 @@ import PageTitle from '@components/PageTitle';
 import Card from '@components/UI/Card';
 import CardGrid from '@components/UI/CardGrid';
 import SerieInfoModal from './_SerieInfoModal';
+import strings from '../../strings/dahsboard.json';
+
+const { actions } = strings;
 
 export default function Dashboard() {
   const supabase = createClientComponentClient();
@@ -344,6 +348,14 @@ export default function Dashboard() {
                   icon={faLineChart}
                   color={selectedSeries.get(key)?.color}
                   actions={[
+                    {
+                      name: 'copy',
+                      actionIcon: faClipboard,
+                      actionEvent: () => {
+                        navigator.clipboard.writeText(value.ticker);
+                        toast.info(actions.copy,{ position: toast.POSITION.BOTTOM_RIGHT });
+                      },
+                    },
                     {
                       name: 'axis',
                       actionIcon: selectedSeries.get(key)?.axisName==='left'?(faAlignLeft):(faAlignRight),
