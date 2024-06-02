@@ -5,7 +5,6 @@ import { Inter } from 'next/font/google';
 // It handles optimization and all the necessary Webpack configuration to make this work.
 import { config } from '@fortawesome/fontawesome-svg-core';
 import '@fortawesome/fontawesome-svg-core/styles.css';
-import { SSRProvider } from 'react-bootstrap';
 import { ProgressBar } from '@components/ProgressBar';
 
 // You change this configuration value to false so that the Font Awesome core SVG library
@@ -33,11 +32,9 @@ function MyApp({ Component, pageProps }: AppProps) {
           overflow-x: hidden;
         }
       `}</style>
-      <SSRProvider>
-        <ProgressBar />
-        {/* eslint-disable-next-line react/jsx-props-no-spreading */}
-        <Component {...pageProps} />
-      </SSRProvider>
+      <ProgressBar />
+      {/* eslint-disable-next-line react/jsx-props-no-spreading */}
+      <Component {...pageProps} />
     </>
   );
 }

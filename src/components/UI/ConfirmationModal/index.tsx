@@ -10,7 +10,7 @@ type ConfirmationModalProps = {
 };
 
 const CANCEL_TXT = 'Cancelar';
-const SAVE_TXT = 'Proceder';
+const SAVE_TXT = 'Borrar Crédito';
 
 const ConfirmationModal = ({
   onCancel,
