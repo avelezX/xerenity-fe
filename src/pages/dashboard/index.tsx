@@ -76,7 +76,7 @@ export default function Dashboard() {
       // TODO: Take this out to an outside function
       const { data, error } = await supabase
         .schema('xerenity')
-        .rpc('search', { name: idSerie });
+        .rpc('search', { ticket: idSerie });
 
       if (error) {
         return {
@@ -129,7 +129,7 @@ export default function Dashboard() {
         if (!sbgroup) {
           sbgroup = 'Sin clasificar';
         }
-        serieData.set(entry.source_name, entry);
+        serieData.set(entry.ticker, entry);
 
         if (subGrupos.has(sbgroup)) {
           subGrupos.get(sbgroup)?.push(entry);
@@ -347,7 +347,7 @@ export default function Dashboard() {
                     {
                       name: 'axis',
                       actionIcon: selectedSeries.get(key)?.axisName==='left'?(faAlignLeft):(faAlignRight),
-                      actionEvent: () => handleAxisChnage(value.source_name),
+                      actionEvent: () => handleAxisChnage(value.ticker),
                     },
                     {
                       name: 'details',
@@ -357,8 +357,8 @@ export default function Dashboard() {
                     {
                       name: 'delete',
                       actionIcon: faTrash,
-                      actionEvent: () => handleRemoveSerie(value.source_name),
-                    },
+                      actionEvent: () => handleRemoveSerie(value.ticker),
+                    }
                   ]}
                   description={value.description}
                   fuente={value.fuente}
@@ -400,15 +400,15 @@ export default function Dashboard() {
                               <Stack gap={2}>
                                 {svalue.map((serie) => [
                                   <SeriePicker
-                                    key={`serie-${serie.source_name}`}
+                                    key={`serie-${serie.ticker}`}
                                     handleSeriePick={handleCheckboxChange}
                                     handleColorPicker={handleColorChnage}
                                     showColor
                                     displayName={serie.display_name}
-                                    serieID={serie.source_name}
+                                    serieID={serie.ticker}
                                     disable={loadingSerie}
                                     checked={selectedSeries.has(
-                                      serie.source_name
+                                      serie.ticker
                                     )}
                                   />,
                                 ])}
