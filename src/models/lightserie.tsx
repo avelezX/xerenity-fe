@@ -16,6 +16,7 @@ export interface LightSerieEntry {
   grupo: string;
   fuente: string;
   sub_group: string;
+  ticker: string;
 }
 
 export interface PriceFormat {
