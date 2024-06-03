@@ -7,10 +7,10 @@ import { ListItem } from '@components/UI/GroupList';
 import { useRef, useState } from 'react';
 import truncateStr from 'src/utils/truncateStr';
 
-type ConsumerPriceItemProps = {
+type InflationItemProps = {
   price: ConsumerPrice | undefined;
   checked: boolean;
-  disabled: boolean;
+  disabled?: boolean;
   onSelect: (priceId: number) => void;
 };
 
@@ -26,14 +26,15 @@ const ItemInformation = styled.div`
   }
 `;
 
-const ConsumerPriceItem = ({
+const InflationItem = ({
   price,
   onSelect,
   checked,
-  disabled,
-}: ConsumerPriceItemProps) => {
+  disabled = false,
+}: InflationItemProps) => {
   const [showName, onShowName] = useState<boolean>(false);
   const itemNameTarget = useRef(null);
+
   return (
     <ListItem isActive={checked} justifyContent="start">
       <Form.Check
@@ -64,4 +65,4 @@ const ConsumerPriceItem = ({
   );
 };
 
-export default ConsumerPriceItem;
+export default InflationItem;
