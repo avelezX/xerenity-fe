@@ -1,4 +1,4 @@
-export interface CanastaRaw {
+export interface ConsumerPriceRaw {
   id_canasta: number;
   fecha: string;
   valorcontribucion: number;
@@ -7,12 +7,12 @@ export interface CanastaRaw {
   valormensual: number;
 }
 
-export interface Canasta {
+export interface ConsumerPrice {
   id: number;
   nombre: string;
 }
 
-export interface CanastaInflacion {
+export interface ConsumerPriceInflacion {
   fecha: string;
   indice: number;
   percentage_change: number;

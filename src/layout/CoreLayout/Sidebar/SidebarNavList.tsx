@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import {
   faChartSimple,
+  faDollarSign,
   faLandmark,
   faLineChart,
-  faMoneyBill,
+  faMoneyBillTrendUp,
 } from '@fortawesome/free-solid-svg-icons';
 import SubNavItem from './SubNavItem';
 import NavigationItem, { NavItemProps } from './NavigationItem';
@@ -31,19 +32,25 @@ const NAV_ITEMS: NavItemProps[] = [
     icon: faLineChart,
     active: false,
   },
+  {
+    name: 'Inflacion',
+    path: '/inflation',
+    icon: faMoneyBillTrendUp,
+    active: false,
+  },
 ];
 
 const MONEDAS_SUBNAV: NavItemProps[] = [
   {
     name: 'Peso Colombiano',
     path: '/currency/cop',
-    icon: faMoneyBill,
+    icon: faDollarSign,
     active: false,
   },
   {
     name: 'Global',
     path: '/currency/global',
-    icon: faMoneyBill,
+    icon: faDollarSign,
     active: false,
   },
 ];
@@ -75,7 +82,7 @@ const SidebarNavList = ({ currentPath }: SidebarNavProps) => {
         ))}
       <SubNavItem
         name="Monedas"
-        icon={faMoneyBill}
+        icon={faDollarSign}
         active={currentPath.includes(MONEDAS_PREFIX)}
       >
         {MONEDAS_SUBNAV.map(({ name, path, icon }) => (
