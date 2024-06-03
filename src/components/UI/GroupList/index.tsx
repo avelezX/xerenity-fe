@@ -15,19 +15,25 @@ const GroupList = styled.section`
   height: 100%;
 `;
 
-export const ListItem = styled.div<{ isActive: boolean }>`
+type ListItemProps = {
+  isActive: boolean;
+  justifyContent?: string;
+};
+
+export const ListItem = styled.div<ListItemProps>`
   height: 62px;
   background: ${(props) => (props.isActive ? LIGHT_PURPLE : LIGHT_GRAY)};
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: ${(props) =>
+    props.justifyContent ? props.justifyContent : 'space-between'};
   gap: 2%;
   border-radius: 8px;
   padding: 0 10px;
   transition: all 0.4s ease-in-out;
   cursor: pointer;
   border: solid 1px ${LIGHT_GRAY};
-
+  overflow: hidden;
   &:hover {
     border: solid 1px ${PURPLE_100};
   }
