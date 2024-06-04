@@ -1,10 +1,24 @@
 'use client';
 
-import { ChangeEvent } from 'react';
+import { CSSProperties, ChangeEvent } from 'react';
 import { Loan, LoanCashFlowIbr } from '@models/loans';
 import { faEye, faTrash } from '@fortawesome/free-solid-svg-icons';
 import GroupList from '@components/UI/GroupList';
-import LoanItem from './LoanItem';
+import ListItem from '@components/UI/GroupList/ListItem';
+import currencyFormat from 'src/utils/currencyFormat';
+import tokens from 'design-tokens/tokens.json';
+import Badge from '@components/UI/Badge';
+
+const designSystem = tokens.xerenity;
+const PURPLE_200 = designSystem['purple-200'].value;
+const WEIGHT_MD = designSystem.medium.value;
+
+const badgeStyles: CSSProperties = {
+  textTransform: 'capitalize',
+  fontSize: '14px',
+  color: 'white',
+  fontWeight: '500',
+};
 
 type LoanListProps = {
   list: Loan[] | undefined;
@@ -29,12 +43,13 @@ const LoanList = ({
 }: LoanListProps) => (
   <GroupList>
     {list?.map((loan) => (
-      <LoanItem
+      <ListItem
+        id={loan.id}
         key={`row-key${loan.id}`}
-        loan={loan}
+        itemName={loan?.bank || ''}
         checked={selected.has(loan.id)}
         disabled={isLoading}
-        onSelect={onSelect}
+        onSelect={(e) => loan && onSelect(e, loan.id, loan.type)}
         actions={[
           {
             name: 'details',
@@ -47,7 +62,24 @@ const LoanList = ({
             actionEvent: () => onDelete(loan),
           },
         ]}
-      />
+      >
+        <>
+          <Badge bg={PURPLE_200}>
+            <span style={badgeStyles}>{loan?.type}</span>
+          </Badge>
+          <div className="item-information">
+            <span style={{ fontWeight: WEIGHT_MD }}>
+              {loan ? currencyFormat(loan.original_balance) : ''}
+            </span>
+          </div>
+          <div className="item-information">
+            <span>{loan?.periodicity}</span>
+          </div>
+          <div className="item-information">
+            <span>{`${loan?.interest_rate}%`}</span>
+          </div>
+        </>
+      </ListItem>
     ))}
   </GroupList>
 );
