@@ -1,10 +1,6 @@
 'use client';
 
-import React, {
-  useCallback,
-  useState,
-  useEffect,
-} from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { Container, Row, Col } from 'react-bootstrap';
 import { CoreLayout } from '@layout';
@@ -28,96 +24,91 @@ import { ConsumerPrice } from '@models/consumerprice';
 
 import InflationTable from './_InflationTable';
 
-
-
 import ConsumerPriceList from './_InflationList';
 
 const designSystem = tokens.xerenity;
 const PURPLE_COLOR_100 = designSystem['purple-100'].value;
 
+const PAGE_TITLE = 'Inflación';
 
 export default function LoansPage() {
-    const supabase = createClientComponentClient();
+  const supabase = createClientComponentClient();
 
-    const [prices,setConsumerPrices] = useState<ConsumerPrice[]>([]);
+  const [prices, setConsumerPrices] = useState<ConsumerPrice[]>([]);
 
-    const [selectedPrices,setSelectecConsumerPrice] = useState<number>(1);
+  const [selectedPrices, setSelectecConsumerPrice] = useState<number>(1);
 
-    const [lagValue,setLagValue]= useState<number>(12);
+  const [lagValue, setLagValue] = useState<number>(12);
 
-    const [priceValues,setPriceValues]= useState<LightSerieValue[]>([]);
+  const [priceValues, setPriceValues] = useState<LightSerieValue[]>([]);
 
-    const fetchPrices = useCallback(async () => {
-        
-        const { data, error } = await supabase.schema('xerenity').from('canasta').select('*').order('id',{ascending:true});
+  const fetchPrices = useCallback(async () => {
+    const { data, error } = await supabase
+      .schema('xerenity')
+      .from('canasta')
+      .select('*')
+      .order('id', { ascending: true });
 
-        if(error){
-            toast.error('Error leyendo datos de inflacion');
-        }else{
-            const allPrices = data as ConsumerPrice[];
+    if (error) {
+      toast.error('Error leyendo datos de inflación');
+    } else {
+      const allPrices = data as ConsumerPrice[];
 
-            setConsumerPrices(allPrices);
-        }
+      setConsumerPrices(allPrices);
+    }
+  }, [supabase]);
 
-    
-    }, [supabase]);
-
-    useEffect(() => {
-      async function fetchData() {
-        const { data, error } = await supabase.schema('xerenity').rpc('cpi_index_change', { lag_value: lagValue,id_canasta_search:selectedPrices });
-
-        if(error){
-          toast.error('Error al calcular el cpi index');
-        }else{
-          setPriceValues(data as LightSerieValue[]);
-        }
-      }
-
-      fetchData();
-    }, [supabase,selectedPrices,lagValue]);
-
-
-    const onPriceSelect = useCallback(
-        async (
-            priceId: number,
-        ) => {
-            setSelectecConsumerPrice(priceId);
-        },
-        [setSelectecConsumerPrice]
-    );
-
-
-    useEffect(() => {
-        fetchPrices();
-      }, [fetchPrices]);
-
-
-    const downloadSeries = () => {
-        const allValues: string[][] = [];
-        allValues.push([
-          'Fecha',
-          'Indice CPI',
-        ]);
-        
-        priceValues.forEach((price)=>{
-          allValues.push([price.time,price.value.toString()]);
+  useEffect(() => {
+    async function fetchData() {
+      const { data, error } = await supabase
+        .schema('xerenity')
+        .rpc('cpi_index_change', {
+          lag_value: lagValue,
+          id_canasta_search: selectedPrices,
         });
 
-        const csv = ExportToCsv(allValues);
+      if (error) {
+        toast.error('Error al calcular el cpi index');
+      } else {
+        setPriceValues(data as LightSerieValue[]);
+      }
+    }
 
-        downloadBlob(csv, 'xerenity_inflacion.csv', 'text/csv;charset=utf-8;');
-    };
+    fetchData();
+  }, [supabase, selectedPrices, lagValue]);
+
+  useEffect(() => {
+    fetchPrices();
+  }, [fetchPrices]);
+
+  const onPriceSelect = useCallback(
+    async (priceId: number) => {
+      setSelectecConsumerPrice(priceId);
+    },
+    [setSelectecConsumerPrice]
+  );
+
+  const downloadSeries = () => {
+    const allValues: string[][] = [];
+    allValues.push(['Fecha', 'Indice CPI']);
+
+    priceValues.forEach((price) => {
+      allValues.push([price.time, price.value.toString()]);
+    });
+
+    const csv = ExportToCsv(allValues);
+
+    downloadBlob(csv, 'xerenity_inflacion.csv', 'text/csv;charset=utf-8;');
+  };
 
   return (
     <CoreLayout>
-
-      <ToastContainer />
       <Container fluid className="px-4 pb-3">
         <Row>
           <div className="d-flex align-items-center gap-2 py-1">
             <PageTitle>
               <Icon icon={faMoneyBillTrendUp} size="1x" />
-              <h4>Inflacion</h4>
+              <h4>{PAGE_TITLE}</h4>
             </PageTitle>
           </div>
         </Row>
@@ -139,45 +130,48 @@ export default function LoansPage() {
                   data={priceValues}
                   color={PURPLE_COLOR_100}
                   scaleId="right"
-                  title={prices.findLast((e)=>e.id ===selectedPrices)?.nombre || ''}
+                  title={
+                    prices.findLast((e) => e.id === selectedPrices)?.nombre ||
+                    ''
+                  }
                 />
               </Chart>
-              <InflationTable data={priceValues} meses={lagValue}/>
+              <InflationTable data={priceValues} meses={lagValue} />
             </Panel>
           </Col>
           <Col sm={12} md={4}>
             <Panel>
-            <div
+              <div
                 style={{
                   display: 'flex',
                   padding: '15px 0',
-                  justifyContent: 'space-between',
+                  justifyContent: 'start',
                   gap: '10px',
                 }}
               >
-                
                 <Form.Select
                   defaultValue={lagValue}
-                  onChange={(e)=>{
+                  onChange={(e) => {
                     setLagValue(Number(e.currentTarget.value));
                   }}
                 >
-                  {
-                    Array.from(Array(13).keys()).map((a)=>(
-                      <option key={`tr-${a}`} value={a}>{a} Periodos de cambio en IPC</option>
-                    ))
-                  }
+                  {Array.from(Array(13).keys()).map((item) => (
+                    <option key={`tr-${item}`} value={item}>
+                      {`${item} Periodos de cambio en IPC`}
+                    </option>
+                  ))}
                 </Form.Select>
-              </div>              
-              <ConsumerPriceList 
+              </div>
+              <ConsumerPriceList
                 list={prices}
                 onSelect={onPriceSelect}
                 selected={selectedPrices}
-            />
+              />
             </Panel>
           </Col>
         </Row>
       </Container>
+      <ToastContainer />
     </CoreLayout>
   );
 }

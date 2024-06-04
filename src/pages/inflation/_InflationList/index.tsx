@@ -2,32 +2,27 @@
 
 import { ConsumerPrice } from '@models/consumerprice';
 import GroupList from '@components/UI/GroupList';
-import ConsumerPriceItem from '../InflationItem';
+import ListItem from '@components/UI/GroupList/ListItem';
 
-type ConsumerPriceListProps = {
+type InflationListProps = {
   list: ConsumerPrice[] | undefined;
-  onSelect: (
-    priceId: number,
-  ) => Promise<void>;
-  selected:number;
+  onSelect: (priceId: number) => Promise<void>;
+  selected: number;
 };
 
-const ConsumerPriceList = ({
-  list,
-  onSelect,
-  selected,
-}: ConsumerPriceListProps) => (
+const InflationList = ({ list, onSelect, selected }: InflationListProps) => (
   <GroupList>
-    {list?.map((cpi) => (
-      <ConsumerPriceItem 
-        key={`item-tr-${cpi.id}`}
-        price={cpi} 
-        checked={selected===cpi.id} 
-        disabled={false} 
-        onSelect={onSelect}
-        />
+    {list?.map((item) => (
+      <ListItem
+        id={item.id}
+        itemName={item.nombre}
+        key={`item-tr-${item.id}`}
+        checked={selected === item.id}
+        onSelect={() => item && onSelect(item.id)}
+        justifyContent="start"
+      />
     ))}
   </GroupList>
 );
 
-export default ConsumerPriceList;
+export default InflationList;
