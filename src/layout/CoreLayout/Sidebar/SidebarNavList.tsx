@@ -38,6 +38,12 @@ const NAV_ITEMS: NavItemProps[] = [
     icon: faMoneyBillTrendUp,
     active: false,
   },
+  {
+    name: 'COP NDF',
+    path: '/copndf',
+    icon: faLandmark,
+    active: false,
+  }
 ];
 
 const MONEDAS_SUBNAV: NavItemProps[] = [
