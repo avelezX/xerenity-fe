@@ -19,6 +19,12 @@ interface NewCreditModalProps {
 const loanTypes: LoanType[] = [
   { display: 'Tasa Fija', value: 'fija' },
   { display: 'IBR', value: 'ibr' },
+  { display: 'UVR', value: 'uvr' },
+];
+
+const gracePeriods: { label: string; value: boolean }[] = [
+  { label: 'Si', value: true },
+  { label: 'No', value: false },
 ];
 
 type FormValues = {
@@ -27,6 +33,9 @@ type FormValues = {
   original_balance: string | undefined;
   periodicity: string;
   interest_rate: string;
+  days_count: string;
+  grace_type: string | undefined;
+  grace_period: number | undefined;
   type: string;
   bank: string;
 };
@@ -46,6 +55,9 @@ const initialValues: FormValues = {
   original_balance: undefined,
   periodicity: '',
   interest_rate: '',
+  days_count: '',
+  grace_type: undefined,
+  grace_period: undefined,
   type: 'fija',
   bank: '',
 };
@@ -58,7 +70,8 @@ const nameMapping: { [id: string]: string } = {
   Mensual: 'Meses',
 };
 
-const NUMERO_PAGOS = 'Número de pagos';
+const NUM_PAYMENTS_TXT = 'Número de pagos';
+const INTEREST_TXT = 'Interés nominal anual';
 
 const NewCreditModal = ({
   showStart,
@@ -68,6 +81,10 @@ const NewCreditModal = ({
 }: NewCreditModalProps) => {
   const supabase = createClientComponentClient();
   const [show, setShow] = useState<boolean>(false);
+  const [currentLoanType, setLoanType] = useState<
+    string | 'fija' | 'ibr' | 'uvr'
+  >(initialValues.type);
+  const [hasGracePeriod, setGracePeriod] = useState<boolean>(false);
 
   useEffect(() => {
     setShow(showStart);
@@ -83,7 +100,6 @@ const NewCreditModal = ({
     { setSubmitting }
   ) => {
     setSubmitting(true);
-
     // Format original_balance back to number before sending values to DB
     const valuesCopy = {
       ...values,
@@ -106,6 +122,19 @@ const NewCreditModal = ({
     setSubmitting(false);
   };
 
+  const getInterestLabel = (interest: string) => {
+    const percentageVal = interest !== '' ? `${interest}%` : '';
+    switch (currentLoanType) {
+      case 'ibr':
+        return `${INTEREST_TXT} ${percentageVal} + IBR`;
+      case 'uvr':
+        return `${INTEREST_TXT} ${percentageVal} * UVR`;
+      default:
+        // Text when 'fija' option is selected
+        return `${INTEREST_TXT} ${percentageVal}`;
+    }
+  };
+
   return (
     <div>
       <Formik initialValues={initialValues} onSubmit={onFormSubmit}>
@@ -124,7 +153,7 @@ const NewCreditModal = ({
               <Modal.Body>
                 <Row className="pb-5">
                   <Form.Group controlId="type">
-                    <Form.Label>Tipo de credito</Form.Label>
+                    <Form.Label>Tipo de crédito</Form.Label>
                     <Row>
                       <Col>
                         {loanTypes?.map(({ display, value }) => [
@@ -133,7 +162,10 @@ const NewCreditModal = ({
                             label={display}
                             name="type"
                             checked={values.type === value}
-                            onChange={() => setFieldValue('type', value)}
+                            onChange={() => {
+                              setLoanType(value);
+                              setFieldValue('type', value);
+                            }}
                             type="radio"
                             value={values.type}
                             key={`inline-${value}-1`}
@@ -184,7 +216,7 @@ const NewCreditModal = ({
                   <Col sm={12} md={6}>
                     <Form.Group controlId="interest_rate">
                       <Form.Label>
-                        Interes nominal anual {values.interest_rate}%
+                        {getInterestLabel(values.interest_rate)}
                       </Form.Label>
                       <Form.Control
                         placeholder="10.0%"
@@ -207,7 +239,7 @@ const NewCreditModal = ({
                     </Form.Group>
                   </Col>
                 </Row>
-                <Row className="d-flex align-items-center">
+                <Row className="pb-5">
                   <Col sm={12} md={6}>
                     <Form.Group controlId="original_balance">
                       <Form.Label>Balance original</Form.Label>
@@ -224,24 +256,92 @@ const NewCreditModal = ({
                     </Form.Group>
                   </Col>
                   <Col sm={12} md={6}>
-                    <Form.Group controlId="number_of_payments">
-                      <Form.Label>
-                        {`${NUMERO_PAGOS} ${values.number_of_payments} ${nameMapping[values.periodicity]}`}
-                      </Form.Label>
-                      <Row>
-                        <Col>
-                          <Form.Range
-                            min={1}
-                            max={100}
-                            value={values.number_of_payments}
-                            onChange={handleChange}
-                          />
-                        </Col>
-                      </Row>
-                      <ErrorMessage name="number_of_payments" component="div" />
+                    <Form.Group controlId="days_count">
+                      <Form.Label>Conteo de días</Form.Label>
+                      <Form.Select
+                        value={values.days_count}
+                        onChange={handleChange}
+                      >
+                        <option>Selecione un conteo</option>
+                        <option value="por_dias_360">30/360</option>
+                        <option value="por_dias_365">Act/365</option>
+                        <option value="por_periodo">Por Periodo</option>
+                      </Form.Select>
+                      <ErrorMessage name="days_count" component="div" />
                     </Form.Group>
                   </Col>
                 </Row>
+                <Row className="pb-5">
+                  <Form.Group controlId="number_of_payments">
+                    <Form.Label>
+                      {`${NUM_PAYMENTS_TXT} ${values.number_of_payments} ${nameMapping[values.periodicity] || ''}`}
+                    </Form.Label>
+                    <Row>
+                      <Col>
+                        <Form.Range
+                          min={1}
+                          max={100}
+                          value={values.number_of_payments}
+                          onChange={handleChange}
+                        />
+                      </Col>
+                    </Row>
+                    <ErrorMessage name="number_of_payments" component="div" />
+                  </Form.Group>
+                </Row>
+                <Row className="pb-3">
+                  <Form.Group controlId="has_grace_period">
+                    <Form.Label>Tiene periodo de gracia</Form.Label>
+                    <Row>
+                      <Col>
+                        {gracePeriods?.map(({ label, value }) => [
+                          <Form.Check
+                            inline
+                            label={label}
+                            name="has_grace_period"
+                            checked={hasGracePeriod === value}
+                            onChange={() => setGracePeriod(value)}
+                            type="radio"
+                            // value={values.grace_period}
+                            key={`inline-grace-period-${value}`}
+                          />,
+                        ])}
+                      </Col>
+                    </Row>
+                    <ErrorMessage name="type" component="div" />
+                  </Form.Group>
+                </Row>
+                {hasGracePeriod && (
+                  <Row className="pb-5">
+                    <Col sm={12} md={6}>
+                      <Form.Group controlId="grace_type">
+                        <Form.Label>Tipo de gracia</Form.Label>
+                        <Form.Select
+                          value={values.grace_type}
+                          onChange={handleChange}
+                        >
+                          <option>Selecione un tipo de gracia</option>
+                          <option value="capital">Capital</option>
+                          <option value="interes">Interés</option>
+                          <option value="ambos">Capital e Interés</option>
+                        </Form.Select>
+                        <ErrorMessage name="grace_type" component="div" />
+                      </Form.Group>
+                    </Col>
+                    <Col sm={12} md={6}>
+                      <Form.Group controlId="grace_period">
+                        <Form.Label>Periodos de gracia</Form.Label>
+                        <Form.Control
+                          placeholder="Introduce un número"
+                          type="number"
+                          value={values.grace_period}
+                          onChange={handleChange}
+                        />
+                        <ErrorMessage name="grace_period" component="div" />
+                      </Form.Group>
+                    </Col>
+                  </Row>
+                )}
               </Modal.Body>
               <Modal.Footer>
                 <Button
