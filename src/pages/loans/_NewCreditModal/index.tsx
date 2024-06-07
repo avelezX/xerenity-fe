@@ -7,7 +7,9 @@ import { Form, Modal, Col, Row, Button } from 'react-bootstrap';
 import { NumericFormat } from 'react-number-format';
 import { LoanType, Banks } from '@models/loans';
 import { toast } from 'react-toastify';
+import * as Yup from 'yup';
 import BalanceField from './BalanceField';
+
 
 interface NewCreditModalProps {
   showStart: boolean;
@@ -27,40 +29,34 @@ const gracePeriods: { label: string; value: boolean }[] = [
   { label: 'No', value: false },
 ];
 
-type FormValues = {
-  start_date: string;
-  number_of_payments: number;
-  original_balance: string | undefined;
-  periodicity: string;
-  interest_rate: string;
-  days_count: string;
-  grace_type: string | undefined;
-  grace_period: number | undefined;
-  type: string;
-  bank: string;
-};
+const loanSchema = Yup.object().shape({
+  start_date: Yup.string().required("Fecha de incio es requerida"),
+  number_of_payments: Yup.number().required("Numero de pagos es requerida"),
+  original_balance: Yup.string(),
+  periodicity: Yup.string().required("Periodicidad es requerida"),
+  interest_rate: Yup.string().required("Tasa de interes es requerida"),
+  days_count: Yup.string().required("El numero de dias es requerido"),
+  grace_type: Yup.string(),
+  grace_period: Yup.string(),
+  type: Yup.string().required("El tip de credito es requrido"),
+  bank: Yup.string().required("La entidad bancaria es requerida")
+});
 
-type FormActions = {
-  setSubmitting: (val: boolean) => void;
-};
 
-type FormikSubmitHandler = (
-  values: FormValues,
-  actions: FormActions
-) => Promise<void>;
-
-const initialValues: FormValues = {
+const initialValues = {
   start_date: '',
+  bank: '',
   number_of_payments: 12,
   original_balance: undefined,
   periodicity: '',
   interest_rate: '',
+  type: 'fija',
   days_count: '',
   grace_type: undefined,
   grace_period: undefined,
-  type: 'fija',
-  bank: '',
+  
 };
+
 
 const nameMapping: { [id: string]: string } = {
   Anual: 'Años',
@@ -95,11 +91,8 @@ const NewCreditModal = ({
     showCallBack(false);
   };
 
-  const onFormSubmit: FormikSubmitHandler = async (
-    values,
-    { setSubmitting }
-  ) => {
-    setSubmitting(true);
+  const onFormSubmit = async (values:any) => {
+    
     // Format original_balance back to number before sending values to DB
     const valuesCopy = {
       ...values,
@@ -119,7 +112,6 @@ const NewCreditModal = ({
       createCallback();
     }
 
-    setSubmitting(false);
   };
 
   const getInterestLabel = (interest: string) => {
@@ -137,13 +129,18 @@ const NewCreditModal = ({
 
   return (
     <div>
-      <Formik initialValues={initialValues} onSubmit={onFormSubmit}>
+      <Formik 
+      validationSchema={loanSchema}
+      initialValues={initialValues} 
+      onSubmit={onFormSubmit}>
         {({
           values,
           handleChange,
           setFieldValue,
           handleSubmit,
           isSubmitting,
+          touched,
+          errors
         }) => (
           <Modal size="lg" show={show} onHide={handleClose} centered>
             <Modal.Header closeButton>
@@ -181,7 +178,7 @@ const NewCreditModal = ({
                     <Form.Group controlId="bank">
                       <Form.Label>Entidad Banacaria</Form.Label>
                       <Form.Select value={values.bank} onChange={handleChange}>
-                        <option>Selecione una periodicidad</option>
+                        <option>Selecione una entidad bancaria</option>
                         {bankList?.map((bck) => (
                           <option
                             key={`select-opto-${bck.bank_name}`}
@@ -191,7 +188,7 @@ const NewCreditModal = ({
                           </option>
                         ))}
                       </Form.Select>
-                      <ErrorMessage name="bank" component="div" />
+                      {touched.bank && errors.bank && <ErrorMessage name="bank" component="div" />}
                     </Form.Group>
                   </Col>
                   <Col sm={12} md={6}>
@@ -208,7 +205,7 @@ const NewCreditModal = ({
                         <option value="Bimensual">Bimensual</option>
                         <option value="Mensual">Mensual</option>
                       </Form.Select>
-                      <ErrorMessage name="periodicity" component="div" />
+                      {touched.periodicity && errors.periodicity && <ErrorMessage name="periodicity" component="div" />}
                     </Form.Group>
                   </Col>
                 </Row>
@@ -224,7 +221,7 @@ const NewCreditModal = ({
                         value={values.interest_rate}
                         onChange={handleChange}
                       />
-                      <ErrorMessage name="interest_rate" component="div" />
+                      {touched.interest_rate && errors.interest_rate && <ErrorMessage name="interest_rate" component="div" />}
                     </Form.Group>
                   </Col>
                   <Col sm={12} md={6}>
@@ -235,7 +232,7 @@ const NewCreditModal = ({
                         value={values.start_date}
                         onChange={handleChange}
                       />
-                      <ErrorMessage name="start_date" component="div" />
+                      {touched.start_date && errors.start_date && <ErrorMessage name="start_date" component="div" />}
                     </Form.Group>
                   </Col>
                 </Row>
@@ -252,7 +249,7 @@ const NewCreditModal = ({
                         }}
                         customInput={BalanceField}
                       />
-                      <ErrorMessage name="original_balance" component="div" />
+                      {touched.original_balance && errors.original_balance && <ErrorMessage name="original_balance" component="div" />}
                     </Form.Group>
                   </Col>
                   <Col sm={12} md={6}>
@@ -267,7 +264,7 @@ const NewCreditModal = ({
                         <option value="por_dias_365">Act/365</option>
                         <option value="por_periodo">Por Periodo</option>
                       </Form.Select>
-                      <ErrorMessage name="days_count" component="div" />
+                      {touched.days_count && errors.days_count && <ErrorMessage name="days_count" component="div" />}
                     </Form.Group>
                   </Col>
                 </Row>
@@ -286,7 +283,7 @@ const NewCreditModal = ({
                         />
                       </Col>
                     </Row>
-                    <ErrorMessage name="number_of_payments" component="div" />
+                    {touched.number_of_payments && errors.number_of_payments && <ErrorMessage name="number_of_payments" component="div" />}
                   </Form.Group>
                 </Row>
                 <Row className="pb-3">
@@ -308,7 +305,7 @@ const NewCreditModal = ({
                         ])}
                       </Col>
                     </Row>
-                    <ErrorMessage name="type" component="div" />
+                    {touched.type && errors.type && <ErrorMessage name="type" component="div" />}
                   </Form.Group>
                 </Row>
                 {hasGracePeriod && (
@@ -325,7 +322,7 @@ const NewCreditModal = ({
                           <option value="interes">Interés</option>
                           <option value="ambos">Capital e Interés</option>
                         </Form.Select>
-                        <ErrorMessage name="grace_type" component="div" />
+                        {touched.grace_type && errors.grace_type && <ErrorMessage name="grace_type" component="div" />}
                       </Form.Group>
                     </Col>
                     <Col sm={12} md={6}>
@@ -337,7 +334,7 @@ const NewCreditModal = ({
                           value={values.grace_period}
                           onChange={handleChange}
                         />
-                        <ErrorMessage name="grace_period" component="div" />
+                        {touched.grace_period && errors.grace_period && <ErrorMessage name="grace_type" component="div" />}
                       </Form.Group>
                     </Col>
                   </Row>
