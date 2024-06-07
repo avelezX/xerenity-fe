@@ -13,7 +13,7 @@ import {
   faEye,
   faFileCsv,
   faMoneyBill,
-  faEyeSlash
+  faEyeSlash,
 } from '@fortawesome/free-solid-svg-icons';
 import { toast } from 'react-toastify';
 import { TesYields, CandleSerie, TesEntryToArray } from '@models/tes';
@@ -42,7 +42,7 @@ export default function CurrecnyViewer() {
 
   const currencyName = useRef<string>('USD:COP');
 
-  const [hideAvg,setHideAvg]= useState<boolean>(true);
+  const [hideAvg, setHideAvg] = useState<boolean>(true);
 
   const movingAvgDays = useRef<number>(20);
 
@@ -145,23 +145,24 @@ export default function CurrecnyViewer() {
                     </div>
                   </Dropdown.Item>
                   <DropdownDivider />
-                  <Dropdown.Item onClick={()=>setHideAvg(!hideAvg)}>
+                  <Dropdown.Item onClick={() => setHideAvg(!hideAvg)}>
                     <div className="d-flex gap-2 align-items-center">
-                        <Icon icon={hideAvg ? faEye : faEyeSlash} />
-                        <span>{hideAvg ? VER_PROMEDIO : OCULTAR_PROMEDIO}</span>
+                      <Icon icon={hideAvg ? faEye : faEyeSlash} />
+                      <span>{hideAvg ? VER_PROMEDIO : OCULTAR_PROMEDIO}</span>
                     </div>
                   </Dropdown.Item>
-                  {hideAvg && MONTH_OPTIONS.map((month) => (
-                    <Dropdown.Item
-                      key={month}
-                      onClick={() => handleMonthChange(month)}
-                    >
-                      <div className="d-flex gap-2 align-items-center">
-                        <Icon icon={faCaretRight} />
-                        <span>{`Promedio Movil ${month}`}</span>
-                      </div>
-                    </Dropdown.Item>
-                  ))}
+                  {hideAvg &&
+                    MONTH_OPTIONS.map((month) => (
+                      <Dropdown.Item
+                        key={month}
+                        onClick={() => handleMonthChange(month)}
+                      >
+                        <div className="d-flex gap-2 align-items-center">
+                          <Icon icon={faCaretRight} />
+                          <span>{`Promedio Movil ${month}`}</span>
+                        </div>
+                      </Dropdown.Item>
+                    ))}
                 </Dropdown.Menu>
               </Dropdown>
             </Toolbar>
@@ -173,12 +174,12 @@ export default function CurrecnyViewer() {
               <Chart.Candle data={candleSerie.values} scaleId="right" />
               {hideAvg || (
                 <Chart.Line
-                data={movingAvg}
-                color={PURPLE_COLOR}
-                scaleId="right"
-                title={currencyName.current}
+                  data={movingAvg}
+                  color={PURPLE_COLOR}
+                  scaleId="right"
+                  title={currencyName.current}
                 />
-              )}              
+              )}
             </Chart>
           </Col>
         </Row>
