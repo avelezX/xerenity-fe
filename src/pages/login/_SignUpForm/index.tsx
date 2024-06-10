@@ -91,7 +91,7 @@ function SingUpForm() {
         <div className="d-flex flex-column w-100 justify-content-center align-items-center py-5">
           <Form
             onSubmit={handleSubmit}
-            className="w-50 d-flex justify-content-center flex-column gap-3"
+            className="w-50 d-flex justify-content-center flex-column gap-4"
           >
             <Form.Group
               controlId="email"
@@ -177,14 +177,16 @@ function SingUpForm() {
                 {(msg: string) => <ErrorMsg>{msg}</ErrorMsg>}
               </ErrorMessage>
             </Form.Group>
-            <HCaptcha
-              languageOverride='es'
-              ref={captcha}
-              sitekey="593e53a4-0b84-4d8a-a7e6-a3dc4098b152"
-              onVerify={(token) => {
-                setCaptchaToken(token);
-              }}
-            />
+            <div className="d-flex justify-content-center">
+              <HCaptcha
+                languageOverride="es"
+                ref={captcha}
+                sitekey="593e53a4-0b84-4d8a-a7e6-a3dc4098b152"
+                onVerify={(token) => {
+                  setCaptchaToken(token);
+                }}
+              />
+            </div>
 
             <div className="d-flex justify-content-center p-4">
               <Button

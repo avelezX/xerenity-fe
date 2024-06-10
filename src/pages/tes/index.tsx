@@ -316,14 +316,14 @@ export default function FullTesViewer() {
         <Row>
           <div className="d-flex justify-content-between pb-3">
             <div className="d-flex gap-2">
-              <Tabs>
+              <Tabs outlined>
                 {pageTabs.map(({ active, name, property, icon }) => (
                   <Tab
                     active={active}
                     key={name}
                     onClick={() => handleCurrencyChange(property)}
                   >
-                    <Icon icon={icon} />
+                    {icon && <Icon icon={icon} />}
                     {name}
                   </Tab>
                 ))}
