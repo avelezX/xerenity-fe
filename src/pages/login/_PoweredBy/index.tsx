@@ -1,6 +1,6 @@
 import { Image } from 'react-bootstrap';
 import { FontAwesomeIcon as Icon } from '@fortawesome/react-fontawesome';
-import { faB, faBolt } from '@fortawesome/free-solid-svg-icons';
+import { faBolt } from '@fortawesome/free-solid-svg-icons';
 import tokens from 'design-tokens/tokens.json';
 
 const PRIMARY_COLOR = tokens.xerenity['purple-200'].value;
