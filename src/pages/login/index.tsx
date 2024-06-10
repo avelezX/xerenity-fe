@@ -29,6 +29,8 @@ const LOGO_SETTINGS = {
   alt: 'xerenity logo',
 };
 
+const CAPTCHA_SITE_KEY = '593e53a4-0b84-4d8a-a7e6-a3dc4098b152';
+
 const LoginPage: NextPage = () => {
   const [formTabs, setTabs] = useState(TAB_ITEMS);
 
@@ -67,7 +69,11 @@ const LoginPage: NextPage = () => {
                 ))}
               </Tabs>
             </div>
-            {formTabs[0].active ? <LoginForm /> : <SingUpForm />}
+            {formTabs[0].active ? (
+              <LoginForm captchaKey={CAPTCHA_SITE_KEY} />
+            ) : (
+              <SingUpForm captchaKey={CAPTCHA_SITE_KEY} />
+            )}
           </div>
           <div className="py-5">
             <PoweredBy />
