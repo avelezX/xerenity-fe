@@ -372,7 +372,10 @@ const NewCreditModal = ({
                             label={label}
                             name="has_min_rate"
                             checked={hasMinRate === value}
-                            onChange={() => setHasMinRate(value)}
+                            onChange={() => {
+                              setFieldValue('min_period_rate',undefined);
+                              setHasMinRate(value);
+                            }}
                             type="radio"
                             key={`inline-min-rate-${value}`}
                           />,
