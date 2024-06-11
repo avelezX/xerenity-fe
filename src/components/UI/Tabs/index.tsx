@@ -5,7 +5,7 @@ import { IconDefinition } from '@fortawesome/free-solid-svg-icons';
 export type TabItemType = {
   name: string;
   property: string;
-  icon: IconDefinition;
+  icon?: IconDefinition;
   active: boolean;
 };
 
@@ -28,11 +28,11 @@ export const Tab = styled.div<{ active: boolean }>`
   }
 `;
 
-export const Tabs = styled.div`
+export const Tabs = styled.div<{ outlined?: boolean }>`
   background: white;
   display: flex;
   padding: 0 16px;
   gap: 29px;
   border-radius: 8px;
-  border: solid 1px #dedede;
+  border: ${(props) => (props.outlined ? 'solid 1px #dedede' : 'none')};
 `;

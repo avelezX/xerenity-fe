@@ -21,7 +21,11 @@ import ErrorMsg from '../_ErrorMsg';
 
 const { form } = strings;
 
-function LoginForm() {
+type LoginFormProps = {
+  captchaKey: string;
+};
+
+function LoginForm({ captchaKey }: LoginFormProps) {
   const router = useRouter();
   const supabase = createClientComponentClient();
   const [loginErrorMsg, setLoginErrorMsg] = useState('');
@@ -91,14 +95,11 @@ function LoginForm() {
         <div className="d-flex flex-column w-100 justify-content-center align-items-center py-5">
           <Form
             onSubmit={handleSubmit}
-            className="w-50 d-flex justify-content-center flex-column gap-3"
+            className="w-50 d-flex justify-content-center flex-column gap-4"
           >
-            <Form.Group
-              controlId="email"
-              className='className="w-50 d-flex flex-column gap-2'
-            >
+            <Form.Group controlId="email">
               <InputGroup>
-                <InputGroup.Text className="bg-white border-right-none">
+                <InputGroup.Text className="bg-white">
                   <Icon className="text-primary" icon={faUser} fixedWidth />
                 </InputGroup.Text>
                 <Form.Control
@@ -112,12 +113,9 @@ function LoginForm() {
                 {(msg: string) => <ErrorMsg>{msg}</ErrorMsg>}
               </ErrorMessage>
             </Form.Group>
-            <Form.Group
-              controlId="password"
-              className='className="w-50 d-flex flex-column gap-2'
-            >
+            <Form.Group controlId="password">
               <InputGroup>
-                <InputGroup.Text className="bg-white border-right-none">
+                <InputGroup.Text className="bg-white">
                   <Icon className="text-primary" icon={faLock} fixedWidth />
                 </InputGroup.Text>
                 <Form.Control
@@ -131,23 +129,20 @@ function LoginForm() {
                 {(msg: string) => <ErrorMsg>{msg}</ErrorMsg>}
               </ErrorMessage>
             </Form.Group>
-            <HCaptcha
-              languageOverride='es'
-              ref={captcha}
-              sitekey="593e53a4-0b84-4d8a-a7e6-a3dc4098b152"
-              onVerify={(token) => {
-                setCaptchaToken(token);
-              }}
-            />
-            <div className="d-flex justify-content-center p-4">
-              <Button
-                type="submit"
-                disabled={captchaToken === undefined && !isSubmitting}
-              >
+            <div className="d-flex justify-content-center">
+              <HCaptcha
+                languageOverride="es"
+                ref={captcha}
+                sitekey={captchaKey}
+                onVerify={(token) => {
+                  setCaptchaToken(token);
+                }}
+              />
+            </div>
+            <div className="d-flex justify-content-center">
+              <Button type="submit" disabled={!captchaToken && !isSubmitting}>
                 {form.action}
-                <Collapse in={isSubmitting}>
-                  <Spinner />
-                </Collapse>
+                {isSubmitting && <Spinner size="sm" />}
               </Button>
             </div>
             <Collapse in={newErrorLogin}>
