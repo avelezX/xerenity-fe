@@ -23,7 +23,7 @@ const loanTypes: LoanType[] = [
   { display: 'UVR', value: 'uvr' },
 ];
 
-const gracePeriods: { label: string; value: boolean }[] = [
+const yesNoValues: { label: string; value: boolean }[] = [
   { label: 'Si', value: true },
   { label: 'No', value: false },
 ];
@@ -39,6 +39,7 @@ const loanSchema = Yup.object().shape({
   grace_period: Yup.string(),
   type: Yup.string().required('El tip de credito es requrido'),
   bank: Yup.string().required('La entidad bancaria es requerida'),
+  min_period_rate: Yup.number()
 });
 
 const initialValues = {
@@ -52,6 +53,7 @@ const initialValues = {
   days_count: '',
   grace_type: undefined,
   grace_period: undefined,
+  min_period_rate:undefined
 };
 
 const nameMapping: { [id: string]: string } = {
@@ -77,6 +79,8 @@ const NewCreditModal = ({
     string | 'fija' | 'ibr' | 'uvr'
   >(initialValues.type);
   const [hasGracePeriod, setGracePeriod] = useState<boolean>(false);
+
+  const [hasMinRate, setHasMinRate] = useState<boolean>(false);
 
   useEffect(() => {
     setShow(showStart);
@@ -301,10 +305,10 @@ const NewCreditModal = ({
                 </Row>
                 <Row className="pb-3">
                   <Form.Group controlId="has_grace_period">
-                    <Form.Label>Tiene periodo de gracia</Form.Label>
+                    <Form.Label>¿Tiene periodo de gracia?</Form.Label>
                     <Row>
                       <Col>
-                        {gracePeriods?.map(({ label, value }) => [
+                        {yesNoValues?.map(({ label, value }) => [
                           <Form.Check
                             inline
                             label={label}
@@ -354,6 +358,48 @@ const NewCreditModal = ({
                           <ErrorMessage name="grace_type" component="div" />
                         )}
                       </Form.Group>
+                    </Col>
+                  </Row>
+                )}
+                <Row className="pb-3">
+                  <Form.Group controlId="has_min_rate">
+                    <Form.Label>¿Tiene tasa minima por periodo?</Form.Label>
+                    <Row>
+                      <Col>
+                        {yesNoValues?.map(({ label, value }) => [
+                          <Form.Check
+                            inline
+                            label={label}
+                            name="has_min_rate"
+                            checked={hasMinRate === value}
+                            onChange={() => {
+                              setFieldValue('min_period_rate',undefined);
+                              setHasMinRate(value);
+                            }}
+                            type="radio"
+                            key={`inline-min-rate-${value}`}
+                          />,
+                        ])}
+                      </Col>
+                    </Row>
+                  </Form.Group>
+                </Row>                
+                {hasMinRate &&
+                (
+                  <Row className="pb-5">
+                    <Col sm={12} md={6}>
+                      <Form.Group controlId="min_period_rate">
+                        <Form.Label>Mínima tasa por periodo</Form.Label>
+                        <Form.Control
+                          placeholder="10.0%"
+                          type="number"
+                          value={values.min_period_rate}
+                          onChange={handleChange}
+                        />
+                        {touched.min_period_rate && errors.min_period_rate && (
+                          <ErrorMessage name="grace_type" component="div" />
+                        )}
+                      </Form.Group>                        
                     </Col>
                   </Row>
                 )}
