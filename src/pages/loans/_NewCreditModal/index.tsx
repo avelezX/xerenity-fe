@@ -314,7 +314,11 @@ const NewCreditModal = ({
                             label={label}
                             name="has_grace_period"
                             checked={hasGracePeriod === value}
-                            onChange={() => setGracePeriod(value)}
+                            onChange={() => {
+                              setFieldValue('grace_type',undefined);
+                              setFieldValue('grace_period',undefined);
+                              setGracePeriod(value);
+                            }}
                             type="radio"
                             key={`inline-grace-period-${value}`}
                           />,
