@@ -392,7 +392,6 @@ const NewCreditModal = ({
                         <Form.Label>Mínima tasa por periodo</Form.Label>
                         <Form.Control
                           placeholder="10.0%"
-                          type="number"
                           value={values.min_period_rate}
                           onChange={handleChange}
                         />
