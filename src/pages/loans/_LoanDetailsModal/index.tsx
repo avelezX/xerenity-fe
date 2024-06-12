@@ -45,6 +45,24 @@ const TASA_TXT = 'Tasa: ';
 const BALANCE_TXT = 'Balance Original:';
 const PERIODICIDAD_TXT = 'Periodicidad:';
 const INTERES_TXT = 'Interés:';
+const GRACE_PERIOD = 'Periodo de gracia:';
+const GRACE_TYPE = 'Tipo de gracia:';
+const MIN_PERIOD_RATE = 'Tasa minima por periodo:';
+const NUMBER_OF_PAYMENTS = 'Número de pagos:';
+const DAYS_COUNT = 'Conteo de días:';
+
+const getDaysCount = (interest: string) => {
+  
+  switch (interest) {
+    case 'por_dias_360':
+      return '30/360';
+    case 'por_dias_365':
+      return 'Act/365';
+    default:
+      // Text when 'fija' option is selected
+      return 'Por Periodo';
+  }
+};
 
 const LoanDetailsModal = ({ show, onCancel, loan }: LoanDetailsModalProps) => (
   <Modal
@@ -75,6 +93,34 @@ const LoanDetailsModal = ({ show, onCancel, loan }: LoanDetailsModalProps) => (
             <h6>{INTERES_TXT}</h6>
             <span style={valueStyles}>{`${loan?.interest_rate}%`}</span>
           </ItemDetail>
+          <ItemDetail>
+              <h6>{NUMBER_OF_PAYMENTS}</h6>
+              <span style={valueStyles}>{loan?.number_of_payments}</span>
+            </ItemDetail>
+          {loan?.grace_period && (
+            <ItemDetail>
+              <h6>{GRACE_PERIOD}</h6>
+              <span style={valueStyles}>{loan?.grace_period}</span>
+            </ItemDetail>
+          )}
+          {loan?.grace_type && (
+            <ItemDetail>
+              <h6>{GRACE_TYPE}</h6>
+              <span style={valueStyles}>{loan?.grace_type}</span>
+            </ItemDetail>
+          )}
+          {loan?.min_period_rate && (
+            <ItemDetail>
+              <h6>{MIN_PERIOD_RATE}</h6>
+              <span style={valueStyles}>{loan?.min_period_rate}</span>
+            </ItemDetail>
+          )}      
+          {loan?.days_count && (
+            <ItemDetail>
+              <h6>{DAYS_COUNT}</h6>
+              <span style={valueStyles}>{getDaysCount(loan?.days_count)}</span>
+            </ItemDetail>
+          )}                
         </div>
       </div>
       <div className="info-footer">
