@@ -8,6 +8,10 @@ export interface Loan {
   interest_rate: number;
   type: string;
   bank: string;
+  grace_type:string;
+  grace_period:string;
+  min_period_rate:number;
+  days_count:string;
 }
 
 export interface LoanCashFlow {
