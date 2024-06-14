@@ -16,8 +16,8 @@ import {
   LightSerie,
   LightSerieValue,
   defaultCustomFormat,
-} from '@models/lightserie';
-import { MovingAvgValue } from '@models/movingAvg';
+} from 'src/types/lightserie';
+import { MovingAvgValue } from 'src/types/movingAvg';
 import { ExportToCsv, downloadBlob } from '@components/csvDownload/cscDownload';
 import { FontAwesomeIcon as Icon } from '@fortawesome/react-fontawesome';
 import {
@@ -33,7 +33,7 @@ import {
   CandleSerie,
   GridEntry,
   TesEntryToArray,
-} from '@models/tes';
+} from 'src/types/tes';
 import CandleGridViewer from '@components/grid/CandleGrid';
 import Toolbar from '@components/UI/Toolbar';
 import tokens from 'design-tokens/tokens.json';

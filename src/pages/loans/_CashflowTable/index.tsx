@@ -1,7 +1,12 @@
 import currencyFormat from 'src/utils/currencyFormat';
-import { LoanCashFlowIbr } from '@models/loans';
+import { LoanCashFlowIbr } from 'src/types/loans';
 import { Table } from 'react-bootstrap';
-import { TableCell,TableHeader,TableRow,HeaderCell } from '@components/UI/Table';
+import {
+  TableCell,
+  TableHeader,
+  TableRow,
+  HeaderCell,
+} from '@components/UI/Table';
 
 type CashFlowTableProps = {
   data: LoanCashFlowIbr[] | undefined;

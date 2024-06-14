@@ -4,7 +4,7 @@ import React, { ChangeEvent, useCallback, useState, useEffect } from 'react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { Container, Row, Col, Alert } from 'react-bootstrap';
 import { CoreLayout } from '@layout';
-import { TesYields, CandleSerie } from '@models/tes';
+import { TesYields, CandleSerie } from 'src/types/tes';
 import CopTesGrid from '@components/grid/SpecificGrids/copGrid';
 import CandleSerieViewer from '@components/compare/candleViewer';
 import IbrTesGrid from '@components/grid/SpecificGrids/ibrGrid';
@@ -12,8 +12,8 @@ import {
   LightSerie,
   LightSerieValue,
   defaultCustomFormat,
-} from '@models/lightserie';
-import { MovingAvgValue } from '@models/movingAvg';
+} from 'src/types/lightserie';
+import { MovingAvgValue } from 'src/types/movingAvg';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 

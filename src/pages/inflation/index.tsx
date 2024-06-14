@@ -4,7 +4,7 @@ import React, { useCallback, useState, useEffect } from 'react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { Container, Row, Col } from 'react-bootstrap';
 import { CoreLayout } from '@layout';
-import { LightSerieValue } from '@models/lightserie';
+import { LightSerieValue } from 'src/types/lightserie';
 import { ExportToCsv, downloadBlob } from '@components/csvDownload/cscDownload';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
@@ -20,7 +20,7 @@ import Chart from '@components/chart/Chart';
 import Button from '@components/UI/Button';
 import PageTitle from '@components/PageTitle';
 import Panel from '@components/Panel';
-import { ConsumerPrice } from '@models/consumerprice';
+import { ConsumerPrice } from 'src/types/consumerprice';
 
 import InflationTable from './_InflationTable';
 

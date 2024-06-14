@@ -1,6 +1,6 @@
 'use client';
 
-import { ConsumerPrice } from '@models/consumerprice';
+import { ConsumerPrice } from 'src/types/consumerprice';
 import GroupList from '@components/UI/GroupList';
 import ListItem from '@components/UI/GroupList/ListItem';
 

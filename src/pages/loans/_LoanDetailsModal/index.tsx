@@ -3,7 +3,7 @@ import { faLandmark } from '@fortawesome/free-solid-svg-icons';
 import { FontAwesomeIcon as Icon } from '@fortawesome/react-fontawesome';
 import { SourcePill } from '@components/UI/Card/Card.styled';
 import ModalContent from '@components/UI/Modal/ModalContent.styled';
-import { Loan } from '@models/loans';
+import { Loan } from 'src/types/loans';
 import styled from 'styled-components';
 import currencyFormat from 'src/utils/currencyFormat';
 import tokens from 'design-tokens/tokens.json';
@@ -52,7 +52,6 @@ const NUMBER_OF_PAYMENTS = 'Número de pagos:';
 const DAYS_COUNT = 'Conteo de días:';
 
 const getDaysCount = (interest: string) => {
-  
   switch (interest) {
     case 'por_dias_360':
       return '30/360';
@@ -94,9 +93,9 @@ const LoanDetailsModal = ({ show, onCancel, loan }: LoanDetailsModalProps) => (
             <span style={valueStyles}>{`${loan?.interest_rate}%`}</span>
           </ItemDetail>
           <ItemDetail>
-              <h6>{NUMBER_OF_PAYMENTS}</h6>
-              <span style={valueStyles}>{loan?.number_of_payments}</span>
-            </ItemDetail>
+            <h6>{NUMBER_OF_PAYMENTS}</h6>
+            <span style={valueStyles}>{loan?.number_of_payments}</span>
+          </ItemDetail>
           {loan?.grace_period && (
             <ItemDetail>
               <h6>{GRACE_PERIOD}</h6>
@@ -114,13 +113,13 @@ const LoanDetailsModal = ({ show, onCancel, loan }: LoanDetailsModalProps) => (
               <h6>{MIN_PERIOD_RATE}</h6>
               <span style={valueStyles}>{loan?.min_period_rate}</span>
             </ItemDetail>
-          )}      
+          )}
           {loan?.days_count && (
             <ItemDetail>
               <h6>{DAYS_COUNT}</h6>
               <span style={valueStyles}>{getDaysCount(loan?.days_count)}</span>
             </ItemDetail>
-          )}                
+          )}
         </div>
       </div>
       <div className="info-footer">

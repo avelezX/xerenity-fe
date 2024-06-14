@@ -5,7 +5,7 @@ import React, { useState, useEffect } from 'react';
 import { Formik, ErrorMessage, FormikValues } from 'formik';
 import { Form, Modal, Col, Row, Button } from 'react-bootstrap';
 import { NumericFormat } from 'react-number-format';
-import { LoanType, Banks } from '@models/loans';
+import { LoanType, Banks } from 'src/types/loans';
 import { toast } from 'react-toastify';
 import * as Yup from 'yup';
 import BalanceField from './BalanceField';
@@ -39,7 +39,7 @@ const loanSchema = Yup.object().shape({
   grace_period: Yup.string(),
   type: Yup.string().required('El tip de credito es requrido'),
   bank: Yup.string().required('La entidad bancaria es requerida'),
-  min_period_rate: Yup.number()
+  min_period_rate: Yup.number(),
 });
 
 const initialValues = {
@@ -53,7 +53,7 @@ const initialValues = {
   days_count: '',
   grace_type: undefined,
   grace_period: undefined,
-  min_period_rate:undefined
+  min_period_rate: undefined,
 };
 
 const nameMapping: { [id: string]: string } = {
@@ -315,8 +315,8 @@ const NewCreditModal = ({
                             name="has_grace_period"
                             checked={hasGracePeriod === value}
                             onChange={() => {
-                              setFieldValue('grace_type',undefined);
-                              setFieldValue('grace_period',undefined);
+                              setFieldValue('grace_type', undefined);
+                              setFieldValue('grace_period', undefined);
                               setGracePeriod(value);
                             }}
                             type="radio"
@@ -377,7 +377,7 @@ const NewCreditModal = ({
                             name="has_min_rate"
                             checked={hasMinRate === value}
                             onChange={() => {
-                              setFieldValue('min_period_rate',undefined);
+                              setFieldValue('min_period_rate', undefined);
                               setHasMinRate(value);
                             }}
                             type="radio"
@@ -387,9 +387,8 @@ const NewCreditModal = ({
                       </Col>
                     </Row>
                   </Form.Group>
-                </Row>                
-                {hasMinRate &&
-                (
+                </Row>
+                {hasMinRate && (
                   <Row className="pb-5">
                     <Col sm={12} md={6}>
                       <Form.Group controlId="min_period_rate">
@@ -402,7 +401,7 @@ const NewCreditModal = ({
                         {touched.min_period_rate && errors.min_period_rate && (
                           <ErrorMessage name="grace_type" component="div" />
                         )}
-                      </Form.Group>                        
+                      </Form.Group>
                     </Col>
                   </Row>
                 )}

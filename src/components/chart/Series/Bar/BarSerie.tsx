@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { defaultCustomFormat } from '@models/lightserie';
+import { defaultCustomFormat } from 'src/types/lightserie';
 import { ISeriesApi } from 'lightweight-charts';
 
 import { TimeValueSerie } from '../../Models';
