@@ -12,6 +12,7 @@ const ListItemContainer = styled.div<{
   justifyContent?: string;
 }>`
   height: 62px;
+  min-height: 62px;
   background: ${(props) => (props.isActive ? LIGHT_PURPLE : LIGHT_GRAY)};
   display: flex;
   align-items: center;
