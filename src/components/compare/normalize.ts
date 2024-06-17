@@ -1,4 +1,4 @@
-import { LightSerie, LightSerieValue } from '@models/lightserie';
+import { LightSerie, LightSerieValue } from 'src/types/lightserie';
 
 export default function normalizeSeries(
   existinSeries: LightSerie[],
@@ -33,7 +33,7 @@ export default function normalizeSeries(
           color: lSerie.color,
           type: lSerie.type,
           priceFormat: lSerie.priceFormat,
-          axisName:lSerie.axisName
+          axisName: lSerie.axisName,
         });
       });
 
@@ -79,7 +79,7 @@ export default function normalizeSeries(
         color: lSerie.color,
         type: lSerie.type,
         priceFormat: lSerie.priceFormat,
-        axisName:lSerie.axisName
+        axisName: lSerie.axisName,
       });
     });
   }

@@ -1,5 +1,5 @@
 import Container from 'react-bootstrap/Container';
-import { CandleSerie } from '@models/tes';
+import { CandleSerie } from 'src/types/tes';
 import {
   CandlestickData,
   HistogramData,
@@ -10,12 +10,10 @@ import {
 } from 'lightweight-charts';
 import React, { useEffect, useRef } from 'react';
 import { Card } from 'react-bootstrap';
-import { LightSerie, defaultCustomFormat } from '@models/lightserie';
+import { LightSerie, defaultCustomFormat } from 'src/types/lightserie';
 import tokens from 'design-tokens/tokens.json';
 import normalizeSeries from './normalize';
 import charOptions, { legendStyles } from './candleViewerOptions';
-
-
 
 type ViewerProps = {
   candleSerie?: CandleSerie | null;
@@ -136,9 +134,9 @@ export default function CandleSerieViewer({
 
             let scaleid = 'right';
 
-            if(other.axisName){
+            if (other.axisName) {
               scaleid = other.axisName;
-            }else if (index === 0) {
+            } else if (index === 0) {
               scaleid = 'left';
             } else if (index === 1) {
               scaleid = 'right';

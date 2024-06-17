@@ -1,12 +1,12 @@
 {
-    "form": {
-        "email": "Ingresa tu email",
-        "emailInvalid": "Ingresa un email valido",
-        "password": "Ingresa tu password",
-        "action": "Crear cuenta",
-        "required": "Este campo es requerido.",
-        "nombre": "Ingresa tu nombre",
-        "country": "Ingresa el pais donde vives",
-        "confirmacion":"Un email ha sido enviado para confirmar tu cuenta"
-    }
+  "form": {
+    "email": "Ingresa tu email",
+    "emailInvalid": "Ingresa un email valido",
+    "password": "Ingresa tu password",
+    "action": "Crear cuenta",
+    "required": "Este campo es requerido.",
+    "nombre": "Ingresa tu nombre",
+    "country": "Ingresa el pais donde vives",
+    "confirmacion": "Un email ha sido enviado para confirmar tu cuenta"
+  }
 }

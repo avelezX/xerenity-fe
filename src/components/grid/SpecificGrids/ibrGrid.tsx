@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback, ChangeEvent } from 'react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
-import { GridEntry } from '@models/tes';
+import { GridEntry } from 'src/types/tes';
 import CandleGridViewer from '../CandleGrid';
 
 export interface CopTesGridProps {

@@ -1,6 +1,11 @@
 import { Table } from 'react-bootstrap';
-import { TableCell,TableHeader,TableRow,HeaderCell } from '@components/UI/Table';
-import { LightSerieValue } from '@models/lightserie';
+import {
+  TableCell,
+  TableHeader,
+  TableRow,
+  HeaderCell,
+} from '@components/UI/Table';
+import { LightSerieValue } from 'src/types/lightserie';
 
 type InflationTableProps = {
   data: LightSerieValue[] | undefined;
@@ -8,7 +13,7 @@ type InflationTableProps = {
 };
 
 // TODO: Implement a shared common Table component
-const InflationTable = ({ data ,meses }: InflationTableProps) => (
+const InflationTable = ({ data, meses }: InflationTableProps) => (
   <div style={{ height: '800px', overflowY: 'scroll' }}>
     <Table hover>
       <TableHeader>
@@ -18,21 +23,12 @@ const InflationTable = ({ data ,meses }: InflationTableProps) => (
         </TableRow>
       </TableHeader>
       <tbody>
-        {data?.map(
-          ({
-            time,
-            value,
-          }) => [
-            <TableRow key={`row-credit-${time}`}>
-              <TableCell>
-                {time}
-              </TableCell>
-              <TableCell>
-                {value.toFixed(2)}
-              </TableCell>
-            </TableRow>,
-          ]
-        )}
+        {data?.map(({ time, value }) => [
+          <TableRow key={`row-credit-${time}`}>
+            <TableCell>{time}</TableCell>
+            <TableCell>{value.toFixed(2)}</TableCell>
+          </TableRow>,
+        ])}
       </tbody>
     </Table>
   </div>

@@ -43,7 +43,7 @@ const NAV_ITEMS: NavItemProps[] = [
     path: '/copndf',
     icon: faLandmark,
     active: false,
-  }
+  },
 ];
 
 const MONEDAS_SUBNAV: NavItemProps[] = [

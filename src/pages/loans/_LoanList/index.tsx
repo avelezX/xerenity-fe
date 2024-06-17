@@ -1,7 +1,7 @@
 'use client';
 
 import { CSSProperties, ChangeEvent } from 'react';
-import { Loan, LoanCashFlowIbr } from '@models/loans';
+import { Loan, LoanCashFlowIbr } from 'src/types/loans';
 import { faEye, faTrash } from '@fortawesome/free-solid-svg-icons';
 import GroupList from '@components/UI/GroupList';
 import ListItem from '@components/UI/GroupList/ListItem';

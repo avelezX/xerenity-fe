@@ -24,7 +24,7 @@ import {
   LightSerieEntry,
   lightSerieValueArray,
   defaultPriceFormat,
-} from '@models/lightserie';
+} from 'src/types/lightserie';
 import { FontAwesomeIcon as Icon } from '@fortawesome/react-fontawesome';
 import {
   faSquarePollHorizontal,
@@ -189,8 +189,8 @@ export default function Dashboard() {
       });
 
       if (event.target.checked) {
-        const newSerie=await FetchSerieValues(checkboxId, color);
-        newSerie.axisName=decideAxis(newSelection.size);
+        const newSerie = await FetchSerieValues(checkboxId, color);
+        newSerie.axisName = decideAxis(newSelection.size);
         newSelection.set(checkboxId, newSerie);
       } else {
         newSelection.delete(checkboxId);
@@ -265,33 +265,30 @@ export default function Dashboard() {
     }
   };
 
-
   const handleAxisChnage = useCallback(
     async (serieId: string) => {
       const newSelection = new Map<string, LightSerie>();
 
       Array.from(selectedSeries.entries()).forEach(([key, value]) => {
-          if(key===serieId){
-            const newSerie:LightSerie=value;
-            
-            if(value.axisName==='left'){
-              newSerie.axisName='right';
-            }else{
-              newSerie.axisName='left';
-            }
+        if (key === serieId) {
+          const newSerie: LightSerie = value;
 
-            newSelection.set(key, newSerie);
-          }else{
-            newSelection.set(key, value);
+          if (value.axisName === 'left') {
+            newSerie.axisName = 'right';
+          } else {
+            newSerie.axisName = 'left';
           }
-        
+
+          newSelection.set(key, newSerie);
+        } else {
+          newSelection.set(key, value);
+        }
       });
 
       setSelectedSeries(newSelection);
     },
     [selectedSeries]
   );
-
 
   return (
     <CoreLayout>
@@ -353,12 +350,17 @@ export default function Dashboard() {
                       actionIcon: faClipboard,
                       actionEvent: () => {
                         navigator.clipboard.writeText(value.ticker);
-                        toast.info(actions.copy,{ position: toast.POSITION.BOTTOM_RIGHT });
+                        toast.info(actions.copy, {
+                          position: toast.POSITION.BOTTOM_RIGHT,
+                        });
                       },
                     },
                     {
                       name: 'axis',
-                      actionIcon: selectedSeries.get(key)?.axisName==='left'?(faAlignLeft):(faAlignRight),
+                      actionIcon:
+                        selectedSeries.get(key)?.axisName === 'left'
+                          ? faAlignLeft
+                          : faAlignRight,
                       actionEvent: () => handleAxisChnage(value.ticker),
                     },
                     {
@@ -370,7 +372,7 @@ export default function Dashboard() {
                       name: 'delete',
                       actionIcon: faTrash,
                       actionEvent: () => handleRemoveSerie(value.ticker),
-                    }
+                    },
                   ]}
                   description={value.description}
                   fuente={value.fuente}
@@ -419,9 +421,7 @@ export default function Dashboard() {
                                     displayName={serie.display_name}
                                     serieID={serie.ticker}
                                     disable={loadingSerie}
-                                    checked={selectedSeries.has(
-                                      serie.ticker
-                                    )}
+                                    checked={selectedSeries.has(serie.ticker)}
                                   />,
                                 ])}
                               </Stack>

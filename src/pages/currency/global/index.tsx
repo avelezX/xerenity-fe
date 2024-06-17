@@ -9,7 +9,7 @@ import {
   LightSerie,
   LightSerieValue,
   lightSerieValueArray,
-} from '@models/lightserie';
+} from 'src/types/lightserie';
 import { ExportToCsv, downloadBlob } from '@components/csvDownload/cscDownload';
 import tokens from 'design-tokens/tokens.json';
 import {

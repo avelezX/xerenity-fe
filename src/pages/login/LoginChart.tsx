@@ -1,19 +1,17 @@
 import { useEffect, useState } from 'react';
 import { Carousel } from 'react-bootstrap';
-import { CandleSerie, TesYields } from '@models/tes';
+import { CandleSerie, TesYields } from 'src/types/tes';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import Chart from '@components/chart/Chart';
 import tokens from 'design-tokens/tokens.json';
-import { LightSerieValue } from '@models/lightserie';
-
+import { LightSerieValue } from 'src/types/lightserie';
 
 const designSystem = tokens.xerenity;
 const GRAY_COLOR_300 = designSystem['gray-300'].value;
 
-
 function LoginChart() {
   const supabase = createClientComponentClient();
-  const [volumenSerie,setvolumenSerie] = useState<LightSerieValue[]>([]);
+  const [volumenSerie, setvolumenSerie] = useState<LightSerieValue[]>([]);
   const [tesCandeSerie, setTESCandleSerie] = useState<CandleSerie>({
     name: '',
     values: [],
@@ -25,14 +23,14 @@ function LoginChart() {
       if (error) {
         setTESCandleSerie({ name: '', values: [] });
       } else if (data) {
-        const allData=data as TesYields[];
+        const allData = data as TesYields[];
         setTESCandleSerie({
           name: 'COLTES 13.25 09/02/33',
           values: allData,
         });
-        const volData:{ time: string; value: number }[] = [];
+        const volData: { time: string; value: number }[] = [];
         allData.forEach((tes) => {
-          volData.push({time:tes.day.split('T')[0],value:tes.volume});
+          volData.push({ time: tes.day.split('T')[0], value: tes.volume });
         });
         setvolumenSerie(volData);
       } else {
@@ -49,16 +47,13 @@ function LoginChart() {
         <Carousel className="w-100">
           <Carousel.Item>
             <Chart chartHeight={400}>
-                <Chart.Candle
-                  data={tesCandeSerie.values}
-                  scaleId='right'
-                />
-                <Chart.Volume
-                  data={volumenSerie}
-                  scaleId='left'
-                  title='Volumen'
-                  color={GRAY_COLOR_300}
-                />                                
+              <Chart.Candle data={tesCandeSerie.values} scaleId="right" />
+              <Chart.Volume
+                data={volumenSerie}
+                scaleId="left"
+                title="Volumen"
+                color={GRAY_COLOR_300}
+              />
             </Chart>
           </Carousel.Item>
         </Carousel>

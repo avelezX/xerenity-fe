@@ -9,9 +9,9 @@ import React, {
 } from 'react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { Container, Row, Col } from 'react-bootstrap';
-import { Loan, LoanCashFlowIbr, Banks } from '@models/loans';
+import { Loan, LoanCashFlowIbr, Banks } from 'src/types/loans';
 import { CoreLayout } from '@layout';
-import { LightSerieValue } from '@models/lightserie';
+import { LightSerieValue } from 'src/types/lightserie';
 import { ExportToCsv, downloadBlob } from '@components/csvDownload/cscDownload';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';

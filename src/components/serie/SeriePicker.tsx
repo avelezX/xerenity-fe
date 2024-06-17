@@ -1,7 +1,7 @@
 import { Button, Toast, Row, Col, Form } from 'react-bootstrap';
 import React, { useState, useEffect, ChangeEvent } from 'react';
 import Container from 'react-bootstrap/Container';
-import { getHexColor, XerenityHexColors } from '@models/hexColors';
+import { getHexColor, XerenityHexColors } from 'src/utils/getHexColors';
 import Circle from '@uiw/react-color-circle';
 
 export interface SeriePickerProps {
