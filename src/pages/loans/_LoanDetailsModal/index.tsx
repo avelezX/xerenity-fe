@@ -50,6 +50,7 @@ const GRACE_TYPE = 'Tipo de gracia:';
 const MIN_PERIOD_RATE = 'Tasa minima por periodo:';
 const NUMBER_OF_PAYMENTS = 'Número de pagos:';
 const DAYS_COUNT = 'Conteo de días:';
+const START_DATE = 'Fecha de inicio:';
 
 const getDaysCount = (interest: string) => {
   switch (interest) {
@@ -78,6 +79,10 @@ const LoanDetailsModal = ({ show, onCancel, loan }: LoanDetailsModalProps) => (
       <div className="info-description">
         <h5>{DETALLES_TXT}</h5>
         <div className="d-flex flex-column justify-content-center">
+          <ItemDetail>
+            <h6>{START_DATE}</h6>
+            <span style={valueStyles}>{loan?.start_date}</span>
+          </ItemDetail>          
           <ItemDetail>
             <h6>{BALANCE_TXT}</h6>
             <span style={valueStyles}>
