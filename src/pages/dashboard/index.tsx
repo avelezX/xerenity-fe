@@ -22,8 +22,7 @@ import {
   LightSerie,
   LightSerieValue,
   LightSerieEntry,
-  lightSerieValueArray,
-  defaultPriceFormat,
+  lightSerieValueArray
 } from 'src/types/lightserie';
 import { FontAwesomeIcon as Icon } from '@fortawesome/react-fontawesome';
 import {
