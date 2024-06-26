@@ -52,6 +52,9 @@ import strings from '../../strings/dahsboard.json';
 
 const { actions } = strings;
 
+const RIGHT_AXIS='right';
+const LEFT_AXIS='left';
+
 export default function Dashboard() {
   const supabase = createClientComponentClient();
   const [loadingSerie, setLowdingSerie] = useState(false);
@@ -166,13 +169,6 @@ export default function Dashboard() {
     fetchData();
   }, [fetchData]);
 
-  const decideAxis = (index: number) => {
-    if (normalize.current) {
-      return 'right';
-    }
-    return index % 2 === 0 ? 'right' : 'left';
-  };
-
   const handleCheckboxChange = useCallback(
     async (
       event: ChangeEvent<HTMLInputElement>,
@@ -189,7 +185,7 @@ export default function Dashboard() {
 
       if (event.target.checked) {
         const newSerie = await FetchSerieValues(checkboxId, color);
-        newSerie.axisName = decideAxis(newSelection.size);
+        newSerie.axisName = RIGHT_AXIS;
         newSelection.set(checkboxId, newSerie);
       } else {
         newSelection.delete(checkboxId);
@@ -268,10 +264,10 @@ export default function Dashboard() {
         if (key === serieId) {
           const newSerie: LightSerie = value;
 
-          if (value.axisName === 'left') {
-            newSerie.axisName = 'right';
+          if (value.axisName === LEFT_AXIS) {
+            newSerie.axisName = RIGHT_AXIS;
           } else {
-            newSerie.axisName = 'left';
+            newSerie.axisName = LEFT_AXIS;
           }
 
           newSelection.set(key, newSerie);
