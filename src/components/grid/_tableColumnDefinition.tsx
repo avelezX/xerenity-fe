@@ -1,11 +1,47 @@
 import currencyFormat from 'src/utils/currencyFormat';
 import { GridEntry } from '@models/tes';
+import tokens from 'design-tokens/tokens.json';
+
+const designSystem = tokens.xerenity;
+const SUCCESS_COLOR = designSystem['green-500'].value;
+const DANGER_COLOR = designSystem['red-600'].value;
+const WHITE_COLOR = designSystem['white-100'].value;
+
+const conditionalColChnageStyles = [
+  {
+    when: (row: GridEntry) => row.close < row.prev,
+    style: {
+      backgroundColor: SUCCESS_COLOR,
+      color: WHITE_COLOR,
+      '&:hover': {
+        cursor: 'pointer',
+      },
+    },
+  },
+  {
+    when: (row: GridEntry) => row.close > row.prev,
+    style: {
+      backgroundColor: DANGER_COLOR,
+      color: WHITE_COLOR,
+      '&:hover': {
+        cursor: 'pointer',
+      },
+    },
+  },
+];
 
 const GridColumns = [
   {
     name: 'Nombre',
     selector: (row: GridEntry) => row.displayname,
     sortable: true,
+  },
+  {
+    name: 'Chnage',
+    selector: (row: GridEntry) => row.operation_time,
+    sortable: true,
+    conditionalCellStyles: conditionalColChnageStyles,
+    cell: (row: GridEntry) => ((row.prev - row.close) * 100 * -1).toFixed(1),
   },
   {
     name: 'Fecha/Hora',

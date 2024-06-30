@@ -17,6 +17,7 @@ function DataTableBase<T>({
   onSelectedRowsChange,
   expandableRows,
   expandableRowsComponent,
+  conditionalRowStyles,
 }: TableProps<T>): JSX.Element {
   return (
     <DataTable
@@ -31,6 +32,7 @@ function DataTableBase<T>({
       selectableRows={selectableRows}
       selectableRowsSingle={selectableRowsSingle}
       expandableRowsComponent={expandableRowsComponent}
+      conditionalRowStyles={conditionalRowStyles}
     />
   );
 }
