@@ -2,22 +2,15 @@
 
 import React, { useCallback, useState, useEffect, useRef } from 'react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
-import { Container, Row, Col, Card } from 'react-bootstrap';
+import { Container, Row, Col, Card, Form } from 'react-bootstrap';
 import { Loan, LoanCashFlowIbr, Banks } from 'src/types/loans';
 import { CoreLayout } from '@layout';
 import { LightSerieValue } from 'src/types/lightserie';
 import { ExportToCsv, downloadBlob } from '@components/csvDownload/cscDownload';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-import {
-  FontAwesomeIcon,
-  FontAwesomeIcon as Icon,
-} from '@fortawesome/react-fontawesome';
-import {
-  faFileCsv,
-  faLandmark,
-  faSpinner,
-} from '@fortawesome/free-solid-svg-icons';
+import { FontAwesomeIcon as Icon } from '@fortawesome/react-fontawesome';
+import { faFileCsv, faLandmark } from '@fortawesome/free-solid-svg-icons';
 
 import Toolbar from '@components/UI/Toolbar';
 import tokens from 'design-tokens/tokens.json';
@@ -45,8 +38,6 @@ export default function LoansPage() {
 
   const [cashFlow, setCashFlow] = useState<LoanCashFlowIbr[]>();
 
-  const [fetching, setFetching] = useState<boolean>(false);
-
   const [pagoCuotaSerie, setPagoCuotaSerie] = useState<LightSerieValue[]>([]);
 
   const [showDialog, setShowDialog] = useState<boolean>(false);
@@ -63,24 +54,21 @@ export default function LoansPage() {
     Map<string, LoanCashFlowIbr[]>
   >(new Map());
 
+  const selectedDate = useRef<string>('');
+
   const calculateCashFlow = useCallback(
     async (cred_id: string) => {
-      setFetching(true);
       const { data, error } = await supabase
         .schema('xerenity')
         .rpc('loan_cash_flow', { credito_id: cred_id });
       if (error) {
-        setFetching(false);
         toast.error(error.message, { position: toast.POSITION.TOP_CENTER });
         return [];
       }
 
       if (data) {
-        setFetching(false);
         return data as LoanCashFlowIbr[];
       }
-
-      setFetching(false);
       return [];
     },
     [supabase]
@@ -88,22 +76,18 @@ export default function LoansPage() {
 
   const calculateCashFlowIbr = useCallback(
     async (cred_id: string) => {
-      setFetching(true);
       const { data, error } = await supabase
         .schema('xerenity')
         .rpc('ibr_cash_flow', { credito_id: cred_id });
       if (error) {
-        setFetching(false);
         toast.error(error.message, { position: toast.POSITION.TOP_CENTER });
         return [];
       }
 
       if (data) {
-        setFetching(false);
         return data as LoanCashFlowIbr[];
       }
 
-      setFetching(false);
       return [];
     },
     [supabase]
@@ -188,7 +172,6 @@ export default function LoansPage() {
       const newSelection = new Map<string, LoanCashFlowIbr[]>();
 
       if (allSelected) {
-        toast.error('Seleccionastes todos y nidea que hacer');
         return;
       }
 
@@ -203,6 +186,9 @@ export default function LoansPage() {
       });
 
       if (missing) {
+        toast.info('Calculando el credito', {
+          position: toast.POSITION.BOTTOM_RIGHT,
+        });
         if (missing.type === 'fija') {
           newSelection.set(missing.id, await calculateCashFlow(missing.id));
         } else {
@@ -211,7 +197,6 @@ export default function LoansPage() {
       }
 
       setSelectLoans(newSelection);
-
       calculatLoanCharts(newSelection);
     },
     [selectedLoans, setSelectLoans, calculateCashFlow, calculateCashFlowIbr]
@@ -242,8 +227,6 @@ export default function LoansPage() {
   }, [supabase, selectedBanks, banks]);
 
   const borrarCredito = async (cred_id: string) => {
-    setFetching(true);
-
     const { error } = await supabase
       .schema('xerenity')
       .rpc('erase_loan', { credito_id: cred_id });
@@ -270,11 +253,9 @@ export default function LoansPage() {
       calculatLoanCharts(newSelection);
     }
     setDeleteConfirm(false);
-    setFetching(false);
   };
 
   const fetchInitLoans = useCallback(async () => {
-    setFetching(true);
     const { data, error } = await supabase.schema('xerenity').rpc('get_banks');
 
     if (error) {
@@ -299,7 +280,6 @@ export default function LoansPage() {
         setAllCredits([]);
       }
     }
-    setFetching(false);
   }, [supabase]);
 
   const handleOption = useCallback(
@@ -364,14 +344,20 @@ export default function LoansPage() {
             <Card>
               <Card.Header>
                 <Row>
-                  <Col sm={2} md={1}>
-                    <FontAwesomeIcon icon={faSpinner} spin={fetching} />
-                  </Col>
                   <Col sm={12} md={4}>
                     <MultipleSelect
                       data={bankSelectItems}
                       onChange={handleOption}
                       placeholder="Selecciona Un Banco"
+                    />
+                  </Col>
+                  <Col sm={12} md={4}>
+                    <Form.Control
+                      value={new Date().toISOString().split('T')[0]}
+                      type="date"
+                      onChange={(e) => {
+                        selectedDate.current = e.target.value;
+                      }}
                     />
                   </Col>
                 </Row>

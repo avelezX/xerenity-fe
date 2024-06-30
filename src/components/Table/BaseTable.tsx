@@ -18,6 +18,7 @@ function DataTableBase<T>({
   expandableRows,
   expandableRowsComponent,
   conditionalRowStyles,
+  subHeaderComponent,
 }: TableProps<T>): JSX.Element {
   return (
     <DataTable
@@ -25,15 +26,15 @@ function DataTableBase<T>({
       sortIcon={sortIcon}
       highlightOnHover
       dense
-      striped
-      columns={columns}
       data={data}
-      expandableRows={expandableRows}
-      onSelectedRowsChange={onSelectedRowsChange}
+      columns={columns}
       selectableRows={selectableRows}
+      expandableRows={expandableRows}
+      subHeaderComponent={subHeaderComponent}
+      onSelectedRowsChange={onSelectedRowsChange}
       selectableRowsSingle={selectableRowsSingle}
-      expandableRowsComponent={expandableRowsComponent}
       conditionalRowStyles={conditionalRowStyles}
+      expandableRowsComponent={expandableRowsComponent}
     />
   );
 }
