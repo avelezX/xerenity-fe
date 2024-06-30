@@ -25,6 +25,7 @@ function DataTableBase<T>({
       sortIcon={sortIcon}
       highlightOnHover
       dense
+      striped
       columns={columns}
       data={data}
       expandableRows={expandableRows}
