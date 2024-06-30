@@ -136,7 +136,7 @@ export default function LoansPage() {
                   }
                 />
               </Chart>
-              <InflationTable data={priceValues} meses={lagValue} />
+              <InflationTable data={priceValues} />
             </Panel>
           </Col>
           <Col sm={12} md={4}>

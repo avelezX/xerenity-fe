@@ -1,25 +1,17 @@
-import Modal from '@components/UI/Modal';
-import { faLandmark } from '@fortawesome/free-solid-svg-icons';
-import { FontAwesomeIcon as Icon } from '@fortawesome/react-fontawesome';
-import { SourcePill } from '@components/UI/Card/Card.styled';
-import ModalContent from '@components/UI/Modal/ModalContent.styled';
 import { Loan } from 'src/types/loans';
 import styled from 'styled-components';
 import currencyFormat from 'src/utils/currencyFormat';
 import tokens from 'design-tokens/tokens.json';
 import { CSSProperties } from 'react';
 
+import { ExpanderComponentProps } from 'react-data-table-component';
+import Alert from '@components/UI/Alert';
+
 const designSystem = tokens.xerenity;
 const WEIGHT_MD = designSystem.medium.value;
 
 const valueStyles: CSSProperties = {
   fontWeight: WEIGHT_MD,
-};
-
-type LoanDetailsModalProps = {
-  onCancel: () => void;
-  show: boolean;
-  loan: Loan | undefined;
 };
 
 const ItemDetail = styled.div`
@@ -38,10 +30,6 @@ const ItemDetail = styled.div`
   }
 `;
 
-const MODAL_TITLE = 'Detalles Del Crédito';
-const CANCEL_TXT = 'Cerrar';
-const DETALLES_TXT = 'Detalles:';
-const TASA_TXT = 'Tasa: ';
 const BALANCE_TXT = 'Balance Original:';
 const PERIODICIDAD_TXT = 'Periodicidad:';
 const INTERES_TXT = 'Interés:';
@@ -64,77 +52,61 @@ const getDaysCount = (interest: string) => {
   }
 };
 
-const LoanDetailsModal = ({ show, onCancel, loan }: LoanDetailsModalProps) => (
-  <Modal
-    onCancel={onCancel}
-    cancelText={CANCEL_TXT}
-    title={MODAL_TITLE}
-    display={show}
-  >
-    <ModalContent>
-      <div className="info-title">
-        <Icon icon={faLandmark} style={{ fontSize: '24px' }} />
-        <h5>{loan?.bank}</h5>
+const ExpandedComponent: React.FC<ExpanderComponentProps<Loan>> = ({
+  data,
+}) => (
+  <Alert variant="info">
+    <div className="info-description">
+      <div className="d-flex flex-column justify-content-center">
+        <ItemDetail>
+          <h6>{START_DATE}</h6>
+          <span style={valueStyles}>{data?.start_date}</span>
+        </ItemDetail>
+        <ItemDetail>
+          <h6>{BALANCE_TXT}</h6>
+          <span style={valueStyles}>
+            {data ? currencyFormat(data.original_balance) : ''}
+          </span>
+        </ItemDetail>
+        <ItemDetail>
+          <h6>{PERIODICIDAD_TXT}</h6>
+          <span style={valueStyles}>{data?.periodicity}</span>
+        </ItemDetail>
+        <ItemDetail>
+          <h6>{INTERES_TXT}</h6>
+          <span style={valueStyles}>{`${data?.interest_rate}%`}</span>
+        </ItemDetail>
+        <ItemDetail>
+          <h6>{NUMBER_OF_PAYMENTS}</h6>
+          <span style={valueStyles}>{data?.number_of_payments}</span>
+        </ItemDetail>
+        {data?.grace_period && (
+          <ItemDetail>
+            <h6>{GRACE_PERIOD}</h6>
+            <span style={valueStyles}>{data?.grace_period}</span>
+          </ItemDetail>
+        )}
+        {data?.grace_type && (
+          <ItemDetail>
+            <h6>{GRACE_TYPE}</h6>
+            <span style={valueStyles}>{data?.grace_type}</span>
+          </ItemDetail>
+        )}
+        {data?.min_period_rate && (
+          <ItemDetail>
+            <h6>{MIN_PERIOD_RATE}</h6>
+            <span style={valueStyles}>{data?.min_period_rate}</span>
+          </ItemDetail>
+        )}
+        {data?.days_count && (
+          <ItemDetail>
+            <h6>{DAYS_COUNT}</h6>
+            <span style={valueStyles}>{getDaysCount(data?.days_count)}</span>
+          </ItemDetail>
+        )}
       </div>
-      <div className="info-description">
-        <h5>{DETALLES_TXT}</h5>
-        <div className="d-flex flex-column justify-content-center">
-          <ItemDetail>
-            <h6>{START_DATE}</h6>
-            <span style={valueStyles}>{loan?.start_date}</span>
-          </ItemDetail>          
-          <ItemDetail>
-            <h6>{BALANCE_TXT}</h6>
-            <span style={valueStyles}>
-              {loan ? currencyFormat(loan.original_balance) : ''}
-            </span>
-          </ItemDetail>
-          <ItemDetail>
-            <h6>{PERIODICIDAD_TXT}</h6>
-            <span style={valueStyles}>{loan?.periodicity}</span>
-          </ItemDetail>
-          <ItemDetail>
-            <h6>{INTERES_TXT}</h6>
-            <span style={valueStyles}>{`${loan?.interest_rate}%`}</span>
-          </ItemDetail>
-          <ItemDetail>
-            <h6>{NUMBER_OF_PAYMENTS}</h6>
-            <span style={valueStyles}>{loan?.number_of_payments}</span>
-          </ItemDetail>
-          {loan?.grace_period && (
-            <ItemDetail>
-              <h6>{GRACE_PERIOD}</h6>
-              <span style={valueStyles}>{loan?.grace_period}</span>
-            </ItemDetail>
-          )}
-          {loan?.grace_type && (
-            <ItemDetail>
-              <h6>{GRACE_TYPE}</h6>
-              <span style={valueStyles}>{loan?.grace_type}</span>
-            </ItemDetail>
-          )}
-          {loan?.min_period_rate && (
-            <ItemDetail>
-              <h6>{MIN_PERIOD_RATE}</h6>
-              <span style={valueStyles}>{loan?.min_period_rate}</span>
-            </ItemDetail>
-          )}
-          {loan?.days_count && (
-            <ItemDetail>
-              <h6>{DAYS_COUNT}</h6>
-              <span style={valueStyles}>{getDaysCount(loan?.days_count)}</span>
-            </ItemDetail>
-          )}
-        </div>
-      </div>
-      <div className="info-footer">
-        <SourcePill>
-          {TASA_TXT}
-          <span style={{ textTransform: 'capitalize' }}>{loan?.type}</span>
-        </SourcePill>
-      </div>
-    </ModalContent>
-  </Modal>
+    </div>
+  </Alert>
 );
 
-export default LoanDetailsModal;
+export default ExpandedComponent;

@@ -1,26 +1,24 @@
 'use client';
 
-import React, {
-  useCallback,
-  useState,
-  useEffect,
-  ChangeEvent,
-  useRef,
-} from 'react';
+import React, { useCallback, useState, useEffect, useRef } from 'react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
-import { Container, Row, Col } from 'react-bootstrap';
+import { Container, Row, Col, Card } from 'react-bootstrap';
 import { Loan, LoanCashFlowIbr, Banks } from 'src/types/loans';
 import { CoreLayout } from '@layout';
 import { LightSerieValue } from 'src/types/lightserie';
 import { ExportToCsv, downloadBlob } from '@components/csvDownload/cscDownload';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-import { FontAwesomeIcon as Icon } from '@fortawesome/react-fontawesome';
+import {
+  FontAwesomeIcon,
+  FontAwesomeIcon as Icon,
+} from '@fortawesome/react-fontawesome';
 import {
   faFileCsv,
-  faMoneyBill,
   faLandmark,
+  faSpinner,
 } from '@fortawesome/free-solid-svg-icons';
+
 import Toolbar from '@components/UI/Toolbar';
 import tokens from 'design-tokens/tokens.json';
 import Chart from '@components/chart/Chart';
@@ -28,12 +26,10 @@ import Button from '@components/UI/Button';
 import PageTitle from '@components/PageTitle';
 import { MultiValue } from 'react-select';
 import LoanList from 'src/pages/loans/_LoanList';
-import Panel from '@components/Panel';
 import MultipleSelect from '@components/UI/MultipleSelect';
 import ConfirmationModal from '@components/UI/ConfirmationModal';
+import { TableSelectedRows } from '@components/Table/models';
 import NewCreditModal from './_NewCreditModal';
-import LoanDetailsModal from './_LoanDetailsModal';
-import CashFlowTable from './_CashflowTable';
 
 const designSystem = tokens.xerenity;
 const PURPLE_COLOR_100 = designSystem['purple-100'].value;
@@ -60,9 +56,8 @@ export default function LoansPage() {
   const [banks, setBanks] = useState<Banks[]>([]);
 
   const selectedLoan = useRef<Loan>();
-  const selectedBanks = useRef<string[]>([]);
 
-  const [showLoanModal, setShowLoanModal] = useState<boolean>(false);
+  const selectedBanks = useRef<string[]>([]);
 
   const [selectedLoans, setSelectLoans] = useState<
     Map<string, LoanCashFlowIbr[]>
@@ -189,25 +184,30 @@ export default function LoansPage() {
   }
 
   const onLoanCheckChange = useCallback(
-    async (
-      event: ChangeEvent<HTMLInputElement>,
-      loanId: string,
-      loanType: string
-    ) => {
+    async ({ allSelected, selectedRows }: TableSelectedRows<Loan>) => {
       const newSelection = new Map<string, LoanCashFlowIbr[]>();
 
-      Array.from(selectedLoans.entries()).forEach(([key, value]) => {
-        newSelection.set(key, value);
+      if (allSelected) {
+        toast.error('Seleccionastes todos y nidea que hacer');
+        return;
+      }
+
+      let missing: Loan | undefined;
+      selectedRows.forEach((loan) => {
+        const aux = selectedLoans.get(loan.id);
+        if (aux) {
+          newSelection.set(loan.id, aux);
+        } else {
+          missing = loan;
+        }
       });
 
-      if (event.target.checked) {
-        if (loanType === 'fija') {
-          newSelection.set(loanId, await calculateCashFlow(loanId));
+      if (missing) {
+        if (missing.type === 'fija') {
+          newSelection.set(missing.id, await calculateCashFlow(missing.id));
         } else {
-          newSelection.set(loanId, await calculateCashFlowIbr(loanId));
+          newSelection.set(missing.id, await calculateCashFlowIbr(missing.id));
         }
-      } else {
-        newSelection.delete(loanId);
       }
 
       setSelectLoans(newSelection);
@@ -310,16 +310,6 @@ export default function LoansPage() {
     [selectedBanks, fetchLoans]
   );
 
-  const onShowDetailsLoan = (loan: Loan) => {
-    selectedLoan.current = loan;
-    setShowLoanModal(true);
-  };
-
-  const onDeleteLoan = (loan: Loan) => {
-    selectedLoan.current = loan;
-    setDeleteConfirm(true);
-  };
-
   const onDeleteConfirmed = () => {
     if (selectedLoan.current) {
       borrarCredito(selectedLoan.current.id);
@@ -358,51 +348,38 @@ export default function LoansPage() {
           </div>
         </Row>
         <Row>
-          <Col sm={12} md={8}>
-            <Panel>
-              <Chart chartHeight={600} noCard>
-                <Chart.Bar
-                  data={pagoCuotaSerie}
-                  color={PURPLE_COLOR_100}
-                  scaleId="right"
-                  title="Pago final (Derecho)"
-                />
-              </Chart>
-              <CashFlowTable data={cashFlow} />
-            </Panel>
-          </Col>
-          <Col sm={12} md={4}>
-            <Panel>
-              <div
-                style={{
-                  display: 'flex',
-                  padding: '15px 0',
-                  justifyContent: 'space-between',
-                  gap: '10px',
-                }}
-              >
-                <MultipleSelect
-                  data={bankSelectItems}
-                  onChange={handleOption}
-                  placeholder="Selecciona Un Banco"
-                />
-                <Button
-                  variant="primary"
-                  onClick={() => setShowDialog(!showDialog)}
-                >
-                  <Icon icon={faMoneyBill} className="mr-4" />
-                  Nuevo Crédito
-                </Button>
-              </div>
-              <LoanList
-                isLoading={fetching}
-                list={allCredits}
-                selected={selectedLoans}
-                onSelect={onLoanCheckChange}
-                onDelete={onDeleteLoan}
-                onShowDetails={onShowDetailsLoan}
+          <Col>
+            <Chart chartHeight={800}>
+              <Chart.Bar
+                data={pagoCuotaSerie}
+                color={PURPLE_COLOR_100}
+                scaleId="right"
+                title="Pago final (Derecho)"
               />
-            </Panel>
+            </Chart>
+          </Col>
+        </Row>
+        <Row>
+          <Col>
+            <Card>
+              <Card.Header>
+                <Row>
+                  <Col sm={2} md={1}>
+                    <FontAwesomeIcon icon={faSpinner} spin={fetching} />
+                  </Col>
+                  <Col sm={12} md={4}>
+                    <MultipleSelect
+                      data={bankSelectItems}
+                      onChange={handleOption}
+                      placeholder="Selecciona Un Banco"
+                    />
+                  </Col>
+                </Row>
+              </Card.Header>
+              <Card.Body>
+                <LoanList list={allCredits} onSelect={onLoanCheckChange} />
+              </Card.Body>
+            </Card>
           </Col>
         </Row>
       </Container>
@@ -412,11 +389,6 @@ export default function LoansPage() {
         deleteText={DELETE_TXT}
         modalTitle={CONFIRM_MODAL_TITLE}
         onDelete={onDeleteConfirmed}
-      />
-      <LoanDetailsModal
-        loan={selectedLoan.current}
-        show={showLoanModal}
-        onCancel={() => setShowLoanModal(false)}
       />
       <NewCreditModal
         showStart={showDialog}
