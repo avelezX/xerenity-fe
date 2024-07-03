@@ -5,7 +5,7 @@ import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { Container, Row, Col } from 'react-bootstrap';
 import { CoreLayout } from '@layout';
 import { LightSerieValue } from 'src/types/lightserie';
-import { ExportToCsv, downloadBlob } from '@components/csvDownload/cscDownload';
+import { ExportToCsv, downloadBlob } from 'src/utils/downloadCSV';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { FontAwesomeIcon as Icon } from '@fortawesome/react-fontawesome';

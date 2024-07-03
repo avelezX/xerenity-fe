@@ -9,7 +9,7 @@ import {
 } from '@components/UI/Table';
 
 type CashFlowTableProps = {
-  data: LoanCashFlowIbr[] | undefined;
+  data: LoanCashFlowIbr[];
 };
 
 // TODO: Implement a shared common Table component

@@ -6,7 +6,7 @@ import { Row, Table } from 'react-bootstrap';
 import React, { useState, useEffect, useCallback } from 'react';
 import Container from 'react-bootstrap/Container';
 
-import { ExportToCsv, downloadBlob } from '@components/csvDownload/cscDownload';
+import { ExportToCsv, downloadBlob } from 'src/utils/downloadCSV';
 import { FontAwesomeIcon as Icon } from '@fortawesome/react-fontawesome';
 import { faFileCsv, faLandmark } from '@fortawesome/free-solid-svg-icons';
 import { toast } from 'react-toastify';

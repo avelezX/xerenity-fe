@@ -7,7 +7,7 @@ import Dropdown from 'react-bootstrap/Dropdown';
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import Container from 'react-bootstrap/Container';
 import { LightSerieValue } from 'src/types/lightserie';
-import { ExportToCsv, downloadBlob } from '@components/csvDownload/cscDownload';
+import { ExportToCsv, downloadBlob } from 'src/utils/downloadCSV';
 import {
   faCaretRight,
   faEye,

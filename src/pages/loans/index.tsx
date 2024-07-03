@@ -1,18 +1,10 @@
 'use client';
 
-import React, {
-  useCallback,
-  useState,
-  useEffect,
-  ChangeEvent,
-  useRef,
-} from 'react';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import React, { useEffect, useRef } from 'react';
 import { Container, Row, Col } from 'react-bootstrap';
-import { Loan, LoanCashFlowIbr, Banks } from 'src/types/loans';
+import { Loan } from 'src/types/loans';
 import { CoreLayout } from '@layout';
-import { LightSerieValue } from 'src/types/lightserie';
-import { ExportToCsv, downloadBlob } from '@components/csvDownload/cscDownload';
+import { ExportToCsv, downloadBlob } from 'src/utils/downloadCSV';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { FontAwesomeIcon as Icon } from '@fortawesome/react-fontawesome';
@@ -31,6 +23,7 @@ import LoanList from 'src/pages/loans/_LoanList';
 import Panel from '@components/Panel';
 import MultipleSelect from '@components/UI/MultipleSelect';
 import ConfirmationModal from '@components/UI/ConfirmationModal';
+import useAppStore from '@store';
 import NewCreditModal from './_NewCreditModal';
 import LoanDetailsModal from './_LoanDetailsModal';
 import CashFlowTable from './_CashflowTable';
@@ -38,298 +31,112 @@ import CashFlowTable from './_CashflowTable';
 const designSystem = tokens.xerenity;
 const PURPLE_COLOR_100 = designSystem['purple-100'].value;
 
+const PAGE_TITLE = 'Créditos';
 const CONFIRM_MODAL_TITLE = '¿Desea Borrar Este Crédito?';
 const DELETE_TXT =
   'Al proceder removera el crédito de la lista y todas sus configuraciones.';
 
+const CSV_FILE = {
+  columns: [
+    'Fecha',
+    'Balance Inicial',
+    'Balance Final',
+    'Interes',
+    'Pago',
+    'Principal',
+  ],
+  name: 'xerenity_flujo_de_caja.csv',
+  format: 'text/csv;charset=utf-8;',
+};
+
 export default function LoansPage() {
-  const supabase = createClientComponentClient();
-
-  const [allCredits, setAllCredits] = useState<Loan[]>();
-
-  const [cashFlow, setCashFlow] = useState<LoanCashFlowIbr[]>();
-
-  const [fetching, setFetching] = useState<boolean>(false);
-
-  const [pagoCuotaSerie, setPagoCuotaSerie] = useState<LightSerieValue[]>([]);
-
-  const [showDialog, setShowDialog] = useState<boolean>(false);
-
-  const [showConfirm, setDeleteConfirm] = useState<boolean>(false);
-
-  const [banks, setBanks] = useState<Banks[]>([]);
+  const {
+    banks,
+    chartData,
+    deleteLoanItem,
+    getLoanData,
+    loading,
+    loans,
+    mergedCashFlows,
+    showDeleteConfirm,
+    showLoanModal,
+    showNewCreditModal,
+    setSelectedLoans,
+    setSelectedBanks,
+    onShowDeleteConfirm,
+    onShowLoanModal,
+    onShowNewLoanModal,
+  } = useAppStore();
 
   const selectedLoan = useRef<Loan>();
-  const selectedBanks = useRef<string[]>([]);
 
-  const [showLoanModal, setShowLoanModal] = useState<boolean>(false);
-
-  const [selectedLoans, setSelectLoans] = useState<
-    Map<string, LoanCashFlowIbr[]>
-  >(new Map());
-
-  const calculateCashFlow = useCallback(
-    async (cred_id: string) => {
-      setFetching(true);
-      const { data, error } = await supabase
-        .schema('xerenity')
-        .rpc('loan_cash_flow', { credito_id: cred_id });
-      if (error) {
-        setFetching(false);
-        toast.error(error.message, { position: toast.POSITION.TOP_CENTER });
-        return [];
-      }
-
-      if (data) {
-        setFetching(false);
-        return data as LoanCashFlowIbr[];
-      }
-
-      setFetching(false);
-      return [];
-    },
-    [supabase]
-  );
-
-  const calculateCashFlowIbr = useCallback(
-    async (cred_id: string) => {
-      setFetching(true);
-      const { data, error } = await supabase
-        .schema('xerenity')
-        .rpc('ibr_cash_flow', { credito_id: cred_id });
-      if (error) {
-        setFetching(false);
-        toast.error(error.message, { position: toast.POSITION.TOP_CENTER });
-        return [];
-      }
-
-      if (data) {
-        setFetching(false);
-        return data as LoanCashFlowIbr[];
-      }
-
-      setFetching(false);
-      return [];
-    },
-    [supabase]
-  );
-
-  const downloadSeries = () => {
+  const onDownloadSeries = () => {
+    const { name, columns, format } = CSV_FILE;
     const allValues: string[][] = [];
-    allValues.push([
-      'Fecha',
-      'Balance Inicial',
-      'Balance Final',
-      'Interes',
-      'Pago',
-      'Principal',
-    ]);
-    if (cashFlow) {
-      cashFlow.forEach((loa) => {
-        allValues.push([
-          loa.date,
-          loa.beginning_balance.toString(),
-          loa.ending_balance.toString(),
-          loa.interest.toString(),
-          loa.payment.toString(),
-          loa.principal.toString(),
-        ]);
-      });
+
+    allValues.push(columns);
+
+    if (mergedCashFlows) {
+      mergedCashFlows.forEach(
+        ({
+          date,
+          beginning_balance,
+          ending_balance,
+          interest,
+          payment,
+          principal,
+        }) => {
+          allValues.push([
+            date,
+            beginning_balance.toString(),
+            ending_balance.toString(),
+            interest.toString(),
+            payment.toString(),
+            principal.toString(),
+          ]);
+        }
+      );
     }
 
     const csv = ExportToCsv(allValues);
-
-    downloadBlob(csv, 'xerenity_flujo_de_caja.csv', 'text/csv;charset=utf-8;');
+    downloadBlob(csv, name, format);
   };
 
-  function calculatLoanCharts(newSelection: Map<string, LoanCashFlowIbr[]>) {
-    const newCashFlow = new Map<string, LoanCashFlowIbr>();
-
-    Array.from(newSelection.entries()).forEach((val) => {
-      val[1].forEach((entr) => {
-        const au = newCashFlow.get(entr.date);
-        if (au) {
-          const newentry = {
-            principal: au.principal + entr.principal,
-            rate: au.rate,
-            date: entr.date,
-            beginning_balance: au.beginning_balance + entr.beginning_balance,
-            payment: au.payment + entr.payment,
-            interest: au.payment + entr.payment,
-            ending_balance: au.ending_balance + entr.ending_balance,
-            rate_tot: au.rate_tot,
-          };
-          newCashFlow.set(newentry.date, newentry);
-        } else {
-          newCashFlow.set(entr.date, entr);
-        }
-      });
-    });
-
-    const longCashFlow = new Array<LoanCashFlowIbr>();
-
-    const payment: LightSerieValue[] = [];
-
-    Array.from(newCashFlow.entries()).forEach((val) => {
-      longCashFlow.push(val[1]);
-    });
-
-    longCashFlow.sort((a, b) => (a.date < b.date ? -1 : 1));
-
-    longCashFlow.forEach((value) => {
-      payment.push({
-        time: value.date.split(' ')[0],
-        value: value.payment,
-      });
-    });
-
-    setPagoCuotaSerie(payment);
-
-    setCashFlow(longCashFlow);
-  }
-
-  const onLoanCheckChange = useCallback(
-    async (
-      event: ChangeEvent<HTMLInputElement>,
-      loanId: string,
-      loanType: string
-    ) => {
-      const newSelection = new Map<string, LoanCashFlowIbr[]>();
-
-      Array.from(selectedLoans.entries()).forEach(([key, value]) => {
-        newSelection.set(key, value);
-      });
-
-      if (event.target.checked) {
-        if (loanType === 'fija') {
-          newSelection.set(loanId, await calculateCashFlow(loanId));
-        } else {
-          newSelection.set(loanId, await calculateCashFlowIbr(loanId));
-        }
-      } else {
-        newSelection.delete(loanId);
-      }
-
-      setSelectLoans(newSelection);
-
-      calculatLoanCharts(newSelection);
-    },
-    [selectedLoans, setSelectLoans, calculateCashFlow, calculateCashFlowIbr]
-  );
-
-  const fetchLoans = useCallback(async () => {
-    let filter: string[] = [];
-
-    if (selectedBanks.current.length > 0) {
-      filter = selectedBanks.current.map((bck) => bck);
-    } else {
-      filter = banks.map((bck) => bck.bank_name);
-    }
-
-    const { data, error } = await supabase
-      .schema('xerenity')
-      .rpc('get_loans', { bank_name_filter: filter });
-
-    if (error) {
-      setAllCredits([]);
-      toast.error(error.message, { position: toast.POSITION.TOP_CENTER });
-    } else if (data) {
-      setAllCredits(data as Loan[]);
-    } else {
-      setAllCredits([]);
-    }
-    setShowDialog(false);
-  }, [supabase, selectedBanks, banks]);
-
-  const borrarCredito = async (cred_id: string) => {
-    setFetching(true);
-
-    const { error } = await supabase
-      .schema('xerenity')
-      .rpc('erase_loan', { credito_id: cred_id });
-
-    if (error) {
-      toast.error(error.message, { position: toast.POSITION.BOTTOM_RIGHT });
-    } else {
-      toast.info('El credito fue borrado exitosamente', {
-        position: toast.POSITION.BOTTOM_RIGHT,
-      });
-
-      const newSelection = new Map<string, LoanCashFlowIbr[]>();
-
-      Array.from(selectedLoans.entries()).forEach(([key, value]) => {
-        if (key !== cred_id) {
-          newSelection.set(key, value);
-        }
-      });
-
-      setSelectLoans(newSelection);
-
-      fetchLoans();
-
-      calculatLoanCharts(newSelection);
-    }
-    setDeleteConfirm(false);
-    setFetching(false);
+  const onBankFilter = (
+    selections: MultiValue<{ value: string; label: string }>
+  ) => {
+    const selectionValues = selections?.map(({ value }) => ({
+      bank_name: value,
+    }));
+    setSelectedBanks(selectionValues);
   };
-
-  const fetchInitLoans = useCallback(async () => {
-    setFetching(true);
-    const { data, error } = await supabase.schema('xerenity').rpc('get_banks');
-
-    if (error) {
-      toast.error(error.message, { position: toast.POSITION.TOP_CENTER });
-    } else {
-      const bankList = data as Banks[];
-
-      setBanks(bankList);
-
-      const response = await supabase.schema('xerenity').rpc('get_loans', {
-        bank_name_filter: bankList.map((bck) => bck.bank_name),
-      });
-
-      if (response.error) {
-        setAllCredits([]);
-        toast.error(response.error.message, {
-          position: toast.POSITION.TOP_CENTER,
-        });
-      } else if (data) {
-        setAllCredits(response.data as Loan[]);
-      } else {
-        setAllCredits([]);
-      }
-    }
-    setFetching(false);
-  }, [supabase]);
-
-  const handleOption = useCallback(
-    async (selections: MultiValue<{ value: string; label: string }>) => {
-      selectedBanks.current = selections?.map((sele) => sele.value);
-      fetchLoans();
-    },
-    [selectedBanks, fetchLoans]
-  );
 
   const onShowDetailsLoan = (loan: Loan) => {
     selectedLoan.current = loan;
-    setShowLoanModal(true);
+    onShowLoanModal(true);
   };
 
   const onDeleteLoan = (loan: Loan) => {
     selectedLoan.current = loan;
-    setDeleteConfirm(true);
+    onShowDeleteConfirm(true);
   };
 
   const onDeleteConfirmed = () => {
     if (selectedLoan.current) {
-      borrarCredito(selectedLoan.current.id);
+      deleteLoanItem(selectedLoan.current.id);
     }
   };
 
-  useEffect(() => {
-    fetchInitLoans();
-  }, [fetchInitLoans]);
+  const onNewLoanCreated = () => {
+    getLoanData();
+    onShowNewLoanModal(false);
+  };
 
+  useEffect(() => {
+    getLoanData();
+  }, [getLoanData]);
+
+  // Prep Bank data for select component
   const bankSelectItems = banks.map((bck) => ({
     value: bck.bank_name,
     label: bck.bank_name,
@@ -343,14 +150,14 @@ export default function LoansPage() {
           <div className="d-flex align-items-center gap-2 py-1">
             <PageTitle>
               <Icon icon={faLandmark} size="1x" />
-              <h4>Créditos</h4>
+              <h4>{PAGE_TITLE}</h4>
             </PageTitle>
           </div>
         </Row>
         <Row>
           <div className="d-flex justify-content-end pb-3">
             <Toolbar>
-              <Button variant="outline-primary" onClick={downloadSeries}>
+              <Button variant="outline-primary" onClick={onDownloadSeries}>
                 <Icon icon={faFileCsv} className="mr-4" />
                 Descargar
               </Button>
@@ -362,13 +169,13 @@ export default function LoansPage() {
             <Panel>
               <Chart chartHeight={600} noCard>
                 <Chart.Bar
-                  data={pagoCuotaSerie}
+                  data={chartData}
                   color={PURPLE_COLOR_100}
                   scaleId="right"
                   title="Pago final (Derecho)"
                 />
               </Chart>
-              <CashFlowTable data={cashFlow} />
+              <CashFlowTable data={mergedCashFlows} />
             </Panel>
           </Col>
           <Col sm={12} md={4}>
@@ -383,22 +190,21 @@ export default function LoansPage() {
               >
                 <MultipleSelect
                   data={bankSelectItems}
-                  onChange={handleOption}
+                  onChange={onBankFilter}
                   placeholder="Selecciona Un Banco"
                 />
                 <Button
                   variant="primary"
-                  onClick={() => setShowDialog(!showDialog)}
+                  onClick={() => onShowNewLoanModal(true)}
                 >
                   <Icon icon={faMoneyBill} className="mr-4" />
                   Nuevo Crédito
                 </Button>
               </div>
               <LoanList
-                isLoading={fetching}
-                list={allCredits}
-                selected={selectedLoans}
-                onSelect={onLoanCheckChange}
+                isLoading={loading}
+                list={loans}
+                onSelect={setSelectedLoans}
                 onDelete={onDeleteLoan}
                 onShowDetails={onShowDetailsLoan}
               />
@@ -407,8 +213,8 @@ export default function LoansPage() {
         </Row>
       </Container>
       <ConfirmationModal
-        onCancel={() => setDeleteConfirm(false)}
-        show={showConfirm}
+        onCancel={() => onShowDeleteConfirm(false)}
+        show={showDeleteConfirm}
         deleteText={DELETE_TXT}
         modalTitle={CONFIRM_MODAL_TITLE}
         onDelete={onDeleteConfirmed}
@@ -416,12 +222,12 @@ export default function LoansPage() {
       <LoanDetailsModal
         loan={selectedLoan.current}
         show={showLoanModal}
-        onCancel={() => setShowLoanModal(false)}
+        onCancel={() => onShowLoanModal(false)}
       />
       <NewCreditModal
-        showStart={showDialog}
-        createCallback={fetchLoans}
-        showCallBack={setShowDialog}
+        show={showNewCreditModal}
+        onLoanCreated={onNewLoanCreated}
+        onShow={onShowNewLoanModal}
         bankList={banks}
       />
     </CoreLayout>

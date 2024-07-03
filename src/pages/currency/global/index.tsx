@@ -10,7 +10,7 @@ import {
   LightSerieValue,
   lightSerieValueArray,
 } from 'src/types/lightserie';
-import { ExportToCsv, downloadBlob } from '@components/csvDownload/cscDownload';
+import { ExportToCsv, downloadBlob } from 'src/utils/downloadCSV';
 import tokens from 'design-tokens/tokens.json';
 import {
   faClose,
