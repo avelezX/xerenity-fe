@@ -10,9 +10,10 @@ import 'react-toastify/dist/ReactToastify.css';
 import { FontAwesomeIcon as Icon } from '@fortawesome/react-fontawesome';
 import {
   faFileCsv,
-  faMoneyBill,
   faLandmark,
+  faMoneyBill,
 } from '@fortawesome/free-solid-svg-icons';
+
 import Toolbar from '@components/UI/Toolbar';
 import tokens from 'design-tokens/tokens.json';
 import Chart from '@components/chart/Chart';
@@ -20,12 +21,11 @@ import Button from '@components/UI/Button';
 import PageTitle from '@components/PageTitle';
 import { MultiValue } from 'react-select';
 import LoanList from 'src/pages/loans/_LoanList';
-import Panel from '@components/Panel';
 import MultipleSelect from '@components/UI/MultipleSelect';
 import ConfirmationModal from '@components/UI/ConfirmationModal';
 import useAppStore from '@store';
+import Panel from '@components/Panel';
 import NewCreditModal from './_NewCreditModal';
-import LoanDetailsModal from './_LoanDetailsModal';
 import CashFlowTable from './_CashflowTable';
 
 const designSystem = tokens.xerenity;
@@ -62,7 +62,6 @@ export default function LoansPage() {
     selectedLoans,
     mergedCashFlows,
     showDeleteConfirm,
-    showLoanModal,
     showNewCreditModal,
     setSelectedLoans,
     setSelectedBanks,
@@ -233,11 +232,6 @@ export default function LoansPage() {
         deleteText={DELETE_TXT}
         modalTitle={CONFIRM_MODAL_TITLE}
         onDelete={onDeleteConfirmed}
-      />
-      <LoanDetailsModal
-        loan={selectedLoan.current}
-        show={showLoanModal}
-        onCancel={() => onShowLoanModal(false)}
       />
       <NewCreditModal
         show={showNewCreditModal}

@@ -4,13 +4,7 @@ import { CoreLayout } from '@layout';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { Row, Col, DropdownDivider } from 'react-bootstrap';
 import Dropdown from 'react-bootstrap/Dropdown';
-import React, {
-  useState,
-  useEffect,
-  useCallback,
-  ChangeEvent,
-  useRef,
-} from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Container from 'react-bootstrap/Container';
 import {
   LightSerie,
@@ -40,6 +34,7 @@ import tokens from 'design-tokens/tokens.json';
 import Chart from '@components/chart/Chart';
 import { Tab, Tabs, TabItemType } from '@components/UI/Tabs';
 import PageTitle from '@components/PageTitle';
+import { TableSelectedRows } from '@components/Table/models';
 
 const TAB_ITEMS: TabItemType[] = [
   {
@@ -268,9 +263,11 @@ export default function FullTesViewer() {
     fetchTesNames();
   }, [fetchTesNames]);
 
-  const handleSelect = (e: ChangeEvent<HTMLFormElement>) => {
-    const { id, placeholder } = e.target;
-    changeSelection(id, placeholder);
+  const handleSelect = ({ selectedRows }: TableSelectedRows<GridEntry>) => {
+    if (selectedRows.length > 0) {
+      const entry: GridEntry = selectedRows[0];
+      changeSelection(entry.tes, entry.displayname);
+    }
   };
 
   const handleCurrencyChange = (tabProp: string) => {
@@ -379,11 +376,7 @@ export default function FullTesViewer() {
         </Row>
         <Row>
           <Col>
-            <CandleGridViewer
-              selectCallback={handleSelect}
-              allTes={options}
-              currentSelection={serieId.current}
-            />
+            <CandleGridViewer onSelect={handleSelect} allTes={options} />
           </Col>
         </Row>
       </Container>

@@ -1,63 +1,57 @@
 import currencyFormat from 'src/utils/currencyFormat';
 import { LoanCashFlowIbr } from 'src/types/loans';
-import { Table } from 'react-bootstrap';
-import {
-  TableCell,
-  TableHeader,
-  TableRow,
-  HeaderCell,
-} from '@components/UI/Table';
+import DataTableBase from '@components/Table/BaseTable';
 
 type CashFlowTableProps = {
   data: LoanCashFlowIbr[];
 };
 
+function rateTotal(row: LoanCashFlowIbr) {
+  return row.rate_tot ? row.rate_tot.toFixed(2) : row.rate.toFixed(2);
+}
+
+const columns = [
+  {
+    name: 'Tasa',
+    selector: (row: LoanCashFlowIbr) => rateTotal(row),
+    sortable: true,
+  },
+  {
+    name: 'Fecha de inicio',
+    selector: (row: LoanCashFlowIbr) => row.date.split(' ')[0],
+    sortable: true,
+  },
+  {
+    name: 'Balance inicial',
+    selector: (row: LoanCashFlowIbr) => currencyFormat(row.beginning_balance),
+    sortable: true,
+  },
+  {
+    name: 'Pago cuota',
+    selector: (row: LoanCashFlowIbr) => currencyFormat(row.payment),
+    sortable: true,
+  },
+  {
+    name: 'Intereses',
+    selector: (row: LoanCashFlowIbr) => currencyFormat(row.interest),
+    sortable: true,
+  },
+  {
+    name: 'Principal',
+    selector: (row: LoanCashFlowIbr) => currencyFormat(row.principal),
+    sortable: true,
+  },
+  {
+    name: 'Balance Final',
+    selector: (row: LoanCashFlowIbr) => currencyFormat(row.ending_balance),
+    sortable: true,
+  },
+];
+
 // TODO: Implement a shared common Table component
 const CashFlowTable = ({ data }: CashFlowTableProps) => (
   <div style={{ height: '800px', overflowY: 'scroll' }}>
-    <Table hover>
-      <TableHeader>
-        <TableRow>
-          <HeaderCell>Moneda</HeaderCell>
-          <HeaderCell>Tasa</HeaderCell>
-          <HeaderCell>Fecha de inicio</HeaderCell>
-          <HeaderCell alignRight>Balance inicial</HeaderCell>
-          <HeaderCell alignRight>Pago cuota</HeaderCell>
-          <HeaderCell alignRight>Intereses</HeaderCell>
-          <HeaderCell alignRight>Principal</HeaderCell>
-          <HeaderCell alignRight>Balance Final</HeaderCell>
-        </TableRow>
-      </TableHeader>
-      <tbody>
-        {data?.map(
-          ({
-            date,
-            rate,
-            rate_tot,
-            beginning_balance,
-            payment,
-            interest,
-            principal,
-            ending_balance,
-          }) => [
-            <TableRow key={`row-credit-${date}-${ending_balance}`}>
-              <TableCell>COP</TableCell>
-              <TableCell>
-                {rate_tot ? rate_tot.toFixed(2) : rate.toFixed(2)}%
-              </TableCell>
-              <TableCell>{date.split(' ')[0]}</TableCell>
-              <TableCell alignRight>
-                {currencyFormat(beginning_balance)}
-              </TableCell>
-              <TableCell alignRight>{currencyFormat(payment)}</TableCell>
-              <TableCell alignRight>{currencyFormat(interest)}</TableCell>
-              <TableCell alignRight>{currencyFormat(principal)}</TableCell>
-              <TableCell alignRight>{currencyFormat(ending_balance)}</TableCell>
-            </TableRow>,
-          ]
-        )}
-      </tbody>
-    </Table>
+    <DataTableBase columns={columns} data={data || []} />
   </div>
 );
 
