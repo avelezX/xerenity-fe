@@ -1,7 +1,7 @@
 import { LightSerieValue } from 'src/types/lightserie';
 
 import DataTableBase from '@components/Table/BaseTable';
-import InflationColumns from './_tableColumnDefinition';
+import InflationColumns from '../../../components/Table/columnDefinition/inflation/_tableColumnDefinition';
 
 type InflationTableProps = {
   data: LightSerieValue[] | undefined;

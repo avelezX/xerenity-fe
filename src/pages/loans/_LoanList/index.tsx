@@ -1,7 +1,7 @@
 import { Loan } from 'src/types/loans';
 import DataTableBase from '@components/Table/BaseTable';
 import { TableSelectedRows } from '@components/Table/models';
-import LoanListColumns from './_tableColumnDefinition';
+import LoanListColumns from '../../../components/Table/columnDefinition/loans/_tableColumnDefinition';
 import ExpandedComponent from '../_LoanDetailsModal';
 
 type LoanListProps = {

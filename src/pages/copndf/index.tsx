@@ -16,7 +16,7 @@ import Toolbar from '@components/UI/Toolbar';
 import Button from '@components/UI/Button';
 import DataTableBase from '@components/Table/BaseTable';
 
-import NdfColumns from './_tableColumnDefinition';
+import NdfColumns from '../../components/Table/columnDefinition/copndf/_tableColumnDefinition';
 
 const PAGE_TITLE = 'COP NDF';
 
