@@ -1,7 +1,7 @@
 import { StateCreator } from 'zustand';
 import { Bank, Loan, LoanCashFlowIbr } from 'src/types/loans';
 import {
-  calculateCashFlow,
+  fetchCashFlows,
   deleteLoan,
   fetchBanks,
   fetchLoans,
@@ -111,7 +111,7 @@ const createLoansSlice: StateCreator<LoansSlice> = (set) => ({
     }),
   setCashFlowItem: async (loanId, type) => {
     set({ loading: true, errorMessage: undefined, successMessage: undefined });
-    const response: CashflowResponse = await calculateCashFlow(loanId, type);
+    const response: CashflowResponse = await fetchCashFlows(loanId, type);
 
     if (response.error) {
       set((state) => {
