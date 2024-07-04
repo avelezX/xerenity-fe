@@ -23,6 +23,7 @@ const badgeStyles: CSSProperties = {
 type LoanListProps = {
   list: Loan[];
   onSelect: (loan: Loan, type: string) => void;
+  selected: string[];
   isLoading: boolean;
   onDelete: (loan: Loan) => void;
   onShowDetails: (loan: Loan) => void;
@@ -31,6 +32,7 @@ type LoanListProps = {
 const LoanList = ({
   list,
   onSelect,
+  selected,
   isLoading,
   onDelete,
   onShowDetails,
@@ -41,7 +43,7 @@ const LoanList = ({
         id={loan.id}
         key={`row-key${loan.id}`}
         itemName={loan?.bank || ''}
-        checked={loan.checked}
+        checked={selected.includes(loan.id)}
         disabled={isLoading}
         onSelect={() => onSelect(loan, loan.type)}
         actions={[

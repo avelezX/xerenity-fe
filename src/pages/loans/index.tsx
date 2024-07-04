@@ -53,10 +53,13 @@ export default function LoansPage() {
   const {
     banks,
     chartData,
+    errorMessage,
+    successMessage,
     deleteLoanItem,
     getLoanData,
     loading,
     loans,
+    selectedLoans,
     mergedCashFlows,
     showDeleteConfirm,
     showLoanModal,
@@ -111,7 +114,7 @@ export default function LoansPage() {
     setSelectedBanks(selectionValues);
   };
 
-  const onShowDetailsLoan = (loan: Loan) => {
+  const onShowLoanDetails = (loan: Loan) => {
     selectedLoan.current = loan;
     onShowLoanModal(true);
   };
@@ -136,6 +139,18 @@ export default function LoansPage() {
     getLoanData();
   }, [getLoanData]);
 
+  useEffect(() => {
+    if (errorMessage) {
+      toast.error(errorMessage, {
+        position: toast.POSITION.BOTTOM_RIGHT,
+      });
+    } else if (successMessage) {
+      toast.success(successMessage, {
+        position: toast.POSITION.BOTTOM_RIGHT,
+      });
+    }
+  }, [errorMessage, successMessage]);
+
   // Prep Bank data for select component
   const bankSelectItems = banks.map((bck) => ({
     value: bck.bank_name,
@@ -144,7 +159,6 @@ export default function LoansPage() {
 
   return (
     <CoreLayout>
-      <ToastContainer />
       <Container fluid className="px-4 pb-3">
         <Row>
           <div className="d-flex align-items-center gap-2 py-1">
@@ -204,9 +218,10 @@ export default function LoansPage() {
               <LoanList
                 isLoading={loading}
                 list={loans}
+                selected={selectedLoans}
                 onSelect={setSelectedLoans}
                 onDelete={onDeleteLoan}
-                onShowDetails={onShowDetailsLoan}
+                onShowDetails={onShowLoanDetails}
               />
             </Panel>
           </Col>
@@ -230,6 +245,7 @@ export default function LoansPage() {
         onShow={onShowNewLoanModal}
         bankList={banks}
       />
+      <ToastContainer />
     </CoreLayout>
   );
 }

@@ -5,7 +5,7 @@ import React, { useState } from 'react';
 import { Formik, ErrorMessage, FormikValues } from 'formik';
 import { Form, Modal, Col, Row, Button } from 'react-bootstrap';
 import { NumericFormat } from 'react-number-format';
-import { LoanType } from 'src/types/loans';
+import { LoanType, Bank } from 'src/types/loans';
 import { toast } from 'react-toastify';
 import * as Yup from 'yup';
 import BalanceField from './BalanceField';
@@ -94,6 +94,7 @@ const NewCreditModal = ({
         : undefined,
     };
 
+    // TODO: Move this call to /models/loans folder
     const { data } = await supabase
       .schema('xerenity')
       .rpc('create_credit', valuesCopy);

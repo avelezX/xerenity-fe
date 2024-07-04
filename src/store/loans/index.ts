@@ -3,8 +3,12 @@ import { Bank, Loan, LoanCashFlowIbr } from 'src/types/loans';
 import {
   calculateCashFlow,
   deleteLoan,
-  fetchSupaBanks,
-  fetchSupaLoans,
+  fetchBanks,
+  fetchLoans,
+  LoanResponse,
+  BankResponse,
+  CashflowResponse,
+  DeleteLoanResponse,
 } from 'src/models/loans';
 import { LightSerieValue } from 'src/types/lightserie';
 
@@ -17,6 +21,8 @@ export interface LoansSlice {
   banks: Bank[];
   cashFlows: CashFlowItem[];
   chartData: LightSerieValue[];
+  errorMessage: string | undefined;
+  successMessage: string | undefined;
   mergedCashFlows: LoanCashFlowIbr[];
   loans: Loan[];
   loading: boolean;
@@ -41,6 +47,8 @@ const createLoansSlice: StateCreator<LoansSlice> = (set) => ({
   banks: [],
   cashFlows: [],
   chartData: [],
+  errorMessage: undefined,
+  successMessage: undefined,
   mergedCashFlows: [],
   loans: [],
   loading: false,
@@ -49,23 +57,23 @@ const createLoansSlice: StateCreator<LoansSlice> = (set) => ({
   showLoanModal: false,
   showNewCreditModal: false,
   selectedBanks: [],
+  // Store Actions
   getLoanData: async (bankFilter: Bank[] = []) => {
-    set({ loading: true });
-    const response = await fetchSupaBanks();
+    // Set initial state before fetching data
+    set({ loading: true, errorMessage: undefined, successMessage: undefined });
+    const response: BankResponse = await fetchBanks();
 
     if (response.error) {
       set({ loading: false });
-      // TODO: Replace by notification to the user
-      console.error(response.error);
+      set({ errorMessage: response.error });
     } else if (response.data) {
-      const banks = bankFilter.length > 0 ? bankFilter : response.data;
-      const loanResponse = await fetchSupaLoans(banks);
+      const banks: Bank[] = bankFilter.length > 0 ? bankFilter : response.data;
+      const loanResponse: LoanResponse = await fetchLoans(banks);
       set({ banks });
 
       if (loanResponse.error) {
         set({ loading: false });
-        // TODO: Replace by notification to the user
-        console.error(response.error);
+        set({ errorMessage: response.error });
       } else {
         const loans = loanResponse.data;
         set({ loading: false });
@@ -85,7 +93,10 @@ const createLoansSlice: StateCreator<LoansSlice> = (set) => ({
         currentCashflow = currentCashflow.filter(
           ({ loanId }) => loanId !== loan.id
         );
+        // Update MergedCashFlows
         state.setMergedCashFlows(currentCashflow);
+        // Update state
+        set({ cashFlows: currentCashflow, selectedLoans: currentSelections });
       } else {
         state.setCashFlowItem(loan.id, type);
         currentSelections.push(loan.id);
@@ -99,23 +110,27 @@ const createLoansSlice: StateCreator<LoansSlice> = (set) => ({
       return { selectedBanks: selections };
     }),
   setCashFlowItem: async (loanId, type) => {
-    set({ loading: true });
-
-    const response = await calculateCashFlow(loanId, type);
+    set({ loading: true, errorMessage: undefined, successMessage: undefined });
+    const response: CashflowResponse = await calculateCashFlow(loanId, type);
 
     if (response.error) {
-      set({ loading: false });
-      // TODO: Replace by notification to the user
-      console.error(response.error);
-      // TODO: Deselect item if error happened
-    } else if (response.data) {
-      set({ loading: false });
       set((state) => {
-        const flows = response.data;
+        // Deselect item if error happened
+        const currentSelections = state.selectedLoans;
+        return {
+          loading: false,
+          selectedLoans: currentSelections.filter((id) => id !== loanId),
+          errorMessage: response.error,
+          successMessage: undefined,
+        };
+      });
+    } else if (response.data) {
+      set((state) => {
+        const flows = response.data || [];
         const currentCashflow = state.cashFlows;
         currentCashflow.push({ loanId, flows });
         state.setMergedCashFlows(currentCashflow);
-        return { cashFlows: currentCashflow };
+        return { loading: false, cashFlows: currentCashflow };
       });
     }
   },
@@ -125,26 +140,29 @@ const createLoansSlice: StateCreator<LoansSlice> = (set) => ({
   onShowNewLoanModal: (show: boolean) =>
     set(() => ({ showNewCreditModal: show })),
   deleteLoanItem: async (loanId) => {
-    set({ loading: true });
-    const response = await deleteLoan(loanId);
+    set({ loading: true, errorMessage: undefined, successMessage: undefined });
+    const response: DeleteLoanResponse = await deleteLoan(loanId);
+
     if (response.error) {
       set({ loading: false });
-      // TODO: Replace by notification to the user
-      console.error(response.error);
-    } else {
+      set({ errorMessage: response.error });
+    } else if (response.data) {
       set({ loading: false });
       set((state) => {
-        // TODO: Add by notification to the user
         const currentLoans = state.loans;
         state.onShowDeleteConfirm(false);
-        // Filter out deleted item
-        return { loans: currentLoans.filter(({ id }) => id !== loanId) };
+        // Filter out deleted item and notify of success
+        return {
+          loans: currentLoans.filter(({ id }) => id !== loanId),
+          successMessage: response.data?.message,
+        };
       });
     }
   },
   setMergedCashFlows: (cashFlows: CashFlowItem[]) =>
     set((state) => {
-      const newCashFlow = {};
+      const newCashFlow: { [date: string]: LoanCashFlowIbr } = {};
+
       cashFlows.forEach((item) => {
         item.flows.forEach((flow) => {
           const existing = newCashFlow[flow.date];
@@ -156,13 +174,16 @@ const createLoansSlice: StateCreator<LoansSlice> = (set) => ({
               beginning_balance:
                 existing.beginning_balance + flow.beginning_balance,
               payment: existing.payment + flow.payment,
-              interest: existing.interest + flow.interest, // Corrected interest calculation
+              // Corrected interest calculation
+              interest: existing.interest + flow.interest,
               ending_balance: existing.ending_balance + flow.ending_balance,
               rate_tot: existing.rate_tot,
             };
-            newCashFlow[newEntry.date] = newEntry; // Update the entry in newCashFlow
+            // Update the entry in newCashFlow
+            newCashFlow[newEntry.date] = newEntry;
           } else {
-            newCashFlow[flow.date] = flow; // Add a new entry to newCashFlow
+            // Add a new entry to newCashFlow
+            newCashFlow[flow.date] = flow;
           }
         });
       });
@@ -176,7 +197,6 @@ const createLoansSlice: StateCreator<LoansSlice> = (set) => ({
 
       return { mergedCashFlows };
     }),
-  // TODO: This can be called by an action from the user
   getLoanChartData: (mergedCashFlows: LoanCashFlowIbr[]) => {
     const chartData: LightSerieValue[] = [];
     mergedCashFlows.forEach((value) => {

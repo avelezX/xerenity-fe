@@ -1,8 +1,35 @@
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
-import { Bank } from 'src/types/loans';
+import { Bank, Loan, LoanCashFlowIbr } from 'src/types/loans';
 
 const supabase = createClientComponentClient();
 const SCHEMA = 'xerenity';
+
+// TODO: Move this type to /types folder
+export type LoanResponse = {
+  data: Loan[];
+  error: string | undefined;
+};
+
+// Bank Response Type
+export type BankResponse = {
+  data: Bank[];
+  error: string | undefined;
+};
+
+// CashFlows Response
+export type CashflowResponse = {
+  data: LoanCashFlowIbr[];
+  error: string | undefined;
+};
+
+export type DeleteLoanResponse = {
+  data:
+    | {
+        message: string;
+      }
+    | undefined;
+  error: string | undefined;
+};
 
 const BANKS = {
   key: 'get_banks',
@@ -29,63 +56,96 @@ const DELETE_LOAN = {
   error: 'Error Deleting Loan',
 };
 
-export const fetchSupaBanks = async () => {
+export const fetchBanks = async (): Promise<BankResponse> => {
+  const response: BankResponse = {
+    data: [],
+    error: undefined,
+  };
+
   try {
     const { data, error } = await supabase.schema(SCHEMA).rpc(BANKS.key);
 
     if (error) {
-      return { error: BANKS.error };
+      response.error = BANKS.error;
+      return response;
     }
-    return { data };
+
+    response.data = data;
+    return response;
   } catch (e) {
-    return { error: e };
+    response.error = BANKS.error;
+    return response;
   }
 };
 
-export const fetchSupaLoans = async (banks: Bank[]) => {
+export const fetchLoans = async (banks: Bank[]): Promise<LoanResponse> => {
+  const response: LoanResponse = {
+    data: [],
+    error: undefined,
+  };
   try {
     const { data, error } = await supabase.schema(SCHEMA).rpc(LOANS.key, {
       bank_name_filter: banks.map((bck) => bck.bank_name),
     });
 
     if (error) {
-      return { error: LOANS.error };
+      response.error = LOANS.error;
+      return response;
     }
-
-    return { data };
+    response.data = data;
+    return response;
   } catch (e) {
-    return { error: e };
+    response.error = LOANS.error;
+    return response;
   }
 };
 
-export const calculateCashFlow = async (loanId: string, loanType: string) => {
+export const calculateCashFlow = async (
+  loanId: string,
+  loanType: string
+): Promise<CashflowResponse> => {
   const requestKey = loanType === 'fija' ? CASH_FLOW.key : CASH_FLOW_IBR.key;
-
+  const response: CashflowResponse = {
+    data: [],
+    error: undefined,
+  };
   try {
     const { data, error } = await supabase
       .schema(SCHEMA)
       .rpc(requestKey, { credito_id: loanId });
+
     if (error) {
-      return { error: LOANS.error };
+      response.error = CASH_FLOW.error;
+      return response;
     }
 
-    return { data };
+    response.data = data;
+    return response;
   } catch (e) {
-    return { error: e };
+    response.error = CASH_FLOW.error;
+    return response;
   }
 };
 
-export const deleteLoan = async (loanId: string) => {
+export const deleteLoan = async (
+  loanId: string
+): Promise<DeleteLoanResponse> => {
+  const response: DeleteLoanResponse = {
+    data: undefined,
+    error: undefined,
+  };
   try {
     const { data, error } = await supabase
       .schema(SCHEMA)
       .rpc(DELETE_LOAN.key, { credito_id: loanId });
     if (error) {
-      return { error: DELETE_LOAN.error };
+      response.error = DELETE_LOAN.error;
+      return response;
     }
-
-    return { data };
+    response.data = data;
+    return response;
   } catch (e) {
-    return { error: e };
+    response.error = DELETE_LOAN.error;
+    return response;
   }
 };
