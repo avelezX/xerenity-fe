@@ -8,12 +8,14 @@ import { ChartContext } from './ChartContext';
 type ChartProps = {
   chartHeight: number | string;
   noCard?: boolean;
+  screenShot?: boolean;
 } & PropsWithChildren;
 
 export default function ChartContainer({
   children,
   chartHeight,
   noCard,
+  screenShot,
 }: ChartProps) {
   const chart = useRef<IChartApi>();
   const chartContainerRef = useRef<HTMLInputElement | null>(null);
@@ -29,6 +31,29 @@ export default function ChartContainer({
       chart.current.timeScale().fitContent();
     }
   }, []);
+
+  useEffect(() => {
+    if (chart.current) {
+      const screenshot = chart.current.takeScreenshot();
+
+      screenshot.toBlob((blob) => {
+        if (blob) {
+          const newImg = document.createElement('img');
+          const url = URL.createObjectURL(blob);
+
+          newImg.onload = () => {
+            URL.revokeObjectURL(url);
+          };
+
+          newImg.src = url;
+          const pom = document.createElement('a');
+          pom.href = url;
+          pom.setAttribute('download', 'xerenity_series.png');
+          pom.click();
+        }
+      });
+    }
+  }, [screenShot]);
 
   useEffect(() => {
     resizeObserver.current = new ResizeObserver((entries) => {
