@@ -8,7 +8,11 @@ import { ExportToCsv, downloadBlob } from 'src/utils/downloadCSV';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { FontAwesomeIcon as Icon } from '@fortawesome/react-fontawesome';
-import { faFileCsv, faLandmark } from '@fortawesome/free-solid-svg-icons';
+import {
+  faDollar,
+  faFileCsv,
+  faLandmark,
+} from '@fortawesome/free-solid-svg-icons';
 
 import Toolbar from '@components/UI/Toolbar';
 import tokens from 'design-tokens/tokens.json';
@@ -21,6 +25,7 @@ import MultipleSelect from '@components/UI/MultipleSelect';
 import ConfirmationModal from '@components/UI/ConfirmationModal';
 import useAppStore from '@store';
 import NewCreditModal from './_NewCreditModal';
+import CashFlowOverlay from './_cashFlowOverLay/cashFlowOverlay';
 
 const designSystem = tokens.xerenity;
 const PURPLE_COLOR_100 = designSystem['purple-100'].value;
@@ -55,10 +60,12 @@ export default function LoansPage() {
     mergedCashFlows,
     showDeleteConfirm,
     showNewCreditModal,
+    showCashFlowTable,
     setSelectedLoans,
     setSelectedBanks,
     onShowDeleteConfirm,
     onShowNewLoanModal,
+    onShowCashFlowTable,
   } = useAppStore();
 
   const selectedLoan = useRef<Loan>();
@@ -151,6 +158,13 @@ export default function LoansPage() {
         <Row>
           <div className="d-flex justify-content-end pb-3">
             <Toolbar>
+              <Button
+                variant="outline-primary"
+                onClick={() => onShowCashFlowTable(true)}
+              >
+                <Icon icon={faDollar} className="mr-4" />
+                Flujo de caja
+              </Button>
               <Button variant="outline-primary" onClick={onDownloadSeries}>
                 <Icon icon={faFileCsv} className="mr-4" />
                 Descargar
@@ -203,6 +217,11 @@ export default function LoansPage() {
         onLoanCreated={onNewLoanCreated}
         onShow={onShowNewLoanModal}
         bankList={banks}
+      />
+      <CashFlowOverlay
+        cashFlows={mergedCashFlows}
+        handleShow={onShowCashFlowTable}
+        show={showCashFlowTable}
       />
       <ToastContainer />
     </CoreLayout>

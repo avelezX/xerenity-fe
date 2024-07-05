@@ -36,3 +36,8 @@ export interface LoanType {
 export interface Bank {
   bank_name: string;
 }
+
+export type CashFlowItem = {
+  loanId: string;
+  flows: LoanCashFlowIbr[];
+};

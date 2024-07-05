@@ -1,5 +1,5 @@
 import { StateCreator } from 'zustand';
-import { Bank, Loan, LoanCashFlowIbr } from 'src/types/loans';
+import { Bank, Loan, LoanCashFlowIbr, CashFlowItem } from 'src/types/loans';
 import {
   fetchCashFlows,
   deleteLoan,
@@ -12,11 +12,6 @@ import {
 } from 'src/models/loans';
 import { LightSerieValue } from 'src/types/lightserie';
 import { TableSelectedRows } from '@components/Table/models';
-
-type CashFlowItem = {
-  loanId: string;
-  flows: LoanCashFlowIbr[];
-};
 
 export interface LoansSlice {
   banks: Bank[];
@@ -32,6 +27,7 @@ export interface LoansSlice {
   showLoanModal: boolean;
   showNewCreditModal: boolean;
   selectedBanks: Bank[];
+  showCashFlowTable: boolean;
   getLoanData: (bankFilter?: Bank[]) => void;
   setSelectedLoans: ({
     allSelected,
@@ -43,6 +39,7 @@ export interface LoansSlice {
   onShowDeleteConfirm: (show: boolean) => void;
   onShowLoanModal: (show: boolean) => void;
   onShowNewLoanModal: (show: boolean) => void;
+  onShowCashFlowTable: (show: boolean) => void;
   deleteLoanItem: (loanId: string) => void;
   setMergedCashFlows: (cashFlows: CashFlowItem[]) => void;
   getLoanChartData: (mergedCashFlows: LoanCashFlowIbr[]) => void;
@@ -58,6 +55,7 @@ const createLoansSlice: StateCreator<LoansSlice> = (set) => ({
   loans: [],
   loading: false,
   selectedLoans: [],
+  showCashFlowTable: false,
   showDeleteConfirm: false,
   showLoanModal: false,
   showNewCreditModal: false,
@@ -142,6 +140,8 @@ const createLoansSlice: StateCreator<LoansSlice> = (set) => ({
   },
   onShowDeleteConfirm: (show: boolean) =>
     set(() => ({ showDeleteConfirm: show })),
+  onShowCashFlowTable: (show: boolean) =>
+    set(() => ({ showCashFlowTable: show })),
   onShowLoanModal: (show: boolean) => set(() => ({ showLoanModal: show })),
   onShowNewLoanModal: (show: boolean) =>
     set(() => ({ showNewCreditModal: show })),
