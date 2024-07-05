@@ -1,5 +1,5 @@
 import currencyFormat from 'src/utils/currencyFormat';
-import { GridEntry } from '@models/tes';
+import { GridEntry } from 'src/types/tes';
 import tokens from 'design-tokens/tokens.json';
 
 const designSystem = tokens.xerenity;

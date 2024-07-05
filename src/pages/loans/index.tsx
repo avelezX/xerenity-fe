@@ -1,18 +1,14 @@
 'use client';
 
 import React, { useEffect, useRef } from 'react';
-import { Container, Row, Col } from 'react-bootstrap';
+import { Container, Row, Col, Card } from 'react-bootstrap';
 import { Loan } from 'src/types/loans';
 import { CoreLayout } from '@layout';
 import { ExportToCsv, downloadBlob } from 'src/utils/downloadCSV';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { FontAwesomeIcon as Icon } from '@fortawesome/react-fontawesome';
-import {
-  faFileCsv,
-  faLandmark,
-  faMoneyBill,
-} from '@fortawesome/free-solid-svg-icons';
+import { faFileCsv, faLandmark } from '@fortawesome/free-solid-svg-icons';
 
 import Toolbar from '@components/UI/Toolbar';
 import tokens from 'design-tokens/tokens.json';
@@ -24,9 +20,7 @@ import LoanList from 'src/pages/loans/_LoanList';
 import MultipleSelect from '@components/UI/MultipleSelect';
 import ConfirmationModal from '@components/UI/ConfirmationModal';
 import useAppStore from '@store';
-import Panel from '@components/Panel';
 import NewCreditModal from './_NewCreditModal';
-import CashFlowTable from './_CashflowTable';
 
 const designSystem = tokens.xerenity;
 const PURPLE_COLOR_100 = designSystem['purple-100'].value;
@@ -57,16 +51,13 @@ export default function LoansPage() {
     successMessage,
     deleteLoanItem,
     getLoanData,
-    loading,
     loans,
-    selectedLoans,
     mergedCashFlows,
     showDeleteConfirm,
     showNewCreditModal,
     setSelectedLoans,
     setSelectedBanks,
     onShowDeleteConfirm,
-    onShowLoanModal,
     onShowNewLoanModal,
   } = useAppStore();
 
@@ -111,16 +102,6 @@ export default function LoansPage() {
       bank_name: value,
     }));
     setSelectedBanks(selectionValues);
-  };
-
-  const onShowLoanDetails = (loan: Loan) => {
-    selectedLoan.current = loan;
-    onShowLoanModal(true);
-  };
-
-  const onDeleteLoan = (loan: Loan) => {
-    selectedLoan.current = loan;
-    onShowDeleteConfirm(true);
   };
 
   const onDeleteConfirmed = () => {
@@ -178,51 +159,35 @@ export default function LoansPage() {
           </div>
         </Row>
         <Row>
-          <Col sm={12} md={8}>
-            <Panel>
-              <Chart chartHeight={600} noCard>
-                <Chart.Bar
-                  data={chartData}
-                  color={PURPLE_COLOR_100}
-                  scaleId="right"
-                  title="Pago final (Derecho)"
-                />
-              </Chart>
-              <CashFlowTable data={mergedCashFlows} />
-            </Panel>
-          </Col>
-          <Col sm={12} md={4}>
-            <Panel>
-              <div
-                style={{
-                  display: 'flex',
-                  padding: '15px 0',
-                  justifyContent: 'space-between',
-                  gap: '10px',
-                }}
-              >
-                <MultipleSelect
-                  data={bankSelectItems}
-                  onChange={onBankFilter}
-                  placeholder="Selecciona Un Banco"
-                />
-                <Button
-                  variant="primary"
-                  onClick={() => onShowNewLoanModal(true)}
-                >
-                  <Icon icon={faMoneyBill} className="mr-4" />
-                  Nuevo Crédito
-                </Button>
-              </div>
-              <LoanList
-                isLoading={loading}
-                list={loans}
-                selected={selectedLoans}
-                onSelect={setSelectedLoans}
-                onDelete={onDeleteLoan}
-                onShowDetails={onShowLoanDetails}
+          <Col>
+            <Chart chartHeight={600}>
+              <Chart.Bar
+                data={chartData}
+                color={PURPLE_COLOR_100}
+                scaleId="right"
+                title="Pago final (Derecho)"
               />
-            </Panel>
+            </Chart>
+          </Col>
+        </Row>
+        <Row>
+          <Col>
+            <Card>
+              <Card.Header>
+                <Row>
+                  <Col sm={12} md={4}>
+                    <MultipleSelect
+                      data={bankSelectItems}
+                      onChange={onBankFilter}
+                      placeholder="Selecciona Un Banco"
+                    />
+                  </Col>
+                </Row>
+              </Card.Header>
+              <Card.Body>
+                <LoanList list={loans} onSelect={setSelectedLoans} />
+              </Card.Body>
+            </Card>
           </Col>
         </Row>
       </Container>

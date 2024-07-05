@@ -1,4 +1,4 @@
-import { LightSerieValue } from '@models/lightserie';
+import { LightSerieValue } from 'src/types/lightserie';
 
 const InflationColumns = [
   {

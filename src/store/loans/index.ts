@@ -11,6 +11,7 @@ import {
   DeleteLoanResponse,
 } from 'src/models/loans';
 import { LightSerieValue } from 'src/types/lightserie';
+import { TableSelectedRows } from '@components/Table/models';
 
 type CashFlowItem = {
   loanId: string;
@@ -32,7 +33,11 @@ export interface LoansSlice {
   showNewCreditModal: boolean;
   selectedBanks: Bank[];
   getLoanData: (bankFilter?: Bank[]) => void;
-  setSelectedLoans: (loan: Loan, type: string) => void;
+  setSelectedLoans: ({
+    allSelected,
+    selectedCount,
+    selectedRows,
+  }: TableSelectedRows<Loan>) => void;
   setSelectedBanks: (banks: Bank[]) => void;
   setCashFlowItem: (loanId: string, type: string) => void;
   onShowDeleteConfirm: (show: boolean) => void;
@@ -81,27 +86,28 @@ const createLoansSlice: StateCreator<LoansSlice> = (set) => ({
       }
     }
   },
-  setSelectedLoans: (loan, type) =>
+  setSelectedLoans: ({ selectedRows }: TableSelectedRows<Loan>) =>
     set((state) => {
-      let currentSelections = state.selectedLoans;
-      const alreadySelected = currentSelections.find((id) => id === loan.id);
+      const currentSelections = state.selectedLoans;
+      const currentCashflow = state.cashFlows;
+      const newCashFlow: CashFlowItem[] = [];
 
-      if (alreadySelected) {
-        // Filter out item
-        let currentCashflow = state.cashFlows;
-        currentSelections = currentSelections.filter((id) => id !== loan.id);
-        currentCashflow = currentCashflow.filter(
-          ({ loanId }) => loanId !== loan.id
-        );
-        // Update MergedCashFlows
-        state.setMergedCashFlows(currentCashflow);
-        // Update state
-        set({ cashFlows: currentCashflow, selectedLoans: currentSelections });
-      } else {
-        state.setCashFlowItem(loan.id, type);
-        currentSelections.push(loan.id);
-      }
+      selectedRows.forEach((loan) => {
+        const aux = currentSelections.includes(loan.id);
 
+        if (aux) {
+          // we already have this item, so lets add it
+          const flow = currentCashflow.find((f) => f.loanId === loan.id);
+          if (flow) {
+            newCashFlow.push(flow);
+          }
+        } else {
+          // new flow to calculate :)
+          state.setCashFlowItem(loan.id, loan.type);
+          currentSelections.push(loan.id);
+        }
+      });
+      state.setMergedCashFlows(newCashFlow);
       return { selectedLoans: currentSelections };
     }),
   setSelectedBanks: (selections: Bank[]) =>

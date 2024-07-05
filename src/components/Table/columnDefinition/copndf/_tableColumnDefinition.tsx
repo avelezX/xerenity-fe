@@ -1,4 +1,4 @@
-import { CopNdf } from '@models/condf';
+import { CopNdf } from 'src/types/condf';
 import currencyFormat from 'src/utils/currencyFormat';
 
 const NdfColumns = [
