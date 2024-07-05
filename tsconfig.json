@@ -24,8 +24,8 @@
       "@layout/*": ["src/layout/*"],
       "@lib": ["src/lib"],
       "@lib/*": ["src/lib/*"],
-      "@models": ["src/types"],
-      "@models/*": ["src/types/*"],
+      "@types": ["src/types"],
+      "@types/*": ["src/types/*"],
       "@pages": ["src/pages"],
       "@store": ["src/store"],
       "@styles/*": ["src/styles/*"]

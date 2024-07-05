@@ -18,7 +18,7 @@ import {
   defaultCustomFormat,
 } from 'src/types/lightserie';
 import { MovingAvgValue } from 'src/types/movingAvg';
-import { ExportToCsv, downloadBlob } from '@components/csvDownload/cscDownload';
+import { ExportToCsv, downloadBlob } from 'src/utils/downloadCSV';
 import { FontAwesomeIcon as Icon } from '@fortawesome/react-fontawesome';
 import {
   faAreaChart,

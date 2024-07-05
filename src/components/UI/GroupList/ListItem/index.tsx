@@ -31,7 +31,7 @@ type ListItemProps = {
   truncateNumber?: number;
   disabled?: boolean;
   id: string | number;
-  onSelect: (e: ChangeEvent<HTMLInputElement>) => Promise<void>;
+  onSelect: (e: ChangeEvent<HTMLInputElement>) => void;
 } & PropsWithChildren;
 
 const ListItem = ({

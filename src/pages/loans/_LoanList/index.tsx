@@ -1,7 +1,7 @@
 'use client';
 
-import { CSSProperties, ChangeEvent } from 'react';
-import { Loan, LoanCashFlowIbr } from 'src/types/loans';
+import { CSSProperties } from 'react';
+import { Loan } from 'src/types/loans';
 import { faEye, faTrash } from '@fortawesome/free-solid-svg-icons';
 import GroupList from '@components/UI/GroupList';
 import ListItem from '@components/UI/GroupList/ListItem';
@@ -21,14 +21,10 @@ const badgeStyles: CSSProperties = {
 };
 
 type LoanListProps = {
-  list: Loan[] | undefined;
-  onSelect: (
-    event: ChangeEvent<HTMLInputElement>,
-    loanId: string,
-    loanType: string
-  ) => Promise<void>;
+  list: Loan[];
+  onSelect: (loan: Loan, type: string) => void;
+  selected: string[];
   isLoading: boolean;
-  selected: Map<string, LoanCashFlowIbr[]>;
   onDelete: (loan: Loan) => void;
   onShowDetails: (loan: Loan) => void;
 };
@@ -36,8 +32,8 @@ type LoanListProps = {
 const LoanList = ({
   list,
   onSelect,
-  isLoading,
   selected,
+  isLoading,
   onDelete,
   onShowDetails,
 }: LoanListProps) => (
@@ -47,9 +43,9 @@ const LoanList = ({
         id={loan.id}
         key={`row-key${loan.id}`}
         itemName={loan?.bank || ''}
-        checked={selected.has(loan.id)}
+        checked={selected.includes(loan.id)}
         disabled={isLoading}
-        onSelect={(e) => loan && onSelect(e, loan.id, loan.type)}
+        onSelect={() => onSelect(loan, loan.type)}
         actions={[
           {
             name: 'details',

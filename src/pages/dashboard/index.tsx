@@ -22,7 +22,7 @@ import {
   LightSerie,
   LightSerieValue,
   LightSerieEntry,
-  lightSerieValueArray
+  lightSerieValueArray,
 } from 'src/types/lightserie';
 import { FontAwesomeIcon as Icon } from '@fortawesome/react-fontawesome';
 import {
@@ -38,7 +38,7 @@ import {
   faClipboard,
 } from '@fortawesome/free-solid-svg-icons';
 import SeriePicker from '@components/serie/SeriePicker';
-import { ExportToCsv, downloadBlob } from '@components/csvDownload/cscDownload';
+import { ExportToCsv, downloadBlob } from 'src/utils/downloadCSV';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import Toolbar from '@components/UI/Toolbar';
@@ -52,8 +52,8 @@ import strings from '../../strings/dahsboard.json';
 
 const { actions } = strings;
 
-const RIGHT_AXIS='right';
-const LEFT_AXIS='left';
+const RIGHT_AXIS = 'right';
+const LEFT_AXIS = 'left';
 
 export default function Dashboard() {
   const supabase = createClientComponentClient();
@@ -204,9 +204,9 @@ export default function Dashboard() {
 
       Array.from(selectedSeries.entries()).forEach(([key, value]) => {
         if (key === checkboxId) {
-          const newSerie:LightSerie=value;
-          newSerie.color=newColor;
-          newSelection.set(key,newSerie); 
+          const newSerie: LightSerie = value;
+          newSerie.color = newColor;
+          newSelection.set(key, newSerie);
         } else {
           newSelection.set(key, value);
         }

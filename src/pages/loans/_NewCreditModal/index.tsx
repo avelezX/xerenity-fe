@@ -1,20 +1,20 @@
 'use client';
 
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Formik, ErrorMessage, FormikValues } from 'formik';
 import { Form, Modal, Col, Row, Button } from 'react-bootstrap';
 import { NumericFormat } from 'react-number-format';
-import { LoanType, Banks } from 'src/types/loans';
+import { LoanType, Bank } from 'src/types/loans';
 import { toast } from 'react-toastify';
 import * as Yup from 'yup';
 import BalanceField from './BalanceField';
 
 interface NewCreditModalProps {
-  showStart: boolean;
-  bankList: Banks[];
-  createCallback: () => void;
-  showCallBack: (show: boolean) => void;
+  show: boolean;
+  bankList: Bank[];
+  onLoanCreated: () => void;
+  onShow: (show: boolean) => void;
 }
 
 const loanTypes: LoanType[] = [
@@ -68,13 +68,12 @@ const NUM_PAYMENTS_TXT = 'Número de pagos';
 const INTEREST_TXT = 'Interés nominal anual';
 
 const NewCreditModal = ({
-  showStart,
-  createCallback,
+  show,
+  onLoanCreated,
   bankList,
-  showCallBack,
+  onShow,
 }: NewCreditModalProps) => {
   const supabase = createClientComponentClient();
-  const [show, setShow] = useState<boolean>(false);
   const [currentLoanType, setLoanType] = useState<
     string | 'fija' | 'ibr' | 'uvr'
   >(initialValues.type);
@@ -82,13 +81,8 @@ const NewCreditModal = ({
 
   const [hasMinRate, setHasMinRate] = useState<boolean>(false);
 
-  useEffect(() => {
-    setShow(showStart);
-  }, [showStart]);
-
   const handleClose = () => {
-    setShow(false);
-    showCallBack(false);
+    onShow(false);
   };
 
   const onFormSubmit = async (values: FormikValues) => {
@@ -100,6 +94,7 @@ const NewCreditModal = ({
         : undefined,
     };
 
+    // TODO: Move this call to /models/loans folder
     const { data } = await supabase
       .schema('xerenity')
       .rpc('create_credit', valuesCopy);
@@ -108,7 +103,7 @@ const NewCreditModal = ({
       toast.info('El credito fue creado exitosamente', {
         position: toast.POSITION.BOTTOM_RIGHT,
       });
-      createCallback();
+      onLoanCreated();
     }
   };
 
@@ -408,7 +403,7 @@ const NewCreditModal = ({
               </Modal.Body>
               <Modal.Footer>
                 <Button
-                  onClick={() => setShow(false)}
+                  onClick={() => onShow(false)}
                   variant="outline-primary"
                   disabled={isSubmitting}
                 >

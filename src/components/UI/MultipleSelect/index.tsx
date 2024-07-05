@@ -14,7 +14,7 @@ type MultipleSelectProps = {
       value: string;
       label: string;
     }>
-  ) => Promise<void>;
+  ) => void;
 };
 
 const MultipleSelect = ({

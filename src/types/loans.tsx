@@ -33,6 +33,6 @@ export interface LoanType {
   display: string;
 }
 
-export interface Banks {
+export interface Bank {
   bank_name: string;
 }
