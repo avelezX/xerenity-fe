@@ -84,28 +84,32 @@ const createLoansSlice: StateCreator<LoansSlice> = (set) => ({
       }
     }
   },
-  setSelectedLoans: ({ selectedRows }: TableSelectedRows<Loan>) =>
+  setSelectedLoans: ({ allSelected, selectedRows }: TableSelectedRows<Loan>) =>
     set((state) => {
-      const currentSelections = state.selectedLoans;
-      const currentCashflow = state.cashFlows;
-      const newCashFlow: CashFlowItem[] = [];
+      if (!allSelected) {
+        const currentSelections = state.selectedLoans;
+        const currentCashflow = state.cashFlows;
+        const newCashFlow: CashFlowItem[] = [];
 
-      selectedRows.forEach((loan) => {
-        const aux = currentSelections.includes(loan.id);
+        selectedRows.forEach((loan) => {
+          const aux = currentSelections.includes(loan.id);
 
-        if (aux) {
-          // we already have this item, so lets add it
-          const flow = currentCashflow.find((f) => f.loanId === loan.id);
-          if (flow) {
-            newCashFlow.push(flow);
+          if (aux) {
+            // we already have this item, so lets add it
+            const flow = currentCashflow.find((f) => f.loanId === loan.id);
+            if (flow) {
+              newCashFlow.push(flow);
+            }
+          } else {
+            // new flow to calculate :)
+            state.setCashFlowItem(loan.id, loan.type);
+            currentSelections.push(loan.id);
           }
-        } else {
-          // new flow to calculate :)
-          state.setCashFlowItem(loan.id, loan.type);
-          currentSelections.push(loan.id);
-        }
-      });
-      state.setMergedCashFlows(newCashFlow);
+        });
+        state.setMergedCashFlows(newCashFlow);
+        return { selectedLoans: currentSelections };
+      }
+      const currentSelections = state.selectedLoans;
       return { selectedLoans: currentSelections };
     }),
   setSelectedBanks: (selections: Bank[]) =>
