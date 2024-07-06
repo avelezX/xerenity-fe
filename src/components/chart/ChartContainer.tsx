@@ -1,21 +1,19 @@
 import { IChartApi, createChart } from 'lightweight-charts';
 import React, { useRef, PropsWithChildren, useEffect } from 'react';
 import { Card, Container } from 'react-bootstrap';
-
+import Button from '@components/UI/Button';
 import charOptions from './ChartOptions';
 import { ChartContext } from './ChartContext';
 
 type ChartProps = {
   chartHeight: number | string;
   noCard?: boolean;
-  screenShot?: boolean;
 } & PropsWithChildren;
 
 export default function ChartContainer({
   children,
   chartHeight,
   noCard,
-  screenShot,
 }: ChartProps) {
   const chart = useRef<IChartApi>();
   const chartContainerRef = useRef<HTMLInputElement | null>(null);
@@ -32,7 +30,7 @@ export default function ChartContainer({
     }
   }, []);
 
-  useEffect(() => {
+  function downloadChartsPng() {
     if (chart.current) {
       const screenshot = chart.current.takeScreenshot();
 
@@ -53,7 +51,7 @@ export default function ChartContainer({
         }
       });
     }
-  }, [screenShot]);
+  }
 
   useEffect(() => {
     resizeObserver.current = new ResizeObserver((entries) => {
@@ -103,6 +101,9 @@ export default function ChartContainer({
           </ChartContext.Provider>
         </Container>
       </Card.Body>
+      <Card.Footer>
+        <Button onClick={() => downloadChartsPng()}>capturar</Button>
+      </Card.Footer>
     </Card>
   );
 }

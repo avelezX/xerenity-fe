@@ -36,7 +36,6 @@ import {
   faAlignLeft,
   faAlignRight,
   faClipboard,
-  faCameraRetro,
 } from '@fortawesome/free-solid-svg-icons';
 import SeriePicker from '@components/serie/SeriePicker';
 import { ExportToCsv, downloadBlob } from '@components/csvDownload/cscDownload';
@@ -77,8 +76,6 @@ export default function Dashboard() {
   const handleClose = () => setShowCanvas(false);
 
   const handleShow = () => setShowCanvas(true);
-
-  const [screenshot, setScreenshot] = useState<boolean>(false);
 
   const FetchSerieValues = useCallback(
     async (idSerie: string, newColor: string) => {
@@ -299,13 +296,6 @@ export default function Dashboard() {
         <Row>
           <div className="d-flex justify-content-end pb-3">
             <Toolbar>
-              <Button
-                variant="outline-primary"
-                onClick={() => setScreenshot(!screenshot)}
-              >
-                <Icon icon={faCameraRetro} className="mr-4" />
-                Capturar
-              </Button>
               <Button variant="outline-primary" onClick={handleNormalize}>
                 <Icon icon={faSquarePollHorizontal} className="mr-4" />
                 Normalizar
@@ -323,7 +313,7 @@ export default function Dashboard() {
         </Row>
         <Row>
           <Col>
-            <Chart chartHeight={800} screenShot={screenshot}>
+            <Chart chartHeight={800}>
               {Array.from(selectedSeries.values()).map((data) => (
                 <Chart.Line
                   key={`chart-${data.name}`}
