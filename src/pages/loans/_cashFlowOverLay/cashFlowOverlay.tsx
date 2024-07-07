@@ -1,7 +1,7 @@
 import Offcanvas from 'react-bootstrap/Offcanvas';
 import { LoanCashFlowIbr } from 'src/types/loans';
 import DataTableBase from '@components/Table/BaseTable';
-import CashFlowListColumns from '../../../components/Table/columnDefinition/loans/chasFlow/_tableColumnDefinition';
+import CashFlowListColumns from '../../../components/Table/columnDefinition/loans/chasFlow/columns';
 
 type CashFlowOverlaPros = {
   handleShow: (show: boolean) => void;
@@ -23,7 +23,7 @@ function CashFlowOverlay({ handleShow, show, cashFlows }: CashFlowOverlaPros) {
       <Offcanvas.Body>
         <DataTableBase
           columns={CashFlowListColumns}
-          data={cashFlows || []}
+          data={cashFlows}
           fixedHeader
         />
       </Offcanvas.Body>

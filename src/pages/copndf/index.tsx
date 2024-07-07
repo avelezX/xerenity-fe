@@ -16,11 +16,11 @@ import Toolbar from '@components/UI/Toolbar';
 import Button from '@components/UI/Button';
 import DataTableBase from '@components/Table/BaseTable';
 
-import NdfColumns from '../../components/Table/columnDefinition/copndf/_tableColumnDefinition';
+import NdfColumns from '../../components/Table/columnDefinition/copndf/columns';
 
 const PAGE_TITLE = 'COP NDF';
 
-export default function NdfCopViewer() {
+function NdfCopViewer() {
   const supabase = createClientComponentClient();
 
   const [copndfGrid, setCopNdfGrid] = useState<CopNdf[]>([]);
@@ -87,3 +87,5 @@ export default function NdfCopViewer() {
     </CoreLayout>
   );
 }
+
+export default NdfCopViewer;

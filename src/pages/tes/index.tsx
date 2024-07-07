@@ -34,7 +34,7 @@ import tokens from 'design-tokens/tokens.json';
 import Chart from '@components/chart/Chart';
 import { Tab, Tabs, TabItemType } from '@components/UI/Tabs';
 import PageTitle from '@components/PageTitle';
-import { TableSelectedRows } from '@components/Table/models';
+import { TableSelectedRows } from 'src/types//models';
 
 const TAB_ITEMS: TabItemType[] = [
   {

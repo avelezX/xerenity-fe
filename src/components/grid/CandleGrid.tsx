@@ -1,8 +1,8 @@
 import React from 'react';
 import { GridEntry } from 'src/types/tes';
 import DataTableBase from '@components/Table/BaseTable';
-import { TableSelectedRows } from '@components/Table/models';
-import GridColumns from './_tableColumnDefinition';
+import { TableSelectedRows } from 'src/types//models';
+import GridColumns from '../Table/columnDefinition/grid/columns';
 
 type GridViewProps = {
   allTes: GridEntry[];

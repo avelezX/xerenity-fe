@@ -11,7 +11,7 @@ import {
   DeleteLoanResponse,
 } from 'src/models/loans';
 import { LightSerieValue } from 'src/types/lightserie';
-import { TableSelectedRows } from '@components/Table/models';
+import { TableSelectedRows } from 'src/types//models';
 
 export interface LoansSlice {
   banks: Bank[];
@@ -92,9 +92,9 @@ const createLoansSlice: StateCreator<LoansSlice> = (set) => ({
         const newCashFlow: CashFlowItem[] = [];
 
         selectedRows.forEach((loan) => {
-          const aux = currentSelections.includes(loan.id);
+          const existingLoan = currentSelections.includes(loan.id);
 
-          if (aux) {
+          if (existingLoan) {
             // we already have this item, so lets add it
             const flow = currentCashflow.find((f) => f.loanId === loan.id);
             if (flow) {
