@@ -2,7 +2,7 @@
 
 import { CoreLayout } from '@layout';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
-import { Row, Table } from 'react-bootstrap';
+import { Row } from 'react-bootstrap';
 import React, { useState, useEffect, useCallback } from 'react';
 import Container from 'react-bootstrap/Container';
 
@@ -11,21 +11,16 @@ import { FontAwesomeIcon as Icon } from '@fortawesome/react-fontawesome';
 import { faFileCsv, faLandmark } from '@fortawesome/free-solid-svg-icons';
 import { toast } from 'react-toastify';
 import PageTitle from '@components/PageTitle';
-import {
-  TableCell,
-  TableHeader,
-  TableRow,
-  HeaderCell,
-} from '@components/UI/Table';
-
 import { CopNdf } from 'src/types/condf';
-import currencyFormat from 'src/utils/currencyFormat';
 import Toolbar from '@components/UI/Toolbar';
 import Button from '@components/UI/Button';
+import DataTableBase from '@components/Table/BaseTable';
+
+import NdfColumns from '../../components/Table/columnDefinition/copndf/columns';
 
 const PAGE_TITLE = 'COP NDF';
 
-export default function NdfCopViewer() {
+function NdfCopViewer() {
   const supabase = createClientComponentClient();
 
   const [copndfGrid, setCopNdfGrid] = useState<CopNdf[]>([]);
@@ -87,55 +82,10 @@ export default function NdfCopViewer() {
             </Toolbar>
           </div>
         </Row>
-        <Table hover>
-          <TableHeader>
-            <TableRow>
-              <HeaderCell alignRight>Plazo (dias)</HeaderCell>
-              <HeaderCell alignRight># Operaciones</HeaderCell>
-              <HeaderCell alignRight>Volumen (USD)</HeaderCell>
-              <HeaderCell alignRight>Promedio</HeaderCell>
-              <HeaderCell alignRight>Minimo</HeaderCell>
-              <HeaderCell alignRight>Mediana</HeaderCell>
-              <HeaderCell alignRight>Maximo</HeaderCell>
-              <HeaderCell alignRight>Ultimo</HeaderCell>
-              <HeaderCell alignRight>Fecha/Hora ultimo</HeaderCell>
-              <HeaderCell alignRight>Ultimo volumen</HeaderCell>
-            </TableRow>
-          </TableHeader>
-          <tbody>
-            {copndfGrid.map((ndf) => [
-              <TableRow key={`row-credit-${ndf.last_trade_time}`}>
-                <TableCell alignRight>
-                  {ndf.days_diff_effective_expiration}
-                </TableCell>
-                <TableCell alignRight>{ndf.trade_count}</TableCell>
-                <TableCell alignRight>
-                  {currencyFormat(ndf.total_sum_notional_leg_2)}
-                </TableCell>
-                <TableCell alignRight>
-                  {currencyFormat(ndf.average_exchange_rate)}
-                </TableCell>
-                <TableCell alignRight>
-                  {currencyFormat(ndf.min_exchange_rate)}
-                </TableCell>
-                <TableCell alignRight>
-                  {currencyFormat(ndf.median_exchange_rate)}
-                </TableCell>
-                <TableCell alignRight>
-                  {currencyFormat(ndf.max_exchange_rate)}
-                </TableCell>
-                <TableCell alignRight>
-                  {currencyFormat(ndf.last_exchange_rate)}
-                </TableCell>
-                <TableCell alignRight>{ndf.last_trade_time}</TableCell>
-                <TableCell alignRight>
-                  {currencyFormat(ndf.last_volume)}
-                </TableCell>
-              </TableRow>,
-            ])}
-          </tbody>
-        </Table>
+        <DataTableBase columns={NdfColumns} data={copndfGrid} fixedHeader />
       </Container>
     </CoreLayout>
   );
 }
+
+export default NdfCopViewer;

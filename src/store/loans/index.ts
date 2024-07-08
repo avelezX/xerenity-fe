@@ -1,5 +1,5 @@
 import { StateCreator } from 'zustand';
-import { Bank, Loan, LoanCashFlowIbr } from 'src/types/loans';
+import { Bank, Loan, LoanCashFlowIbr, CashFlowItem } from 'src/types/loans';
 import {
   fetchCashFlows,
   deleteLoan,
@@ -11,11 +11,7 @@ import {
   DeleteLoanResponse,
 } from 'src/models/loans';
 import { LightSerieValue } from 'src/types/lightserie';
-
-type CashFlowItem = {
-  loanId: string;
-  flows: LoanCashFlowIbr[];
-};
+import { TableSelectedRows } from 'src/types//models';
 
 export interface LoansSlice {
   banks: Bank[];
@@ -31,13 +27,19 @@ export interface LoansSlice {
   showLoanModal: boolean;
   showNewCreditModal: boolean;
   selectedBanks: Bank[];
+  showCashFlowTable: boolean;
   getLoanData: (bankFilter?: Bank[]) => void;
-  setSelectedLoans: (loan: Loan, type: string) => void;
+  setSelectedLoans: ({
+    allSelected,
+    selectedCount,
+    selectedRows,
+  }: TableSelectedRows<Loan>) => void;
   setSelectedBanks: (banks: Bank[]) => void;
   setCashFlowItem: (loanId: string, type: string) => void;
   onShowDeleteConfirm: (show: boolean) => void;
   onShowLoanModal: (show: boolean) => void;
   onShowNewLoanModal: (show: boolean) => void;
+  onShowCashFlowTable: (show: boolean) => void;
   deleteLoanItem: (loanId: string) => void;
   setMergedCashFlows: (cashFlows: CashFlowItem[]) => void;
   getLoanChartData: (mergedCashFlows: LoanCashFlowIbr[]) => void;
@@ -53,6 +55,7 @@ const createLoansSlice: StateCreator<LoansSlice> = (set) => ({
   loans: [],
   loading: false,
   selectedLoans: [],
+  showCashFlowTable: false,
   showDeleteConfirm: false,
   showLoanModal: false,
   showNewCreditModal: false,
@@ -81,27 +84,32 @@ const createLoansSlice: StateCreator<LoansSlice> = (set) => ({
       }
     }
   },
-  setSelectedLoans: (loan, type) =>
+  setSelectedLoans: ({ allSelected, selectedRows }: TableSelectedRows<Loan>) =>
     set((state) => {
-      let currentSelections = state.selectedLoans;
-      const alreadySelected = currentSelections.find((id) => id === loan.id);
+      if (!allSelected) {
+        const currentSelections = state.selectedLoans;
+        const currentCashflow = state.cashFlows;
+        const newCashFlow: CashFlowItem[] = [];
 
-      if (alreadySelected) {
-        // Filter out item
-        let currentCashflow = state.cashFlows;
-        currentSelections = currentSelections.filter((id) => id !== loan.id);
-        currentCashflow = currentCashflow.filter(
-          ({ loanId }) => loanId !== loan.id
-        );
-        // Update MergedCashFlows
-        state.setMergedCashFlows(currentCashflow);
-        // Update state
-        set({ cashFlows: currentCashflow, selectedLoans: currentSelections });
-      } else {
-        state.setCashFlowItem(loan.id, type);
-        currentSelections.push(loan.id);
+        selectedRows.forEach((loan) => {
+          const existingLoan = currentSelections.includes(loan.id);
+
+          if (existingLoan) {
+            // we already have this item, so lets add it
+            const flow = currentCashflow.find((f) => f.loanId === loan.id);
+            if (flow) {
+              newCashFlow.push(flow);
+            }
+          } else {
+            // new flow to calculate :)
+            state.setCashFlowItem(loan.id, loan.type);
+            currentSelections.push(loan.id);
+          }
+        });
+        state.setMergedCashFlows(newCashFlow);
+        return { selectedLoans: currentSelections };
       }
-
+      const currentSelections = state.selectedLoans;
       return { selectedLoans: currentSelections };
     }),
   setSelectedBanks: (selections: Bank[]) =>
@@ -136,6 +144,8 @@ const createLoansSlice: StateCreator<LoansSlice> = (set) => ({
   },
   onShowDeleteConfirm: (show: boolean) =>
     set(() => ({ showDeleteConfirm: show })),
+  onShowCashFlowTable: (show: boolean) =>
+    set(() => ({ showCashFlowTable: show })),
   onShowLoanModal: (show: boolean) => set(() => ({ showLoanModal: show })),
   onShowNewLoanModal: (show: boolean) =>
     set(() => ({ showNewCreditModal: show })),
