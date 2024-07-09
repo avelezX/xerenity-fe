@@ -46,7 +46,7 @@ function LoginChart() {
       <div className="w-100 h-100 d-flex justify-content-center align-items-center">
         <Carousel className="w-100">
           <Carousel.Item>
-            <Chart chartHeight={400}>
+            <Chart chartHeight={400} exportPng={false}>
               <Chart.Candle data={tesCandeSerie.values} scaleId="right" />
               <Chart.Volume
                 data={volumenSerie}

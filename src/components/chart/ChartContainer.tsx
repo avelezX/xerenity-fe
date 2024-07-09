@@ -1,24 +1,49 @@
 import { IChartApi, createChart } from 'lightweight-charts';
 import React, { useRef, PropsWithChildren, useEffect } from 'react';
 import { Card, Container } from 'react-bootstrap';
-
+import { FontAwesomeIcon as Icon } from '@fortawesome/react-fontawesome';
+import { faImage } from '@fortawesome/free-solid-svg-icons';
+import Button from '@components/UI/Button';
 import charOptions from './ChartOptions';
 import { ChartContext } from './ChartContext';
 
 type ChartProps = {
   chartHeight: number | string;
-  noCard?: boolean;
+  exportPng?: boolean;
 } & PropsWithChildren;
 
 export default function ChartContainer({
   children,
   chartHeight,
-  noCard,
+  exportPng = true,
 }: ChartProps) {
   const chart = useRef<IChartApi>();
   const chartContainerRef = useRef<HTMLInputElement | null>(null);
   const resizeObserver = useRef<ResizeObserver | null>(null);
   const timeoutId = useRef<NodeJS.Timeout>();
+
+  function downloadChartsPng() {
+    if (chart.current) {
+      const screenshot = chart.current.takeScreenshot();
+
+      screenshot.toBlob((blob) => {
+        if (blob) {
+          const newImg = document.createElement('img');
+          const url = URL.createObjectURL(blob);
+
+          newImg.onload = () => {
+            URL.revokeObjectURL(url);
+          };
+
+          newImg.src = url;
+          const pom = document.createElement('a');
+          pom.href = url;
+          pom.setAttribute('download', 'xerenity_series.png');
+          pom.click();
+        }
+      });
+    }
+  }
 
   useEffect(() => {
     if (chartContainerRef.current) {
@@ -59,13 +84,7 @@ export default function ChartContainer({
     };
   });
 
-  return noCard ? (
-    <div style={{ width: '100%', height: chartHeight }} ref={chartContainerRef}>
-      <ChartContext.Provider value={chart.current}>
-        {children}
-      </ChartContext.Provider>
-    </div>
-  ) : (
+  return (
     <Card style={{ width: '100%', height: '100%' }}>
       <Card.Body style={{ width: '100%', height: chartHeight }}>
         <Container
@@ -78,6 +97,14 @@ export default function ChartContainer({
           </ChartContext.Provider>
         </Container>
       </Card.Body>
+      {exportPng && (
+        <Card.Footer>
+          <Button variant="primary" onClick={() => downloadChartsPng()}>
+            <Icon icon={faImage} className="mr-4" />
+            Exportar
+          </Button>
+        </Card.Footer>
+      )}
     </Card>
   );
 }

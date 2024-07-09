@@ -125,7 +125,7 @@ export default function LoansPage() {
         <Row>
           <Col sm={12} md={8}>
             <Panel>
-              <Chart chartHeight={600} noCard>
+              <Chart chartHeight={600}>
                 <Chart.Bar
                   data={priceValues}
                   color={PURPLE_COLOR_100}
