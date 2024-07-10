@@ -3,7 +3,7 @@ import React, { useRef, PropsWithChildren, useEffect } from 'react';
 import { Card, Container } from 'react-bootstrap';
 import { FontAwesomeIcon as Icon } from '@fortawesome/react-fontawesome';
 import { faImage } from '@fortawesome/free-solid-svg-icons';
-import Button from '@components/UI/Button';
+import IconButton from '@components/UI/IconButton';
 import charOptions from './ChartOptions';
 import { ChartContext } from './ChartContext';
 
@@ -99,10 +99,11 @@ export default function ChartContainer({
       </Card.Body>
       {exportPng && (
         <Card.Footer>
-          <Button variant="primary" onClick={() => downloadChartsPng()}>
-            <Icon icon={faImage} className="mr-4" />
-            Exportar
-          </Button>
+          <div className="w-100 h-100 d-flex justify-content-end">
+            <IconButton onClick={() => downloadChartsPng()}>
+              <Icon icon={faImage} />
+            </IconButton>
+          </div>
         </Card.Footer>
       )}
     </Card>
