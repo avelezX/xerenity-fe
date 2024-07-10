@@ -174,7 +174,7 @@ export default function LoansPage() {
         </Row>
         <Row>
           <Col>
-            <Chart chartHeight={600} showToolbar>
+            <Chart chartHeight={600}>
               <Chart.Bar
                 data={chartData}
                 color={PURPLE_COLOR_100}

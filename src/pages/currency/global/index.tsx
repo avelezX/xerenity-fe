@@ -182,7 +182,7 @@ export default function CurrecnyViewer() {
         </Row>
         <Row>
           <Col>
-            <Chart chartHeight={800} showToolbar>
+            <Chart chartHeight={800}>
               {Array.from(selectedSeries.values()).map((data) => (
                 <Chart.Line
                   key={`chart-${data.name}`}
