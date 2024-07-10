@@ -355,7 +355,7 @@ export default function FullTesViewer() {
         </Row>
         <Row>
           <Col>
-            <Chart chartHeight={800}>
+            <Chart chartHeight={800} showToolbar>
               <Chart.Candle data={candleSerie.values} scaleId="right" />
               <Chart.Volume
                 data={volumenSerie}

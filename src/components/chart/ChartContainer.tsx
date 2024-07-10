@@ -9,13 +9,13 @@ import { ChartContext } from './ChartContext';
 
 type ChartProps = {
   chartHeight: number | string;
-  exportPng?: boolean;
+  showToolbar?: boolean | undefined;
 } & PropsWithChildren;
 
 export default function ChartContainer({
   children,
   chartHeight,
-  exportPng = true,
+  showToolbar,
 }: ChartProps) {
   const chart = useRef<IChartApi>();
   const chartContainerRef = useRef<HTMLInputElement | null>(null);
@@ -97,7 +97,7 @@ export default function ChartContainer({
           </ChartContext.Provider>
         </Container>
       </Card.Body>
-      {exportPng && (
+      {showToolbar && (
         <Card.Footer>
           <div className="w-100 h-100 d-flex justify-content-end">
             <IconButton onClick={() => downloadChartsPng()}>
