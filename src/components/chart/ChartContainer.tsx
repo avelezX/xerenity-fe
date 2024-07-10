@@ -1,19 +1,21 @@
 import { IChartApi, createChart } from 'lightweight-charts';
 import React, { useRef, PropsWithChildren, useEffect } from 'react';
 import { Card, Container } from 'react-bootstrap';
-
+import { FontAwesomeIcon as Icon } from '@fortawesome/react-fontawesome';
+import { faImage } from '@fortawesome/free-solid-svg-icons';
+import IconButton from '@components/UI/IconButton';
 import charOptions from './ChartOptions';
 import { ChartContext } from './ChartContext';
 
 type ChartProps = {
   chartHeight: number | string;
-  noCard?: boolean;
+  showToolbar?: boolean | undefined;
 } & PropsWithChildren;
 
 export default function ChartContainer({
   children,
   chartHeight,
-  noCard,
+  showToolbar,
 }: ChartProps) {
   const chart = useRef<IChartApi>();
   const chartContainerRef = useRef<HTMLInputElement | null>(null);
@@ -29,6 +31,29 @@ export default function ChartContainer({
       chart.current.timeScale().fitContent();
     }
   }, []);
+
+  function downloadChartsPng() {
+    if (chart.current) {
+      const screenshot = chart.current.takeScreenshot();
+
+      screenshot.toBlob((blob) => {
+        if (blob) {
+          const newImg = document.createElement('img');
+          const url = URL.createObjectURL(blob);
+
+          newImg.onload = () => {
+            URL.revokeObjectURL(url);
+          };
+
+          newImg.src = url;
+          const pom = document.createElement('a');
+          pom.href = url;
+          pom.setAttribute('download', 'xerenity_series.png');
+          pom.click();
+        }
+      });
+    }
+  }
 
   useEffect(() => {
     resizeObserver.current = new ResizeObserver((entries) => {
@@ -59,13 +84,7 @@ export default function ChartContainer({
     };
   });
 
-  return noCard ? (
-    <div style={{ width: '100%', height: chartHeight }} ref={chartContainerRef}>
-      <ChartContext.Provider value={chart.current}>
-        {children}
-      </ChartContext.Provider>
-    </div>
-  ) : (
+  return (
     <Card style={{ width: '100%', height: '100%' }}>
       <Card.Body style={{ width: '100%', height: chartHeight }}>
         <Container
@@ -78,6 +97,15 @@ export default function ChartContainer({
           </ChartContext.Provider>
         </Container>
       </Card.Body>
+      {showToolbar && (
+        <Card.Footer>
+          <div className="w-100 h-100 d-flex justify-content-end">
+            <IconButton onClick={() => downloadChartsPng()}>
+              <Icon icon={faImage} />
+            </IconButton>
+          </div>
+        </Card.Footer>
+      )}
     </Card>
   );
 }
