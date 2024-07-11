@@ -11,6 +11,7 @@ import { FontAwesomeIcon as Icon } from '@fortawesome/react-fontawesome';
 import {
   faDollar,
   faFileCsv,
+  faHandshake,
   faLandmark,
 } from '@fortawesome/free-solid-svg-icons';
 
@@ -158,6 +159,13 @@ export default function LoansPage() {
         <Row>
           <div className="d-flex justify-content-end pb-3">
             <Toolbar>
+              <Button
+                variant="outline-primary"
+                onClick={() => onShowNewLoanModal(true)}
+              >
+                <Icon icon={faHandshake} className="mr-4" />
+                Nuevo credito
+              </Button>
               <Button
                 variant="outline-primary"
                 onClick={() => onShowCashFlowTable(true)}
