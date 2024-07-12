@@ -68,7 +68,6 @@ export default function ChartContainer({
       charOptions.height = chartContainerRef.current.offsetHeight;
       chart.current = createChart(chartContainerRef.current, charOptions);
       chart.current.timeScale().fitContent();
-
       chart.current.subscribeDblClick(myDblClickHandler);
     }
   }, []);
