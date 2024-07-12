@@ -1,4 +1,11 @@
-import { IChartApi, createChart } from 'lightweight-charts';
+import {
+  IChartApi,
+  MouseEventParams,
+  SeriesMarker,
+  Time,
+  createChart,
+} from 'lightweight-charts';
+import tokens from 'design-tokens/tokens.json';
 import React, { useRef, PropsWithChildren, useEffect } from 'react';
 import { Card, Container } from 'react-bootstrap';
 import { FontAwesomeIcon as Icon } from '@fortawesome/react-fontawesome';
@@ -7,10 +14,22 @@ import IconButton from '@components/UI/IconButton';
 import charOptions from './ChartOptions';
 import { ChartContext } from './ChartContext';
 
+const designSystem = tokens.xerenity;
+const PURPLE_COLOR_100 = designSystem['purple-100'].value;
+
 type ChartProps = {
   chartHeight: number | string;
   showToolbar?: boolean | undefined;
 } & PropsWithChildren;
+
+const marker: SeriesMarker<Time> = {
+  time: '',
+  position: 'aboveBar',
+  color: PURPLE_COLOR_100,
+  shape: 'arrowDown',
+  text: 'X',
+  size: 1,
+};
 
 export default function ChartContainer({
   children,
@@ -22,6 +41,26 @@ export default function ChartContainer({
   const resizeObserver = useRef<ResizeObserver | null>(null);
   const timeoutId = useRef<NodeJS.Timeout>();
 
+  function myDblClickHandler(param: MouseEventParams) {
+    if (param.seriesData.size > 0) {
+      if (param.time) {
+        marker.time = param.time;
+        param.seriesData.forEach((key, value) => {
+          if (key.time === param.time) {
+            const allMarkers = value.markers();
+            allMarkers.push(marker);
+            allMarkers.sort(
+              (a, b) =>
+                new Date(a.time.toString()).getTime() -
+                new Date(b.time.toString()).getTime()
+            );
+            value.setMarkers(allMarkers);
+          }
+        });
+      }
+    }
+  }
+
   useEffect(() => {
     if (chartContainerRef.current) {
       chartContainerRef.current.innerHTML = '';
@@ -29,6 +68,8 @@ export default function ChartContainer({
       charOptions.height = chartContainerRef.current.offsetHeight;
       chart.current = createChart(chartContainerRef.current, charOptions);
       chart.current.timeScale().fitContent();
+
+      chart.current.subscribeDblClick(myDblClickHandler);
     }
   }, []);
 
