@@ -19,6 +19,7 @@ function DataTableBase<T>({
   expandableRowsComponent,
   conditionalRowStyles,
   subHeaderComponent,
+  selectableRowsNoSelectAll,
 }: TableProps<T>): JSX.Element {
   return (
     <DataTable
@@ -35,6 +36,7 @@ function DataTableBase<T>({
       selectableRowsSingle={selectableRowsSingle}
       conditionalRowStyles={conditionalRowStyles}
       expandableRowsComponent={expandableRowsComponent}
+      selectableRowsNoSelectAll={selectableRowsNoSelectAll}
     />
   );
 }

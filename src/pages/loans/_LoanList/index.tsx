@@ -23,6 +23,7 @@ function LoanList({ list, onSelect }: LoanListProps) {
       expandableRows
       onSelectedRowsChange={onSelect}
       expandableRowsComponent={ExpandedComponent}
+      selectableRowsNoSelectAll
     />
   );
 }
