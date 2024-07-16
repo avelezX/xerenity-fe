@@ -1,6 +1,6 @@
 import Offcanvas from 'react-bootstrap/Offcanvas';
 import { LoanCashFlowIbr } from 'src/types/loans';
-import DataTableBase from '@components/Table/BaseTable';
+import DataTableBase from '@components/Table/BaseDataTable';
 import CashFlowListColumns from '../../../components/Table/columnDefinition/loans/chasFlow/columns';
 
 type CashFlowOverlaPros = {

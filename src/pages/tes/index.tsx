@@ -34,7 +34,7 @@ import tokens from 'design-tokens/tokens.json';
 import Chart from '@components/chart/Chart';
 import { Tab, Tabs, TabItemType } from '@components/UI/Tabs';
 import PageTitle from '@components/PageTitle';
-import { TableSelectedRows } from 'src/types//models';
+import { SelectableRows } from 'src/types/selectableRows';
 
 const TAB_ITEMS: TabItemType[] = [
   {
@@ -263,7 +263,7 @@ export default function FullTesViewer() {
     fetchTesNames();
   }, [fetchTesNames]);
 
-  const handleSelect = ({ selectedRows }: TableSelectedRows<GridEntry>) => {
+  const handleSelect = ({ selectedRows }: SelectableRows<GridEntry>) => {
     if (selectedRows.length > 0) {
       const entry: GridEntry = selectedRows[0];
       changeSelection(entry.tes, entry.displayname);

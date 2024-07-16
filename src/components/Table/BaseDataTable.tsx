@@ -1,6 +1,6 @@
+import React from 'react';
 import { faSortAsc } from '@fortawesome/free-solid-svg-icons';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import React from 'react';
 import DataTable, { TableProps } from 'react-data-table-component';
 
 const sortIcon = <FontAwesomeIcon icon={faSortAsc} />;
@@ -9,7 +9,7 @@ const selectProps = {
   indeterminate: (isIndeterminate: boolean) => isIndeterminate,
 };
 
-function DataTableBase<T>({
+function BaseDataTable<T>({
   columns,
   data,
   selectableRowsSingle,
@@ -35,8 +35,9 @@ function DataTableBase<T>({
       selectableRowsSingle={selectableRowsSingle}
       conditionalRowStyles={conditionalRowStyles}
       expandableRowsComponent={expandableRowsComponent}
+      selectableRowsNoSelectAll
     />
   );
 }
 
-export default DataTableBase;
+export default BaseDataTable;
