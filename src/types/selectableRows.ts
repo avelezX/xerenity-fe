@@ -1,4 +1,4 @@
-export interface SelectedRows<T> {
+export interface SelectableRows<T> {
   selectedCount: number;
   selectedRows: T[];
 }

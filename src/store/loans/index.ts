@@ -11,7 +11,7 @@ import {
   DeleteLoanResponse,
 } from 'src/models/loans';
 import { LightSerieValue } from 'src/types/lightserie';
-import { SelectedRows } from 'src/types/selectableTable';
+import { SelectableRows } from 'src/types/selectableRows';
 
 export interface LoansSlice {
   banks: Bank[];
@@ -32,7 +32,7 @@ export interface LoansSlice {
   setSelectedLoans: ({
     selectedCount,
     selectedRows,
-  }: SelectedRows<Loan>) => void;
+  }: SelectableRows<Loan>) => void;
   setSelectedBanks: (banks: Bank[]) => void;
   setCashFlowItem: (loanId: string, type: string) => void;
   onShowDeleteConfirm: (show: boolean) => void;
@@ -88,7 +88,7 @@ const createLoansSlice: StateCreator<LoansSlice> = (set) => ({
       }
     }
   },
-  setSelectedLoans: ({ selectedRows }: SelectedRows<Loan>) =>
+  setSelectedLoans: ({ selectedRows }: SelectableRows<Loan>) =>
     set((state) => {
       const currentSelections = state.selectedLoans;
       const currentCashflow = state.cashFlows;
