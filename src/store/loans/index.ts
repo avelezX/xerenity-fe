@@ -11,7 +11,7 @@ import {
   DeleteLoanResponse,
 } from 'src/models/loans';
 import { LightSerieValue } from 'src/types/lightserie';
-import { TableSelectedRows } from 'src/types//models';
+import { SelectedRows } from 'src/types/selectableTable';
 
 export interface LoansSlice {
   banks: Bank[];
@@ -30,10 +30,9 @@ export interface LoansSlice {
   showCashFlowTable: boolean;
   getLoanData: (bankFilter?: Bank[]) => void;
   setSelectedLoans: ({
-    allSelected,
     selectedCount,
     selectedRows,
-  }: TableSelectedRows<Loan>) => void;
+  }: SelectedRows<Loan>) => void;
   setSelectedBanks: (banks: Bank[]) => void;
   setCashFlowItem: (loanId: string, type: string) => void;
   onShowDeleteConfirm: (show: boolean) => void;
@@ -43,9 +42,10 @@ export interface LoansSlice {
   deleteLoanItem: (loanId: string) => void;
   setMergedCashFlows: (cashFlows: CashFlowItem[]) => void;
   getLoanChartData: (mergedCashFlows: LoanCashFlowIbr[]) => void;
+  resetStore: () => void;
 }
 
-const createLoansSlice: StateCreator<LoansSlice> = (set) => ({
+const initialState = {
   banks: [],
   cashFlows: [],
   chartData: [],
@@ -60,6 +60,10 @@ const createLoansSlice: StateCreator<LoansSlice> = (set) => ({
   showLoanModal: false,
   showNewCreditModal: false,
   selectedBanks: [],
+};
+
+const createLoansSlice: StateCreator<LoansSlice> = (set) => ({
+  ...initialState,
   // Store Actions
   getLoanData: async (bankFilter: Bank[] = []) => {
     // Set initial state before fetching data
@@ -84,32 +88,28 @@ const createLoansSlice: StateCreator<LoansSlice> = (set) => ({
       }
     }
   },
-  setSelectedLoans: ({ allSelected, selectedRows }: TableSelectedRows<Loan>) =>
+  setSelectedLoans: ({ selectedRows }: SelectedRows<Loan>) =>
     set((state) => {
-      if (!allSelected) {
-        const currentSelections = state.selectedLoans;
-        const currentCashflow = state.cashFlows;
-        const newCashFlow: CashFlowItem[] = [];
-
-        selectedRows.forEach((loan) => {
-          const existingLoan = currentSelections.includes(loan.id);
-
-          if (existingLoan) {
-            // we already have this item, so lets add it
-            const flow = currentCashflow.find((f) => f.loanId === loan.id);
-            if (flow) {
-              newCashFlow.push(flow);
-            }
-          } else {
-            // new flow to calculate :)
-            state.setCashFlowItem(loan.id, loan.type);
-            currentSelections.push(loan.id);
-          }
-        });
-        state.setMergedCashFlows(newCashFlow);
-        return { selectedLoans: currentSelections };
-      }
       const currentSelections = state.selectedLoans;
+      const currentCashflow = state.cashFlows;
+      const newCashFlow: CashFlowItem[] = [];
+
+      selectedRows.forEach((loan: Loan) => {
+        const existingLoan = currentSelections.includes(loan.id);
+
+        if (existingLoan) {
+          // we already have this item, so lets add it
+          const flow = currentCashflow.find((f) => f.loanId === loan.id);
+          if (flow) {
+            newCashFlow.push(flow);
+          }
+        } else {
+          // new flow to calculate :)
+          state.setCashFlowItem(loan.id, loan.type);
+          currentSelections.push(loan.id);
+        }
+      });
+      state.setMergedCashFlows(newCashFlow);
       return { selectedLoans: currentSelections };
     }),
   setSelectedBanks: (selections: Bank[]) =>
@@ -218,6 +218,7 @@ const createLoansSlice: StateCreator<LoansSlice> = (set) => ({
 
     set({ chartData });
   },
+  resetStore: () => set(initialState),
 });
 
 export default createLoansSlice;

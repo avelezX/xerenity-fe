@@ -20,7 +20,7 @@ import Chart from '@components/chart/Chart';
 import Button from '@components/UI/Button';
 import PageTitle from '@components/PageTitle';
 import { MultiValue } from 'react-select';
-import LoanList from 'src/pages/loans/_LoanList';
+import LoansTable from 'src/pages/loans/_LoansTable';
 import MultipleSelect from '@components/UI/MultipleSelect';
 import ConfirmationModal from '@components/UI/ConfirmationModal';
 import useAppStore from '@store';
@@ -66,6 +66,7 @@ export default function LoansPage() {
     onShowDeleteConfirm,
     onShowNewLoanModal,
     onShowCashFlowTable,
+    resetStore,
   } = useAppStore();
 
   const selectedLoan = useRef<Loan>();
@@ -124,7 +125,8 @@ export default function LoansPage() {
 
   useEffect(() => {
     getLoanData();
-  }, [getLoanData]);
+    return () => resetStore(); // Reset when component unmount
+  }, [getLoanData, resetStore]);
 
   useEffect(() => {
     if (errorMessage) {
@@ -199,7 +201,7 @@ export default function LoansPage() {
                 </Row>
               </Card.Header>
               <Card.Body>
-                <LoanList list={loans} onSelect={setSelectedLoans} />
+                <LoansTable list={loans} onSelect={setSelectedLoans} />
               </Card.Body>
             </Card>
           </Col>

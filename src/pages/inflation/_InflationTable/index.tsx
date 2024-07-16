@@ -1,6 +1,6 @@
 import { LightSerieValue } from 'src/types/lightserie';
 
-import DataTableBase from '@components/Table/BaseTable';
+import DataTableBase from '@components/Table/BaseDataTable';
 import InflationColumns from '../../../components/Table/columnDefinition/inflation/columns';
 
 type InflationTableProps = {

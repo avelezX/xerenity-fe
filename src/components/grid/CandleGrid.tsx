@@ -1,16 +1,12 @@
 import React from 'react';
 import { GridEntry } from 'src/types/tes';
-import DataTableBase from '@components/Table/BaseTable';
-import { TableSelectedRows } from 'src/types//models';
+import DataTableBase from '@components/Table/BaseDataTable';
+import { SelectedRows } from 'src/types/selectableTable';
 import GridColumns from '../Table/columnDefinition/grid/columns';
 
 type GridViewProps = {
   allTes: GridEntry[];
-  onSelect: ({
-    allSelected,
-    selectedCount,
-    selectedRows,
-  }: TableSelectedRows<GridEntry>) => void;
+  onSelect: ({ selectedCount, selectedRows }: SelectedRows<GridEntry>) => void;
 };
 
 export default function CandleGridViewer({ onSelect, allTes }: GridViewProps) {

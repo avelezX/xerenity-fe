@@ -1,21 +1,17 @@
 import { Loan } from 'src/types/loans';
-import DataTableBase from '@components/Table/BaseTable';
-import { TableSelectedRows } from 'src/types//models';
+import BaseDataTable from '@components/Table/BaseDataTable';
+import { SelectedRows } from 'src/types/selectableTable';
 import LoanListColumns from '../../../components/Table/columnDefinition/loans/loanList/columns';
 import ExpandedComponent from '../_LoanDetailsModal';
 
 type LoanListProps = {
   list: Loan[];
-  onSelect: ({
-    allSelected,
-    selectedCount,
-    selectedRows,
-  }: TableSelectedRows<Loan>) => void;
+  onSelect: ({ selectedCount, selectedRows }: SelectedRows<Loan>) => void;
 };
 
-function LoanList({ list, onSelect }: LoanListProps) {
+function LoansTable({ list, onSelect }: LoanListProps) {
   return (
-    <DataTableBase
+    <BaseDataTable
       columns={LoanListColumns}
       data={list}
       fixedHeader
@@ -27,4 +23,4 @@ function LoanList({ list, onSelect }: LoanListProps) {
   );
 }
 
-export default LoanList;
+export default LoansTable;

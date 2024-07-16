@@ -14,7 +14,7 @@ import PageTitle from '@components/PageTitle';
 import { CopNdf } from 'src/types/condf';
 import Toolbar from '@components/UI/Toolbar';
 import Button from '@components/UI/Button';
-import DataTableBase from '@components/Table/BaseTable';
+import DataTableBase from '@components/Table/BaseDataTable';
 
 import NdfColumns from '../../components/Table/columnDefinition/copndf/columns';
 
