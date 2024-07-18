@@ -1,8 +1,12 @@
-import { IChartApi, createChart } from 'lightweight-charts';
+import { IChartApi, Time, createChart } from 'lightweight-charts';
 import React, { useRef, PropsWithChildren, useEffect } from 'react';
 import { Card, Container } from 'react-bootstrap';
 import { FontAwesomeIcon as Icon } from '@fortawesome/react-fontawesome';
-import { faImage } from '@fortawesome/free-solid-svg-icons';
+import {
+  faCalendar,
+  faImage,
+  faMagnifyingGlassMinus,
+} from '@fortawesome/free-solid-svg-icons';
 import IconButton from '@components/UI/IconButton';
 import charOptions from './ChartOptions';
 import { ChartContext } from './ChartContext';
@@ -12,6 +16,8 @@ type ChartProps = {
   showToolbar?: boolean | undefined;
 } & PropsWithChildren;
 
+// Define a custom time formatter function
+const customTimeFormatter = (time: Time) => `${time}`; // Custom date format YYYY-MM-DD
 export default function ChartContainer({
   children,
   chartHeight,
@@ -52,6 +58,22 @@ export default function ChartContainer({
           pom.click();
         }
       });
+    }
+  }
+
+  function swapDateFormater() {
+    if (chart.current) {
+      chart.current.applyOptions({
+        timeScale: {
+          tickMarkFormatter: customTimeFormatter,
+        },
+      });
+    }
+  }
+
+  function resetZoom() {
+    if (chart.current) {
+      chart.current.timeScale().fitContent();
     }
   }
 
@@ -99,7 +121,13 @@ export default function ChartContainer({
       </Card.Body>
       {showToolbar && (
         <Card.Footer>
-          <div className="w-100 h-100 d-flex justify-content-end">
+          <div className="w-100 h-100 d-flex gap-3 justify-content-end">
+            <IconButton onClick={() => swapDateFormater()}>
+              <Icon icon={faCalendar} />
+            </IconButton>
+            <IconButton onClick={() => resetZoom()}>
+              <Icon icon={faMagnifyingGlassMinus} />
+            </IconButton>
             <IconButton onClick={() => downloadChartsPng()}>
               <Icon icon={faImage} />
             </IconButton>

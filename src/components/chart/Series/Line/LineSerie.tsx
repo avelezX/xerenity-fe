@@ -11,6 +11,7 @@ import { useChartContext } from '../../ChartContext';
     Documentation can be found
     https://tradingview.github.io/lightweight-charts/docs/series-types#line
 */
+
 function LineSerie({
   data,
   color,

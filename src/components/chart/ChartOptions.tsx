@@ -13,7 +13,7 @@ const CHART_OPTIONS = {
     background: {
       color: 'transparent',
     },
-    textColor: '#a6a6a6',
+    fontSize: 16,
   },
   watermark: {
     visible: true,
