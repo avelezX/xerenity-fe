@@ -34,7 +34,11 @@ export interface LoansSlice {
     selectedRows,
   }: SelectableRows<Loan>) => void;
   setSelectedBanks: (banks: Bank[]) => void;
-  setCashFlowItem: (loanId: string, type: string) => void;
+  setCashFlowItem: (
+    loanId: string,
+    type: string,
+    currentOther: CashFlowItem[]
+  ) => void;
   onShowDeleteConfirm: (show: boolean) => void;
   onShowLoanModal: (show: boolean) => void;
   onShowNewLoanModal: (show: boolean) => void;
@@ -97,14 +101,14 @@ const createLoansSlice: StateCreator<LoansSlice> = (set) => ({
       selectedRows.forEach((loan: Loan) => {
         const flow = currentCashflow.find((f) => f.loanId === loan.id);
 
-        if (!flow) {
-          state.setCashFlowItem(loan.id, loan.type);
-        } else {
+        if (flow) {
           newCashFlow.push(flow);
+        } else {
+          state.setCashFlowItem(loan.id, loan.type, newCashFlow);
         }
-
         newSelections.push(loan.id);
       });
+
       state.setMergedCashFlows(newCashFlow);
       return { selectedLoans: newSelections };
     }),
@@ -113,7 +117,7 @@ const createLoansSlice: StateCreator<LoansSlice> = (set) => ({
       state.getLoanData(selections);
       return { selectedBanks: selections };
     }),
-  setCashFlowItem: async (loanId, type) => {
+  setCashFlowItem: async (loanId, type, currentOther) => {
     set({ loading: true, errorMessage: undefined, successMessage: undefined });
     const response: CashflowResponse = await fetchCashFlows(loanId, type);
 
@@ -131,10 +135,9 @@ const createLoansSlice: StateCreator<LoansSlice> = (set) => ({
     } else if (response.data) {
       set((state) => {
         const flows = response.data || [];
-        const currentCashflow = state.cashFlows;
-        currentCashflow.push({ loanId, flows });
-        state.setMergedCashFlows([{ loanId, flows }]);
-        return { loading: false, cashFlows: currentCashflow };
+        currentOther.push({ loanId, flows });
+        state.setMergedCashFlows(currentOther);
+        return { loading: false, cashFlows: currentOther };
       });
     }
   },
