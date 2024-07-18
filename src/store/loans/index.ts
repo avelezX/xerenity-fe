@@ -34,7 +34,11 @@ export interface LoansSlice {
     selectedRows,
   }: SelectableRows<Loan>) => void;
   setSelectedBanks: (banks: Bank[]) => void;
-  setCashFlowItem: (loanId: string, type: string) => void;
+  setCashFlowItem: (
+    loanId: string,
+    type: string,
+    currentOther: CashFlowItem[]
+  ) => void;
   onShowDeleteConfirm: (show: boolean) => void;
   onShowLoanModal: (show: boolean) => void;
   onShowNewLoanModal: (show: boolean) => void;
@@ -90,34 +94,30 @@ const createLoansSlice: StateCreator<LoansSlice> = (set) => ({
   },
   setSelectedLoans: ({ selectedRows }: SelectableRows<Loan>) =>
     set((state) => {
-      const currentSelections = state.selectedLoans;
+      const newSelections: string[] = [];
       const currentCashflow = state.cashFlows;
       const newCashFlow: CashFlowItem[] = [];
 
       selectedRows.forEach((loan: Loan) => {
-        const existingLoan = currentSelections.includes(loan.id);
+        const flow = currentCashflow.find((f) => f.loanId === loan.id);
 
-        if (existingLoan) {
-          // we already have this item, so lets add it
-          const flow = currentCashflow.find((f) => f.loanId === loan.id);
-          if (flow) {
-            newCashFlow.push(flow);
-          }
+        if (flow) {
+          newCashFlow.push(flow);
         } else {
-          // new flow to calculate :)
-          state.setCashFlowItem(loan.id, loan.type);
-          currentSelections.push(loan.id);
+          state.setCashFlowItem(loan.id, loan.type, newCashFlow);
         }
+        newSelections.push(loan.id);
       });
+
       state.setMergedCashFlows(newCashFlow);
-      return { selectedLoans: currentSelections };
+      return { selectedLoans: newSelections };
     }),
   setSelectedBanks: (selections: Bank[]) =>
     set((state) => {
       state.getLoanData(selections);
       return { selectedBanks: selections };
     }),
-  setCashFlowItem: async (loanId, type) => {
+  setCashFlowItem: async (loanId, type, currentOther) => {
     set({ loading: true, errorMessage: undefined, successMessage: undefined });
     const response: CashflowResponse = await fetchCashFlows(loanId, type);
 
@@ -135,10 +135,9 @@ const createLoansSlice: StateCreator<LoansSlice> = (set) => ({
     } else if (response.data) {
       set((state) => {
         const flows = response.data || [];
-        const currentCashflow = state.cashFlows;
-        currentCashflow.push({ loanId, flows });
-        state.setMergedCashFlows(currentCashflow);
-        return { loading: false, cashFlows: currentCashflow };
+        currentOther.push({ loanId, flows });
+        state.setMergedCashFlows(currentOther);
+        return { loading: false, cashFlows: currentOther };
       });
     }
   },
