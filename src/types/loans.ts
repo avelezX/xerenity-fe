@@ -12,6 +12,7 @@ export interface Loan {
   grace_period: string;
   min_period_rate: number;
   days_count: string;
+  loan_identifier: string;
 }
 
 export interface LoanCashFlow {

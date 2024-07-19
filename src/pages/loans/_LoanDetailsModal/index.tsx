@@ -39,6 +39,7 @@ const MIN_PERIOD_RATE = 'Tasa minima por periodo:';
 const NUMBER_OF_PAYMENTS = 'Número de pagos:';
 const DAYS_COUNT = 'Conteo de días:';
 const START_DATE = 'Fecha de inicio:';
+const LOAN_IDENTIFIER = 'Identificador credito:';
 
 const getDaysCount = (interest: string) => {
   switch (interest) {
@@ -58,6 +59,12 @@ const ExpandedComponent: React.FC<ExpanderComponentProps<Loan>> = ({
   <Alert variant="info">
     <div className="info-description">
       <div className="d-flex flex-column justify-content-center">
+        {data?.loan_identifier && (
+          <ItemDetail>
+            <h6>{LOAN_IDENTIFIER}</h6>
+            <span style={valueStyles}>{data?.loan_identifier}</span>
+          </ItemDetail>
+        )}
         <ItemDetail>
           <h6>{START_DATE}</h6>
           <span style={valueStyles}>{data?.start_date}</span>
