@@ -31,7 +31,7 @@ const yesNoValues: { label: string; value: boolean }[] = [
 const loanSchema = Yup.object().shape({
   start_date: Yup.string().required('Fecha de incio es requerida'),
   number_of_payments: Yup.number().required('Numero de pagos es requerida'),
-  original_balance: Yup.string(),
+  original_balance: Yup.string().required('Balance incial requerido'),
   periodicity: Yup.string().required('Periodicidad es requerida'),
   interest_rate: Yup.string().required('Tasa de interes es requerida'),
   days_count: Yup.string().required('El numero de dias es requerido'),
