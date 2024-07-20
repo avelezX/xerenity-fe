@@ -40,6 +40,7 @@ const loanSchema = Yup.object().shape({
   type: Yup.string().required('El tip de credito es requrido'),
   bank: Yup.string().required('La entidad bancaria es requerida'),
   min_period_rate: Yup.number(),
+  loan_identifier: Yup.string(),
 });
 
 const initialValues = {
@@ -54,6 +55,7 @@ const initialValues = {
   grace_type: undefined,
   grace_period: undefined,
   min_period_rate: undefined,
+  loan_identifier: '',
 };
 
 const nameMapping: { [id: string]: string } = {
@@ -188,21 +190,16 @@ const NewCreditModal = ({
                     </Form.Group>
                   </Col>
                   <Col sm={12} md={6}>
-                    <Form.Group controlId="periodicity">
-                      <Form.Label>Periodicdad</Form.Label>
-                      <Form.Select
-                        value={values.periodicity}
+                    <Form.Group controlId="loan_identifier">
+                      <Form.Label>Identificador credito</Form.Label>
+                      <Form.Control
+                        placeholder="Identificador credito"
+                        type="text"
+                        value={values.loan_identifier}
                         onChange={handleChange}
-                      >
-                        <option>Selecione una periodicidad</option>
-                        <option value="Anual">Anual</option>
-                        <option value="Semestral">Semestral</option>
-                        <option value="Trimestral">Trimestral</option>
-                        <option value="Bimensual">Bimensual</option>
-                        <option value="Mensual">Mensual</option>
-                      </Form.Select>
-                      {touched.periodicity && errors.periodicity && (
-                        <ErrorMessage name="periodicity" component="div" />
+                      />
+                      {touched.loan_identifier && errors.loan_identifier && (
+                        <ErrorMessage name="loan_identifier" component="div" />
                       )}
                     </Form.Group>
                   </Col>
@@ -270,6 +267,27 @@ const NewCreditModal = ({
                       </Form.Select>
                       {touched.days_count && errors.days_count && (
                         <ErrorMessage name="days_count" component="div" />
+                      )}
+                    </Form.Group>
+                  </Col>
+                </Row>
+                <Row className="pb-5">
+                  <Col sm={12} md={6}>
+                    <Form.Group controlId="periodicity">
+                      <Form.Label>Periodicdad</Form.Label>
+                      <Form.Select
+                        value={values.periodicity}
+                        onChange={handleChange}
+                      >
+                        <option>Selecione una periodicidad</option>
+                        <option value="Anual">Anual</option>
+                        <option value="Semestral">Semestral</option>
+                        <option value="Trimestral">Trimestral</option>
+                        <option value="Bimensual">Bimensual</option>
+                        <option value="Mensual">Mensual</option>
+                      </Form.Select>
+                      {touched.periodicity && errors.periodicity && (
+                        <ErrorMessage name="periodicity" component="div" />
                       )}
                     </Form.Group>
                   </Col>

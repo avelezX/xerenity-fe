@@ -8,6 +8,11 @@ const LoanListColumns = [
     sortable: true,
   },
   {
+    name: 'Identificador',
+    selector: (row: Loan) => row.loan_identifier,
+    sortable: true,
+  },
+  {
     name: 'Fecha de inicio',
     selector: (row: Loan) => row.start_date,
     sortable: true,
