@@ -110,7 +110,7 @@ const Card = ({
             <Button
               onClick={() => setShowColorToast(true)}
               bg={color}
-              height="33px"
+              height="30px"
             />
           )}
         </div>
