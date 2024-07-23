@@ -7,12 +7,15 @@ import styled from 'styled-components';
 
 interface ButtonProps extends BsButtonProps {
   $fullwidth?: boolean;
+  height?: string;
+  bg?: string;
 }
 
 const Button: FC<ButtonProps> = styled(BsButton)`
   width: ${(props) => (props.$fullwidth ? '100%' : 'auto')};
+  background-color: ${(props) => props.bg};
   display: flex;
-  height: 38px;
+  height: ${(props) => props.height || '38px'};
   gap: 8px;
   align-items: center;
   justify-content: center;

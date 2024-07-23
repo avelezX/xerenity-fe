@@ -332,9 +332,11 @@ export default function Dashboard() {
             {Array.from(serieNameInfo.entries()).map(([key, value]) => [
               selectedSeries.has(key) && (
                 <Card
+                  serieId={key}
                   title={value.display_name}
                   icon={faLineChart}
                   color={selectedSeries.get(key)?.color}
+                  handleColorPicker={handleColorChnage}
                   actions={[
                     {
                       name: 'copy',

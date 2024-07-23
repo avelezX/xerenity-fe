@@ -1,19 +1,22 @@
 'use client';
 
 import { PropsWithChildren, MouseEventHandler, useRef, useState } from 'react';
-import { Overlay, Tooltip } from 'react-bootstrap';
+import { Overlay, Tooltip, ToastContainer, Toast } from 'react-bootstrap';
 import { FontAwesomeIcon as Icon } from '@fortawesome/react-fontawesome';
 import { IconDefinition } from '@fortawesome/free-solid-svg-icons';
+import { XerenityHexColors } from 'src/utils/getHexColors';
 import truncateStr from 'src/utils/truncateStr';
+import Circle from '@uiw/react-color-circle';
 import {
   CardTitle,
   CardContainer,
   CardBody,
-  ColorPicker,
   CardFooter,
   SourcePill,
 } from './Card.styled';
+
 import IconButton from '../IconButton';
+import Button from '../Button';
 
 const FUENTE_TXT = 'Fuente';
 
@@ -30,6 +33,8 @@ type CardProps = {
   actions: CardAction[];
   fuente: string;
   description: string;
+  serieId: string;
+  handleColorPicker?: (serieid: string, color: string) => void;
 } & PropsWithChildren;
 
 const Card = ({
@@ -39,9 +44,21 @@ const Card = ({
   actions,
   fuente,
   description,
+  handleColorPicker,
+  serieId,
 }: CardProps) => {
   const titleTarget = useRef(null);
   const [showeFullTitle, onShowTitle] = useState<boolean>(false);
+  const [showColorToast, setShowColorToast] = useState(false);
+
+  const HandleColorSelect = async (newColor: {
+    hex: React.SetStateAction<string>;
+  }) => {
+    if (handleColorPicker) {
+      handleColorPicker(serieId, newColor.hex.toString());
+    }
+    setShowColorToast(false);
+  };
 
   return (
     <CardContainer>
@@ -72,12 +89,36 @@ const Card = ({
           ))}
         </div>
       </CardTitle>
+      <ToastContainer>
+        <Toast
+          onClose={() => setShowColorToast(false)}
+          show={showColorToast}
+          animation
+        >
+          <Toast.Body>
+            <Circle
+              style={{ width: '100%', height: '100%' }}
+              colors={XerenityHexColors}
+              onChange={HandleColorSelect}
+            />
+          </Toast.Body>
+        </Toast>
+      </ToastContainer>
       <CardBody>
-        <div className="picker">{color && <ColorPicker color={color} />}</div>
+        <div className="picker">
+          {color && (
+            <Button
+              onClick={() => setShowColorToast(true)}
+              bg={color}
+              height="30px"
+            />
+          )}
+        </div>
         <div className="description">
           <p>{truncateStr(description, 120)}</p>
         </div>
       </CardBody>
+
       {fuente && (
         <CardFooter>
           <SourcePill>
