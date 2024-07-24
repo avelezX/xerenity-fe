@@ -7,6 +7,7 @@ import { deleteCookie, getCookie } from 'cookies-next';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import Button from '@components/UI/Button';
 import Alert from '@components/UI/Alert';
+
 import {
   Formik,
   ErrorMessage,
@@ -18,6 +19,7 @@ import * as Yup from 'yup';
 import HCaptcha from '@hcaptcha/react-hcaptcha';
 import strings from '../../../strings/login.json';
 import ErrorMsg from '../_ErrorMsg';
+import SendResetPasswordModal from '../_SendReset';
 
 const { form } = strings;
 
@@ -30,6 +32,7 @@ function LoginForm({ captchaKey }: LoginFormProps) {
   const supabase = createClientComponentClient();
   const [loginErrorMsg, setLoginErrorMsg] = useState('');
   const [newErrorLogin, setNewErrorLogin] = useState<boolean>(false);
+  const [showResetModal, setShowResetModal] = useState<boolean>(false);
   const [captchaToken, setCaptchaToken] = useState<string | undefined>(
     undefined
   );
@@ -86,76 +89,105 @@ function LoginForm({ captchaKey }: LoginFormProps) {
   };
 
   return (
-    <Formik
-      initialValues={initialValues}
-      onSubmit={onSubmit}
-      validationSchema={signInSchema}
-    >
-      {({ values, handleChange, isSubmitting, handleSubmit }) => (
-        <div className="d-flex flex-column w-100 justify-content-center align-items-center py-5">
-          <Form
-            onSubmit={handleSubmit}
-            className="w-50 d-flex justify-content-center flex-column gap-4"
-          >
-            <Form.Group controlId="email">
-              <InputGroup>
-                <InputGroup.Text className="bg-white">
-                  <Icon className="text-primary" icon={faUser} fixedWidth />
-                </InputGroup.Text>
-                <Form.Control
-                  placeholder={form.email}
-                  type="email"
-                  value={values.email}
-                  onChange={handleChange}
+    <>
+      <SendResetPasswordModal
+        onCancel={() => setShowResetModal(false)}
+        show={showResetModal}
+        modalTitle={form.reset}
+      />
+      <Formik
+        initialValues={initialValues}
+        onSubmit={onSubmit}
+        validationSchema={signInSchema}
+      >
+        {({ values, handleChange, isSubmitting, handleSubmit }) => (
+          <div className="d-flex flex-column w-100 justify-content-center align-items-center py-5">
+            <Form
+              onSubmit={handleSubmit}
+              className="w-50 d-flex justify-content-center flex-column gap-4"
+            >
+              <Form.Group controlId="email">
+                <InputGroup>
+                  <InputGroup.Text className="bg-white">
+                    <Icon className="text-primary" icon={faUser} fixedWidth />
+                  </InputGroup.Text>
+                  <Form.Control
+                    placeholder={form.email}
+                    type="email"
+                    value={values.email}
+                    onChange={handleChange}
+                  />
+                </InputGroup>
+                <ErrorMessage name="email">
+                  {(msg: string) => <ErrorMsg>{msg}</ErrorMsg>}
+                </ErrorMessage>
+              </Form.Group>
+              <Form.Group controlId="password">
+                <InputGroup>
+                  <InputGroup.Text className="bg-white">
+                    <Icon className="text-primary" icon={faLock} fixedWidth />
+                  </InputGroup.Text>
+                  <Form.Control
+                    placeholder={form.password}
+                    type="password"
+                    value={values.password}
+                    onChange={handleChange}
+                  />
+                </InputGroup>
+                <ErrorMessage name="password">
+                  {(msg: string) => <ErrorMsg>{msg}</ErrorMsg>}
+                </ErrorMessage>
+              </Form.Group>
+              <div className="d-flex justify-content-center">
+                <HCaptcha
+                  languageOverride="es"
+                  ref={captcha}
+                  sitekey={captchaKey}
+                  onVerify={(token) => {
+                    setCaptchaToken(token);
+                  }}
                 />
-              </InputGroup>
-              <ErrorMessage name="email">
-                {(msg: string) => <ErrorMsg>{msg}</ErrorMsg>}
-              </ErrorMessage>
-            </Form.Group>
-            <Form.Group controlId="password">
-              <InputGroup>
-                <InputGroup.Text className="bg-white">
-                  <Icon className="text-primary" icon={faLock} fixedWidth />
-                </InputGroup.Text>
-                <Form.Control
-                  placeholder={form.password}
-                  type="password"
-                  value={values.password}
-                  onChange={handleChange}
-                />
-              </InputGroup>
-              <ErrorMessage name="password">
-                {(msg: string) => <ErrorMsg>{msg}</ErrorMsg>}
-              </ErrorMessage>
-            </Form.Group>
-            <div className="d-flex justify-content-center">
-              <HCaptcha
-                languageOverride="es"
-                ref={captcha}
-                sitekey={captchaKey}
-                onVerify={(token) => {
-                  setCaptchaToken(token);
-                }}
-              />
-            </div>
-            <div className="d-flex justify-content-center">
-              <Button type="submit" disabled={!captchaToken && !isSubmitting}>
-                {form.action}
-                {isSubmitting && <Spinner size="sm" />}
-              </Button>
-            </div>
-            <Collapse in={newErrorLogin}>
-              <div className="row">
-                <div className="col">
-                  <Alert>{loginErrorMsg}</Alert>
+              </div>
+              <div className="d-flex justify-content-center">
+                <div className="row">
+                  <div className="col">
+                    <span
+                      onClick={() => setShowResetModal(true)}
+                      onKeyDown={() => {}}
+                      role="button"
+                      tabIndex={0}
+                    >
+                      <a
+                        href="#"
+                        className="link-primary link-underline-opacity-100-hover"
+                      >
+                        {form.forgot}
+                      </a>
+                    </span>
+                  </div>
+                  <div className="col">
+                    <Button
+                      type="submit"
+                      disabled={!captchaToken && !isSubmitting}
+                    >
+                      {form.action}
+                      {isSubmitting && <Spinner size="sm" />}
+                    </Button>
+                  </div>
                 </div>
               </div>
-            </Collapse>
-          </Form>
-        </div>
-      )}
-    </Formik>
+              <Collapse in={newErrorLogin}>
+                <div className="row">
+                  <div className="col">
+                    <Alert>{loginErrorMsg}</Alert>
+                  </div>
+                </div>
+              </Collapse>
+            </Form>
+          </div>
+        )}
+      </Formik>
+    </>
   );
 }
 
