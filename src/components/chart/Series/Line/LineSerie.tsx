@@ -31,14 +31,12 @@ function LineSerie({
           color,
           priceFormat: defaultCustomFormat,
           priceScaleId: scaleId || title,
-          title,
         });
       } else {
-        const serie = chartContext.addLineSeries({
+        const serie = chartContext.chart.addLineSeries({
           color,
           priceFormat: defaultCustomFormat,
           priceScaleId: scaleId || title,
-          title,
         });
         thisChart.current = serie;
       }
@@ -60,20 +58,22 @@ function LineSerie({
         thisChart.current.setData(newData);
       }
       if (chartContext !== undefined) {
-        chartContext.timeScale().fitContent();
+        chartContext.chart.timeScale().fitContent();
       }
+      chartContext.listSeriesName(title, color);
     }
   });
 
   useEffect(
     () => () => {
       if (thisChart.current) {
-        if (chartContext) {
-          chartContext.removeSeries(thisChart.current);
+        if (chartContext && chartContext.chart) {
+          chartContext.chart.removeSeries(thisChart.current);
+          chartContext.removelistSeriesName(title);
         }
       }
     },
-    [chartContext]
+    [chartContext, title]
   );
 
   return <div>{children}</div>;

@@ -39,7 +39,7 @@ function CandleSerie({ data, title, children, scaleId }: CandleSerieProps) {
           title,
         });
       } else {
-        const serie = chartContext.addCandlestickSeries({
+        const serie = chartContext.chart.addCandlestickSeries({
           priceFormat: defaultCustomFormat,
           priceScaleId: scaleId || title,
           title,
@@ -61,7 +61,7 @@ function CandleSerie({ data, title, children, scaleId }: CandleSerieProps) {
         thisChart.current.setData(serieData);
       }
       if (chartContext !== undefined) {
-        chartContext.timeScale().fitContent();
+        chartContext.chart.timeScale().fitContent();
       }
     }
   });
@@ -69,8 +69,8 @@ function CandleSerie({ data, title, children, scaleId }: CandleSerieProps) {
   useEffect(
     () => () => {
       if (thisChart.current) {
-        if (chartContext) {
-          chartContext.removeSeries(thisChart.current);
+        if (chartContext && chartContext.chart) {
+          chartContext.chart.removeSeries(thisChart.current);
         }
       }
     },

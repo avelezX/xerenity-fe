@@ -26,7 +26,7 @@ function BarSerie({ data, color, title, children, scaleId }: TimeValueSerie) {
           title,
         });
       } else {
-        const serie = chartContext.addHistogramSeries({
+        const serie = chartContext.chart.addHistogramSeries({
           color,
           priceFormat: defaultCustomFormat,
           priceScaleId: scaleId,
@@ -38,16 +38,17 @@ function BarSerie({ data, color, title, children, scaleId }: TimeValueSerie) {
         thisChart.current.setData(data);
       }
       if (chartContext !== undefined) {
-        chartContext.timeScale().fitContent();
+        chartContext.chart.timeScale().fitContent();
       }
+      chartContext.listSeriesName(title, color);
     }
   });
 
   useEffect(
     () => () => {
       if (thisChart.current) {
-        if (chartContext) {
-          chartContext.removeSeries(thisChart.current);
+        if (chartContext && chartContext.chart) {
+          chartContext.chart.removeSeries(thisChart.current);
         }
       }
     },

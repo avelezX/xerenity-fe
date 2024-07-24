@@ -33,7 +33,7 @@ function VolumenBarSerie({
           title,
         });
       } else {
-        const serie = chartContext.addHistogramSeries({
+        const serie = chartContext.chart.addHistogramSeries({
           color,
           priceFormat: {
             type: 'volume',
@@ -56,20 +56,23 @@ function VolumenBarSerie({
       });
 
       if (chartContext !== undefined) {
-        chartContext.timeScale().fitContent();
+        chartContext.chart.timeScale().fitContent();
       }
+
+      chartContext.listSeriesName(title, color);
     }
   });
 
   useEffect(
     () => () => {
       if (thisChart.current) {
-        if (chartContext) {
-          chartContext.removeSeries(thisChart.current);
+        if (chartContext && chartContext.chart) {
+          chartContext.chart.removeSeries(thisChart.current);
+          chartContext.removelistSeriesName(title);
         }
       }
     },
-    [chartContext]
+    [chartContext, title]
   );
 
   return <div>{children}</div>;
