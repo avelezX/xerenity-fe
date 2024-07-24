@@ -63,6 +63,10 @@ const GRAY_COLOR_300 = designSystem['gray-300'].value;
 const OPCIONES = 'Opciones';
 const MONTH_OPTIONS = [20, 30, 50];
 
+const DEFAULT_IBR_NAME = 'IBR_2Y';
+const DEFAULT_UVR_NAME = 'COLTES 3.3 03/17/27';
+const DEFAULT_COP_NAME = 'COLTES 6.25 11/26/25';
+
 export default function FullTesViewer() {
   const supabase = createClientComponentClient();
   const [options, setOptions] = useState<GridEntry[]>([]);
@@ -219,9 +223,15 @@ export default function FullTesViewer() {
 
       if (data) {
         const allData = data as GridEntry[];
+        const filterValue =
+          currencyType === 'COLTES-COP' ? DEFAULT_COP_NAME : DEFAULT_UVR_NAME;
 
-        if (allData.length > 0) {
-          changeSelection(allData[0].tes, allData[0].displayname);
+        const defIbr = allData.find(
+          (ibrSea) => ibrSea.displayname === filterValue
+        );
+
+        if (defIbr) {
+          changeSelection(defIbr.tes, defIbr.displayname);
         }
         setOptions(allData);
       } else {
@@ -245,7 +255,13 @@ export default function FullTesViewer() {
             mapping.set(entry.tes, entry);
           });
 
-          changeSelection(allIbr[0].tes, allIbr[0].displayname);
+          const defIbr = allIbr.find(
+            (ibrSea) => ibrSea.displayname === DEFAULT_IBR_NAME
+          );
+
+          if (defIbr) {
+            changeSelection(defIbr.tes, defIbr.displayname);
+          }
         } else {
           setOptions([]);
         }
