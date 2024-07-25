@@ -46,23 +46,15 @@ function resetPasswordPage() {
       prepareDataForValidation(formValues)
     );
 
-    supabase.auth.onAuthStateChange(async (event) => {
-      if (event === 'PASSWORD_RECOVERY') {
-        const { data, error } = await supabase.auth.updateUser({
-          password: preparedValues.confirmPassword,
-        });
-
-        if (error) {
-          toast.error(error.message, {
-            position: toast.POSITION.BOTTOM_RIGHT,
-          });
-        } else if (data) {
-          toast.info(form.check, {
-            position: toast.POSITION.BOTTOM_RIGHT,
-          });
-        }
-      }
+    const { data, error } = await supabase.auth.updateUser({
+      password: preparedValues.confirmPassword,
     });
+
+    if (error) {
+      console.log(error.message);
+    } else if (data) {
+      console.log(form.check);
+    }
   };
 
   return (

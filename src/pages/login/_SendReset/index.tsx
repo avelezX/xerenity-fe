@@ -6,11 +6,11 @@ import {
   prepareDataForValidation,
 } from 'formik';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
-import { toast } from 'react-toastify';
+import { useState } from 'react';
 import { Form, InputGroup } from 'react-bootstrap';
-import * as Yup from 'yup';
 import { faEnvelope } from '@fortawesome/free-solid-svg-icons';
 import { FontAwesomeIcon as Icon } from '@fortawesome/react-fontawesome';
+import * as Yup from 'yup';
 import strings from '../../../strings/sendResetPassword.json';
 import ErrorMsg from '../_ErrorMsg';
 
@@ -32,6 +32,8 @@ function SendResetPasswordModal({
 }: SendResetProps) {
   const supabase = createClientComponentClient();
 
+  const [message, setMessage] = useState<string>('');
+
   const sendEmailSchema = Yup.object().shape({
     email: Yup.string().email().required(),
   });
@@ -47,19 +49,12 @@ function SendResetPasswordModal({
       prepareDataForValidation(formValues)
     );
     const { data, error } = await supabase.auth.resetPasswordForEmail(
-      preparedValues.email,
-      {
-        redirectTo: 'login/reset',
-      }
+      preparedValues.email
     );
     if (error) {
-      toast.error(error.message, {
-        position: toast.POSITION.BOTTOM_RIGHT,
-      });
+      setMessage(error.message);
     } else if (data) {
-      toast.info(form.success, {
-        position: toast.POSITION.BOTTOM_RIGHT,
-      });
+      setMessage(form.success);
     }
   };
 
@@ -69,33 +64,51 @@ function SendResetPasswordModal({
       onSubmit={onSubmit}
       validationSchema={sendEmailSchema}
     >
-      {({ values, handleChange, handleSubmit }) => (
+      {({ values, handleChange, resetForm, handleSubmit, isSubmitting }) => (
         <Modal
           display={show}
           title={modalTitle}
-          onCancel={onCancel}
+          onCancel={() => {
+            setMessage('');
+            resetForm();
+            onCancel();
+          }}
+          isSubmitting={isSubmitting}
           onSave={handleSubmit}
           cancelText={CANCEL_TXT}
           saveText={SAVE_TXT}
         >
-          <Form className="w-50 d-flex justify-content-center flex-column gap-3">
-            <Form.Group controlId="email">
-              <InputGroup>
-                <InputGroup.Text className="bg-white border-right-none">
-                  <Icon className="text-primary" icon={faEnvelope} fixedWidth />
-                </InputGroup.Text>
-                <Form.Control
-                  placeholder={form.email}
-                  type="email"
-                  value={values.email}
-                  onChange={handleChange}
-                />
-              </InputGroup>
-              <ErrorMessage name="email">
-                {(msg: string) => <ErrorMsg>{msg}</ErrorMsg>}
-              </ErrorMessage>
-            </Form.Group>
-          </Form>
+          <div className="container-fluid w-95">
+            <div className="row">
+              <div className="col">
+                <Form className="d-flex justify-content-center flex-column gap-3">
+                  <Form.Group controlId="email">
+                    <InputGroup>
+                      <InputGroup.Text className="bg-white border-right-none">
+                        <Icon
+                          className="text-primary"
+                          icon={faEnvelope}
+                          fixedWidth
+                        />
+                      </InputGroup.Text>
+                      <Form.Control
+                        placeholder={form.email}
+                        type="email"
+                        value={values.email}
+                        onChange={handleChange}
+                      />
+                    </InputGroup>
+                    <ErrorMessage name="email">
+                      {(msg: string) => <ErrorMsg>{msg}</ErrorMsg>}
+                    </ErrorMessage>
+                  </Form.Group>
+                </Form>
+              </div>
+            </div>
+            <div className="row">
+              <div className="col">{message}</div>
+            </div>
+          </div>
         </Modal>
       )}
     </Formik>
