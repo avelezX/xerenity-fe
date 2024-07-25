@@ -8,7 +8,12 @@ import {
   FormikConfig,
   prepareDataForValidation,
 } from 'formik';
-import { faEye, faEyeSlash, faLock } from '@fortawesome/free-solid-svg-icons';
+import {
+  faEye,
+  faEyeSlash,
+  faLock,
+  faLockOpen,
+} from '@fortawesome/free-solid-svg-icons';
 import Button from '@components/UI/Button';
 import Spinner from '@components/UI/Spinner';
 import { useState } from 'react';
@@ -32,7 +37,7 @@ const LOGO_SETTINGS = {
 function ResetPasswordPage() {
   const supabase = createClientComponentClient();
   const [message, setMessage] = useState<string>('');
-  const [showPassword, setShowPassword] = useState<boolean>(true);
+  const [showPassword, setShowPassword] = useState<boolean>(false);
 
   const resetPasswordSchema = Yup.object().shape({
     password: Yup.string().min(10).required(form.required),
@@ -95,7 +100,11 @@ function ResetPasswordPage() {
                 <Form.Group controlId="password">
                   <InputGroup>
                     <InputGroup.Text className="bg-white">
-                      <Icon className="text-primary" icon={faLock} fixedWidth />
+                      <Icon
+                        className="text-primary"
+                        icon={showPassword ? faLockOpen : faLock}
+                        fixedWidth
+                      />
                     </InputGroup.Text>
                     <Form.Control
                       placeholder={form.password}
@@ -111,7 +120,11 @@ function ResetPasswordPage() {
                 <Form.Group controlId="confirmPassword">
                   <InputGroup>
                     <InputGroup.Text className="bg-white">
-                      <Icon className="text-primary" icon={faLock} fixedWidth />
+                      <Icon
+                        className="text-primary"
+                        icon={showPassword ? faLockOpen : faLock}
+                        fixedWidth
+                      />
                     </InputGroup.Text>
                     <Form.Control
                       placeholder={form.confirma}
