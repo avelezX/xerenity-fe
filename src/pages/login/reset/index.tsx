@@ -11,9 +11,10 @@ import {
 import { faLock } from '@fortawesome/free-solid-svg-icons';
 import Button from '@components/UI/Button';
 import Spinner from '@components/UI/Spinner';
+import { useState } from 'react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import * as Yup from 'yup';
-import { toast } from 'react-toastify';
+import Alert from '@components/UI/Alert';
 import strings from '../../../strings/resetPassword.json';
 import PoweredBy from '../_PoweredBy';
 import ErrorMsg from '../_ErrorMsg';
@@ -26,8 +27,9 @@ const LOGO_SETTINGS = {
   alt: 'xerenity logo',
 };
 
-function resetPasswordPage() {
+function ResetPasswordPage() {
   const supabase = createClientComponentClient();
+  const [message, setMessage] = useState<string>('');
 
   const resetPasswordSchema = Yup.object().shape({
     password: Yup.string().min(10).required(form.required),
@@ -51,9 +53,9 @@ function resetPasswordPage() {
     });
 
     if (error) {
-      console.log(error.message);
+      setMessage(error.message);
     } else if (data) {
-      console.log(form.check);
+      setMessage(form.check);
     }
   };
 
@@ -128,6 +130,9 @@ function resetPasswordPage() {
             </Form>
           )}
         </Formik>
+        <div className="w-50 d-flex justify-content-center flex-column gap-3">
+          <Alert>{message}</Alert>
+        </div>
         <div className="py-5">
           <PoweredBy />
         </div>
@@ -136,4 +141,4 @@ function resetPasswordPage() {
   );
 }
 
-export default resetPasswordPage;
+export default ResetPasswordPage;
