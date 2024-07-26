@@ -28,6 +28,7 @@ export interface LoansSlice {
   showNewCreditModal: boolean;
   selectedBanks: Bank[];
   showCashFlowTable: boolean;
+  filterDate: string;
   getLoanData: (bankFilter?: Bank[]) => void;
   setSelectedLoans: ({
     selectedCount,
@@ -37,7 +38,8 @@ export interface LoansSlice {
   setCashFlowItem: (
     loanId: string,
     type: string,
-    currentOther: CashFlowItem[]
+    currentOther: CashFlowItem[],
+    filterDate: string
   ) => void;
   onShowDeleteConfirm: (show: boolean) => void;
   onShowLoanModal: (show: boolean) => void;
@@ -46,7 +48,16 @@ export interface LoansSlice {
   deleteLoanItem: (loanId: string) => void;
   setMergedCashFlows: (cashFlows: CashFlowItem[]) => void;
   getLoanChartData: (mergedCashFlows: LoanCashFlowIbr[]) => void;
+  setFilterDate: (newFilterDate: string) => void;
   resetStore: () => void;
+}
+
+function calculateCurrentDate(): string {
+  const today = new Date();
+  const yyyy = today.getFullYear();
+  const mm = String(today.getMonth() + 1).padStart(2, '0');
+  const dd = String(today.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
 }
 
 const initialState = {
@@ -64,6 +75,7 @@ const initialState = {
   showLoanModal: false,
   showNewCreditModal: false,
   selectedBanks: [],
+  filterDate: calculateCurrentDate(),
 };
 
 const createLoansSlice: StateCreator<LoansSlice> = (set) => ({
@@ -104,7 +116,12 @@ const createLoansSlice: StateCreator<LoansSlice> = (set) => ({
         if (flow) {
           newCashFlow.push(flow);
         } else {
-          state.setCashFlowItem(loan.id, loan.type, newCashFlow);
+          state.setCashFlowItem(
+            loan.id,
+            loan.type,
+            newCashFlow,
+            state.filterDate
+          );
         }
         newSelections.push(loan.id);
       });
@@ -117,9 +134,13 @@ const createLoansSlice: StateCreator<LoansSlice> = (set) => ({
       state.getLoanData(selections);
       return { selectedBanks: selections };
     }),
-  setCashFlowItem: async (loanId, type, currentOther) => {
+  setCashFlowItem: async (loanId, type, currentOther, filterDate) => {
     set({ loading: true, errorMessage: undefined, successMessage: undefined });
-    const response: CashflowResponse = await fetchCashFlows(loanId, type);
+    const response: CashflowResponse = await fetchCashFlows(
+      loanId,
+      type,
+      filterDate
+    );
 
     if (response.error) {
       set((state) => {
@@ -217,6 +238,8 @@ const createLoansSlice: StateCreator<LoansSlice> = (set) => ({
 
     set({ chartData });
   },
+  setFilterDate: (newFilterDate: string) =>
+    set(() => ({ filterDate: newFilterDate })),
   resetStore: () => set(initialState),
 });
 

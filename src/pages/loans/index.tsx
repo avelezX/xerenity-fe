@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useRef } from 'react';
-import { Container, Row, Col, Card } from 'react-bootstrap';
+import { Container, Row, Col, Card, Form, InputGroup } from 'react-bootstrap';
 import { Loan } from 'src/types/loans';
 import { CoreLayout } from '@layout';
 import { ExportToCsv, downloadBlob } from 'src/utils/downloadCSV';
@@ -9,12 +9,12 @@ import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { FontAwesomeIcon as Icon } from '@fortawesome/react-fontawesome';
 import {
+  faCalendar,
   faDollar,
   faFileCsv,
   faHandshake,
   faLandmark,
 } from '@fortawesome/free-solid-svg-icons';
-
 import Toolbar from '@components/UI/Toolbar';
 import tokens from 'design-tokens/tokens.json';
 import Chart from '@components/chart/Chart';
@@ -62,12 +62,14 @@ export default function LoansPage() {
     showDeleteConfirm,
     showNewCreditModal,
     showCashFlowTable,
+    filterDate,
     setSelectedLoans,
     setSelectedBanks,
     onShowDeleteConfirm,
     onShowNewLoanModal,
     onShowCashFlowTable,
     resetStore,
+    setFilterDate,
   } = useAppStore();
 
   const selectedLoan = useRef<Loan>();
@@ -184,7 +186,7 @@ export default function LoansPage() {
         </Row>
         <Row>
           <Col>
-            <Chart chartHeight={600} showToolbar>
+            <Chart chartHeight={700} showToolbar>
               <Chart.Bar
                 data={chartData}
                 color={PURPLE_COLOR_100}
@@ -203,8 +205,26 @@ export default function LoansPage() {
                     <MultipleSelect
                       data={bankSelectItems}
                       onChange={onBankFilter}
-                      placeholder="Selecciona Un Banco"
+                      placeholder="Filtra tabla por banco"
                     />
+                  </Col>
+                  <Col sm={12} md={4} className="align-self-end">
+                    <InputGroup>
+                      <InputGroup.Text className="bg-white border-right-none">
+                        <Icon
+                          className="text-primary"
+                          icon={faCalendar}
+                          fixedWidth
+                        />
+                      </InputGroup.Text>
+                      <Form.Control
+                        type="date"
+                        value={filterDate}
+                        onChange={(a) => {
+                          setFilterDate(a.target.value);
+                        }}
+                      />
+                    </InputGroup>
                   </Col>
                 </Row>
               </Card.Header>
