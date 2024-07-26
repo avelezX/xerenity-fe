@@ -313,7 +313,7 @@ export default function Dashboard() {
         </Row>
         <Row>
           <Col>
-            <Chart chartHeight={800} showToolbar>
+            <Chart chartHeight={700} showToolbar>
               {Array.from(selectedSeries.values()).map((data) => (
                 <Chart.Line
                   key={`chart-${data.name}`}

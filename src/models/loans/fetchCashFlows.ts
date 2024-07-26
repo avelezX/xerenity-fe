@@ -23,7 +23,8 @@ const supabase = createClientComponentClient();
 
 export const fetchCashFlows = async (
   loanId: string,
-  loanType: string
+  loanType: string,
+  filterDate: string
 ): Promise<CashflowResponse> => {
   const requestKey =
     loanType === DEFAULT_TYPE ? CASH_FLOW.key : CASH_FLOW_IBR.key;
@@ -34,7 +35,7 @@ export const fetchCashFlows = async (
   try {
     const { data, error } = await supabase
       .schema(SCHEMA)
-      .rpc(requestKey, { credito_id: loanId });
+      .rpc(requestKey, { credito_id: loanId, filter_date: filterDate });
 
     if (error) {
       response.error = CASH_FLOW.error;

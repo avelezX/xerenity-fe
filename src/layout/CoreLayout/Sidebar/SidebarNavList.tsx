@@ -15,7 +15,7 @@ type SidebarNavProps = {
 
 const NAV_ITEMS: NavItemProps[] = [
   {
-    name: 'dashboard',
+    name: 'series',
     path: '/dashboard',
     icon: faChartSimple,
     active: false,
