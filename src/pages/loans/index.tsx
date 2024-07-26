@@ -186,7 +186,7 @@ export default function LoansPage() {
         </Row>
         <Row>
           <Col>
-            <Chart chartHeight={400} showToolbar>
+            <Chart chartHeight={700} showToolbar>
               <Chart.Bar
                 data={chartData}
                 color={PURPLE_COLOR_100}
@@ -209,27 +209,22 @@ export default function LoansPage() {
                     />
                   </Col>
                   <Col sm={12} md={4} className="align-self-end">
-                    <Row>
-                      <Col sm={4}>Fecha inicio flujo de caja</Col>
-                      <Col>
-                        <InputGroup>
-                          <InputGroup.Text className="bg-white border-right-none">
-                            <Icon
-                              className="text-primary"
-                              icon={faCalendar}
-                              fixedWidth
-                            />
-                          </InputGroup.Text>
-                          <Form.Control
-                            type="date"
-                            value={filterDate}
-                            onChange={(a) => {
-                              setFilterDate(a.target.value);
-                            }}
-                          />
-                        </InputGroup>
-                      </Col>
-                    </Row>
+                    <InputGroup>
+                      <InputGroup.Text className="bg-white border-right-none">
+                        <Icon
+                          className="text-primary"
+                          icon={faCalendar}
+                          fixedWidth
+                        />
+                      </InputGroup.Text>
+                      <Form.Control
+                        type="date"
+                        value={filterDate}
+                        onChange={(a) => {
+                          setFilterDate(a.target.value);
+                        }}
+                      />
+                    </InputGroup>
                   </Col>
                 </Row>
               </Card.Header>
