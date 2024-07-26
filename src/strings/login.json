@@ -5,7 +5,7 @@
     "password": "Ingresa tu password",
     "action": "Iniciar Sesion",
     "required": "Este campo es requerido.",
-    "forgot": "Olvide la contrasena",
+    "forgot": "Olvidé la contraseña",
     "reset": "Resetear contraseña"
   }
 }
