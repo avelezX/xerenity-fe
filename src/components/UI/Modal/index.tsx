@@ -2,6 +2,7 @@ import { IconProp } from '@fortawesome/fontawesome-svg-core';
 import { FontAwesomeIcon as Icon } from '@fortawesome/react-fontawesome';
 import { PropsWithChildren } from 'react';
 import { Button, Modal as BsModal } from 'react-bootstrap';
+import Spinner from '@components/UI/Spinner';
 import ModalBody from './ModalBody.styled';
 
 type ModalProps = {
@@ -12,6 +13,7 @@ type ModalProps = {
   title: string;
   display: boolean;
   icon?: IconProp;
+  isSubmitting?: boolean;
 } & PropsWithChildren;
 
 const Modal = ({
@@ -23,6 +25,7 @@ const Modal = ({
   title,
   icon,
   children,
+  isSubmitting,
 }: ModalProps) => (
   <div className="modal show" style={{ display: 'block', position: 'initial' }}>
     <BsModal show={display} onHide={onCancel} centered>
@@ -38,8 +41,13 @@ const Modal = ({
           {cancelText}
         </Button>
         {saveText && (
-          <Button variant="primary" onClick={onSave}>
+          <Button
+            variant="primary"
+            onClick={onSave}
+            className="d-flex justify-content-center gap-3"
+          >
             {saveText}
+            {isSubmitting && <Spinner size="sm" />}
           </Button>
         )}
       </BsModal.Footer>
