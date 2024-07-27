@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useRef } from 'react';
-import { Container, Row, Col, Card, Form, InputGroup } from 'react-bootstrap';
+import { Container, Row, Col, Form, InputGroup } from 'react-bootstrap';
 import { Loan } from 'src/types/loans';
 import { CoreLayout } from '@layout';
 import { ExportToCsv, downloadBlob } from 'src/utils/downloadCSV';
@@ -12,7 +12,7 @@ import {
   faCalendar,
   faDollar,
   faFileCsv,
-  faHandshake,
+  faPlus,
   faLandmark,
 } from '@fortawesome/free-solid-svg-icons';
 import Toolbar from '@components/UI/Toolbar';
@@ -25,6 +25,7 @@ import LoansTable from 'src/pages/loans/_LoansTable';
 import MultipleSelect from '@components/UI/MultipleSelect';
 import ConfirmationModal from '@components/UI/ConfirmationModal';
 import useAppStore from '@store';
+import Panel from '@components/Panel';
 import NewCreditModal from './_NewCreditModal';
 import CashFlowOverlay from './_cashFlowOverLay/cashFlowOverlay';
 
@@ -71,6 +72,8 @@ export default function LoansPage() {
     resetStore,
     setFilterDate,
   } = useAppStore();
+
+  const cashflowsEmpty = mergedCashFlows.length === 0;
 
   const selectedLoan = useRef<Loan>();
 
@@ -165,28 +168,33 @@ export default function LoansPage() {
             <Toolbar>
               <Button
                 variant="outline-primary"
-                onClick={() => onShowNewLoanModal(true)}
+                disabled={cashflowsEmpty}
+                onClick={onDownloadSeries}
               >
-                <Icon icon={faHandshake} className="mr-4" />
-                Nuevo credito
+                <Icon icon={faFileCsv} className="mr-4" />
+                Descargar
               </Button>
               <Button
-                variant="outline-primary"
+                variant={cashflowsEmpty ? 'outline-primary' : 'primary'}
+                disabled={cashflowsEmpty}
                 onClick={() => onShowCashFlowTable(true)}
               >
                 <Icon icon={faDollar} className="mr-4" />
-                Flujo de caja
+                Visualizar Flujos
               </Button>
-              <Button variant="outline-primary" onClick={onDownloadSeries}>
-                <Icon icon={faFileCsv} className="mr-4" />
-                Descargar
+              <Button
+                variant="primary"
+                onClick={() => onShowNewLoanModal(true)}
+              >
+                <Icon icon={faPlus} className="mr-4" />
+                Nuevo Crédito
               </Button>
             </Toolbar>
           </div>
         </Row>
         <Row>
-          <Col>
-            <Chart chartHeight={700} showToolbar>
+          <Col sm={12} style={{ marginBottom: '23px' }}>
+            <Chart showToolbar>
               <Chart.Bar
                 data={chartData}
                 color={PURPLE_COLOR_100}
@@ -195,43 +203,37 @@ export default function LoansPage() {
               />
             </Chart>
           </Col>
-        </Row>
-        <Row>
-          <Col>
-            <Card>
-              <Card.Header>
-                <Row>
-                  <Col sm={12} md={4}>
-                    <MultipleSelect
-                      data={bankSelectItems}
-                      onChange={onBankFilter}
-                      placeholder="Filtra tabla por banco"
-                    />
-                  </Col>
-                  <Col sm={12} md={4} className="align-self-end">
-                    <InputGroup>
-                      <InputGroup.Text className="bg-white border-right-none">
-                        <Icon
-                          className="text-primary"
-                          icon={faCalendar}
-                          fixedWidth
-                        />
-                      </InputGroup.Text>
-                      <Form.Control
-                        type="date"
-                        value={filterDate}
-                        onChange={(a) => {
-                          setFilterDate(a.target.value);
-                        }}
+          <Col sm={12}>
+            <Panel>
+              <Row>
+                <Col sm={12} md={4}>
+                  <MultipleSelect
+                    data={bankSelectItems}
+                    onChange={onBankFilter}
+                    placeholder="Filtra tabla por banco"
+                  />
+                </Col>
+                <Col sm={12} md={4} className="align-self-end">
+                  <InputGroup>
+                    <InputGroup.Text className="bg-white border-right-none">
+                      <Icon
+                        className="text-primary"
+                        icon={faCalendar}
+                        fixedWidth
                       />
-                    </InputGroup>
-                  </Col>
-                </Row>
-              </Card.Header>
-              <Card.Body>
-                <LoansTable list={loans} onSelect={setSelectedLoans} />
-              </Card.Body>
-            </Card>
+                    </InputGroup.Text>
+                    <Form.Control
+                      type="date"
+                      value={filterDate}
+                      onChange={(a) => {
+                        setFilterDate(a.target.value);
+                      }}
+                    />
+                  </InputGroup>
+                </Col>
+              </Row>
+              <LoansTable list={loans} onSelect={setSelectedLoans} />
+            </Panel>
           </Col>
         </Row>
       </Container>

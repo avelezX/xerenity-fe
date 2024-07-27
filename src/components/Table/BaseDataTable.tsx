@@ -9,6 +9,21 @@ const selectProps = {
   indeterminate: (isIndeterminate: boolean) => isIndeterminate,
 };
 
+const customStyles = {
+  headCells: {
+    style: {
+      fontSize: '16px',
+      padding: '16px 10px',
+    },
+  },
+  cells: {
+    style: {
+      fontSize: '16px',
+      padding: '16px 10px',
+    },
+  },
+};
+
 function BaseDataTable<T>({
   columns,
   data,
@@ -28,6 +43,7 @@ function BaseDataTable<T>({
       dense
       data={data}
       columns={columns}
+      customStyles={customStyles}
       selectableRows={selectableRows}
       expandableRows={expandableRows}
       subHeaderComponent={subHeaderComponent}

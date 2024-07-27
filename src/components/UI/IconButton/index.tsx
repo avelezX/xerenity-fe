@@ -2,7 +2,7 @@ import { PropsWithChildren, MouseEventHandler } from 'react';
 import IconButtonWrapper from './IconButton.styled';
 
 type IconButtonProps = {
-  onClick: MouseEventHandler<HTMLButtonElement>;
+  onClick?: MouseEventHandler<HTMLButtonElement>;
 } & PropsWithChildren;
 
 const IconButton = ({ children, onClick }: IconButtonProps) => (

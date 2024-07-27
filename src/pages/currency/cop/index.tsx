@@ -170,7 +170,7 @@ export default function CurrecnyViewer() {
         </Row>
         <Row>
           <Col>
-            <Chart chartHeight={700} showToolbar>
+            <Chart showToolbar>
               <Chart.Candle data={candleSerie.values} scaleId="right" />
               {hideAvg || (
                 <Chart.Line

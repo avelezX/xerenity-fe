@@ -54,6 +54,7 @@ const { actions } = strings;
 
 const RIGHT_AXIS = 'right';
 const LEFT_AXIS = 'left';
+const PAGE_TITLE = 'Series';
 
 export default function Dashboard() {
   const supabase = createClientComponentClient();
@@ -289,7 +290,7 @@ export default function Dashboard() {
           <div className="d-flex align-items-center gap-2 py-1">
             <PageTitle>
               <Icon icon={faChartSimple} size="1x" />
-              <h4>Dashboard</h4>
+              <h4>{PAGE_TITLE}</h4>
             </PageTitle>
           </div>
         </Row>
@@ -313,7 +314,7 @@ export default function Dashboard() {
         </Row>
         <Row>
           <Col>
-            <Chart chartHeight={700} showToolbar>
+            <Chart showToolbar>
               {Array.from(selectedSeries.values()).map((data) => (
                 <Chart.Line
                   key={`chart-${data.name}`}
