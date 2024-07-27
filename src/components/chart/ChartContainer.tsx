@@ -12,9 +12,11 @@ import charOptions from './ChartOptions';
 import { ChartContext } from './ChartContext';
 
 type ChartProps = {
-  chartHeight: number | string;
+  chartHeight?: number | string;
   showToolbar?: boolean | undefined;
 } & PropsWithChildren;
+
+const DEFAULT_CHART_HEIGHT = 400;
 
 // Define a custom time formatter function
 const customTimeFormatter = (time: Time) => `${time}`; // Custom date format YYYY-MM-DD
@@ -108,7 +110,9 @@ export default function ChartContainer({
 
   return (
     <Card style={{ width: '100%', height: '100%' }}>
-      <Card.Body style={{ width: '100%', height: chartHeight }}>
+      <Card.Body
+        style={{ width: '100%', height: chartHeight || DEFAULT_CHART_HEIGHT }}
+      >
         <Container
           style={{ width: '100%', height: '100%' }}
           ref={chartContainerRef}

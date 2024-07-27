@@ -193,7 +193,7 @@ export default function LoansPage() {
         </Row>
         <Row>
           <Col sm={12} style={{ marginBottom: '23px' }}>
-            <Chart chartHeight={400} showToolbar>
+            <Chart showToolbar>
               <Chart.Bar
                 data={chartData}
                 color={PURPLE_COLOR_100}
