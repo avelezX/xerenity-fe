@@ -12,7 +12,7 @@ import {
   faCalendar,
   faDollar,
   faFileCsv,
-  faHandshake,
+  faPlus,
   faLandmark,
 } from '@fortawesome/free-solid-svg-icons';
 import Toolbar from '@components/UI/Toolbar';
@@ -71,6 +71,8 @@ export default function LoansPage() {
     resetStore,
     setFilterDate,
   } = useAppStore();
+
+  const cashflowsEmpty = mergedCashFlows.length === 0;
 
   const selectedLoan = useRef<Loan>();
 
@@ -165,28 +167,33 @@ export default function LoansPage() {
             <Toolbar>
               <Button
                 variant="outline-primary"
-                onClick={() => onShowNewLoanModal(true)}
-              >
-                <Icon icon={faHandshake} className="mr-4" />
-                Nuevo credito
-              </Button>
-              <Button
-                variant="outline-primary"
+                disabled={cashflowsEmpty}
                 onClick={() => onShowCashFlowTable(true)}
               >
                 <Icon icon={faDollar} className="mr-4" />
-                Flujo de caja
+                Visualizar Flujos
               </Button>
-              <Button variant="outline-primary" onClick={onDownloadSeries}>
+              <Button
+                variant="outline-primary"
+                disabled={cashflowsEmpty}
+                onClick={onDownloadSeries}
+              >
                 <Icon icon={faFileCsv} className="mr-4" />
                 Descargar
+              </Button>
+              <Button
+                variant="primary"
+                onClick={() => onShowNewLoanModal(true)}
+              >
+                <Icon icon={faPlus} className="mr-4" />
+                Nuevo Crédito
               </Button>
             </Toolbar>
           </div>
         </Row>
         <Row>
-          <Col>
-            <Chart chartHeight={700} showToolbar>
+          <Col sm={12} style={{ marginBottom: '23px' }}>
+            <Chart chartHeight={400} showToolbar>
               <Chart.Bar
                 data={chartData}
                 color={PURPLE_COLOR_100}
@@ -195,9 +202,7 @@ export default function LoansPage() {
               />
             </Chart>
           </Col>
-        </Row>
-        <Row>
-          <Col>
+          <Col sm={12} style={{}}>
             <Card>
               <Card.Header>
                 <Row>
@@ -228,9 +233,7 @@ export default function LoansPage() {
                   </Col>
                 </Row>
               </Card.Header>
-              <Card.Body>
-                <LoansTable list={loans} onSelect={setSelectedLoans} />
-              </Card.Body>
+              <LoansTable list={loans} onSelect={setSelectedLoans} />
             </Card>
           </Col>
         </Row>
