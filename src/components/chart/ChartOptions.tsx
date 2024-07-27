@@ -17,8 +17,8 @@ const CHART_OPTIONS = {
   },
   watermark: {
     visible: true,
-    fontSize: 100,
-    color: '#a6a6a6',
+    fontSize: 80,
+    color: '#CCC',
     text: 'Xerenity',
   },
   grid: {

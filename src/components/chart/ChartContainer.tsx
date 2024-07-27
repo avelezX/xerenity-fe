@@ -1,15 +1,9 @@
 import { IChartApi, Time, createChart } from 'lightweight-charts';
 import React, { useRef, PropsWithChildren, useEffect } from 'react';
-import { Card, Container } from 'react-bootstrap';
-import { FontAwesomeIcon as Icon } from '@fortawesome/react-fontawesome';
-import {
-  faCalendar,
-  faImage,
-  faMagnifyingGlassMinus,
-} from '@fortawesome/free-solid-svg-icons';
-import IconButton from '@components/UI/IconButton';
+import Panel from '@components/Panel';
 import charOptions from './ChartOptions';
 import { ChartContext } from './ChartContext';
+import ChartToolBar from './ChartToolbar';
 
 type ChartProps = {
   chartHeight?: number | string;
@@ -20,6 +14,7 @@ const DEFAULT_CHART_HEIGHT = 400;
 
 // Define a custom time formatter function
 const customTimeFormatter = (time: Time) => `${time}`; // Custom date format YYYY-MM-DD
+
 export default function ChartContainer({
   children,
   chartHeight,
@@ -40,7 +35,7 @@ export default function ChartContainer({
     }
   }, []);
 
-  function downloadChartsPng() {
+  const downloadChartsPng = () => {
     if (chart.current) {
       const screenshot = chart.current.takeScreenshot();
 
@@ -61,9 +56,9 @@ export default function ChartContainer({
         }
       });
     }
-  }
+  };
 
-  function swapDateFormater() {
+  const swapDateFormater = () => {
     if (chart.current) {
       chart.current.applyOptions({
         timeScale: {
@@ -71,13 +66,13 @@ export default function ChartContainer({
         },
       });
     }
-  }
+  };
 
-  function resetZoom() {
+  const resetZoom = () => {
     if (chart.current) {
       chart.current.timeScale().fitContent();
     }
-  }
+  };
 
   useEffect(() => {
     resizeObserver.current = new ResizeObserver((entries) => {
@@ -109,35 +104,22 @@ export default function ChartContainer({
   });
 
   return (
-    <Card style={{ width: '100%', height: '100%' }}>
-      <Card.Body
-        style={{ width: '100%', height: chartHeight || DEFAULT_CHART_HEIGHT }}
-      >
-        <Container
-          style={{ width: '100%', height: '100%' }}
-          ref={chartContainerRef}
-          className="chart-container"
-        >
-          <ChartContext.Provider value={chart.current}>
-            {children}
-          </ChartContext.Provider>
-        </Container>
-      </Card.Body>
+    <Panel>
       {showToolbar && (
-        <Card.Footer>
-          <div className="w-100 h-100 d-flex gap-3 justify-content-end">
-            <IconButton onClick={() => swapDateFormater()}>
-              <Icon icon={faCalendar} />
-            </IconButton>
-            <IconButton onClick={() => resetZoom()}>
-              <Icon icon={faMagnifyingGlassMinus} />
-            </IconButton>
-            <IconButton onClick={() => downloadChartsPng()}>
-              <Icon icon={faImage} />
-            </IconButton>
-          </div>
-        </Card.Footer>
+        <ChartToolBar
+          onDateAction={swapDateFormater}
+          onZoomAction={resetZoom}
+          onScreenshot={downloadChartsPng}
+        />
       )}
-    </Card>
+      <div
+        ref={chartContainerRef}
+        style={{ height: chartHeight || DEFAULT_CHART_HEIGHT }}
+      >
+        <ChartContext.Provider value={chart.current}>
+          {children}
+        </ChartContext.Provider>
+      </div>
+    </Panel>
   );
 }

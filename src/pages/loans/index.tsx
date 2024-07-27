@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useRef } from 'react';
-import { Container, Row, Col, Card, Form, InputGroup } from 'react-bootstrap';
+import { Container, Row, Col, Form, InputGroup } from 'react-bootstrap';
 import { Loan } from 'src/types/loans';
 import { CoreLayout } from '@layout';
 import { ExportToCsv, downloadBlob } from 'src/utils/downloadCSV';
@@ -25,6 +25,7 @@ import LoansTable from 'src/pages/loans/_LoansTable';
 import MultipleSelect from '@components/UI/MultipleSelect';
 import ConfirmationModal from '@components/UI/ConfirmationModal';
 import useAppStore from '@store';
+import Panel from '@components/Panel';
 import NewCreditModal from './_NewCreditModal';
 import CashFlowOverlay from './_cashFlowOverLay/cashFlowOverlay';
 
@@ -168,18 +169,18 @@ export default function LoansPage() {
               <Button
                 variant="outline-primary"
                 disabled={cashflowsEmpty}
-                onClick={() => onShowCashFlowTable(true)}
-              >
-                <Icon icon={faDollar} className="mr-4" />
-                Visualizar Flujos
-              </Button>
-              <Button
-                variant="outline-primary"
-                disabled={cashflowsEmpty}
                 onClick={onDownloadSeries}
               >
                 <Icon icon={faFileCsv} className="mr-4" />
                 Descargar
+              </Button>
+              <Button
+                variant={cashflowsEmpty ? 'outline-primary' : 'primary'}
+                disabled={cashflowsEmpty}
+                onClick={() => onShowCashFlowTable(true)}
+              >
+                <Icon icon={faDollar} className="mr-4" />
+                Visualizar Flujos
               </Button>
               <Button
                 variant="primary"
@@ -202,39 +203,37 @@ export default function LoansPage() {
               />
             </Chart>
           </Col>
-          <Col sm={12} style={{}}>
-            <Card>
-              <Card.Header>
-                <Row>
-                  <Col sm={12} md={4}>
-                    <MultipleSelect
-                      data={bankSelectItems}
-                      onChange={onBankFilter}
-                      placeholder="Filtra tabla por banco"
-                    />
-                  </Col>
-                  <Col sm={12} md={4} className="align-self-end">
-                    <InputGroup>
-                      <InputGroup.Text className="bg-white border-right-none">
-                        <Icon
-                          className="text-primary"
-                          icon={faCalendar}
-                          fixedWidth
-                        />
-                      </InputGroup.Text>
-                      <Form.Control
-                        type="date"
-                        value={filterDate}
-                        onChange={(a) => {
-                          setFilterDate(a.target.value);
-                        }}
+          <Col sm={12}>
+            <Panel>
+              <Row>
+                <Col sm={12} md={4}>
+                  <MultipleSelect
+                    data={bankSelectItems}
+                    onChange={onBankFilter}
+                    placeholder="Filtra tabla por banco"
+                  />
+                </Col>
+                <Col sm={12} md={4} className="align-self-end">
+                  <InputGroup>
+                    <InputGroup.Text className="bg-white border-right-none">
+                      <Icon
+                        className="text-primary"
+                        icon={faCalendar}
+                        fixedWidth
                       />
-                    </InputGroup>
-                  </Col>
-                </Row>
-              </Card.Header>
+                    </InputGroup.Text>
+                    <Form.Control
+                      type="date"
+                      value={filterDate}
+                      onChange={(a) => {
+                        setFilterDate(a.target.value);
+                      }}
+                    />
+                  </InputGroup>
+                </Col>
+              </Row>
               <LoansTable list={loans} onSelect={setSelectedLoans} />
-            </Card>
+            </Panel>
           </Col>
         </Row>
       </Container>

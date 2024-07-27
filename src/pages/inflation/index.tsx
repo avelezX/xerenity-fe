@@ -2,7 +2,7 @@
 
 import React, { useCallback, useState, useEffect } from 'react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
-import { Container, Row, Col } from 'react-bootstrap';
+import { Container, Row } from 'react-bootstrap';
 import { CoreLayout } from '@layout';
 import { LightSerieValue } from 'src/types/lightserie';
 import { ExportToCsv, downloadBlob } from 'src/utils/downloadCSV';
@@ -123,52 +123,47 @@ export default function LoansPage() {
           </div>
         </Row>
         <Row>
-          <Col sm={12} md={8}>
-            <Panel>
-              <Chart showToolbar>
-                <Chart.Bar
-                  data={priceValues}
-                  color={PURPLE_COLOR_100}
-                  scaleId="right"
-                  title={
-                    prices.findLast((e) => e.id === selectedPrices)?.nombre ||
-                    ''
-                  }
-                />
-              </Chart>
-              <InflationTable data={priceValues} />
-            </Panel>
-          </Col>
-          <Col sm={12} md={4}>
-            <Panel>
-              <div
-                style={{
-                  display: 'flex',
-                  padding: '15px 0',
-                  justifyContent: 'start',
-                  gap: '10px',
+          <Panel>
+            <Chart showToolbar>
+              <Chart.Bar
+                data={priceValues}
+                color={PURPLE_COLOR_100}
+                scaleId="right"
+                title={
+                  prices.findLast((e) => e.id === selectedPrices)?.nombre || ''
+                }
+              />
+            </Chart>
+            <InflationTable data={priceValues} />
+          </Panel>
+          <Panel>
+            <div
+              style={{
+                display: 'flex',
+                padding: '15px 0',
+                justifyContent: 'start',
+                gap: '10px',
+              }}
+            >
+              <Form.Select
+                defaultValue={lagValue}
+                onChange={(e) => {
+                  setLagValue(Number(e.currentTarget.value));
                 }}
               >
-                <Form.Select
-                  defaultValue={lagValue}
-                  onChange={(e) => {
-                    setLagValue(Number(e.currentTarget.value));
-                  }}
-                >
-                  {Array.from(Array(13).keys()).map((item) => (
-                    <option key={`tr-${item}`} value={item}>
-                      {`${item} Periodos de cambio en IPC`}
-                    </option>
-                  ))}
-                </Form.Select>
-              </div>
-              <ConsumerPriceList
-                list={prices}
-                onSelect={onPriceSelect}
-                selected={selectedPrices}
-              />
-            </Panel>
-          </Col>
+                {Array.from(Array(13).keys()).map((item) => (
+                  <option key={`tr-${item}`} value={item}>
+                    {`${item} Periodos de cambio en IPC`}
+                  </option>
+                ))}
+              </Form.Select>
+            </div>
+            <ConsumerPriceList
+              list={prices}
+              onSelect={onPriceSelect}
+              selected={selectedPrices}
+            />
+          </Panel>
         </Row>
       </Container>
       <ToastContainer />
