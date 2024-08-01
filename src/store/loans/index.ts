@@ -15,6 +15,7 @@ import { SelectableRows } from 'src/types/selectableRows';
 
 export interface LoansSlice {
   banks: Bank[];
+  currentSelection: Loan | undefined;
   cashFlows: CashFlowItem[];
   chartData: LightSerieValue[];
   errorMessage: string | undefined;
@@ -50,6 +51,7 @@ export interface LoansSlice {
   getLoanChartData: (mergedCashFlows: LoanCashFlowIbr[]) => void;
   setFilterDate: (newFilterDate: string) => void;
   resetStore: () => void;
+  setCurrentSelection: (loan: Loan) => void;
 }
 
 function calculateCurrentDate(): string {
@@ -76,6 +78,7 @@ const initialState = {
   showNewCreditModal: false,
   selectedBanks: [],
   filterDate: calculateCurrentDate(),
+  currentSelection: undefined,
 };
 
 const createLoansSlice: StateCreator<LoansSlice> = (set) => ({
@@ -103,6 +106,9 @@ const createLoansSlice: StateCreator<LoansSlice> = (set) => ({
         set({ loans });
       }
     }
+  },
+  setCurrentSelection: (loan: Loan) => {
+    set(() => ({ currentSelection: loan }));
   },
   setSelectedLoans: ({ selectedRows }: SelectableRows<Loan>) =>
     set((state) => {
