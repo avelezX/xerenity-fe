@@ -30,6 +30,15 @@ const designSystem = tokens.xerenity;
 const PURPLE_COLOR_100 = designSystem['purple-100'].value;
 
 const PAGE_TITLE = 'Inflación';
+const FILTER_OPTION_TXT = 'Periodos de cambio en IPC';
+const DOWNLOAD_TXT = 'Descargar';
+
+const filterStyles = {
+  display: 'flex',
+  padding: '15px 0',
+  justifyContent: 'start',
+  gap: '10px',
+};
 
 export default function LoansPage() {
   const supabase = createClientComponentClient();
@@ -117,7 +126,7 @@ export default function LoansPage() {
             <Toolbar>
               <Button variant="outline-primary" onClick={downloadSeries}>
                 <Icon icon={faFileCsv} className="mr-4" />
-                Descargar
+                {DOWNLOAD_TXT}
               </Button>
             </Toolbar>
           </div>
@@ -145,14 +154,7 @@ export default function LoansPage() {
           </Col>
           <Col sm={4}>
             <Panel>
-              <div
-                style={{
-                  display: 'flex',
-                  padding: '15px 0',
-                  justifyContent: 'start',
-                  gap: '10px',
-                }}
-              >
+              <div style={filterStyles}>
                 <Form.Select
                   defaultValue={lagValue}
                   onChange={(e) => {
@@ -161,7 +163,7 @@ export default function LoansPage() {
                 >
                   {Array.from(Array(13).keys()).map((item) => (
                     <option key={`tr-${item}`} value={item}>
-                      {`${item} Periodos de cambio en IPC`}
+                      {`${item} ${FILTER_OPTION_TXT}`}
                     </option>
                   ))}
                 </Form.Select>
