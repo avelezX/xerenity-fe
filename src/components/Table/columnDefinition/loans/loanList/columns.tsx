@@ -73,7 +73,7 @@ const LoanListColumns = [
     sortable: true,
   },
   {
-    name: 'Actions',
+    name: 'Acciones',
     cell: (row: Loan) => <DeleteAction loan={row} />,
   },
 ];
