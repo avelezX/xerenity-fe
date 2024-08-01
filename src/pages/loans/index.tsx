@@ -1,8 +1,7 @@
 'use client';
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect } from 'react';
 import { Container, Row, Col, Form, InputGroup } from 'react-bootstrap';
-import { Loan } from 'src/types/loans';
 import { CoreLayout } from '@layout';
 import { ExportToCsv, downloadBlob } from 'src/utils/downloadCSV';
 import { ToastContainer, toast } from 'react-toastify';
@@ -64,6 +63,7 @@ export default function LoansPage() {
     showNewCreditModal,
     showCashFlowTable,
     filterDate,
+    currentSelection,
     setSelectedLoans,
     setSelectedBanks,
     onShowDeleteConfirm,
@@ -74,8 +74,6 @@ export default function LoansPage() {
   } = useAppStore();
 
   const cashflowsEmpty = mergedCashFlows.length === 0;
-
-  const selectedLoan = useRef<Loan>();
 
   const onDownloadSeries = () => {
     const { name, columns, format } = CSV_FILE;
@@ -119,8 +117,8 @@ export default function LoansPage() {
   };
 
   const onDeleteConfirmed = () => {
-    if (selectedLoan.current) {
-      deleteLoanItem(selectedLoan.current.id);
+    if (currentSelection) {
+      deleteLoanItem(currentSelection.id);
     }
   };
 

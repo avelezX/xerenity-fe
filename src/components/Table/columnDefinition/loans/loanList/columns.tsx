@@ -1,5 +1,28 @@
+import IconButton from '@components/UI/IconButton';
+import { FontAwesomeIcon as Icon } from '@fortawesome/react-fontawesome';
+import { faTrash } from '@fortawesome/free-solid-svg-icons';
 import { Loan } from 'src/types/loans';
 import currencyFormat from 'src/utils/currencyFormat';
+import useAppStore from '@store';
+
+type DeletActionProps = {
+  loan: Loan;
+};
+
+const DeleteAction = ({ loan }: DeletActionProps) => {
+  const { onShowDeleteConfirm, setCurrentSelection } = useAppStore();
+
+  return (
+    <IconButton
+      onClick={() => {
+        setCurrentSelection(loan);
+        onShowDeleteConfirm(true);
+      }}
+    >
+      <Icon icon={faTrash} />
+    </IconButton>
+  );
+};
 
 const LoanListColumns = [
   {
@@ -48,7 +71,10 @@ const LoanListColumns = [
     selector: (row: Loan) =>
       row.type === 'fija' ? '0.00%' : `${row.interest_rate}%`,
     sortable: true,
-    button: true,
+  },
+  {
+    name: 'Acciones',
+    cell: (row: Loan) => <DeleteAction loan={row} />,
   },
 ];
 
