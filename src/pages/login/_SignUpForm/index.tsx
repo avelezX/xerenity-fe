@@ -5,7 +5,7 @@ import {
   faUser,
   faEarthAmericas,
 } from '@fortawesome/free-solid-svg-icons';
-import { Form, InputGroup, Collapse } from 'react-bootstrap';
+import { InputGroup, Collapse } from 'react-bootstrap';
 import { useRef, useState } from 'react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import Button from '@components/UI/Button';
@@ -22,6 +22,7 @@ import * as Yup from 'yup';
 import strings from '../../../strings/signup.json';
 import ErrorMsg from '../_ErrorMsg';
 import countries from '../../../strings/countries.json';
+import SignFormContainer from './SignFormContainer.styled';
 
 const { form } = strings;
 
@@ -92,109 +93,107 @@ function SingUpForm({ captchaKey }: SingUpFormProps) {
       validationSchema={signUpSchema}
     >
       {({ values, handleChange, isSubmitting, handleSubmit }) => (
-        <div className="d-flex flex-column w-100 justify-content-center align-items-center py-5">
-          <Form
-            onSubmit={handleSubmit}
-            className="w-50 d-flex justify-content-center flex-column gap-4"
-          >
-            <Form.Group controlId="email">
-              <InputGroup>
-                <InputGroup.Text className="bg-white border-right-none">
-                  <Icon className="text-primary" icon={faEnvelope} fixedWidth />
-                </InputGroup.Text>
-                <Form.Control
-                  placeholder={form.email}
-                  type="email"
-                  value={values.email}
-                  onChange={handleChange}
-                />
-              </InputGroup>
-              <ErrorMessage name="email">
-                {(msg: string) => <ErrorMsg>{msg}</ErrorMsg>}
-              </ErrorMessage>
-            </Form.Group>
-
-            <Form.Group controlId="password">
-              <InputGroup>
-                <InputGroup.Text className="bg-white">
-                  <Icon className="text-primary" icon={faLock} fixedWidth />
-                </InputGroup.Text>
-                <Form.Control
-                  placeholder={form.password}
-                  type="password"
-                  value={values.password}
-                  onChange={handleChange}
-                />
-              </InputGroup>
-              <ErrorMessage name="password">
-                {(msg: string) => <ErrorMsg>{msg}</ErrorMsg>}
-              </ErrorMessage>
-            </Form.Group>
-
-            <Form.Group controlId="name">
-              <InputGroup>
-                <InputGroup.Text className="bg-white">
-                  <Icon className="text-primary" icon={faUser} fixedWidth />
-                </InputGroup.Text>
-                <Form.Control
-                  placeholder={form.nombre}
-                  type="text"
-                  value={values.name}
-                  onChange={handleChange}
-                />
-              </InputGroup>
-              <ErrorMessage name="name">
-                {(msg: string) => <ErrorMsg>{msg}</ErrorMsg>}
-              </ErrorMessage>
-            </Form.Group>
-
-            <Form.Group controlId="country">
-              <InputGroup>
-                <InputGroup.Text className="bg-white">
-                  <Icon
-                    className="text-primary"
-                    icon={faEarthAmericas}
-                    fixedWidth
-                  />
-                </InputGroup.Text>
-                <Form.Select value={values.country} onChange={handleChange}>
-                  {countries.map((cty) => (
-                    <option key={cty.code} value={cty.code}>
-                      {cty.name}
-                    </option>
-                  ))}
-                </Form.Select>
-              </InputGroup>
-              <ErrorMessage name="country">
-                {(msg: string) => <ErrorMsg>{msg}</ErrorMsg>}
-              </ErrorMessage>
-            </Form.Group>
-            <div className="d-flex justify-content-center">
-              <HCaptcha
-                languageOverride="es"
-                ref={captcha}
-                sitekey={captchaKey}
-                onVerify={(token) => {
-                  setCaptchaToken(token);
-                }}
+        <SignFormContainer onSubmit={handleSubmit}>
+          <SignFormContainer.Group controlId="email">
+            <InputGroup>
+              <InputGroup.Text className="bg-white border-right-none">
+                <Icon className="text-primary" icon={faEnvelope} fixedWidth />
+              </InputGroup.Text>
+              <SignFormContainer.Control
+                placeholder={form.email}
+                type="email"
+                value={values.email}
+                onChange={handleChange}
               />
-            </div>
+            </InputGroup>
+            <ErrorMessage name="email">
+              {(msg: string) => <ErrorMsg>{msg}</ErrorMsg>}
+            </ErrorMessage>
+          </SignFormContainer.Group>
 
-            <div className="d-flex justify-content-center">
-              <Button type="submit" disabled={!captchaToken && !isSubmitting}>
-                {form.action}
-                {isSubmitting && <Spinner size="sm" />}
-              </Button>
-            </div>
-            <Collapse in={newSignUpAction}>
-              <div className="row">
-                <div className="col">
-                  <Alert>{signUpMsg}</Alert>
-                </div>
+          <SignFormContainer.Group controlId="password">
+            <InputGroup>
+              <InputGroup.Text className="bg-white">
+                <Icon className="text-primary" icon={faLock} fixedWidth />
+              </InputGroup.Text>
+              <SignFormContainer.Control
+                placeholder={form.password}
+                type="password"
+                value={values.password}
+                onChange={handleChange}
+              />
+            </InputGroup>
+            <ErrorMessage name="password">
+              {(msg: string) => <ErrorMsg>{msg}</ErrorMsg>}
+            </ErrorMessage>
+          </SignFormContainer.Group>
+
+          <SignFormContainer.Group controlId="name">
+            <InputGroup>
+              <InputGroup.Text className="bg-white">
+                <Icon className="text-primary" icon={faUser} fixedWidth />
+              </InputGroup.Text>
+              <SignFormContainer.Control
+                placeholder={form.nombre}
+                type="text"
+                value={values.name}
+                onChange={handleChange}
+              />
+            </InputGroup>
+            <ErrorMessage name="name">
+              {(msg: string) => <ErrorMsg>{msg}</ErrorMsg>}
+            </ErrorMessage>
+          </SignFormContainer.Group>
+
+          <SignFormContainer.Group controlId="country">
+            <InputGroup>
+              <InputGroup.Text className="bg-white">
+                <Icon
+                  className="text-primary"
+                  icon={faEarthAmericas}
+                  fixedWidth
+                />
+              </InputGroup.Text>
+              <SignFormContainer.Select
+                value={values.country}
+                onChange={handleChange}
+              >
+                {countries.map((cty) => (
+                  <option key={cty.code} value={cty.code}>
+                    {cty.name}
+                  </option>
+                ))}
+              </SignFormContainer.Select>
+            </InputGroup>
+            <ErrorMessage name="country">
+              {(msg: string) => <ErrorMsg>{msg}</ErrorMsg>}
+            </ErrorMessage>
+          </SignFormContainer.Group>
+          <div className="d-flex justify-content-center">
+            <HCaptcha
+              languageOverride="es"
+              ref={captcha}
+              sitekey={captchaKey}
+              onVerify={(token) => {
+                setCaptchaToken(token);
+              }}
+            />
+          </div>
+
+          <div className="form-actions">
+            <Button type="submit" disabled={!captchaToken && !isSubmitting}>
+              {form.action}
+              {isSubmitting && <Spinner size="sm" />}
+            </Button>
+          </div>
+          <Collapse in={newSignUpAction}>
+            <div className="row">
+              <div className="col">
+                <Alert>{signUpMsg}</Alert>
               </div>
-            </Collapse>
-          </Form>
-        </div>
+            </div>
+          </Collapse>
+        </SignFormContainer>
       )}
     </Formik>
   );

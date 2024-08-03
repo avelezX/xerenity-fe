@@ -1,6 +1,6 @@
 import { FontAwesomeIcon as Icon } from '@fortawesome/react-fontawesome';
 import { faLock, faUser } from '@fortawesome/free-solid-svg-icons';
-import { Form, InputGroup, Collapse } from 'react-bootstrap';
+import { InputGroup, Collapse } from 'react-bootstrap';
 import { useRef, useState } from 'react';
 import { useRouter } from 'next/router';
 import { deleteCookie, getCookie } from 'cookies-next';
@@ -20,6 +20,7 @@ import HCaptcha from '@hcaptcha/react-hcaptcha';
 import strings from '../../../strings/login.json';
 import ErrorMsg from '../_ErrorMsg';
 import SendResetPasswordModal from '../_SendReset';
+import LoginFormContainer from './LoginFormContainer.styled';
 
 const { form } = strings;
 
@@ -90,103 +91,83 @@ function LoginForm({ captchaKey }: LoginFormProps) {
 
   return (
     <>
-      <SendResetPasswordModal
-        onCancel={() => setShowResetModal(false)}
-        show={showResetModal}
-        modalTitle={form.reset}
-      />
       <Formik
         initialValues={initialValues}
         onSubmit={onSubmit}
         validationSchema={signInSchema}
       >
         {({ values, handleChange, isSubmitting, handleSubmit }) => (
-          <div className="d-flex flex-column w-100 justify-content-center align-items-center py-5">
-            <Form
-              onSubmit={handleSubmit}
-              className="w-50 d-flex justify-content-center flex-column gap-4"
-            >
-              <Form.Group controlId="email">
-                <InputGroup>
-                  <InputGroup.Text className="bg-white">
-                    <Icon className="text-primary" icon={faUser} fixedWidth />
-                  </InputGroup.Text>
-                  <Form.Control
-                    placeholder={form.email}
-                    type="email"
-                    value={values.email}
-                    onChange={handleChange}
-                  />
-                </InputGroup>
-                <ErrorMessage name="email">
-                  {(msg: string) => <ErrorMsg>{msg}</ErrorMsg>}
-                </ErrorMessage>
-              </Form.Group>
-              <Form.Group controlId="password">
-                <InputGroup>
-                  <InputGroup.Text className="bg-white">
-                    <Icon className="text-primary" icon={faLock} fixedWidth />
-                  </InputGroup.Text>
-                  <Form.Control
-                    placeholder={form.password}
-                    type="password"
-                    value={values.password}
-                    onChange={handleChange}
-                  />
-                </InputGroup>
-                <ErrorMessage name="password">
-                  {(msg: string) => <ErrorMsg>{msg}</ErrorMsg>}
-                </ErrorMessage>
-              </Form.Group>
-              <div className="d-flex justify-content-center">
-                <HCaptcha
-                  languageOverride="es"
-                  ref={captcha}
-                  sitekey={captchaKey}
-                  onVerify={(token) => {
-                    setCaptchaToken(token);
-                  }}
+          <LoginFormContainer onSubmit={handleSubmit}>
+            <LoginFormContainer.Group controlId="email">
+              <InputGroup>
+                <InputGroup.Text className="bg-white">
+                  <Icon className="text-primary" icon={faUser} fixedWidth />
+                </InputGroup.Text>
+                <LoginFormContainer.Control
+                  placeholder={form.email}
+                  type="email"
+                  value={values.email}
+                  onChange={handleChange}
                 />
-              </div>
-              <div className="d-flex justify-content-center">
-                <div className="row">
-                  <div className="col">
-                    <span
-                      onClick={() => setShowResetModal(true)}
-                      onKeyDown={() => {}}
-                      role="button"
-                      tabIndex={0}
-                    >
-                      <a
-                        href="#"
-                        className="link-primary link-underline-opacity-100-hover"
-                      >
-                        {form.forgot}
-                      </a>
-                    </span>
-                  </div>
-                  <div className="col">
-                    <Button
-                      type="submit"
-                      disabled={!captchaToken && !isSubmitting}
-                    >
-                      {form.action}
-                      {isSubmitting && <Spinner size="sm" />}
-                    </Button>
-                  </div>
+              </InputGroup>
+              <ErrorMessage name="email">
+                {(msg: string) => <ErrorMsg>{msg}</ErrorMsg>}
+              </ErrorMessage>
+            </LoginFormContainer.Group>
+            <LoginFormContainer.Group controlId="password">
+              <InputGroup>
+                <InputGroup.Text className="bg-white">
+                  <Icon className="text-primary" icon={faLock} fixedWidth />
+                </InputGroup.Text>
+                <LoginFormContainer.Control
+                  placeholder={form.password}
+                  type="password"
+                  value={values.password}
+                  onChange={handleChange}
+                />
+              </InputGroup>
+              <ErrorMessage name="password">
+                {(msg: string) => <ErrorMsg>{msg}</ErrorMsg>}
+              </ErrorMessage>
+            </LoginFormContainer.Group>
+            <div className="d-flex justify-content-center">
+              <HCaptcha
+                languageOverride="es"
+                ref={captcha}
+                sitekey={captchaKey}
+                onVerify={(token) => {
+                  setCaptchaToken(token);
+                }}
+              />
+            </div>
+            <footer className="form-actions">
+              <Button type="submit" disabled={!captchaToken && !isSubmitting}>
+                {form.action}
+                {isSubmitting && <Spinner size="sm" />}
+              </Button>
+              <a
+                onClick={() => setShowResetModal(true)}
+                href="#"
+                className="link-primary link-underline-opacity-100-hover"
+              >
+                {form.forgot}
+              </a>
+            </footer>
+            <Collapse in={newErrorLogin}>
+              <div className="row">
+                <div className="col">
+                  <Alert>{loginErrorMsg}</Alert>
                 </div>
               </div>
-              <Collapse in={newErrorLogin}>
-                <div className="row">
-                  <div className="col">
-                    <Alert>{loginErrorMsg}</Alert>
-                  </div>
-                </div>
-              </Collapse>
-            </Form>
-          </div>
+            </Collapse>
+          </LoginFormContainer>
         )}
       </Formik>
+      <SendResetPasswordModal
+        onCancel={() => setShowResetModal(false)}
+        show={showResetModal}
+        modalTitle={form.reset}
+      />
     </>
   );
 }

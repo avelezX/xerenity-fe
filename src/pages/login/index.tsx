@@ -6,8 +6,9 @@ import { Image } from 'react-bootstrap';
 import { Tab, Tabs, TabItemType } from '@components/UI/Tabs';
 import LoginForm from './_LoginForm';
 import SingUpForm from './_SignUpForm';
-import LoginChart from './LoginChart';
+import LoginChart from './_LoginChart';
 import PoweredBy from './_PoweredBy';
+import LoginContainer from './_LoginContainer.styled';
 
 // fyi: Order of this array afects rendering
 const TAB_ITEMS: TabItemType[] = [
@@ -25,7 +26,7 @@ const TAB_ITEMS: TabItemType[] = [
 
 const LOGO_SETTINGS = {
   url: '/assets/img/brand/logo.svg',
-  width: '200',
+  width: '150',
   alt: 'xerenity logo',
 };
 
@@ -44,44 +45,44 @@ const LoginPage: NextPage = () => {
   };
 
   return (
-    <div className="container-fluid h-100">
-      <div className="row min-vh-100">
-        <div className="bg-white min-vh-100 d-flex flex-column justify-content-between gap-5 px-5 col-md-6 col-lg-7">
-          <div className="d-flex flex-column gap-3 py-5">
-            <Image
-              src={LOGO_SETTINGS.url}
-              fluid
-              draggable="false"
-              width={LOGO_SETTINGS.width}
-              alt={LOGO_SETTINGS.alt}
-              className="mx-auto d-block pb-3"
-            />
-            <div className="d-flex justify-content-center">
-              <Tabs>
-                {formTabs.map(({ active, name, property }) => (
-                  <Tab
-                    active={active}
-                    key={name}
-                    onClick={() => handleTabChange(property)}
-                  >
-                    {name}
-                  </Tab>
-                ))}
-              </Tabs>
-            </div>
+    <LoginContainer>
+      <aside className="form-wrapper">
+        <div className="container">
+          <Image
+            src={LOGO_SETTINGS.url}
+            fluid
+            draggable="false"
+            width={LOGO_SETTINGS.width}
+            alt={LOGO_SETTINGS.alt}
+            className="mx-auto d-block pb-3"
+          />
+          <nav className="login-tabs">
+            <Tabs>
+              {formTabs.map(({ active, name, property }) => (
+                <Tab
+                  active={active}
+                  key={name}
+                  onClick={() => handleTabChange(property)}
+                >
+                  {name}
+                </Tab>
+              ))}
+            </Tabs>
+          </nav>
+          <div className="login-forms">
             {formTabs[0].active ? (
               <LoginForm captchaKey={CAPTCHA_SITE_KEY} />
             ) : (
               <SingUpForm captchaKey={CAPTCHA_SITE_KEY} />
             )}
           </div>
-          <div className="py-5">
-            <PoweredBy />
-          </div>
         </div>
+        <PoweredBy />
+      </aside>
+      <figure className="chart-wrapper">
         <LoginChart />
-      </div>
-    </div>
+      </figure>
+    </LoginContainer>
   );
 };
 
