@@ -22,8 +22,10 @@ type SendResetProps = {
   modalTitle: string;
 };
 
+const MODAL_TXT =
+  'Escribe tu email para iniciar el proceso de restauración de tu contraseña';
 const CANCEL_TXT = 'Cancelar';
-const SAVE_TXT = 'Enviar';
+const SAVE_TXT = 'Restaurar';
 
 function SendResetPasswordModal({
   onCancel,
@@ -78,36 +80,27 @@ function SendResetPasswordModal({
           cancelText={CANCEL_TXT}
           saveText={SAVE_TXT}
         >
-          <div className="container-fluid w-95">
-            <div className="row">
-              <div className="col">
-                <Form className="d-flex justify-content-center flex-column gap-3">
-                  <Form.Group controlId="email">
-                    <InputGroup>
-                      <InputGroup.Text className="bg-white border-right-none">
-                        <Icon
-                          className="text-primary"
-                          icon={faEnvelope}
-                          fixedWidth
-                        />
-                      </InputGroup.Text>
-                      <Form.Control
-                        placeholder={form.email}
-                        type="email"
-                        value={values.email}
-                        onChange={handleChange}
-                      />
-                    </InputGroup>
-                    <ErrorMessage name="email">
-                      {(msg: string) => <ErrorMsg>{msg}</ErrorMsg>}
-                    </ErrorMessage>
-                  </Form.Group>
-                </Form>
-              </div>
-            </div>
-            <div className="row">
-              <div className="col">{message}</div>
-            </div>
+          <Form className="d-flex justify-content-center flex-column gap-3 p-4">
+            <p>{MODAL_TXT}</p>
+            <Form.Group controlId="email">
+              <InputGroup>
+                <InputGroup.Text className="bg-white border-right-none">
+                  <Icon className="text-primary" icon={faEnvelope} fixedWidth />
+                </InputGroup.Text>
+                <Form.Control
+                  placeholder={form.email}
+                  type="email"
+                  value={values.email}
+                  onChange={handleChange}
+                />
+              </InputGroup>
+              <ErrorMessage name="email">
+                {(msg: string) => <ErrorMsg>{msg}</ErrorMsg>}
+              </ErrorMessage>
+            </Form.Group>
+          </Form>
+          <div className="row">
+            <div className="col">{message}</div>
           </div>
         </Modal>
       )}

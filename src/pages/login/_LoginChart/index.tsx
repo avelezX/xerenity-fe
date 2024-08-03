@@ -42,23 +42,19 @@ function LoginChart() {
   }, [supabase]);
 
   return (
-    <div className="min-h-100 col-xs-12 col-md-6 col-lg-5 py-3">
-      <div className="w-100 h-100 d-flex justify-content-center align-items-center">
-        <Carousel className="w-100">
-          <Carousel.Item>
-            <Chart chartHeight={400}>
-              <Chart.Candle data={tesCandeSerie.values} scaleId="right" />
-              <Chart.Volume
-                data={volumenSerie}
-                scaleId="left"
-                title="Volumen"
-                color={GRAY_COLOR_300}
-              />
-            </Chart>
-          </Carousel.Item>
-        </Carousel>
-      </div>
-    </div>
+    <Carousel className="w-100">
+      <Carousel.Item>
+        <Chart chartHeight={400}>
+          <Chart.Candle data={tesCandeSerie.values} scaleId="right" />
+          <Chart.Volume
+            data={volumenSerie}
+            scaleId="left"
+            title="Volumen"
+            color={GRAY_COLOR_300}
+          />
+        </Chart>
+      </Carousel.Item>
+    </Carousel>
   );
 }
 
