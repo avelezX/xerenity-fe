@@ -60,7 +60,7 @@ export default function LoansPage() {
     loans,
     mergedCashFlows,
     showDeleteConfirm,
-    showNewCreditModal,
+    showNewLoanModal,
     showCashFlowTable,
     filterDate,
     currentSelection,
@@ -120,11 +120,6 @@ export default function LoansPage() {
     if (currentSelection) {
       deleteLoanItem(currentSelection.id);
     }
-  };
-
-  const onNewLoanCreated = () => {
-    getLoanData();
-    onShowNewLoanModal(false);
   };
 
   useEffect(() => {
@@ -243,8 +238,7 @@ export default function LoansPage() {
         onDelete={onDeleteConfirmed}
       />
       <NewCreditModal
-        show={showNewCreditModal}
-        onLoanCreated={onNewLoanCreated}
+        show={showNewLoanModal}
         onShow={onShowNewLoanModal}
         bankList={banks}
       />
