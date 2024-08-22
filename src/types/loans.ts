@@ -42,3 +42,5 @@ export type CashFlowItem = {
   loanId: string;
   flows: LoanCashFlowIbr[];
 };
+
+export type NewLoanValues = Omit<Loan, 'id'>;

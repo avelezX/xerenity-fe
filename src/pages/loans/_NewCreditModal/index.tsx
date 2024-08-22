@@ -1,19 +1,17 @@
 'use client';
 
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import React, { useState } from 'react';
+import * as Yup from 'yup';
 import { Formik, ErrorMessage, FormikValues } from 'formik';
 import { Form, Modal, Col, Row, Button } from 'react-bootstrap';
 import { NumericFormat } from 'react-number-format';
-import { LoanType, Bank } from 'src/types/loans';
-import { toast } from 'react-toastify';
-import * as Yup from 'yup';
+import useAppStore from '@store';
+import { LoanType, Bank, NewLoanValues } from 'src/types/loans';
 import BalanceField from './BalanceField';
 
 interface NewCreditModalProps {
   show: boolean;
   bankList: Bank[];
-  onLoanCreated: () => void;
   onShow: (show: boolean) => void;
 }
 
@@ -69,13 +67,8 @@ const nameMapping: { [id: string]: string } = {
 const NUM_PAYMENTS_TXT = 'Número de pagos';
 const INTEREST_TXT = 'Interés nominal anual';
 
-const NewCreditModal = ({
-  show,
-  onLoanCreated,
-  bankList,
-  onShow,
-}: NewCreditModalProps) => {
-  const supabase = createClientComponentClient();
+const NewCreditModal = ({ show, bankList, onShow }: NewCreditModalProps) => {
+  const { createLoan } = useAppStore();
   const [currentLoanType, setLoanType] = useState<
     string | 'fija' | 'ibr' | 'uvr'
   >(initialValues.type);
@@ -83,31 +76,7 @@ const NewCreditModal = ({
 
   const [hasMinRate, setHasMinRate] = useState<boolean>(false);
 
-  const handleClose = () => {
-    onShow(false);
-  };
-
-  const onFormSubmit = async (values: FormikValues) => {
-    // Format original_balance back to number before sending values to DB
-    const valuesCopy = {
-      ...values,
-      original_balance: values.original_balance
-        ? Number(values.original_balance.split(',').join(''))
-        : undefined,
-    };
-
-    // TODO: Move this call to /models/loans folder
-    const { data } = await supabase
-      .schema('xerenity')
-      .rpc('create_credit', valuesCopy);
-
-    if (data) {
-      toast.info('El credito fue creado exitosamente', {
-        position: toast.POSITION.BOTTOM_RIGHT,
-      });
-      onLoanCreated();
-    }
-  };
+  const handleClose = () => onShow(false);
 
   const getInterestLabel = (interest: string) => {
     const percentageVal = interest !== '' ? `${interest}%` : '';
@@ -127,7 +96,18 @@ const NewCreditModal = ({
       <Formik
         validationSchema={loanSchema}
         initialValues={initialValues}
-        onSubmit={onFormSubmit}
+        onSubmit={(values: FormikValues, { resetForm }) => {
+          // Format original_balance back to number before sending values to DB
+          const valuesCopy = {
+            ...values,
+            original_balance: values.original_balance
+              ? Number(values.original_balance.split(',').join(''))
+              : undefined,
+          };
+
+          createLoan(valuesCopy as NewLoanValues);
+          resetForm();
+        }}
       >
         {({
           values,

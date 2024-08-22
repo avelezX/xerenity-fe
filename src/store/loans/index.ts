@@ -1,6 +1,13 @@
 import { StateCreator } from 'zustand';
-import { Bank, Loan, LoanCashFlowIbr, CashFlowItem } from 'src/types/loans';
 import {
+  Bank,
+  Loan,
+  LoanCashFlowIbr,
+  CashFlowItem,
+  NewLoanValues,
+} from 'src/types/loans';
+import {
+  createNewLoan,
   fetchCashFlows,
   deleteLoan,
   fetchBanks,
@@ -9,6 +16,7 @@ import {
   BankResponse,
   CashflowResponse,
   DeleteLoanResponse,
+  CreateLoanResponse,
 } from 'src/models/loans';
 import { LightSerieValue } from 'src/types/lightserie';
 import { SelectableRows } from 'src/types/selectableRows';
@@ -18,6 +26,7 @@ export interface LoansSlice {
   currentSelection: Loan | undefined;
   cashFlows: CashFlowItem[];
   chartData: LightSerieValue[];
+  createLoan: (values: NewLoanValues) => void;
   errorMessage: string | undefined;
   successMessage: string | undefined;
   mergedCashFlows: LoanCashFlowIbr[];
@@ -26,7 +35,7 @@ export interface LoansSlice {
   selectedLoans: string[];
   showDeleteConfirm: boolean;
   showLoanModal: boolean;
-  showNewCreditModal: boolean;
+  showNewLoanModal: boolean;
   selectedBanks: Bank[];
   showCashFlowTable: boolean;
   filterDate: string;
@@ -75,7 +84,7 @@ const initialState = {
   showCashFlowTable: false,
   showDeleteConfirm: false,
   showLoanModal: false,
-  showNewCreditModal: false,
+  showNewLoanModal: false,
   selectedBanks: [],
   filterDate: calculateCurrentDate(),
   currentSelection: undefined,
@@ -84,6 +93,31 @@ const initialState = {
 const createLoansSlice: StateCreator<LoansSlice> = (set) => ({
   ...initialState,
   // Store Actions
+  createLoan: async (values: NewLoanValues) => {
+    set((state) => {
+      state.onShowNewLoanModal(false);
+      return {
+        loading: true,
+        errorMessage: undefined,
+        successMessage: undefined,
+      };
+    });
+
+    const response: CreateLoanResponse = await createNewLoan(values);
+
+    if (response.error) {
+      set({ loading: false });
+      set({ errorMessage: response.error });
+    } else if (response.data) {
+      set((state) => {
+        state.getLoanData();
+        return {
+          loading: false,
+          successMessage: response.data?.message,
+        };
+      });
+    }
+  },
   getLoanData: async (bankFilter: Bank[] = []) => {
     // Set initial state before fetching data
     set({ loading: true, errorMessage: undefined, successMessage: undefined });
@@ -174,7 +208,7 @@ const createLoansSlice: StateCreator<LoansSlice> = (set) => ({
     set(() => ({ showCashFlowTable: show })),
   onShowLoanModal: (show: boolean) => set(() => ({ showLoanModal: show })),
   onShowNewLoanModal: (show: boolean) =>
-    set(() => ({ showNewCreditModal: show })),
+    set(() => ({ showNewLoanModal: show })),
   deleteLoanItem: async (loanId) => {
     set({ loading: true, errorMessage: undefined, successMessage: undefined });
     const response: DeleteLoanResponse = await deleteLoan(loanId);
