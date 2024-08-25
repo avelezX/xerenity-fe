@@ -56,6 +56,7 @@ const { actions } = strings;
 const RIGHT_AXIS = 'right';
 const LEFT_AXIS = 'left';
 const PAGE_TITLE = 'Series';
+const NORMALIZE_SINCE = 'Normalizar desde:';
 
 export default function Dashboard() {
   const supabase = createClientComponentClient();
@@ -303,7 +304,7 @@ export default function Dashboard() {
             <Toolbar>
               <InputGroup>
                 <InputGroup.Checkbox onChange={handleNormalize} />
-                <InputGroup.Text>Normalizar</InputGroup.Text>
+                <InputGroup.Text>{NORMALIZE_SINCE}</InputGroup.Text>
                 <Form.Control
                   type="date"
                   onChange={(a) => {

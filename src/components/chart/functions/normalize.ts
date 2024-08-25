@@ -13,8 +13,9 @@ export default function normalizeSeries({
 
   if (existingSeries.length > 0) {
     let divisor: number = existingSeries[0].value;
-
+    let dateCompare: string = existingSeries[0].time;
     if (fromNormalizeDate) {
+      dateCompare = fromNormalizeDate;
       for (let i = 0; i < existingSeries.length; i += 1) {
         const cur = existingSeries[i];
         const previous = existingSeries[i - 1];
@@ -24,28 +25,22 @@ export default function normalizeSeries({
           break;
         } else if (previous && next) {
           if (previous < cur && next > cur) {
-            divisor = cur.value;
+            divisor = next.value;
+            dateCompare = next.time;
             break;
           }
         }
       }
+    }
 
-      existingSeries.forEach((entry) => {
-        if (entry.time >= fromNormalizeDate) {
-          nSerie.push({
-            value: entry.value / divisor,
-            time: entry.time,
-          });
-        }
-      });
-    } else {
-      existingSeries.forEach((entry) => {
+    existingSeries.forEach((entry) => {
+      if (entry.time >= dateCompare) {
         nSerie.push({
           value: entry.value / divisor,
           time: entry.time,
         });
-      });
-    }
+      }
+    });
   }
 
   return nSerie;

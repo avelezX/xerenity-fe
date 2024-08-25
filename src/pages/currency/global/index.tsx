@@ -28,6 +28,7 @@ import MonedasModal from './_MonedasModal';
 
 const designSystem = tokens.xerenity;
 const GRAY_COLOR_300 = designSystem['gray-300'].value;
+const NORMALIZE_SINCE = 'Normalizar desde:';
 
 const PAGE_TITLE = 'Monedas: Global';
 
@@ -164,7 +165,7 @@ export default function CurrecnyViewer() {
             <Toolbar>
               <InputGroup>
                 <InputGroup.Checkbox onChange={handleNormalize} />
-                <InputGroup.Text>Normalizar</InputGroup.Text>
+                <InputGroup.Text>{NORMALIZE_SINCE}</InputGroup.Text>
                 <Form.Control
                   type="date"
                   onChange={(a) => {
