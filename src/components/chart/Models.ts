@@ -14,6 +14,7 @@ export type TimeValueSerie = {
   title: string;
   scaleId?: string;
   applyFunctions?: string[];
+  fromNormalizeDate?: string;
 } & PropsWithChildren;
 
 export type CandleSerieProps = {

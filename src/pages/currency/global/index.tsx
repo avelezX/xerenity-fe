@@ -2,7 +2,7 @@
 
 import { CoreLayout } from '@layout';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
-import { Row, Col, Table } from 'react-bootstrap';
+import { Row, Col, Table, InputGroup, Form } from 'react-bootstrap';
 import React, { useState, useCallback, useRef } from 'react';
 import Container from 'react-bootstrap/Container';
 import {
@@ -16,7 +16,6 @@ import {
   faClose,
   faFileCsv,
   faMoneyBill,
-  faSquarePollHorizontal,
 } from '@fortawesome/free-solid-svg-icons';
 import { toast } from 'react-toastify';
 import Chart from '@components/chart/Chart';
@@ -34,6 +33,7 @@ const PAGE_TITLE = 'Monedas: Global';
 
 export default function CurrecnyViewer() {
   const supabase = createClientComponentClient();
+  const normalizeDate = useRef<string>('');
   const [showCurrencyModal, onShowCurrencyModal] = useState<boolean>(false);
   const [applyFunctions, setApplyunctions] = useState<string[]>([]);
   const normalize = useRef<boolean>(false);
@@ -162,10 +162,16 @@ export default function CurrecnyViewer() {
         <Row>
           <div className="d-flex justify-content-end pb-3">
             <Toolbar>
-              <Button variant="outline-primary" onClick={handleNormalize}>
-                <Icon icon={faSquarePollHorizontal} className="mr-4" />
-                Normalizar
-              </Button>
+              <InputGroup>
+                <InputGroup.Checkbox onChange={handleNormalize} />
+                <InputGroup.Text>Normalizar</InputGroup.Text>
+                <Form.Control
+                  type="date"
+                  onChange={(a) => {
+                    normalizeDate.current = a.target.value;
+                  }}
+                />
+              </InputGroup>
               <Button variant="outline-primary" onClick={downloadSeries}>
                 <Icon icon={faFileCsv} className="mr-4" />
                 Descargar
@@ -191,6 +197,7 @@ export default function CurrecnyViewer() {
                   title={data.name}
                   scaleId="right"
                   applyFunctions={applyFunctions}
+                  fromNormalizeDate={normalizeDate.current}
                 />
               ))}
             </Chart>
