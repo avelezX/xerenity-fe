@@ -15,11 +15,20 @@ export default function normalizeSeries({
     let divisor: number = existingSeries[0].value;
 
     if (fromNormalizeDate) {
-      existingSeries.forEach((dte) => {
-        if (dte.time === fromNormalizeDate) {
-          divisor = dte.value;
+      for (let i = 0; i < existingSeries.length; i += 1) {
+        const cur = existingSeries[i];
+        const previous = existingSeries[i - 1];
+        const next = existingSeries[i + 1];
+        if (cur.time === fromNormalizeDate) {
+          divisor = cur.value;
+          break;
+        } else if (previous && next) {
+          if (previous < cur && next > cur) {
+            divisor = cur.value;
+            break;
+          }
         }
-      });
+      }
 
       existingSeries.forEach((entry) => {
         if (entry.time >= fromNormalizeDate) {
