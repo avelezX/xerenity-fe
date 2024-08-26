@@ -19,6 +19,7 @@ function LineSerie({
   children,
   scaleId,
   applyFunctions,
+  fromNormalizeDate,
 }: TimeValueSerie) {
   const chartContext = useChartContext();
 
@@ -49,7 +50,10 @@ function LineSerie({
           applyFunctions.forEach((funcName) => {
             switch (funcName) {
               case 'normalize':
-                newData = normalizeSeries(data);
+                newData = normalizeSeries({
+                  existingSeries: data,
+                  fromNormalizeDate,
+                });
                 break;
               default:
                 break;

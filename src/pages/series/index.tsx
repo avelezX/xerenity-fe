@@ -10,6 +10,8 @@ import {
   Col,
   Container,
   Accordion,
+  Form,
+  InputGroup,
 } from 'react-bootstrap';
 import React, {
   useState,
@@ -26,7 +28,6 @@ import {
 } from 'src/types/lightserie';
 import { FontAwesomeIcon as Icon } from '@fortawesome/react-fontawesome';
 import {
-  faSquarePollHorizontal,
   faFileCsv,
   faMagnifyingGlass,
   faChartSimple,
@@ -55,9 +56,13 @@ const { actions } = strings;
 const RIGHT_AXIS = 'right';
 const LEFT_AXIS = 'left';
 const PAGE_TITLE = 'Series';
+const NORMALIZE_SINCE = 'Normalizar desde:';
 
 export default function Dashboard() {
   const supabase = createClientComponentClient();
+
+  const normalizeDate = useRef<string>('');
+
   const [loadingSerie, setLowdingSerie] = useState(false);
   const [selectedInfoSerie, handleSelectInfoSerie] =
     useState<LightSerieEntry | null>(null);
@@ -297,10 +302,16 @@ export default function Dashboard() {
         <Row>
           <div className="d-flex justify-content-end pb-3">
             <Toolbar>
-              <Button variant="outline-primary" onClick={handleNormalize}>
-                <Icon icon={faSquarePollHorizontal} className="mr-4" />
-                Normalizar
-              </Button>
+              <InputGroup>
+                <InputGroup.Checkbox onChange={handleNormalize} />
+                <InputGroup.Text>{NORMALIZE_SINCE}</InputGroup.Text>
+                <Form.Control
+                  type="date"
+                  onChange={(a) => {
+                    normalizeDate.current = a.target.value;
+                  }}
+                />
+              </InputGroup>
               <Button variant="outline-primary" onClick={downloadSeries}>
                 <Icon icon={faFileCsv} className="mr-4" />
                 Descargar
@@ -323,6 +334,7 @@ export default function Dashboard() {
                   title={data.name}
                   scaleId={data.axisName}
                   applyFunctions={applyFunctions}
+                  fromNormalizeDate={normalizeDate.current}
                 />
               ))}
             </Chart>

@@ -1,14 +1,37 @@
 import { LightSerieValue } from 'src/types/lightserie';
 
-export default function normalizeSeries(
-  existinSeries: LightSerieValue[]
-): LightSerieValue[] {
+type NormalizeDateProps = {
+  existingSeries: LightSerieValue[];
+  fromNormalizeDate?: string;
+};
+
+export default function normalizeSeries({
+  existingSeries,
+  fromNormalizeDate,
+}: NormalizeDateProps): LightSerieValue[] {
   const nSerie = new Array<LightSerieValue>();
 
-  if (existinSeries.length > 0) {
-    existinSeries.forEach((entry) => {
+  if (existingSeries.length > 0) {
+    let divisor: number = existingSeries[0].value;
+    if (fromNormalizeDate) {
+      for (let i = 0; i < existingSeries.length; i += 1) {
+        const cur = existingSeries[i];
+        const previous = existingSeries[i - 1];
+        const next = existingSeries[i + 1];
+        if (cur.time === fromNormalizeDate) {
+          divisor = cur.value;
+          break;
+        } else if (previous && next) {
+          if (previous < cur && next > cur) {
+            divisor = next.value;
+            break;
+          }
+        }
+      }
+    }
+    existingSeries.forEach((entry) => {
       nSerie.push({
-        value: entry.value / existinSeries[0].value,
+        value: entry.value / divisor,
         time: entry.time,
       });
     });
