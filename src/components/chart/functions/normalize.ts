@@ -31,7 +31,7 @@ export default function normalizeSeries({
     }
     existingSeries.forEach((entry) => {
       nSerie.push({
-        value: entry.value / divisor,
+        value: (entry.value / divisor) * 100,
         time: entry.time,
       });
     });
