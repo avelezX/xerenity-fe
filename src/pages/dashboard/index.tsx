@@ -9,9 +9,9 @@ import { FontAwesomeIcon as Icon } from '@fortawesome/react-fontawesome';
 import PageTitle from '@components/PageTitle';
 import { SourcePill } from '@components/UI/Card/Card.styled';
 import Chart from '@components/chart/Chart';
-import Panel from '@components/Panel';
 import calculateCurrentDate from 'src/utils/calculateCurrentDate';
 import tokens from 'design-tokens/tokens.json';
+import InfoCard from './_InfoCard';
 
 const designSystem = tokens.xerenity;
 const GRAY_COLOR_300 = designSystem['gray-300'].value;
@@ -40,17 +40,13 @@ const Dashboard = () => {
         <Row>
           <div className="d-flex justify-content-end pb-3">
             <SourcePill>
-              <Icon
-                icon={faCalendarAlt}
-                style={{ marginRight: '8px' }}
-                size="1x"
-              />
+              <Icon icon={faCalendarAlt} className="mx-2" size="1x" />
               <strong>{`Fecha: ${currentDate()}`}</strong>
             </SourcePill>
           </div>
         </Row>
-        <Row>
-          <Col sm={10} style={{ marginBottom: '23px' }}>
+        <Row className="mb-3">
+          <Col sm={10}>
             <Chart showToolbar>
               <Chart.Candle
                 data={chartTES33Data}
@@ -65,11 +61,52 @@ const Dashboard = () => {
               />
             </Chart>
           </Col>
-          <Col sm={2}>
-            <Row>
-              <Panel />
-              <Panel />
-            </Row>
+          <Col sm={2} className="d-flex flex-column gap-3">
+            <InfoCard title="Lorem Ipsum" value="333.27" />
+            <InfoCard title="Lorem Ipsum" value="333.27" />
+          </Col>
+        </Row>
+        <Row className="mb-3">
+          <Col sm={4}>
+            <InfoCard title="Lorem Ipsum" value="333.27" />
+          </Col>
+          <Col sm={4}>
+            <InfoCard title="Lorem Ipsum" value="333.27" />
+          </Col>
+          <Col sm={4}>
+            <InfoCard title="Lorem Ipsum" value="333.27" />
+          </Col>
+        </Row>
+        <Row>
+          <Col sm={6}>
+            <Chart showToolbar>
+              <Chart.Candle
+                data={chartTES33Data}
+                scaleId="right"
+                title="COLTES 13.25 09/02/33"
+              />
+              <Chart.Volume
+                data={volumeTES33Data}
+                scaleId="left"
+                color={GRAY_COLOR_300}
+                title="Volumen"
+              />
+            </Chart>
+          </Col>
+          <Col sm={6}>
+            <Chart showToolbar>
+              <Chart.Candle
+                data={chartTES33Data}
+                scaleId="right"
+                title="COLTES 13.25 09/02/33"
+              />
+              <Chart.Volume
+                data={volumeTES33Data}
+                scaleId="left"
+                color={GRAY_COLOR_300}
+                title="Volumen"
+              />
+            </Chart>
           </Col>
         </Row>
       </Container>
