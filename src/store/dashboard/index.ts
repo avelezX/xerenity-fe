@@ -1,20 +1,34 @@
 import { StateCreator } from 'zustand';
 import { fetchTES33, FetchTES33Response } from 'src/models/charts/fetchTES_33';
+import {
+  fetchCurrency,
+  FetchCurrencyResponse,
+} from 'src/models/charts/fetchCurrency';
+import {
+  fetchCpiIndex,
+  FetchCPIIndexResponse,
+} from 'src/models/charts/fetchCPIIndex';
 import { TesYields } from 'src/types/tes';
 import { LightSerieValue } from 'src/types/lightserie';
 
 export interface DashboardSlice {
   chartTES33Data: TesYields[];
   volumeTES33Data: LightSerieValue[];
+  chartUSDCOPData: TesYields[];
+  chartCPIIndexData: LightSerieValue[];
   errorMessage: string | undefined;
   successMessage: string | undefined;
   loading: boolean;
   getChartTES33Data: () => void;
+  getChartUSDCOPData: () => void;
+  getCpiIndexData: () => void;
 }
 
 const initialState = {
   chartTES33Data: [],
   volumeTES33Data: [],
+  chartUSDCOPData: [],
+  chartCPIIndexData: [],
   errorMessage: undefined,
   successMessage: undefined,
   loading: false,
@@ -41,6 +55,33 @@ const createDashboardSlice: StateCreator<DashboardSlice> = (set) => ({
       });
 
       set({ chartTES33Data, volumeTES33Data });
+    }
+  },
+  getChartUSDCOPData: async () => {
+    set({ loading: true });
+
+    const { data, error }: FetchCurrencyResponse =
+      await fetchCurrency('USD:COP');
+
+    if (error) {
+      set({ loading: false, errorMessage: error, chartUSDCOPData: [] });
+    } else if (data) {
+      const chartUSDCOPData: TesYields[] = data;
+
+      set({ chartUSDCOPData });
+    }
+  },
+  getCpiIndexData: async () => {
+    set({ loading: true });
+
+    const { data, error }: FetchCPIIndexResponse = await fetchCpiIndex(1, 12);
+
+    if (error) {
+      set({ loading: false, errorMessage: error, chartUSDCOPData: [] });
+    } else if (data) {
+      const chartCPIIndexData: LightSerieValue[] = data;
+
+      set({ chartCPIIndexData });
     }
   },
 });

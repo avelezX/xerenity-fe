@@ -15,16 +15,27 @@ import InfoCard from './_InfoCard';
 
 const designSystem = tokens.xerenity;
 const GRAY_COLOR_300 = designSystem['gray-300'].value;
+const PURPLE_COLOR_100 = designSystem['purple-100'].value;
 
 const PAGE_TITLE = 'Dashboard';
 
 const Dashboard = () => {
   const currentDate = useCallback(calculateCurrentDate, []);
-  const { getChartTES33Data, chartTES33Data, volumeTES33Data } = useAppStore();
+  const {
+    getChartTES33Data,
+    chartTES33Data,
+    volumeTES33Data,
+    getChartUSDCOPData,
+    chartUSDCOPData,
+    getCpiIndexData,
+    chartCPIIndexData,
+  } = useAppStore();
 
   useEffect(() => {
     getChartTES33Data();
-  }, [getChartTES33Data]);
+    getChartUSDCOPData();
+    getCpiIndexData();
+  }, [getChartTES33Data, getChartUSDCOPData, getCpiIndexData]);
 
   return (
     <CoreLayout>
@@ -81,30 +92,19 @@ const Dashboard = () => {
           <Col sm={6}>
             <Chart showToolbar>
               <Chart.Candle
-                data={chartTES33Data}
+                data={chartUSDCOPData}
                 scaleId="right"
-                title="COLTES 13.25 09/02/33"
-              />
-              <Chart.Volume
-                data={volumeTES33Data}
-                scaleId="left"
-                color={GRAY_COLOR_300}
-                title="Volumen"
+                title="USD:COP"
               />
             </Chart>
           </Col>
           <Col sm={6}>
             <Chart showToolbar>
-              <Chart.Candle
-                data={chartTES33Data}
+              <Chart.Bar
+                data={chartCPIIndexData}
+                color={PURPLE_COLOR_100}
                 scaleId="right"
-                title="COLTES 13.25 09/02/33"
-              />
-              <Chart.Volume
-                data={volumeTES33Data}
-                scaleId="left"
-                color={GRAY_COLOR_300}
-                title="Volumen"
+                title="Inflacion total"
               />
             </Chart>
           </Col>
