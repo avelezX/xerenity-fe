@@ -45,7 +45,11 @@ function LoginChart() {
     <Carousel className="w-100">
       <Carousel.Item>
         <Chart chartHeight={400}>
-          <Chart.Candle data={tesCandeSerie.values} scaleId="right" />
+          <Chart.Candle
+            data={tesCandeSerie.values}
+            scaleId="right"
+            title="COLTES 09/02/33"
+          />
           <Chart.Volume
             data={volumenSerie}
             scaleId="left"
