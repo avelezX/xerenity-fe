@@ -14,7 +14,8 @@ import { LightSerieValue } from 'src/types/lightserie';
 export interface DashboardSlice {
   chartTES33Data: TesYields[];
   volumeTES33Data: LightSerieValue[];
-  chartUSDCOPData: TesYields[];
+  chartUSDCOPData: LightSerieValue[];
+  chartUSDMXNData: LightSerieValue[];
   chartCPIIndexData: LightSerieValue[];
   errorMessage: string | undefined;
   successMessage: string | undefined;
@@ -22,12 +23,14 @@ export interface DashboardSlice {
   getChartTES33Data: () => void;
   getChartUSDCOPData: () => void;
   getCpiIndexData: () => void;
+  getUSDMXNData: () => void;
 }
 
 const initialState = {
   chartTES33Data: [],
   volumeTES33Data: [],
   chartUSDCOPData: [],
+  chartUSDMXNData: [],
   chartCPIIndexData: [],
   errorMessage: undefined,
   successMessage: undefined,
@@ -66,9 +69,23 @@ const createDashboardSlice: StateCreator<DashboardSlice> = (set) => ({
     if (error) {
       set({ loading: false, errorMessage: error, chartUSDCOPData: [] });
     } else if (data) {
-      const chartUSDCOPData: TesYields[] = data;
+      const chartUSDCOPData: LightSerieValue[] = data;
 
       set({ chartUSDCOPData });
+    }
+  },
+  getUSDMXNData: async () => {
+    set({ loading: true });
+
+    const { data, error }: FetchCurrencyResponse =
+      await fetchCurrency('USD:MXN');
+
+    if (error) {
+      set({ loading: false, errorMessage: error, chartUSDCOPData: [] });
+    } else if (data) {
+      const chartUSDMXNData: LightSerieValue[] = data;
+
+      set({ chartUSDMXNData });
     }
   },
   getCpiIndexData: async () => {

@@ -29,13 +29,16 @@ const Dashboard = () => {
     chartUSDCOPData,
     getCpiIndexData,
     chartCPIIndexData,
+    getUSDMXNData,
+    chartUSDMXNData,
   } = useAppStore();
 
   useEffect(() => {
     getChartTES33Data();
     getChartUSDCOPData();
     getCpiIndexData();
-  }, [getChartTES33Data, getChartUSDCOPData, getCpiIndexData]);
+    getUSDMXNData();
+  }, [getChartTES33Data, getChartUSDCOPData, getCpiIndexData, getUSDMXNData]);
 
   return (
     <CoreLayout>
@@ -91,10 +94,19 @@ const Dashboard = () => {
         <Row>
           <Col sm={6}>
             <Chart showToolbar>
-              <Chart.Candle
+              <Chart.Line
                 data={chartUSDCOPData}
-                scaleId="right"
+                color={PURPLE_COLOR_100}
                 title="USD:COP"
+                scaleId="right"
+                applyFunctions={['normalize']}
+              />
+              <Chart.Line
+                data={chartUSDMXNData}
+                color={GRAY_COLOR_300}
+                title="USD:MXN"
+                scaleId="right"
+                applyFunctions={['normalize']}
               />
             </Chart>
           </Col>
