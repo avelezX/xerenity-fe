@@ -6,19 +6,21 @@ const designSystem = tokens.xerenity;
 const PURPLE_COLOR_200 = designSystem['purple-200'].value;
 
 type InfoCardProps = {
-  boxData: DashboardBox[];
-  boxName: string;
+  cardData: DashboardBox[];
+  cardId: string;
 };
 
-const InfoCard = ({ boxData, boxName }: InfoCardProps) => {
-  const boxInfo = boxData.find((box) => box.box_name === boxName);
+const InfoCard = ({ cardData, cardId }: InfoCardProps) => {
+  const boxInfo = cardData?.find((card) => card.box_name === cardId);
   return (
-    <Panel styles={{ display: 'flex', justifyContent: 'center' }}>
-      <h4 className="text-center">{boxInfo?.name || ''}</h4>
-      <h4 className="text-center" style={{ color: PURPLE_COLOR_200 }}>
-        {boxInfo?.data.value.toFixed(2) || ''}
-      </h4>
-    </Panel>
+    boxInfo && (
+      <Panel styles={{ display: 'flex', justifyContent: 'center' }}>
+        <h4 className="text-center">{boxInfo.name || ''}</h4>
+        <h4 className="text-center" style={{ color: PURPLE_COLOR_200 }}>
+          {boxInfo?.data.value.toFixed(2) || ''}
+        </h4>
+      </Panel>
+    )
   );
 };
 
