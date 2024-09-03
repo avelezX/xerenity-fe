@@ -7,18 +7,19 @@ const PURPLE_COLOR_200 = designSystem['purple-200'].value;
 
 type InfoCardProps = {
   boxData: DashboardBox[];
-  id: string;
+  boxName: string;
 };
 
-const InfoCard = ({ boxData, id }: InfoCardProps) => (
-  <Panel styles={{ display: 'flex', justifyContent: 'center' }}>
-    <h4 className="text-center">
-      {boxData.find((box) => box.box_name === id)?.name}
-    </h4>
-    <h4 className="text-center" style={{ color: PURPLE_COLOR_200 }}>
-      {boxData.find((box) => box.box_name === id)?.data.value.toFixed(2) || ''}
-    </h4>
-  </Panel>
-);
+const InfoCard = ({ boxData, boxName }: InfoCardProps) => {
+  const boxInfo = boxData.find((box) => box.box_name === boxName);
+  return (
+    <Panel styles={{ display: 'flex', justifyContent: 'center' }}>
+      <h4 className="text-center">{boxInfo?.name || ''}</h4>
+      <h4 className="text-center" style={{ color: PURPLE_COLOR_200 }}>
+        {boxInfo?.data.value.toFixed(2) || ''}
+      </h4>
+    </Panel>
+  );
+};
 
 export default InfoCard;

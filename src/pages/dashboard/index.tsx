@@ -81,19 +81,19 @@ const Dashboard = () => {
             </Chart>
           </Col>
           <Col sm={2} className="d-flex flex-column gap-3">
-            <InfoCard boxData={dashboardBoxes} id="b3" />
-            <InfoCard boxData={dashboardBoxes} id="b2" />
+            <InfoCard boxData={dashboardBoxes} boxName="b1" />
+            <InfoCard boxData={dashboardBoxes} boxName="b2" />
           </Col>
         </Row>
         <Row className="mb-3">
           <Col sm={4}>
-            <InfoCard boxData={dashboardBoxes} id="b1" />
+            <InfoCard boxData={dashboardBoxes} boxName="b3" />
           </Col>
           <Col sm={4}>
-            <InfoCard boxData={dashboardBoxes} id="b4" />
+            <InfoCard boxData={dashboardBoxes} boxName="b4" />
           </Col>
           <Col sm={4}>
-            <InfoCard boxData={dashboardBoxes} id="b5" />
+            <InfoCard boxData={dashboardBoxes} boxName="b5" />
           </Col>
         </Row>
         <Row>
