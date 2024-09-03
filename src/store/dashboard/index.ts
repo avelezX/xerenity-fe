@@ -1,5 +1,4 @@
 import { StateCreator } from 'zustand';
-import { fetchTES33, FetchTES33Response } from 'src/models/charts/fetchTES_33';
 import {
   fetchCurrency,
   FetchCurrencyResponse,
@@ -10,28 +9,41 @@ import {
 } from 'src/models/charts/fetchCPIIndex';
 import { TesYields } from 'src/types/tes';
 import { LightSerieValue } from 'src/types/lightserie';
+import {
+  fetchBanrepSerie,
+  FetchBanrepSerieResponse,
+} from 'src/models/charts/fechBanrepSerie';
+import {
+  DashboardBox,
+  fectchDashboardBoxes,
+  FetchDashboardBoxesResponse,
+} from 'src/models/charts/fetchDashboardBoxes';
 
 export interface DashboardSlice {
   chartTES33Data: TesYields[];
   volumeTES33Data: LightSerieValue[];
-  chartUSDCOPData: LightSerieValue[];
-  chartUSDMXNData: LightSerieValue[];
+  chartUSDCOPData: TesYields[];
+  volumechartUSDCOPDData: LightSerieValue[];
   chartCPIIndexData: LightSerieValue[];
+  chartPoliticaMonetaria: LightSerieValue[];
+  dashboardBoxes: DashboardBox[];
   errorMessage: string | undefined;
   successMessage: string | undefined;
   loading: boolean;
-  getChartTES33Data: () => void;
   getChartUSDCOPData: () => void;
   getCpiIndexData: () => void;
-  getUSDMXNData: () => void;
+  getPoliticaMonetariaData: () => void;
+  getDashboardBoxes: () => void;
 }
 
 const initialState = {
   chartTES33Data: [],
   volumeTES33Data: [],
   chartUSDCOPData: [],
-  chartUSDMXNData: [],
+  volumechartUSDCOPDData: [],
+  chartPoliticaMonetaria: [],
   chartCPIIndexData: [],
+  dashboardBoxes: [],
   errorMessage: undefined,
   successMessage: undefined,
   loading: false,
@@ -39,27 +51,6 @@ const initialState = {
 
 const createDashboardSlice: StateCreator<DashboardSlice> = (set) => ({
   ...initialState,
-  getChartTES33Data: async () => {
-    set({ loading: true });
-
-    const { data, error }: FetchTES33Response = await fetchTES33();
-
-    if (error) {
-      set({ loading: false, errorMessage: error, chartTES33Data: [] });
-    } else if (data) {
-      const chartTES33Data: TesYields[] = data;
-      const volumeTES33Data: { time: string; value: number }[] = [];
-
-      chartTES33Data.forEach((tes) => {
-        volumeTES33Data.push({
-          time: tes.day.split('T')[0],
-          value: tes.volume,
-        });
-      });
-
-      set({ chartTES33Data, volumeTES33Data });
-    }
-  },
   getChartUSDCOPData: async () => {
     set({ loading: true });
 
@@ -69,23 +60,21 @@ const createDashboardSlice: StateCreator<DashboardSlice> = (set) => ({
     if (error) {
       set({ loading: false, errorMessage: error, chartUSDCOPData: [] });
     } else if (data) {
-      const chartUSDCOPData: LightSerieValue[] = data;
+      const allData = data as TesYields[];
+      const chartUSDCOPData: TesYields[] = [];
+      const volumechartUSDCOPDData: { time: string; value: number }[] = [];
 
-      set({ chartUSDCOPData });
-    }
-  },
-  getUSDMXNData: async () => {
-    set({ loading: true });
+      allData.forEach((tes) => {
+        if (tes.volume) {
+          volumechartUSDCOPDData.push({
+            time: tes.day.split('T')[0],
+            value: tes.volume,
+          });
+          chartUSDCOPData.push(tes);
+        }
+      });
 
-    const { data, error }: FetchCurrencyResponse =
-      await fetchCurrency('USD:MXN');
-
-    if (error) {
-      set({ loading: false, errorMessage: error, chartUSDCOPData: [] });
-    } else if (data) {
-      const chartUSDMXNData: LightSerieValue[] = data;
-
-      set({ chartUSDMXNData });
+      set({ chartUSDCOPData, volumechartUSDCOPDData });
     }
   },
   getCpiIndexData: async () => {
@@ -99,6 +88,33 @@ const createDashboardSlice: StateCreator<DashboardSlice> = (set) => ({
       const chartCPIIndexData: LightSerieValue[] = data;
 
       set({ chartCPIIndexData });
+    }
+  },
+  getDashboardBoxes: async () => {
+    set({ loading: true });
+
+    const { data, error }: FetchDashboardBoxesResponse =
+      await fectchDashboardBoxes();
+
+    if (error) {
+      set({ loading: false, errorMessage: error, dashboardBoxes: [] });
+    } else if (data) {
+      const dashboardBoxes: DashboardBox[] = data;
+
+      set({ dashboardBoxes });
+    }
+  },
+  getPoliticaMonetariaData: async () => {
+    set({ loading: true });
+
+    const { data, error }: FetchBanrepSerieResponse = await fetchBanrepSerie(8);
+
+    if (error) {
+      set({ loading: false, errorMessage: error, chartPoliticaMonetaria: [] });
+    } else if (data) {
+      const chartPoliticaMonetaria: LightSerieValue[] = data;
+
+      set({ chartPoliticaMonetaria });
     }
   },
 });

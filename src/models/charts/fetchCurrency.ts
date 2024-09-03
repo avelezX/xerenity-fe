@@ -1,13 +1,13 @@
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
-import { LightSerieValue } from 'src/types/lightserie';
+import { TesYields } from 'src/types/tes';
 
 export type FetchCurrencyResponse = {
-  data: LightSerieValue[] | undefined;
+  data: TesYields[] | undefined;
   error: string | undefined;
 };
 
 const USDCOP = {
-  key: 'get_currency',
+  key: 'currency_exchange',
   error: 'Error leyendo USD:COP',
 };
 
@@ -29,7 +29,7 @@ export const fetchCurrency = async (
       response.error = USDCOP.error;
       return response;
     }
-    response.data = data as LightSerieValue[];
+    response.data = data as TesYields[];
     return response;
   } catch (e) {
     response.error = USDCOP.error;

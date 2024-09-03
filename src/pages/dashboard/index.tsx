@@ -22,23 +22,28 @@ const PAGE_TITLE = 'Dashboard';
 const Dashboard = () => {
   const currentDate = useCallback(calculateCurrentDate, []);
   const {
-    getChartTES33Data,
-    chartTES33Data,
-    volumeTES33Data,
     getChartUSDCOPData,
     chartUSDCOPData,
+    volumechartUSDCOPDData,
     getCpiIndexData,
     chartCPIIndexData,
-    getUSDMXNData,
-    chartUSDMXNData,
+    chartPoliticaMonetaria,
+    getPoliticaMonetariaData,
+    dashboardBoxes,
+    getDashboardBoxes,
   } = useAppStore();
 
   useEffect(() => {
-    getChartTES33Data();
     getChartUSDCOPData();
     getCpiIndexData();
-    getUSDMXNData();
-  }, [getChartTES33Data, getChartUSDCOPData, getCpiIndexData, getUSDMXNData]);
+    getPoliticaMonetariaData();
+    getDashboardBoxes();
+  }, [
+    getChartUSDCOPData,
+    getCpiIndexData,
+    getPoliticaMonetariaData,
+    getDashboardBoxes,
+  ]);
 
   return (
     <CoreLayout>
@@ -63,12 +68,12 @@ const Dashboard = () => {
           <Col sm={10}>
             <Chart showToolbar>
               <Chart.Candle
-                data={chartTES33Data}
+                data={chartUSDCOPData}
                 scaleId="right"
-                title="COLTES 13.25 09/02/33"
+                title="USD:COP"
               />
               <Chart.Volume
-                data={volumeTES33Data}
+                data={volumechartUSDCOPDData}
                 scaleId="left"
                 color={GRAY_COLOR_300}
                 title="Volumen"
@@ -76,37 +81,75 @@ const Dashboard = () => {
             </Chart>
           </Col>
           <Col sm={2} className="d-flex flex-column gap-3">
-            <InfoCard title="Lorem Ipsum" value="333.27" />
-            <InfoCard title="Lorem Ipsum" value="333.27" />
+            <InfoCard
+              title={
+                dashboardBoxes.find((box) => box.box_name === 'b3')?.name || ''
+              }
+              value={
+                dashboardBoxes
+                  .find((box) => box.box_name === 'b3')
+                  ?.data.value.toFixed(2) || ''
+              }
+            />
+            <InfoCard
+              title={
+                dashboardBoxes.find((box) => box.box_name === 'b2')?.name || ''
+              }
+              value={
+                dashboardBoxes
+                  .find((box) => box.box_name === 'b2')
+                  ?.data.value.toFixed(2) || ''
+              }
+            />
           </Col>
         </Row>
         <Row className="mb-3">
           <Col sm={4}>
-            <InfoCard title="Lorem Ipsum" value="333.27" />
+            <InfoCard
+              title={
+                dashboardBoxes.find((box) => box.box_name === 'b1')?.name || ''
+              }
+              value={
+                dashboardBoxes
+                  .find((box) => box.box_name === 'b1')
+                  ?.data.value.toFixed(2) || ''
+              }
+            />
           </Col>
           <Col sm={4}>
-            <InfoCard title="Lorem Ipsum" value="333.27" />
+            <InfoCard
+              title={
+                `${dashboardBoxes.find((box) => box.box_name === 'b4')?.name} ${dashboardBoxes.find((box) => box.box_name === 'b4')?.data.time}` ||
+                ''
+              }
+              value={
+                dashboardBoxes
+                  .find((box) => box.box_name === 'b4')
+                  ?.data.value.toFixed(2) || ''
+              }
+            />
           </Col>
           <Col sm={4}>
-            <InfoCard title="Lorem Ipsum" value="333.27" />
+            <InfoCard
+              title={
+                dashboardBoxes.find((box) => box.box_name === 'b5')?.name || ''
+              }
+              value={
+                dashboardBoxes
+                  .find((box) => box.box_name === 'b5')
+                  ?.data.value.toFixed(2) || ''
+              }
+            />
           </Col>
         </Row>
         <Row>
           <Col sm={6}>
             <Chart showToolbar>
               <Chart.Line
-                data={chartUSDCOPData}
-                color={PURPLE_COLOR_100}
-                title="USD:COP"
-                scaleId="right"
-                applyFunctions={['normalize']}
-              />
-              <Chart.Line
-                data={chartUSDMXNData}
+                data={chartPoliticaMonetaria}
                 color={GRAY_COLOR_300}
-                title="USD:MXN"
+                title="Politica monetaria"
                 scaleId="right"
-                applyFunctions={['normalize']}
               />
             </Chart>
           </Col>
