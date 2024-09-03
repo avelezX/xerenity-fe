@@ -5,6 +5,7 @@ import {
   faLandmark,
   faLineChart,
   faMoneyBillTrendUp,
+  faHome,
 } from '@fortawesome/free-solid-svg-icons';
 import SubNavItem from './SubNavItem';
 import NavigationItem, { NavItemProps } from './NavigationItem';
@@ -14,6 +15,12 @@ type SidebarNavProps = {
 };
 
 const NAV_ITEMS: NavItemProps[] = [
+  {
+    name: 'dashboard',
+    path: '/dashboard',
+    icon: faHome,
+    active: false,
+  },
   {
     name: 'series',
     path: '/series',

@@ -20,6 +20,7 @@ import {
 } from 'src/models/loans';
 import { LightSerieValue } from 'src/types/lightserie';
 import { SelectableRows } from 'src/types/selectableRows';
+import calculateCurrentDate from 'src/utils/calculateCurrentDate';
 
 export interface LoansSlice {
   banks: Bank[];
@@ -61,14 +62,6 @@ export interface LoansSlice {
   setFilterDate: (newFilterDate: string) => void;
   resetStore: () => void;
   setCurrentSelection: (loan: Loan) => void;
-}
-
-function calculateCurrentDate(): string {
-  const today = new Date();
-  const yyyy = today.getFullYear();
-  const mm = String(today.getMonth() + 1).padStart(2, '0');
-  const dd = String(today.getDate()).padStart(2, '0');
-  return `${yyyy}-${mm}-${dd}`;
 }
 
 const initialState = {
