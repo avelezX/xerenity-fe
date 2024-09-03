@@ -81,65 +81,19 @@ const Dashboard = () => {
             </Chart>
           </Col>
           <Col sm={2} className="d-flex flex-column gap-3">
-            <InfoCard
-              title={
-                dashboardBoxes.find((box) => box.box_name === 'b3')?.name || ''
-              }
-              value={
-                dashboardBoxes
-                  .find((box) => box.box_name === 'b3')
-                  ?.data.value.toFixed(2) || ''
-              }
-            />
-            <InfoCard
-              title={
-                dashboardBoxes.find((box) => box.box_name === 'b2')?.name || ''
-              }
-              value={
-                dashboardBoxes
-                  .find((box) => box.box_name === 'b2')
-                  ?.data.value.toFixed(2) || ''
-              }
-            />
+            <InfoCard boxData={dashboardBoxes} id="b3" />
+            <InfoCard boxData={dashboardBoxes} id="b2" />
           </Col>
         </Row>
         <Row className="mb-3">
           <Col sm={4}>
-            <InfoCard
-              title={
-                dashboardBoxes.find((box) => box.box_name === 'b1')?.name || ''
-              }
-              value={
-                dashboardBoxes
-                  .find((box) => box.box_name === 'b1')
-                  ?.data.value.toFixed(2) || ''
-              }
-            />
+            <InfoCard boxData={dashboardBoxes} id="b1" />
           </Col>
           <Col sm={4}>
-            <InfoCard
-              title={
-                `${dashboardBoxes.find((box) => box.box_name === 'b4')?.name} ${dashboardBoxes.find((box) => box.box_name === 'b4')?.data.time}` ||
-                ''
-              }
-              value={
-                dashboardBoxes
-                  .find((box) => box.box_name === 'b4')
-                  ?.data.value.toFixed(2) || ''
-              }
-            />
+            <InfoCard boxData={dashboardBoxes} id="b4" />
           </Col>
           <Col sm={4}>
-            <InfoCard
-              title={
-                dashboardBoxes.find((box) => box.box_name === 'b5')?.name || ''
-              }
-              value={
-                dashboardBoxes
-                  .find((box) => box.box_name === 'b5')
-                  ?.data.value.toFixed(2) || ''
-              }
-            />
+            <InfoCard boxData={dashboardBoxes} id="b5" />
           </Col>
         </Row>
         <Row>
