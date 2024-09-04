@@ -6,7 +6,7 @@ import {
   faEarthAmericas,
 } from '@fortawesome/free-solid-svg-icons';
 import { InputGroup, Collapse } from 'react-bootstrap';
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import Button from '@components/UI/Button';
 import Alert from '@components/UI/Alert';
@@ -16,7 +16,7 @@ import {
   FormikConfig,
   prepareDataForValidation,
 } from 'formik';
-import HCaptcha from '@hcaptcha/react-hcaptcha';
+
 import Spinner from '@components/UI/Spinner';
 import * as Yup from 'yup';
 import strings from '../../../strings/signup.json';
@@ -26,18 +26,10 @@ import SignFormContainer from './SignFormContainer.styled';
 
 const { form } = strings;
 
-type SingUpFormProps = {
-  captchaKey: string;
-};
-
-function SingUpForm({ captchaKey }: SingUpFormProps) {
+function SingUpForm() {
   const supabase = createClientComponentClient();
   const [signUpMsg, setSignUpMsg] = useState('');
   const [newSignUpAction, setNewSignUpAction] = useState<boolean>(false);
-  const [captchaToken, setCaptchaToken] = useState<string | undefined>(
-    undefined
-  );
-  const captcha = useRef<HCaptcha>(null);
 
   const signUpSchema = Yup.object().shape({
     email: Yup.string().email(form.emailInvalid).required(form.required),
@@ -65,7 +57,6 @@ function SingUpForm({ captchaKey }: SingUpFormProps) {
       email: preparedValues.email,
       password: preparedValues.password,
       options: {
-        captchaToken,
         data: {
           full_name: preparedValues.name,
           country: preparedValues.country,
@@ -79,11 +70,6 @@ function SingUpForm({ captchaKey }: SingUpFormProps) {
       setSignUpMsg(form.confirmacion);
     }
     setNewSignUpAction(true);
-
-    if (captcha.current) {
-      captcha.current.resetCaptcha();
-      setCaptchaToken(undefined);
-    }
   };
 
   return (
@@ -169,19 +155,8 @@ function SingUpForm({ captchaKey }: SingUpFormProps) {
               {(msg: string) => <ErrorMsg>{msg}</ErrorMsg>}
             </ErrorMessage>
           </SignFormContainer.Group>
-          <div className="d-flex justify-content-center">
-            <HCaptcha
-              languageOverride="es"
-              ref={captcha}
-              sitekey={captchaKey}
-              onVerify={(token) => {
-                setCaptchaToken(token);
-              }}
-            />
-          </div>
-
           <div className="form-actions">
-            <Button type="submit" disabled={!captchaToken && !isSubmitting}>
+            <Button type="submit" disabled={isSubmitting}>
               {form.action}
               {isSubmitting && <Spinner size="sm" />}
             </Button>
