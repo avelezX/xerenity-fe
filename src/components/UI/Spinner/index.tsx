@@ -2,10 +2,9 @@ import {
   Spinner as BsSpinner,
   SpinnerProps as BsSpinnerProps,
 } from 'react-bootstrap';
-import { FC } from 'react';
 import styled from 'styled-components';
 
-const Spinner: FC<BsSpinnerProps> = styled(BsSpinner)`
+const Spinner = styled(BsSpinner)<BsSpinnerProps>`
   width: 16px;
   height: 16px;
 `;
