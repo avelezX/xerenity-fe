@@ -5,10 +5,6 @@ import DataTable, { TableProps } from 'react-data-table-component';
 
 const sortIcon = <FontAwesomeIcon icon={faSortAsc} />;
 
-const selectProps = {
-  indeterminate: (isIndeterminate: boolean) => isIndeterminate,
-};
-
 const customStyles = {
   headCells: {
     style: {
@@ -38,8 +34,6 @@ function BaseDataTable<T>({
 }: TableProps<T>): JSX.Element {
   return (
     <DataTable
-      // TODO: This line is throwing errors in console
-      selectableRowsComponentProps={selectProps}
       sortIcon={sortIcon}
       highlightOnHover
       dense
