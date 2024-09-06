@@ -38,6 +38,7 @@ function BaseDataTable<T>({
 }: TableProps<T>): JSX.Element {
   return (
     <DataTable
+      // TODO: This line is throwing errors in console
       selectableRowsComponentProps={selectProps}
       sortIcon={sortIcon}
       highlightOnHover
