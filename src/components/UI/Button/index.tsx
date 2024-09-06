@@ -2,7 +2,6 @@ import {
   Button as BsButton,
   ButtonProps as BsButtonProps,
 } from 'react-bootstrap';
-import { FC } from 'react';
 import styled from 'styled-components';
 
 interface ButtonProps extends BsButtonProps {
@@ -11,7 +10,7 @@ interface ButtonProps extends BsButtonProps {
   bg?: string;
 }
 
-const Button: FC<ButtonProps> = styled(BsButton)`
+const Button = styled(BsButton)<ButtonProps>`
   width: ${(props) => (props.$fullwidth ? '100%' : 'auto')};
   background-color: ${(props) => props.bg};
   display: flex;

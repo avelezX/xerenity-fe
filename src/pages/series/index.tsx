@@ -346,6 +346,7 @@ export default function Dashboard() {
               selectedSeries.has(key) && (
                 <Card
                   serieId={key}
+                  key={value.display_name}
                   title={value.display_name}
                   icon={faLineChart}
                   color={selectedSeries.get(key)?.color}
