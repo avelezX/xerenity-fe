@@ -153,7 +153,11 @@ const NewCreditModal = ({ show, bankList, onShow }: NewCreditModalProps) => {
                   <Col sm={12} md={6}>
                     <Form.Group controlId="bank">
                       <Form.Label>Entidad Banacaria</Form.Label>
-                      <Form.Select value={values.bank} onChange={handleChange}>
+                      <Form.Select
+                        value={values.bank}
+                        onChange={handleChange}
+                        isInvalid={touched.bank && !!errors.bank}
+                      >
                         <option>Selecione una entidad bancaria</option>
                         {bankList?.map((bck) => (
                           <option
@@ -177,6 +181,9 @@ const NewCreditModal = ({ show, bankList, onShow }: NewCreditModalProps) => {
                         type="text"
                         value={values.loan_identifier}
                         onChange={handleChange}
+                        isInvalid={
+                          touched.loan_identifier && !!errors.loan_identifier
+                        }
                       />
                       {touched.loan_identifier && errors.loan_identifier && (
                         <ErrorMessage name="loan_identifier" component="div" />
@@ -195,6 +202,9 @@ const NewCreditModal = ({ show, bankList, onShow }: NewCreditModalProps) => {
                         type="number"
                         value={values.interest_rate}
                         onChange={handleChange}
+                        isInvalid={
+                          touched.interest_rate && !!errors.interest_rate
+                        }
                       />
                       {touched.interest_rate && errors.interest_rate && (
                         <ErrorMessage name="interest_rate" component="div" />
@@ -208,6 +218,7 @@ const NewCreditModal = ({ show, bankList, onShow }: NewCreditModalProps) => {
                         type="date"
                         value={values.start_date}
                         onChange={handleChange}
+                        isInvalid={touched.start_date && !!errors.start_date}
                       />
                       {touched.start_date && errors.start_date && (
                         <ErrorMessage name="start_date" component="div" />
@@ -239,6 +250,7 @@ const NewCreditModal = ({ show, bankList, onShow }: NewCreditModalProps) => {
                       <Form.Select
                         value={values.days_count}
                         onChange={handleChange}
+                        isInvalid={touched.days_count && !!errors.days_count}
                       >
                         <option>Selecione un conteo</option>
                         <option value="por_dias_360">30/360</option>
@@ -258,6 +270,7 @@ const NewCreditModal = ({ show, bankList, onShow }: NewCreditModalProps) => {
                       <Form.Select
                         value={values.periodicity}
                         onChange={handleChange}
+                        isInvalid={touched.periodicity && !!errors.periodicity}
                       >
                         <option>Selecione una periodicidad</option>
                         <option value="Anual">Anual</option>
