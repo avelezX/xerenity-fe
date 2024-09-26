@@ -181,7 +181,7 @@ export default function LoansPage() {
                 onClick={() => onShowLoanDebtTable(true)}
               >
                 <Icon icon={faPiggyBank} className="mr-4" />
-                Visualizar deuda total
+                Ver deuda total
               </Button>
               <Button
                 variant={cashflowsEmpty ? 'outline-primary' : 'primary'}
@@ -189,7 +189,7 @@ export default function LoansPage() {
                 onClick={() => onShowCashFlowTable(true)}
               >
                 <Icon icon={faDollar} className="mr-4" />
-                Visualizar Flujos
+                Ver Flujos
               </Button>
               <Button
                 variant="primary"
