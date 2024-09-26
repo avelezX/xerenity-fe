@@ -15,6 +15,23 @@ export interface Loan {
   loan_identifier: string;
 }
 
+export interface LoanData {
+  bank: string;
+  loan_ids: string[];
+  loan_count: number;
+  average_irr: number;
+  total_value: number;
+  average_tenor: number;
+  average_irr_ibr: number;
+  total_value_ibr: number;
+  accrued_interest: number;
+  average_duration: number;
+  average_irr_fija: number;
+  total_value_fija: number;
+  outdated_loan_count: number;
+  not_calculated_loan_count: number;
+}
+
 export interface LoanCashFlow {
   date: string;
   beginning_balance: number;
