@@ -5,6 +5,7 @@ import {
   LoanCashFlowIbr,
   CashFlowItem,
   NewLoanValues,
+  LoanData,
 } from 'src/types/loans';
 import {
   createNewLoan,
@@ -17,13 +18,16 @@ import {
   CashflowResponse,
   DeleteLoanResponse,
   CreateLoanResponse,
+  fetchLoansIbrs,
 } from 'src/models/loans';
 import { LightSerieValue } from 'src/types/lightserie';
-import { SelectableRows } from 'src/types/selectableRows';
+import { SelectedLoansDate } from 'src/types/selectableRows';
 import calculateCurrentDate from 'src/utils/calculateCurrentDate';
+import { FullLoanResponse } from 'src/models/loans/fetchIbrLoans';
 
 export interface LoansSlice {
   banks: Bank[];
+  loanDebtData: LoanData[];
   currentSelection: Loan | undefined;
   cashFlows: CashFlowItem[];
   chartData: LightSerieValue[];
@@ -39,12 +43,14 @@ export interface LoansSlice {
   showNewLoanModal: boolean;
   selectedBanks: Bank[];
   showCashFlowTable: boolean;
+  showLoanDebtTable: boolean;
   filterDate: string;
   getLoanData: (bankFilter?: Bank[]) => void;
   setSelectedLoans: ({
     selectedCount,
     selectedRows,
-  }: SelectableRows<Loan>) => void;
+    filterDate,
+  }: SelectedLoansDate<Loan>) => void;
   setSelectedBanks: (banks: Bank[]) => void;
   setCashFlowItem: (
     loanId: string,
@@ -56,6 +62,7 @@ export interface LoansSlice {
   onShowLoanModal: (show: boolean) => void;
   onShowNewLoanModal: (show: boolean) => void;
   onShowCashFlowTable: (show: boolean) => void;
+  onShowLoanDebtTable: (show: boolean) => void;
   deleteLoanItem: (loanId: string) => void;
   setMergedCashFlows: (cashFlows: CashFlowItem[]) => void;
   getLoanChartData: (mergedCashFlows: LoanCashFlowIbr[]) => void;
@@ -72,12 +79,14 @@ const initialState = {
   successMessage: undefined,
   mergedCashFlows: [],
   loans: [],
+  loanDebtData: [],
   loading: false,
   selectedLoans: [],
   showCashFlowTable: false,
   showDeleteConfirm: false,
   showLoanModal: false,
   showNewLoanModal: false,
+  showLoanDebtTable: false,
   selectedBanks: [],
   filterDate: calculateCurrentDate(),
   currentSelection: undefined,
@@ -111,6 +120,7 @@ const createLoansSlice: StateCreator<LoansSlice> = (set) => ({
       });
     }
   },
+
   getLoanData: async (bankFilter: Bank[] = []) => {
     // Set initial state before fetching data
     set({ loading: true, errorMessage: undefined, successMessage: undefined });
@@ -137,7 +147,20 @@ const createLoansSlice: StateCreator<LoansSlice> = (set) => ({
   setCurrentSelection: (loan: Loan) => {
     set(() => ({ currentSelection: loan }));
   },
-  setSelectedLoans: ({ selectedRows }: SelectableRows<Loan>) =>
+  setSelectedLoans: async ({
+    selectedRows,
+    filterDate,
+  }: SelectedLoansDate<Loan>) => {
+    const loanIds = selectedRows.map((item) => item.id);
+    const response: FullLoanResponse = await fetchLoansIbrs(
+      loanIds,
+      filterDate
+    );
+    if (response.error) {
+      set(() => ({ loanDebtData: [] }));
+    } else {
+      set(() => ({ loanDebtData: response.data }));
+    }
     set((state) => {
       const newSelections: string[] = [];
       const currentCashflow = state.cashFlows;
@@ -161,7 +184,8 @@ const createLoansSlice: StateCreator<LoansSlice> = (set) => ({
 
       state.setMergedCashFlows(newCashFlow);
       return { selectedLoans: newSelections };
-    }),
+    });
+  },
   setSelectedBanks: (selections: Bank[]) =>
     set((state) => {
       state.getLoanData(selections);
@@ -197,6 +221,8 @@ const createLoansSlice: StateCreator<LoansSlice> = (set) => ({
   },
   onShowDeleteConfirm: (show: boolean) =>
     set(() => ({ showDeleteConfirm: show })),
+  onShowLoanDebtTable: (show: boolean) =>
+    set(() => ({ showLoanDebtTable: show })),
   onShowCashFlowTable: (show: boolean) =>
     set(() => ({ showCashFlowTable: show })),
   onShowLoanModal: (show: boolean) => set(() => ({ showLoanModal: show })),

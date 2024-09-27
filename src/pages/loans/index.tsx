@@ -13,6 +13,7 @@ import {
   faFileCsv,
   faPlus,
   faLandmark,
+  faPiggyBank,
 } from '@fortawesome/free-solid-svg-icons';
 import Toolbar from '@components/UI/Toolbar';
 import tokens from 'design-tokens/tokens.json';
@@ -25,8 +26,11 @@ import MultipleSelect from '@components/UI/MultipleSelect';
 import ConfirmationModal from '@components/UI/ConfirmationModal';
 import useAppStore from '@store';
 import Panel from '@components/Panel';
+import { Loan } from 'src/types/loans';
+import { SelectableRows } from 'src/types/selectableRows';
 import NewCreditModal from './_NewCreditModal';
 import CashFlowOverlay from './_cashFlowOverLay/cashFlowOverlay';
+import LoanDebtOverlay from './_loanDebtOverlay/loanDebtOverlay';
 
 const designSystem = tokens.xerenity;
 const PURPLE_COLOR_100 = designSystem['purple-100'].value;
@@ -64,6 +68,7 @@ export default function LoansPage() {
     showCashFlowTable,
     filterDate,
     currentSelection,
+    showLoanDebtTable,
     setSelectedLoans,
     setSelectedBanks,
     onShowDeleteConfirm,
@@ -71,9 +76,12 @@ export default function LoansPage() {
     onShowCashFlowTable,
     resetStore,
     setFilterDate,
+    onShowLoanDebtTable,
+    loanDebtData,
   } = useAppStore();
 
   const cashflowsEmpty = mergedCashFlows.length === 0;
+  const loanDebtEmpty = loanDebtData.length === 0;
 
   const onDownloadSeries = () => {
     const { name, columns, format } = CSV_FILE;
@@ -168,12 +176,20 @@ export default function LoansPage() {
                 Descargar
               </Button>
               <Button
+                variant={loanDebtEmpty ? 'outline-primary' : 'primary'}
+                disabled={loanDebtEmpty}
+                onClick={() => onShowLoanDebtTable(true)}
+              >
+                <Icon icon={faPiggyBank} className="mr-4" />
+                Ver deuda total
+              </Button>
+              <Button
                 variant={cashflowsEmpty ? 'outline-primary' : 'primary'}
                 disabled={cashflowsEmpty}
                 onClick={() => onShowCashFlowTable(true)}
               >
                 <Icon icon={faDollar} className="mr-4" />
-                Visualizar Flujos
+                Ver Flujos
               </Button>
               <Button
                 variant="primary"
@@ -225,7 +241,19 @@ export default function LoansPage() {
                   </InputGroup>
                 </Col>
               </Row>
-              <LoansTable list={loans} onSelect={setSelectedLoans} />
+              <LoansTable
+                list={loans}
+                onSelect={({
+                  selectedCount,
+                  selectedRows,
+                }: SelectableRows<Loan>) => {
+                  setSelectedLoans({
+                    selectedCount,
+                    selectedRows,
+                    filterDate,
+                  });
+                }}
+              />
             </Panel>
           </Col>
         </Row>
@@ -246,6 +274,11 @@ export default function LoansPage() {
         cashFlows={mergedCashFlows}
         handleShow={onShowCashFlowTable}
         show={showCashFlowTable}
+      />
+      <LoanDebtOverlay
+        loanDebtData={loanDebtData}
+        handleShow={onShowLoanDebtTable}
+        show={showLoanDebtTable}
       />
       <ToastContainer />
     </CoreLayout>
