@@ -31,6 +31,7 @@ export interface CustomFormat {
 }
 
 export interface LightSerie {
+  tiker: string;
   name: string;
   color: string;
   serie: LightSerieValue[];
