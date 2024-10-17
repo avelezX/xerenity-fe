@@ -8,7 +8,7 @@ import ModalContent from '@components/UI/Modal/ModalContent.styled';
 type SerieInfoModalProps = {
   onCancel: () => void;
   show: boolean;
-  serie: LightSerieEntry | null;
+  serie: LightSerieEntry | undefined;
 };
 
 const MODAL_TITLE = 'Información De Serie';

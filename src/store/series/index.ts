@@ -6,6 +6,9 @@ import {
 } from 'src/models/series/fetchSeries';
 import { fetchSeriesData } from 'src/models/series/fetchSerieData';
 
+const LEFT_AXIS = 'left';
+const RIGHT_AXIS = 'right';
+
 export interface SeriesSlice {
   allSeries: LightSerieEntry[];
   filteredSeries: LightSerieEntry[];
@@ -15,6 +18,10 @@ export interface SeriesSlice {
   subGrupos: { value: string; label: string }[];
   selectedGroup: string | undefined;
   selectedSubGroup: string | undefined;
+  showSerieModal: boolean;
+  curentSerie: string | undefined;
+  showColorSerieModal: boolean;
+  setCurrentSerie: (serie: string) => void;
   setAllSeries: (data: LightSerieEntry[]) => void;
   searchSeries: (values: SearchFilters) => void;
   addSelectedSerie: (
@@ -27,6 +34,10 @@ export interface SeriesSlice {
   setSelectedGroup: (grp: string | undefined) => void;
   setSelectedSubGroup: (subGrp: string | undefined) => void;
   removeSelected: (serie: LightSerie) => void;
+  handleColorChnage: (serieId: string, newColor: string) => void;
+  handleAxisChnage: (serie: LightSerie) => void;
+  setShowSerieModal: (show: boolean) => void;
+  setShowSerieColor: (show: boolean) => void;
 }
 
 const initialState = {
@@ -34,6 +45,9 @@ const initialState = {
   selectedSeries: [],
   grupos: [],
   subGrupos: [],
+  showSerieModal: false,
+  curentSerie: undefined,
+  showColorSerieModal: false,
   filteredSeries: [],
   subGrpByGrp: new Map(),
   selectedGroup: undefined,
@@ -43,6 +57,55 @@ const initialState = {
 
 const createSeriesSlice: StateCreator<SeriesSlice> = (set) => ({
   ...initialState,
+  handleColorChnage: (serieId: string, newColor: string) => {
+    set((state) => {
+      const newSelectedSerie: LightSerie[] = [];
+
+      state.selectedSeries.forEach((s) => {
+        if (s.tiker === serieId) {
+          const newSerie: LightSerie = s;
+          newSerie.color = newColor;
+          newSelectedSerie.push(newSerie);
+        } else {
+          newSelectedSerie.push(s);
+        }
+      });
+      return {
+        selectedSeries: newSelectedSerie,
+      };
+    });
+  },
+  setCurrentSerie: (serie: string) => {
+    set(() => ({ curentSerie: serie }));
+  },
+  setShowSerieModal: (show: boolean) => {
+    set(() => ({ showSerieModal: show }));
+  },
+  setShowSerieColor: (show: boolean) => {
+    set(() => ({ showColorSerieModal: show }));
+  },
+  handleAxisChnage: (serie: LightSerie) => {
+    set((state) => {
+      const newSelectedSerie: LightSerie[] = [];
+
+      state.selectedSeries.forEach((s) => {
+        if (s.tiker === serie.tiker) {
+          const newSerie: LightSerie = s;
+          if (s.axisName === LEFT_AXIS) {
+            newSerie.axisName = RIGHT_AXIS;
+          } else {
+            newSerie.axisName = LEFT_AXIS;
+          }
+          newSelectedSerie.push(newSerie);
+        } else {
+          newSelectedSerie.push(s);
+        }
+      });
+      return {
+        selectedSeries: newSelectedSerie,
+      };
+    });
+  },
   setAllSeries: (data: LightSerieEntry[]) => set(() => ({ allSeries: data })),
   removeSelected: (serie: LightSerie) => {
     set((state) => ({

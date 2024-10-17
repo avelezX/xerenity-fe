@@ -31,6 +31,8 @@ function BaseDataTable<T>({
   conditionalRowStyles,
   subHeaderComponent,
   actions,
+  pagination,
+  paginationComponentOptions,
 }: TableProps<T>): JSX.Element {
   return (
     <DataTable
@@ -49,6 +51,8 @@ function BaseDataTable<T>({
       expandableRowsComponent={expandableRowsComponent}
       selectableRowsNoSelectAll
       actions={actions}
+      pagination={pagination}
+      paginationComponentOptions={paginationComponentOptions}
     />
   );
 }

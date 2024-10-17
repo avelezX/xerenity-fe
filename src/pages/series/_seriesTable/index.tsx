@@ -12,6 +12,11 @@ type LoanListProps = {
   }: SelectableRows<LightSerieEntry>) => void;
 };
 
+const paginationOptions = {
+  rowsPerPageText: 'Filas por página',
+  rangeSeparatorText: 'de',
+};
+
 const SeriesTable = ({ list, onSelect }: LoanListProps) => (
   <BaseDataTable
     columns={SerieListColumns}
@@ -19,6 +24,8 @@ const SeriesTable = ({ list, onSelect }: LoanListProps) => (
     fixedHeader
     selectableRows
     onSelectedRowsChange={onSelect}
+    pagination
+    paginationComponentOptions={paginationOptions}
   />
 );
 

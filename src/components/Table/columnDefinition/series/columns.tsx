@@ -9,10 +9,14 @@ type ViewSerieActionProps = {
 };
 
 const ViewSerie = ({ serie }: ViewSerieActionProps) => {
-  const { addSelectedSerie } = useAppStore();
-
+  const { setShowSerieModal, setCurrentSerie } = useAppStore();
   return (
-    <IconButton onClick={() => {}}>
+    <IconButton
+      onClick={() => {
+        setCurrentSerie(serie.ticker);
+        setShowSerieModal(true);
+      }}
+    >
       <Icon icon={faEye} />
     </IconButton>
   );

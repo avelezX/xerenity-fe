@@ -1,7 +1,15 @@
 'use client';
 
 import { CoreLayout } from '@layout';
-import { Row, Col, Container, Form, InputGroup } from 'react-bootstrap';
+import {
+  Row,
+  Col,
+  Container,
+  Form,
+  InputGroup,
+  ToastContainer,
+  Toast,
+} from 'react-bootstrap';
 import React, { useState, useEffect, useRef } from 'react';
 import { LightSerieEntry, lightSerieValueArray } from 'src/types/lightserie';
 import { FontAwesomeIcon as Icon } from '@fortawesome/react-fontawesome';
@@ -22,8 +30,11 @@ import tokens from 'design-tokens/tokens.json';
 import { SingleValue } from 'react-select';
 import SingleSelect from '@components/UI/SingleSelect';
 import { SelectableRows } from 'src/types/selectableRows';
+import { XerenityHexColors } from 'src/utils/getHexColors';
+import Circle from '@uiw/react-color-circle';
 import SeriesTable from './_seriesTable';
 import SelectedSeriesTable from './_selectedSeriesTable';
+import SerieInfoModal from './_SerieInfoModal';
 
 const PAGE_TITLE = 'Series';
 const NORMALIZE_SINCE = 'Normalizar desde:';
@@ -37,6 +48,7 @@ export default function Dashboard() {
   const {
     filteredSeries,
     selectedSeries,
+    allSeries,
     grupos,
     subGrupos,
     addSelectedSerie,
@@ -44,6 +56,12 @@ export default function Dashboard() {
     searchSeries,
     setSelectedGroup,
     setSelectedSubGroup,
+    curentSerie,
+    showSerieModal,
+    showColorSerieModal,
+    setShowSerieModal,
+    handleColorChnage,
+    setShowSerieColor,
   } = useAppStore();
 
   const normalize = useRef<boolean>(false);
@@ -80,53 +98,6 @@ export default function Dashboard() {
       }
     }
   };
-
-  /*
-  const handleColorChnage = useCallback(
-    async (checkboxId: string, newColor: string) => {
-      const newSelection = new Map<string, LightSerie>();
-
-      Array.from(selectedSeries.entries()).forEach(([key, value]) => {
-        if (key === checkboxId) {
-          const newSerie: LightSerie = value;
-          newSerie.color = newColor;
-          newSelection.set(key, newSerie);
-        } else {
-          newSelection.set(key, value);
-        }
-      });
-
-      setSelectedSeries(newSelection);
-    },
-    [selectedSeries]
-  );
-
-    const handleAxisChnage = useCallback(
-    async (serieId: string) => {
-      const newSelection = new Map<string, LightSerie>();
-
-      Array.from(selectedSeries.entries()).forEach(([key, value]) => {
-        if (key === serieId) {
-          const newSerie: LightSerie = value;
-
-          if (value.axisName === LEFT_AXIS) {
-            newSerie.axisName = RIGHT_AXIS;
-          } else {
-            newSerie.axisName = LEFT_AXIS;
-          }
-
-          newSelection.set(key, newSerie);
-        } else {
-          newSelection.set(key, value);
-        }
-      });
-
-      setSelectedSeries(newSelection);
-    },
-    [selectedSeries]
-  );
-
-  */
 
   const downloadSeries = () => {
     const allValues: string[][] = [];
@@ -170,8 +141,39 @@ export default function Dashboard() {
 
   const filterByName = () => {};
 
+  const HandleColorSelect = async (newColor: {
+    hex: React.SetStateAction<string>;
+  }) => {
+    if (curentSerie) {
+      handleColorChnage(curentSerie, newColor.hex.toString());
+      setShowSerieColor(false);
+    }
+  };
+
   return (
     <CoreLayout>
+      <SerieInfoModal
+        onCancel={() => {
+          setShowSerieModal(false);
+        }}
+        show={showSerieModal}
+        serie={allSeries.find((s) => s.ticker === curentSerie)}
+      />
+      <ToastContainer>
+        <Toast
+          onClose={() => setShowSerieColor(false)}
+          show={showColorSerieModal}
+          animation
+        >
+          <Toast.Body>
+            <Circle
+              style={{ width: '100%', height: '100%' }}
+              colors={XerenityHexColors}
+              onChange={HandleColorSelect}
+            />
+          </Toast.Body>
+        </Toast>
+      </ToastContainer>
       <Container fluid className="px-4 pb-3">
         <Row>
           <div className="d-flex align-items-center gap-2 py-1">
