@@ -156,9 +156,7 @@ const createLoansSlice: StateCreator<LoansSlice> = (set) => ({
       loanIds,
       filterDate
     );
-    if (response.error) {
-      set(() => ({ loanDebtData: [] }));
-    } else {
+    if (!response.error) {
       set(() => ({ loanDebtData: response.data }));
     }
     set((state) => {
