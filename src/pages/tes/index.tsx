@@ -146,6 +146,7 @@ export default function FullTesViewer() {
               type: 'line',
               priceFormat: defaultCustomFormat,
               axisName: 'right',
+              tiker: '',
             });
           }
         }
@@ -185,6 +186,7 @@ export default function FullTesViewer() {
           type: 'line',
           priceFormat: defaultCustomFormat,
           axisName: 'right',
+          tiker: '',
         });
       }
     },
