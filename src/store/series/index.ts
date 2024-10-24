@@ -38,6 +38,8 @@ export interface SeriesSlice {
   handleAxisChnage: (serie: LightSerie) => void;
   setShowSerieModal: (show: boolean) => void;
   setShowSerieColor: (show: boolean) => void;
+  filterByText: (searchText: string) => void;
+  resetStore: () => void;
 }
 
 const initialState = {
@@ -113,6 +115,18 @@ const createSeriesSlice: StateCreator<SeriesSlice> = (set) => ({
         (s) => s.tiker !== serie.tiker
       ),
     }));
+  },
+  filterByText: (searchText: string) => {
+    if (searchText.length > 0) {
+      const searchLower = searchText.toLowerCase();
+      set((state) => ({
+        filteredSeries: state.filteredSeries.filter((s) =>
+          s.display_name.toLowerCase().includes(searchLower)
+        ),
+      }));
+    } else {
+      set((state) => ({ filteredSeries: state.allSeries }));
+    }
   },
   searchSeries: async (values: SearchFilters) => {
     const response = await fetchFilterSeries({
@@ -209,6 +223,7 @@ const createSeriesSlice: StateCreator<SeriesSlice> = (set) => ({
       selectedSeries: state.selectedSeries.filter((f) => f.tiker !== idSerie),
     }));
   },
+  resetStore: () => set(initialState),
 });
 
 export default createSeriesSlice;

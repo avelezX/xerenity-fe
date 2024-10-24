@@ -62,6 +62,8 @@ export default function Dashboard() {
     setShowSerieModal,
     handleColorChnage,
     setShowSerieColor,
+    filterByText,
+    resetStore,
   } = useAppStore();
 
   const normalize = useRef<boolean>(false);
@@ -69,7 +71,8 @@ export default function Dashboard() {
 
   useEffect(() => {
     searchSeries({});
-  }, [searchSeries]);
+    return () => resetStore(); // Reset when component unmount
+  }, [resetStore, searchSeries]);
 
   function arrayDifference<T>(array1: T[], array2: T[]): T {
     return array1.filter((item) => !array2.includes(item))[0];
@@ -138,8 +141,6 @@ export default function Dashboard() {
       setSelectedSubGroup(newValue?.value);
     }
   };
-
-  const filterByName = () => {};
 
   const HandleColorSelect = async (newColor: {
     hex: React.SetStateAction<string>;
@@ -236,7 +237,7 @@ export default function Dashboard() {
                       }}
                       onKeyDown={(event) => {
                         if (event.key === 'Enter') {
-                          filterByName();
+                          filterByText(searchByName.current);
                         }
                       }}
                     />
@@ -245,7 +246,9 @@ export default function Dashboard() {
                         className="text-primary"
                         icon={faSearch}
                         fixedWidth
-                        onClick={filterByName}
+                        onClick={() => {
+                          filterByText(searchByName.current);
+                        }}
                       />
                     </InputGroup.Text>
                   </InputGroup>
