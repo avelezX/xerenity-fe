@@ -120,7 +120,7 @@ const createSeriesSlice: StateCreator<SeriesSlice> = (set) => ({
     if (searchText.length > 0) {
       const searchLower = searchText.toLowerCase();
       set((state) => ({
-        filteredSeries: state.filteredSeries.filter((s) =>
+        filteredSeries: state.allSeries.filter((s) =>
           s.display_name.toLowerCase().includes(searchLower)
         ),
       }));
