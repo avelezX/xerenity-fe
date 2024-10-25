@@ -1,242 +1,106 @@
 'use client';
 
 import { CoreLayout } from '@layout';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import {
-  Stack,
-  Offcanvas,
-  Spinner,
   Row,
   Col,
   Container,
-  Accordion,
   Form,
   InputGroup,
+  ToastContainer,
+  Toast,
 } from 'react-bootstrap';
-import React, {
-  useState,
-  useEffect,
-  useCallback,
-  ChangeEvent,
-  useRef,
-} from 'react';
-import {
-  LightSerie,
-  LightSerieValue,
-  LightSerieEntry,
-  lightSerieValueArray,
-} from 'src/types/lightserie';
+import React, { useState, useEffect, useRef } from 'react';
+import { LightSerieEntry, lightSerieValueArray } from 'src/types/lightserie';
 import { FontAwesomeIcon as Icon } from '@fortawesome/react-fontawesome';
 import {
   faFileCsv,
-  faMagnifyingGlass,
   faChartSimple,
-  faTrash,
-  faLineChart,
-  faEye,
-  faAlignLeft,
-  faAlignRight,
-  faClipboard,
+  faSearch,
 } from '@fortawesome/free-solid-svg-icons';
-import SeriePicker from '@components/serie/SeriePicker';
 import { ExportToCsv, downloadBlob } from 'src/utils/downloadCSV';
-import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import Toolbar from '@components/UI/Toolbar';
 import Chart from '@components/chart/Chart';
 import Button from '@components/UI/Button';
 import PageTitle from '@components/PageTitle';
-import Card from '@components/UI/Card';
-import CardGrid from '@components/UI/CardGrid';
+import useAppStore from '@store';
+import Panel from '@components/Panel';
+import tokens from 'design-tokens/tokens.json';
+import { SingleValue } from 'react-select';
+import SingleSelect from '@components/UI/SingleSelect';
+import { SelectableRows } from 'src/types/selectableRows';
+import { XerenityHexColors } from 'src/utils/getHexColors';
+import Circle from '@uiw/react-color-circle';
+import SeriesTable from './_seriesTable';
+import SelectedSeriesTable from './_selectedSeriesTable';
 import SerieInfoModal from './_SerieInfoModal';
-import strings from '../../strings/dahsboard.json';
 
-const { actions } = strings;
-
-const RIGHT_AXIS = 'right';
-const LEFT_AXIS = 'left';
 const PAGE_TITLE = 'Series';
 const NORMALIZE_SINCE = 'Normalizar desde:';
+const designSystem = tokens.xerenity;
+const PURPLE_COLOR_100 = designSystem['purple-100'].value;
 
 export default function Dashboard() {
-  const supabase = createClientComponentClient();
-
   const normalizeDate = useRef<string>('');
+  const searchByName = useRef<string>('');
 
-  const [loadingSerie, setLowdingSerie] = useState(false);
-  const [selectedInfoSerie, handleSelectInfoSerie] =
-    useState<LightSerieEntry | null>(null);
-  const [selectedSeries, setSelectedSeries] = useState<Map<string, LightSerie>>(
-    new Map()
-  );
-  const [selectionOptionsSbg, setSelectionOptionsSbg] = useState<
-    Map<string, Map<string, LightSerieEntry[]>>
-  >(new Map());
-  const [serieNameInfo, setSerieNameInfo] = useState<
-    Map<string, LightSerieEntry>
-  >(new Map());
+  const {
+    filteredSeries,
+    selectedSeries,
+    allSeries,
+    grupos,
+    subGrupos,
+    addSelectedSerie,
+    removeSelectedSerie,
+    searchSeries,
+    setSelectedGroup,
+    setSelectedSubGroup,
+    curentSerie,
+    showSerieModal,
+    showColorSerieModal,
+    setShowSerieModal,
+    handleColorChnage,
+    setShowSerieColor,
+    filterByText,
+    resetStore,
+  } = useAppStore();
+
   const normalize = useRef<boolean>(false);
   const [applyFunctions, setApplyunctions] = useState<string[]>([]);
-  const [showCanvs, setShowCanvas] = useState(false);
-
-  const handleClose = () => setShowCanvas(false);
-
-  const handleShow = () => setShowCanvas(true);
-
-  const FetchSerieValues = useCallback(
-    async (idSerie: string, newColor: string) => {
-      // TODO: Take this out to an outside function
-      const { data, error } = await supabase
-        .schema('xerenity')
-        .rpc('search', { ticket: idSerie });
-
-      if (error) {
-        return {
-          serie: [],
-          color: '',
-          name: '',
-          type: 'line',
-          priceFormat: { type: 'price', precision: 2, minMove: 0.01 },
-        } as LightSerie;
-      }
-      if (data) {
-        return {
-          serie: data.data as LightSerieValue[],
-          color: newColor,
-          name: serieNameInfo.get(idSerie)?.display_name,
-        } as LightSerie;
-      }
-
-      return {
-        serie: [],
-        color: '',
-        name: '',
-        type: 'line',
-        priceFormat: { type: 'price', precision: 2, minMove: 0.01 },
-      } as LightSerie;
-    },
-    [supabase, serieNameInfo]
-  );
-
-  const fetchData = useCallback(async () => {
-    // TODO: Take this out to an outside function
-    const { data, error } = await supabase
-      .schema('xerenity')
-      .from('search_mv')
-      .select();
-
-    if (error) {
-      setSelectionOptionsSbg(new Map());
-      toast.error(error.message, { position: toast.POSITION.TOP_CENTER });
-    } else if (data) {
-      const options = data as LightSerieEntry[];
-      const subGrupos = new Map<string, LightSerieEntry[]>();
-      const serieData = new Map<string, LightSerieEntry>();
-
-      const groupData = new Map<string, Map<string, LightSerieEntry[]>>();
-
-      options.forEach((entry) => {
-        let sbgroup = entry.sub_group;
-
-        if (!sbgroup) {
-          sbgroup = 'Sin clasificar';
-        }
-        serieData.set(entry.ticker, entry);
-
-        if (subGrupos.has(sbgroup)) {
-          subGrupos.get(sbgroup)?.push(entry);
-        } else {
-          subGrupos.set(sbgroup, [entry]);
-        }
-      });
-
-      Array.from(subGrupos.entries()).forEach(([key, value]) => {
-        value.forEach((serie) => {
-          const grp = groupData.get(serie.grupo);
-
-          if (grp) {
-            grp.set(serie.sub_group, value);
-          } else {
-            const helper = new Map<string, LightSerieEntry[]>();
-            helper.set(key, value);
-            groupData.set(serie.grupo, helper);
-          }
-        });
-      });
-
-      setSelectionOptionsSbg(groupData);
-      setSerieNameInfo(serieData);
-    } else {
-      setSelectionOptionsSbg(new Map());
-    }
-  }, [supabase]);
 
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    searchSeries({});
+    return () => resetStore(); // Reset when component unmount
+  }, [resetStore, searchSeries]);
 
-  const handleCheckboxChange = useCallback(
-    async (
-      event: ChangeEvent<HTMLInputElement>,
-      checkboxId: string,
-      color: string
-    ) => {
-      setLowdingSerie(true);
+  function arrayDifference<T>(array1: T[], array2: T[]): T {
+    return array1.filter((item) => !array2.includes(item))[0];
+  }
 
-      const newSelection = new Map<string, LightSerie>();
-
-      Array.from(selectedSeries.entries()).forEach(([key, value]) => {
-        newSelection.set(key, value);
-      });
-
-      if (event.target.checked) {
-        const newSerie = await FetchSerieValues(checkboxId, color);
-        newSerie.axisName = RIGHT_AXIS;
-        newSelection.set(checkboxId, newSerie);
-      } else {
-        newSelection.delete(checkboxId);
+  const handleSelectSerie = ({
+    selectedCount,
+    selectedRows,
+  }: SelectableRows<LightSerieEntry>) => {
+    if (selectedCount > selectedSeries.length) {
+      const added = arrayDifference(
+        selectedRows.map((r) => r.ticker),
+        selectedSeries.map((a) => a.tiker)
+      );
+      const removedData = selectedRows.find((a) => a.ticker === added);
+      if (added && removedData) {
+        addSelectedSerie(added, PURPLE_COLOR_100, removedData.display_name);
       }
-
-      setSelectedSeries(newSelection);
-
-      setLowdingSerie(false);
-    },
-    [selectedSeries, setSelectedSeries, FetchSerieValues]
-  );
-
-  const handleColorChnage = useCallback(
-    async (checkboxId: string, newColor: string) => {
-      const newSelection = new Map<string, LightSerie>();
-
-      Array.from(selectedSeries.entries()).forEach(([key, value]) => {
-        if (key === checkboxId) {
-          const newSerie: LightSerie = value;
-          newSerie.color = newColor;
-          newSelection.set(key, newSerie);
-        } else {
-          newSelection.set(key, value);
-        }
-      });
-
-      setSelectedSeries(newSelection);
-    },
-    [selectedSeries]
-  );
-
-  const handleRemoveSerie = useCallback(
-    async (serieId: string) => {
-      const newSelection = new Map<string, LightSerie>();
-
-      Array.from(selectedSeries.entries()).forEach(([key, value]) => {
-        newSelection.set(key, value);
-      });
-
-      newSelection.delete(serieId);
-
-      setSelectedSeries(newSelection);
-    },
-    [selectedSeries]
-  );
+    } else {
+      const removed = arrayDifference(
+        selectedSeries.map((a) => a.tiker),
+        selectedRows.map((r) => r.ticker)
+      );
+      if (removed) {
+        removeSelectedSerie(removed);
+      }
+    }
+  };
 
   const downloadSeries = () => {
     const allValues: string[][] = [];
@@ -262,35 +126,56 @@ export default function Dashboard() {
     }
   };
 
-  const handleAxisChnage = useCallback(
-    async (serieId: string) => {
-      const newSelection = new Map<string, LightSerie>();
+  const onGroupChnage = (
+    newValue: SingleValue<{ value: string; label: string }>
+  ) => {
+    if (newValue) {
+      setSelectedGroup(newValue.value);
+    }
+  };
 
-      Array.from(selectedSeries.entries()).forEach(([key, value]) => {
-        if (key === serieId) {
-          const newSerie: LightSerie = value;
+  const onSubGroupChnage = (
+    newValue: SingleValue<{ value: string; label: string }>
+  ) => {
+    if (newValue) {
+      setSelectedSubGroup(newValue?.value);
+    }
+  };
 
-          if (value.axisName === LEFT_AXIS) {
-            newSerie.axisName = RIGHT_AXIS;
-          } else {
-            newSerie.axisName = LEFT_AXIS;
-          }
-
-          newSelection.set(key, newSerie);
-        } else {
-          newSelection.set(key, value);
-        }
-      });
-
-      setSelectedSeries(newSelection);
-    },
-    [selectedSeries]
-  );
+  const HandleColorSelect = async (newColor: {
+    hex: React.SetStateAction<string>;
+  }) => {
+    if (curentSerie) {
+      handleColorChnage(curentSerie, newColor.hex.toString());
+      setShowSerieColor(false);
+    }
+  };
 
   return (
     <CoreLayout>
-      <Container fluid className="px-4">
-        <ToastContainer />
+      <SerieInfoModal
+        onCancel={() => {
+          setShowSerieModal(false);
+        }}
+        show={showSerieModal}
+        serie={allSeries.find((s) => s.ticker === curentSerie)}
+      />
+      <ToastContainer>
+        <Toast
+          onClose={() => setShowSerieColor(false)}
+          show={showColorSerieModal}
+          animation
+        >
+          <Toast.Body>
+            <Circle
+              style={{ width: '100%', height: '100%' }}
+              colors={XerenityHexColors}
+              onChange={HandleColorSelect}
+            />
+          </Toast.Body>
+        </Toast>
+      </ToastContainer>
+      <Container fluid className="px-4 pb-3">
         <Row>
           <div className="d-flex align-items-center gap-2 py-1">
             <PageTitle>
@@ -316,139 +201,78 @@ export default function Dashboard() {
                 <Icon icon={faFileCsv} className="mr-4" />
                 Descargar
               </Button>
-              <Button variant="primary" onClick={handleShow}>
-                <Icon icon={faMagnifyingGlass} className="mr-4" />
-                Explorar Series
-              </Button>
             </Toolbar>
           </div>
         </Row>
         <Row>
-          <Col>
-            <Chart showToolbar>
-              {Array.from(selectedSeries.values()).map((data) => (
-                <Chart.Line
-                  key={`chart-${data.name}`}
-                  data={data.serie}
-                  color={data.color}
-                  title={data.name}
-                  scaleId={data.axisName}
-                  applyFunctions={applyFunctions}
-                  fromNormalizeDate={normalizeDate.current}
-                />
-              ))}
-            </Chart>
+          <Row style={{ marginBottom: '23px' }}>
+            <Col sm={8}>
+              <Chart showToolbar>
+                {selectedSeries.map((data) => (
+                  <Chart.Line
+                    key={`chart-${data.tiker}`}
+                    data={data.serie}
+                    color={data.color}
+                    title={data.name}
+                    scaleId={data.axisName}
+                    applyFunctions={applyFunctions}
+                    fromNormalizeDate={normalizeDate.current}
+                  />
+                ))}
+              </Chart>
+            </Col>
+            <Col sm={4}>
+              <SelectedSeriesTable list={selectedSeries} />
+            </Col>
+          </Row>
+          <Col sm={12}>
+            <Panel>
+              <Row>
+                <Col sm={12} md={4}>
+                  <InputGroup>
+                    <Form.Control
+                      type="text"
+                      onChange={(a) => {
+                        searchByName.current = a.target.value;
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter') {
+                          filterByText(searchByName.current);
+                        }
+                      }}
+                    />
+                    <InputGroup.Text className="bg-white border-right-none">
+                      <Icon
+                        className="text-primary"
+                        icon={faSearch}
+                        fixedWidth
+                        onClick={() => {
+                          filterByText(searchByName.current);
+                        }}
+                      />
+                    </InputGroup.Text>
+                  </InputGroup>
+                </Col>
+                <Col sm={12} md={4}>
+                  <SingleSelect
+                    data={grupos}
+                    placeholder="Seleccione el Grupo"
+                    onChange={onGroupChnage}
+                  />
+                </Col>
+                <Col sm={12} md={4} className="align-self-end">
+                  <SingleSelect
+                    data={subGrupos}
+                    onChange={onSubGroupChnage}
+                    placeholder="Seleccione el Sub Grupo"
+                  />
+                </Col>
+              </Row>
+              <SeriesTable list={filteredSeries} onSelect={handleSelectSerie} />
+            </Panel>
           </Col>
         </Row>
-        <Col>
-          <CardGrid>
-            {Array.from(serieNameInfo.entries()).map(([key, value]) => [
-              selectedSeries.has(key) && (
-                <Card
-                  serieId={key}
-                  key={value.display_name}
-                  title={value.display_name}
-                  icon={faLineChart}
-                  color={selectedSeries.get(key)?.color}
-                  handleColorPicker={handleColorChnage}
-                  actions={[
-                    {
-                      name: 'copy',
-                      actionIcon: faClipboard,
-                      actionEvent: () => {
-                        navigator.clipboard.writeText(value.ticker);
-                        toast.info(actions.copy, {
-                          position: toast.POSITION.BOTTOM_RIGHT,
-                        });
-                      },
-                    },
-                    {
-                      name: 'axis',
-                      actionIcon:
-                        selectedSeries.get(key)?.axisName === 'left'
-                          ? faAlignLeft
-                          : faAlignRight,
-                      actionEvent: () => handleAxisChnage(value.ticker),
-                    },
-                    {
-                      name: 'details',
-                      actionIcon: faEye,
-                      actionEvent: () => handleSelectInfoSerie(value),
-                    },
-                    {
-                      name: 'delete',
-                      actionIcon: faTrash,
-                      actionEvent: () => handleRemoveSerie(value.ticker),
-                    },
-                  ]}
-                  description={value.description}
-                  fuente={value.fuente}
-                />
-              ),
-            ])}
-          </CardGrid>
-        </Col>
       </Container>
-      <Offcanvas
-        id="offcanvasNavbar-expand-false"
-        aria-labelledby="offcanvasNavbarLabel-expand-false"
-        placement="end"
-        scroll
-        show={showCanvs}
-        onHide={handleClose}
-      >
-        <Offcanvas.Header closeButton>
-          <Offcanvas.Title id="offcanvasNavbarLabel-expand-false">
-            <Row>
-              <Col>Series</Col>
-              <Col>{loadingSerie ? <Spinner animation="border" /> : null}</Col>
-            </Row>
-          </Offcanvas.Title>
-        </Offcanvas.Header>
-        <Offcanvas.Body>
-          <Stack gap={3}>
-            {Array.from(selectionOptionsSbg.entries()).map(([key, value]) => [
-              <Accordion key={`serie-group-${key}`}>
-                <Accordion.Item eventKey={key}>
-                  <Accordion.Header>{key}</Accordion.Header>
-                  <Accordion.Body>
-                    <Stack gap={2}>
-                      {Array.from(value.entries()).map(([skey, svalue]) => [
-                        <Accordion key={`serie-group-${skey}`}>
-                          <Accordion.Item eventKey={skey}>
-                            <Accordion.Header>{skey}</Accordion.Header>
-                            <Accordion.Body>
-                              <Stack gap={2}>
-                                {svalue.map((serie) => [
-                                  <SeriePicker
-                                    key={`serie-${serie.ticker}`}
-                                    handleSeriePick={handleCheckboxChange}
-                                    handleColorPicker={handleColorChnage}
-                                    showColor
-                                    displayName={serie.display_name}
-                                    serieID={serie.ticker}
-                                    disable={loadingSerie}
-                                    checked={selectedSeries.has(serie.ticker)}
-                                  />,
-                                ])}
-                              </Stack>
-                            </Accordion.Body>
-                          </Accordion.Item>
-                        </Accordion>,
-                      ])}
-                    </Stack>
-                  </Accordion.Body>
-                </Accordion.Item>
-              </Accordion>,
-            ])}
-          </Stack>
-        </Offcanvas.Body>
-      </Offcanvas>
-      <SerieInfoModal
-        onCancel={() => handleSelectInfoSerie(null)}
-        show={selectedInfoSerie !== null}
-        serie={selectedInfoSerie}
-      />
     </CoreLayout>
   );
 }
