@@ -1,6 +1,7 @@
 import Panel from '@components/Panel';
 import tokens from 'design-tokens/tokens.json';
 import { DashboardBox } from 'src/models/charts/fetchDashboardBoxes';
+import currencyFormat from 'src/utils/currencyFormat';
 
 const designSystem = tokens.xerenity;
 const PURPLE_COLOR_200 = designSystem['purple-200'].value;
@@ -51,7 +52,7 @@ type TableValueProps = {
 export const TableValue = ({ title, value, multi = 1 }: TableValueProps) => (
   <td>
     {title}
-    {value ? (value * multi).toFixed(2) : 0}
+    {value ? currencyFormat(value * multi) : 0}
   </td>
 );
 
