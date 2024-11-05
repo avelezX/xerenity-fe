@@ -154,28 +154,30 @@ const createLoansSlice: StateCreator<LoansSlice> = (set) => ({
     filterDate,
   }: SelectedLoansDate<Loan>) => {
     const loanIds = selectedRows.map((item) => item.id);
-    const response: FullLoanResponse = await fetchLoansIbrs(
-      loanIds,
-      filterDate
-    );
-    if (!response.error) {
-      const loanD = response.data as LoanData[];
+    if (loanIds.length > 0) {
+      const response: FullLoanResponse = await fetchLoansIbrs(
+        loanIds,
+        filterDate
+      );
+      if (!response.error) {
+        const loanD = response.data as LoanData[];
 
-      const summary = loanD.filter((value) => {
-        const numberValue = Number(value.bank);
-        return !Number.isNaN(numberValue) && numberValue === 0;
-      });
-
-      if (summary.length > 0) {
-        set(() => ({ fullLoan: summary[0] }));
-      }
-
-      set(() => ({
-        loanDebtData: loanD.filter((value) => {
+        const summary = loanD.filter((value) => {
           const numberValue = Number(value.bank);
-          return Number.isNaN(numberValue);
-        }),
-      }));
+          return !Number.isNaN(numberValue) && numberValue === 0;
+        });
+
+        if (summary.length > 0) {
+          set(() => ({ fullLoan: summary[0] }));
+        }
+
+        set(() => ({
+          loanDebtData: loanD.filter((value) => {
+            const numberValue = Number(value.bank);
+            return Number.isNaN(numberValue);
+          }),
+        }));
+      }
     }
     set((state) => {
       const newSelections: string[] = [];
