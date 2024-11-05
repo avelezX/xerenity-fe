@@ -15,7 +15,7 @@ type GenericCardProps = {
   name: string;
   value: number | undefined | null;
   multi?: number;
-  percentage?: boolean;
+  text?: string;
   fixed?: number;
 };
 
@@ -23,13 +23,13 @@ export const GenericCard = ({
   name,
   value,
   multi = 1,
-  percentage = false,
+  text,
   fixed = 2,
 }: GenericCardProps) => (
   <Panel styles={{ display: 'flex', justifyContent: 'center' }}>
     <h4 className="text-center">{name || ''}</h4>
     <h4 className="text-center" style={{ color: PURPLE_COLOR_200 }}>
-      {value ? `${(value * multi).toFixed(fixed)} ${percentage ? '%' : ''}` : 0}
+      {value ? `${(value * multi).toFixed(fixed)} ${text || ''}` : 0}
     </h4>
   </Panel>
 );

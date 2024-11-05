@@ -198,7 +198,7 @@ export default function LoansPage() {
               value={fullLoan?.average_irr}
               multi={100}
               name="WACC (IRR)"
-              percentage
+              text="%"
             />
           </Col>
           <Col sm={3}>
