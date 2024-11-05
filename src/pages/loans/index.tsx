@@ -13,7 +13,6 @@ import {
   faFileCsv,
   faPlus,
   faLandmark,
-  faPiggyBank,
 } from '@fortawesome/free-solid-svg-icons';
 import Toolbar from '@components/UI/Toolbar';
 import tokens from 'design-tokens/tokens.json';
@@ -28,9 +27,11 @@ import useAppStore from '@store';
 import Panel from '@components/Panel';
 import { Loan } from 'src/types/loans';
 import { SelectableRows } from 'src/types/selectableRows';
+import { GenericCard, TableValue } from '@components/InforCard/InfoCard';
+import DataTableBase from '@components/Table/BaseDataTable';
+import LoanDebtListColumns from '@components/Table/columnDefinition/loans/loanDebt/columns';
 import NewCreditModal from './_NewCreditModal';
 import CashFlowOverlay from './_cashFlowOverLay/cashFlowOverlay';
-import LoanDebtOverlay from './_loanDebtOverlay/loanDebtOverlay';
 
 const designSystem = tokens.xerenity;
 const PURPLE_COLOR_100 = designSystem['purple-100'].value;
@@ -68,7 +69,6 @@ export default function LoansPage() {
     showCashFlowTable,
     filterDate,
     currentSelection,
-    showLoanDebtTable,
     setSelectedLoans,
     setSelectedBanks,
     onShowDeleteConfirm,
@@ -76,12 +76,11 @@ export default function LoansPage() {
     onShowCashFlowTable,
     resetStore,
     setFilterDate,
-    onShowLoanDebtTable,
     loanDebtData,
+    fullLoan,
   } = useAppStore();
 
   const cashflowsEmpty = mergedCashFlows.length === 0;
-  const loanDebtEmpty = loanDebtData.length === 0;
 
   const onDownloadSeries = () => {
     const { name, columns, format } = CSV_FILE;
@@ -176,14 +175,6 @@ export default function LoansPage() {
                 Descargar
               </Button>
               <Button
-                variant={loanDebtEmpty ? 'outline-primary' : 'primary'}
-                disabled={loanDebtEmpty}
-                onClick={() => onShowLoanDebtTable(true)}
-              >
-                <Icon icon={faPiggyBank} className="mr-4" />
-                Ver deuda total
-              </Button>
-              <Button
                 variant={cashflowsEmpty ? 'outline-primary' : 'primary'}
                 disabled={cashflowsEmpty}
                 onClick={() => onShowCashFlowTable(true)}
@@ -201,8 +192,35 @@ export default function LoansPage() {
             </Toolbar>
           </div>
         </Row>
-        <Row>
-          <Col sm={12} style={{ marginBottom: '23px' }}>
+        <Row className="mb-3">
+          <Col sm={3}>
+            <GenericCard
+              value={fullLoan?.average_irr}
+              multi={100}
+              name="WACC (IRR)"
+              text="%"
+            />
+          </Col>
+          <Col sm={3}>
+            <GenericCard value={fullLoan?.average_tenor} name="Tenor (AÑOS)" />
+          </Col>
+          <Col sm={3}>
+            <GenericCard
+              value={fullLoan?.average_duration}
+              name="Duración"
+              fixed={1}
+            />
+          </Col>
+          <Col sm={3}>
+            <GenericCard
+              value={fullLoan?.loan_count}
+              name="# Total de creditos"
+              fixed={0}
+            />
+          </Col>
+        </Row>
+        <Row className="mb-3">
+          <Col sm={8}>
             <Chart showToolbar>
               <Chart.Bar
                 data={chartData}
@@ -212,7 +230,53 @@ export default function LoansPage() {
               />
             </Chart>
           </Col>
-          <Col sm={12}>
+          <Col sm={4}>
+            <table className="table">
+              <thead>
+                <tr>
+                  <th scope="col">Calculo</th>
+                  <th scope="col">IBR</th>
+                  <th scope="col">Tasa Fija</th>
+                  <th scope="col">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <th scope="row">Valor deuda</th>
+                  <TableValue value={fullLoan?.total_value_ibr} multi={100} />
+                  <TableValue value={fullLoan?.total_value_fija} multi={100} />
+                  <TableValue value={fullLoan?.total_value} multi={100} />
+                </tr>
+                <tr>
+                  <th scope="row">WACC</th>
+                  <TableValue value={fullLoan?.average_irr_ibr} multi={100} />
+                  <TableValue value={fullLoan?.average_irr_fija} multi={100} />
+                  <TableValue value={fullLoan?.average_irr} multi={100} />
+                </tr>
+                <tr>
+                  <th scope="row">Tenor</th>
+                  <TableValue value={fullLoan?.average_tenor} multi={100} />
+                  <TableValue value={fullLoan?.average_tenor} multi={100} />
+                  <TableValue value={fullLoan?.average_tenor} multi={100} />
+                </tr>
+                <tr>
+                  <th scope="row">Duracion</th>
+                  <TableValue value={fullLoan?.average_duration} multi={100} />
+                  <TableValue value={fullLoan?.average_duration} multi={100} />
+                  <TableValue value={fullLoan?.average_duration} multi={100} />
+                </tr>
+                <tr>
+                  <th scope="row">Total</th>
+                  <TableValue value={fullLoan?.loan_count} multi={100} />
+                  <TableValue value={fullLoan?.loan_count} multi={100} />
+                  <TableValue value={fullLoan?.loan_count} multi={100} />
+                </tr>
+              </tbody>
+            </table>
+          </Col>
+        </Row>
+        <Row>
+          <Col sm={8}>
             <Panel>
               <Row>
                 <Col sm={12} md={4}>
@@ -256,6 +320,16 @@ export default function LoansPage() {
               />
             </Panel>
           </Col>
+          <Col sm={4}>
+            <Panel>
+              <DataTableBase
+                columns={LoanDebtListColumns}
+                data={loanDebtData}
+                fixedHeader
+                selectableRowsNoSelectAll
+              />
+            </Panel>
+          </Col>
         </Row>
       </Container>
       <ConfirmationModal
@@ -274,11 +348,6 @@ export default function LoansPage() {
         cashFlows={mergedCashFlows}
         handleShow={onShowCashFlowTable}
         show={showCashFlowTable}
-      />
-      <LoanDebtOverlay
-        loanDebtData={loanDebtData}
-        handleShow={onShowLoanDebtTable}
-        show={showLoanDebtTable}
       />
       <ToastContainer />
     </CoreLayout>
