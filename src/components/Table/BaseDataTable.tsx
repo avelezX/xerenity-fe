@@ -33,6 +33,7 @@ function BaseDataTable<T>({
   actions,
   pagination,
   paginationComponentOptions,
+  selectableRowsNoSelectAll,
 }: TableProps<T>): JSX.Element {
   return (
     <DataTable
@@ -49,7 +50,7 @@ function BaseDataTable<T>({
       selectableRowsSingle={selectableRowsSingle}
       conditionalRowStyles={conditionalRowStyles}
       expandableRowsComponent={expandableRowsComponent}
-      selectableRowsNoSelectAll
+      selectableRowsNoSelectAll={selectableRowsNoSelectAll}
       actions={actions}
       pagination={pagination}
       paginationComponentOptions={paginationComponentOptions}

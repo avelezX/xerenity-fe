@@ -11,7 +11,7 @@ import { SourcePill } from '@components/UI/Card/Card.styled';
 import Chart from '@components/chart/Chart';
 import calculateCurrentDate from 'src/utils/calculateCurrentDate';
 import tokens from 'design-tokens/tokens.json';
-import InfoCard from './_InfoCard';
+import InfoCard from '@components/InforCard/InfoCard';
 
 const designSystem = tokens.xerenity;
 const GRAY_COLOR_300 = designSystem['gray-300'].value;

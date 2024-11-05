@@ -44,6 +44,7 @@ export interface LoansSlice {
   selectedBanks: Bank[];
   showCashFlowTable: boolean;
   showLoanDebtTable: boolean;
+  fullLoan: LoanData | undefined;
   filterDate: string;
   getLoanData: (bankFilter?: Bank[]) => void;
   setSelectedLoans: ({
@@ -77,6 +78,7 @@ const initialState = {
   chartData: [],
   errorMessage: undefined,
   successMessage: undefined,
+  fullLoan: undefined,
   mergedCashFlows: [],
   loans: [],
   loanDebtData: [],
@@ -157,7 +159,23 @@ const createLoansSlice: StateCreator<LoansSlice> = (set) => ({
       filterDate
     );
     if (!response.error) {
-      set(() => ({ loanDebtData: response.data }));
+      const loanD = response.data as LoanData[];
+
+      const summary = loanD.filter((value) => {
+        const numberValue = Number(value.bank);
+        return !Number.isNaN(numberValue) && numberValue === 0;
+      });
+
+      if (summary.length > 0) {
+        set(() => ({ fullLoan: summary[0] }));
+      }
+
+      set(() => ({
+        loanDebtData: loanD.filter((value) => {
+          const numberValue = Number(value.bank);
+          return Number.isNaN(numberValue);
+        }),
+      }));
     }
     set((state) => {
       const newSelections: string[] = [];
