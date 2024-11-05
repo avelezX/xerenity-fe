@@ -12,14 +12,23 @@ type InfoCardProps = {
 
 type GenericCardProps = {
   name: string;
-  value: string | number | undefined | null;
+  value: number | undefined | null;
+  multi?: number;
+  percentage?: boolean;
+  fixed?: number;
 };
 
-export const GenericCard = ({ name, value }: GenericCardProps) => (
+export const GenericCard = ({
+  name,
+  value,
+  multi = 1,
+  percentage = false,
+  fixed = 2,
+}: GenericCardProps) => (
   <Panel styles={{ display: 'flex', justifyContent: 'center' }}>
     <h4 className="text-center">{name || ''}</h4>
     <h4 className="text-center" style={{ color: PURPLE_COLOR_200 }}>
-      {value || 0}
+      {value ? `${(value * multi).toFixed(fixed)} ${percentage ? '%' : ''}` : 0}
     </h4>
   </Panel>
 );
@@ -28,10 +37,7 @@ const InfoCard = ({ cardData, cardId }: InfoCardProps) => {
   const boxInfo = cardData?.find((card) => card.box_name === cardId);
   return (
     boxInfo && (
-      <GenericCard
-        name={boxInfo.name || ''}
-        value={boxInfo?.data.value.toFixed(2)}
-      />
+      <GenericCard name={boxInfo.name || ''} value={boxInfo?.data.value} />
     )
   );
 };
@@ -39,10 +45,14 @@ const InfoCard = ({ cardData, cardId }: InfoCardProps) => {
 type TableValueProps = {
   value: number | undefined;
   multi?: number;
+  title?: string;
 };
 
-export const TableValue = ({ value, multi = 1 }: TableValueProps) => (
-  <td>{value ? (value * multi).toFixed(2) : 0}</td>
+export const TableValue = ({ title, value, multi = 1 }: TableValueProps) => (
+  <td>
+    {title}
+    {value ? (value * multi).toFixed(2) : 0}
+  </td>
 );
 
 export default InfoCard;
