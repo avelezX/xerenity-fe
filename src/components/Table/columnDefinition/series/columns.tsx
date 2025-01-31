@@ -27,16 +27,22 @@ const SerieListColumns = [
     name: 'Nombre',
     selector: (row: LightSerieEntry) => row.display_name,
     sortable: true,
+    wrap: true,
+    grow: 3,
   },
   {
     name: 'Grupo',
     selector: (row: LightSerieEntry) => row.grupo,
     sortable: true,
+    grow: 1,
+    wrap: true,
   },
   {
     name: 'Sub grupo',
     selector: (row: LightSerieEntry) => row.sub_group,
     sortable: true,
+    wrap: true,
+    grow: 3,
   },
   {
     name: 'Fuente',
@@ -46,6 +52,8 @@ const SerieListColumns = [
   {
     name: 'Acciones',
     cell: (row: LightSerieEntry) => <ViewSerie serie={row} />,
+    compact: true,
+    maxWidth: '5rem',
   },
 ];
 
