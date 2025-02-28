@@ -40,7 +40,7 @@ const NAV_ITEMS: NavItemProps[] = [
     active: false,
   },
   {
-    name: 'inflación',
+    name: 'Inflación',
     path: '/inflation',
     icon: faMoneyBillTrendUp,
     active: false,
