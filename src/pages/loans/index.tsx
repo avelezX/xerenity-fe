@@ -254,7 +254,7 @@ export default function LoansPage() {
                   <TableValue value={fullLoan?.average_irr} multi={100} />
                 </tr>
                 <tr>
-                  <th scope="row">Tenor</th>
+                  <th scope="row">Tenor Anos</th>
                   <TableValue value={fullLoan?.average_tenor} multi={100} />
                   <TableValue value={fullLoan?.average_tenor} multi={100} />
                   <TableValue value={fullLoan?.average_tenor} multi={100} />
