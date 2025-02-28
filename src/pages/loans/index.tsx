@@ -202,13 +202,13 @@ export default function LoansPage() {
             />
           </Col>
           <Col sm={3}>
-            <GenericCard value={fullLoan?.average_tenor} name="Tenor (AÑOS)" />
+            <GenericCard value={fullLoan?.average_tenor} name="Tenor (Años)" />
           </Col>
           <Col sm={3}>
             <GenericCard
               value={fullLoan?.average_duration}
-              name="Duración"
-              fixed={1}
+              name="Duración (Años)"
+              fixed={2}
             />
           </Col>
           <Col sm={3}>
@@ -248,28 +248,22 @@ export default function LoansPage() {
                   <TableValue value={fullLoan?.total_value} multi={100} />
                 </tr>
                 <tr>
-                  <th scope="row">WACC</th>
+                  <th scope="row">WACC %</th>
                   <TableValue value={fullLoan?.average_irr_ibr} multi={100} />
                   <TableValue value={fullLoan?.average_irr_fija} multi={100} />
                   <TableValue value={fullLoan?.average_irr} multi={100} />
                 </tr>
                 <tr>
-                  <th scope="row">Tenor</th>
-                  <TableValue value={fullLoan?.average_tenor} multi={100} />
-                  <TableValue value={fullLoan?.average_tenor} multi={100} />
-                  <TableValue value={fullLoan?.average_tenor} multi={100} />
+                  <th scope="row">Tenor (Años)</th>
+                  <TableValue value={fullLoan?.average_tenor} />
+                  <TableValue value={fullLoan?.average_tenor} />
+                  <TableValue value={fullLoan?.average_tenor} />
                 </tr>
                 <tr>
-                  <th scope="row">Duracion</th>
+                  <th scope="row">Duracion (Años)</th>
                   <TableValue value={fullLoan?.average_duration} multi={100} />
                   <TableValue value={fullLoan?.average_duration} multi={100} />
                   <TableValue value={fullLoan?.average_duration} multi={100} />
-                </tr>
-                <tr>
-                  <th scope="row">Total</th>
-                  <TableValue value={fullLoan?.loan_count} multi={100} />
-                  <TableValue value={fullLoan?.loan_count} multi={100} />
-                  <TableValue value={fullLoan?.loan_count} multi={100} />
                 </tr>
               </tbody>
             </table>

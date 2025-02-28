@@ -14,7 +14,7 @@ const LoanDebtListColumns = [
   },
   {
     name: 'WAC IRR',
-    selector: (row: LoanData) => currencyFormat(row.average_irr),
+    selector: (row: LoanData) => currencyFormat(row.average_irr * 100),
     sortable: true,
   },
   {

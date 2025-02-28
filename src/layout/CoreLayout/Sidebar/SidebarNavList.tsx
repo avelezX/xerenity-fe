@@ -34,13 +34,13 @@ const NAV_ITEMS: NavItemProps[] = [
     active: false,
   },
   {
-    name: 'tasas COP',
+    name: 'TasasCOP',
     path: '/tes',
     icon: faLineChart,
     active: false,
   },
   {
-    name: 'inflación',
+    name: 'Inflación',
     path: '/inflation',
     icon: faMoneyBillTrendUp,
     active: false,
