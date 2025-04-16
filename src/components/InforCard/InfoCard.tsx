@@ -47,12 +47,18 @@ type TableValueProps = {
   value: number | undefined;
   multi?: number;
   title?: string;
+  fixed?: number;
 };
 
-export const TableValue = ({ title, value, multi = 1 }: TableValueProps) => (
+export const TableValue = ({
+  title,
+  value,
+  multi = 1,
+  fixed = 2,
+}: TableValueProps) => (
   <td>
     {title}
-    {value ? currencyFormat(value * multi) : 0}
+    {value ? currencyFormat(value * multi, fixed) : 0}
   </td>
 );
 

@@ -240,32 +240,37 @@ export default function LoansPage() {
                   <th scope="col">Total</th>
                 </tr>
               </thead>
-              <tbody>
-                <tr>
-                  <th scope="row">Valor deuda</th>
-                  <TableValue value={fullLoan?.total_value_ibr} multi={100} />
-                  <TableValue value={fullLoan?.total_value_fija} multi={100} />
-                  <TableValue value={fullLoan?.total_value} multi={100} />
-                </tr>
-                <tr>
-                  <th scope="row">WACC %</th>
-                  <TableValue value={fullLoan?.average_irr_ibr} multi={100} />
-                  <TableValue value={fullLoan?.average_irr_fija} multi={100} />
-                  <TableValue value={fullLoan?.average_irr} multi={100} />
-                </tr>
-                <tr>
-                  <th scope="row">Tenor (Años)</th>
-                  <TableValue value={fullLoan?.average_tenor} />
-                  <TableValue value={fullLoan?.average_tenor} />
-                  <TableValue value={fullLoan?.average_tenor} />
-                </tr>
-                <tr>
-                  <th scope="row">Duracion (Años)</th>
-                  <TableValue value={fullLoan?.average_duration} multi={100} />
-                  <TableValue value={fullLoan?.average_duration} multi={100} />
-                  <TableValue value={fullLoan?.average_duration} multi={100} />
-                </tr>
-              </tbody>
+              {fullLoan && (
+                <tbody>
+                  <tr>
+                    <th scope="row">Valor deuda</th>
+                    <TableValue value={fullLoan.total_value_ibr} fixed={0} />
+                    <TableValue value={fullLoan?.total_value_fija} fixed={0} />
+                    <TableValue value={fullLoan?.total_value} fixed={0} />
+                  </tr>
+                  <tr>
+                    <th scope="row">WACC %</th>
+                    <TableValue value={fullLoan?.average_irr_ibr} multi={100} />
+                    <TableValue
+                      value={fullLoan?.average_irr_fija}
+                      multi={100}
+                    />
+                    <TableValue value={fullLoan?.average_irr} multi={100} />
+                  </tr>
+                  <tr>
+                    <th scope="row">Tenor (Años)</th>
+                    <TableValue value={fullLoan?.average_tenor} />
+                    <TableValue value={fullLoan?.average_tenor} />
+                    <TableValue value={fullLoan?.average_tenor} />
+                  </tr>
+                  <tr>
+                    <th scope="row">Duracion (Años)</th>
+                    <TableValue value={fullLoan?.average_duration} />
+                    <TableValue value={fullLoan?.average_duration} />
+                    <TableValue value={fullLoan?.average_duration} />
+                  </tr>
+                </tbody>
+              )}
             </table>
           </Col>
         </Row>
