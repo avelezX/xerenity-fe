@@ -15,7 +15,6 @@ import {
   CardContainer,
   CardFooter,
 } from '@components/UI/Card/Card.styled';
-import { EmailOtpType } from '@supabase/supabase-js';
 import PoweredBy from '../_PoweredBy';
 
 const LOGO_SETTINGS = {
@@ -30,20 +29,18 @@ function ResetPasswordPage() {
   const router = useRouter();
   const [error, setError] = useState<string>();
 
-  const next = searchParams.get('next');
   const accesToken = searchParams.get('access_token');
-  const type = searchParams.get('type');
 
   const approveOtpAccount = async () => {
     if (accesToken) {
       const res = await supabase.auth.verifyOtp({
-        type: type as EmailOtpType,
+        type: 'invite',
         token_hash: accesToken,
       });
       if (res.error) {
         setError(res.error.message);
-      } else if (next) {
-        router.push(next);
+      } else {
+        router.push('/dashboard');
       }
     } else {
       setError('No Access Token');
