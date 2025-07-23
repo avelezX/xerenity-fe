@@ -30,12 +30,14 @@ function ResetPasswordPage() {
   const [error, setError] = useState<string>();
 
   const accesToken = searchParams.get('access_token');
+  const email = searchParams.get('email');
 
   const approveOtpAccount = async () => {
-    if (accesToken) {
+    if (accesToken && email) {
       const res = await supabase.auth.verifyOtp({
         type: 'invite',
-        token_hash: accesToken,
+        token: accesToken,
+        email,
       });
       if (res.error) {
         setError(res.error.message);
