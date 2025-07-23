@@ -63,7 +63,7 @@ function ResetPasswordPage() {
             className="mx-auto d-block pb-3"
           />
           <CardContainer>
-            <CardBody>Aprueva tu nueva cuenta de Xerenity</CardBody>
+            <CardBody>Aprueva tu nueva cuenta de Xerenity!</CardBody>
             <CardFooter>
               <div className="flex">
                 <Button onClick={() => approveOtpAccount()}>Aprobar</Button>
