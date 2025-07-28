@@ -17,8 +17,12 @@ const CASH_FLOW_IBR = {
   error: 'Error Fetching IBR Cash Flows',
 };
 
+const CASH_FLOW_UVR = {
+  key: 'uvr_cash_flow',
+  error: 'Error Fetching UVR Cash Flows',
+};
+
 const SCHEMA = 'xerenity';
-const DEFAULT_TYPE = 'fija';
 const supabase = createClientComponentClient();
 
 export const fetchCashFlows = async (
@@ -26,8 +30,13 @@ export const fetchCashFlows = async (
   loanType: string,
   filterDate: string
 ): Promise<CashflowResponse> => {
-  const requestKey =
-    loanType === DEFAULT_TYPE ? CASH_FLOW.key : CASH_FLOW_IBR.key;
+  let requestKey = CASH_FLOW.key;
+
+  if (loanType === 'ibr') {
+    requestKey = CASH_FLOW_IBR.key;
+  } else if (loanType === 'uvr') {
+    requestKey = CASH_FLOW_UVR.key;
+  }
   const response: CashflowResponse = {
     data: [],
     error: undefined,
