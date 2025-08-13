@@ -4,6 +4,7 @@ import { fetchCashFlows, CashflowResponse } from './fetchCashFlows';
 import { deleteLoan, DeleteLoanResponse } from './deleteLoan';
 import { createNewLoan, CreateLoanResponse } from './createLoan';
 import { fetchLoansIbrs } from './fetchIbrLoans';
+import { wakeUpServer } from './wakeUpServer';
 
 export type {
   LoanResponse,
@@ -20,4 +21,5 @@ export {
   deleteLoan,
   createNewLoan,
   fetchLoansIbrs,
+  wakeUpServer,
 };

@@ -28,6 +28,8 @@ export interface LoanData {
   average_duration: number;
   average_irr_fija: number;
   total_value_fija: number;
+  average_irr_uvr: number;
+  total_value_uvr: number;
   outdated_loan_count: number;
   not_calculated_loan_count: number;
 }

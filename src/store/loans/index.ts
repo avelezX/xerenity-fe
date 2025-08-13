@@ -19,6 +19,7 @@ import {
   DeleteLoanResponse,
   CreateLoanResponse,
   fetchLoansIbrs,
+  wakeUpServer,
 } from 'src/models/loans';
 import { LightSerieValue } from 'src/types/lightserie';
 import { SelectedLoansDate } from 'src/types/selectableRows';
@@ -70,6 +71,7 @@ export interface LoansSlice {
   setFilterDate: (newFilterDate: string) => void;
   resetStore: () => void;
   setCurrentSelection: (loan: Loan) => void;
+  wakeServer: () => void;
 }
 
 const initialState = {
@@ -318,6 +320,10 @@ const createLoansSlice: StateCreator<LoansSlice> = (set) => ({
   setFilterDate: (newFilterDate: string) =>
     set(() => ({ filterDate: newFilterDate })),
   resetStore: () => set(initialState),
+  wakeServer: async () => {
+    const response = await wakeUpServer();
+    return response;
+  },
 });
 
 export default createLoansSlice;
