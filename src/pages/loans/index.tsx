@@ -78,6 +78,7 @@ export default function LoansPage() {
     setFilterDate,
     loanDebtData,
     fullLoan,
+    wakeServer,
   } = useAppStore();
 
   const cashflowsEmpty = mergedCashFlows.length === 0;
@@ -133,6 +134,10 @@ export default function LoansPage() {
     getLoanData();
     return () => resetStore(); // Reset when component unmount
   }, [getLoanData, resetStore]);
+
+  useEffect(() => {
+    wakeServer();
+  }, [wakeServer]);
 
   useEffect(() => {
     if (errorMessage) {
@@ -236,6 +241,7 @@ export default function LoansPage() {
                 <tr>
                   <th scope="col">Calculo</th>
                   <th scope="col">IBR</th>
+                  <th scope="col">UVR</th>
                   <th scope="col">Tasa Fija</th>
                   <th scope="col">Total</th>
                 </tr>
@@ -245,12 +251,14 @@ export default function LoansPage() {
                   <tr>
                     <th scope="row">Valor deuda</th>
                     <TableValue value={fullLoan.total_value_ibr} fixed={0} />
+                    <TableValue value={fullLoan.total_value_uvr} fixed={0} />
                     <TableValue value={fullLoan?.total_value_fija} fixed={0} />
                     <TableValue value={fullLoan?.total_value} fixed={0} />
                   </tr>
                   <tr>
                     <th scope="row">WACC %</th>
                     <TableValue value={fullLoan?.average_irr_ibr} multi={100} />
+                    <TableValue value={fullLoan.average_irr_uvr} multi={100} />
                     <TableValue
                       value={fullLoan?.average_irr_fija}
                       multi={100}
@@ -260,12 +268,14 @@ export default function LoansPage() {
                   <tr>
                     <th scope="row">Tenor (Años)</th>
                     <TableValue value={fullLoan?.average_tenor} />
+                    <TableValue value={fullLoan.average_tenor} />
                     <TableValue value={fullLoan?.average_tenor} />
                     <TableValue value={fullLoan?.average_tenor} />
                   </tr>
                   <tr>
                     <th scope="row">Duracion (Años)</th>
                     <TableValue value={fullLoan?.average_duration} />
+                    <TableValue value={fullLoan.average_duration} />
                     <TableValue value={fullLoan?.average_duration} />
                     <TableValue value={fullLoan?.average_duration} />
                   </tr>

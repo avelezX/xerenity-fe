@@ -60,7 +60,6 @@ const nameMapping: { [id: string]: string } = {
   Anual: 'Años',
   Semestral: 'Semestres',
   Trimestral: 'Trimestres',
-  Bimensual: 'Bi meses',
   Mensual: 'Meses',
 };
 
@@ -276,7 +275,6 @@ const NewCreditModal = ({ show, bankList, onShow }: NewCreditModalProps) => {
                         <option value="Anual">Anual</option>
                         <option value="Semestral">Semestral</option>
                         <option value="Trimestral">Trimestral</option>
-                        <option value="Bimensual">Bimensual</option>
                         <option value="Mensual">Mensual</option>
                       </Form.Select>
                       {touched.periodicity && errors.periodicity && (
