@@ -72,6 +72,7 @@ export interface LoansSlice {
   resetStore: () => void;
   setCurrentSelection: (loan: Loan) => void;
   wakeServer: () => void;
+  deleteMultipleLoans: (loanIds: string[]) => void;
 }
 
 const initialState = {
@@ -155,12 +156,14 @@ const createLoansSlice: StateCreator<LoansSlice> = (set) => ({
     selectedRows,
     filterDate,
   }: SelectedLoansDate<Loan>) => {
+    set({ loading: true, errorMessage: undefined, successMessage: undefined });
     const loanIds = selectedRows.map((item) => item.id);
     if (loanIds.length > 0) {
       const response: FullLoanResponse = await fetchLoansIbrs(
         loanIds,
         filterDate
       );
+      set({ loading: false });
       if (!response.error) {
         const loanD = response.data as LoanData[];
 
@@ -203,7 +206,8 @@ const createLoansSlice: StateCreator<LoansSlice> = (set) => ({
       });
 
       state.setMergedCashFlows(newCashFlow);
-      return { selectedLoans: newSelections };
+
+      return { selectedLoans: newSelections, loading: false };
     });
   },
   setSelectedBanks: (selections: Bank[]) =>
@@ -250,13 +254,11 @@ const createLoansSlice: StateCreator<LoansSlice> = (set) => ({
     set(() => ({ showNewLoanModal: show })),
   deleteLoanItem: async (loanId) => {
     set({ loading: true, errorMessage: undefined, successMessage: undefined });
-    const response: DeleteLoanResponse = await deleteLoan(loanId);
-
+    const response: DeleteLoanResponse = await deleteLoan([loanId]);
+    set({ loading: false });
     if (response.error) {
-      set({ loading: false });
       set({ errorMessage: response.error });
     } else if (response.data) {
-      set({ loading: false });
       set((state) => {
         const currentLoans = state.loans;
         state.onShowDeleteConfirm(false);
@@ -268,6 +270,7 @@ const createLoansSlice: StateCreator<LoansSlice> = (set) => ({
       });
     }
   },
+
   setMergedCashFlows: (cashFlows: CashFlowItem[]) =>
     set((state) => {
       const newCashFlow: { [date: string]: LoanCashFlowIbr } = {};
@@ -323,6 +326,26 @@ const createLoansSlice: StateCreator<LoansSlice> = (set) => ({
   wakeServer: async () => {
     const response = await wakeUpServer();
     return response;
+  },
+  deleteMultipleLoans: async (loanIds: string[]) => {
+    set({ loading: true, errorMessage: undefined, successMessage: undefined });
+    const response: DeleteLoanResponse = await deleteLoan(loanIds);
+
+    if (response.error) {
+      set({ loading: false });
+      set({ errorMessage: response.error });
+    } else if (response.data) {
+      set({ loading: false });
+      set((state) => {
+        const currentLoans = state.loans;
+        state.onShowDeleteConfirm(false);
+        // Filter out deleted item and notify of success
+        return {
+          loans: currentLoans.filter(({ id }) => !loanIds.includes(id)),
+          successMessage: response.data?.message,
+        };
+      });
+    }
   },
 });
 

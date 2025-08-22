@@ -8,6 +8,7 @@ import ChartToolBar from './ChartToolbar';
 type ChartProps = {
   chartHeight?: number | string;
   showToolbar?: boolean | undefined;
+  loading?: boolean;
 } & PropsWithChildren;
 
 const DEFAULT_CHART_HEIGHT = 400;
@@ -19,6 +20,7 @@ export default function ChartContainer({
   children,
   chartHeight,
   showToolbar,
+  loading,
 }: ChartProps) {
   const chart = useRef<IChartApi>();
   const chartContainerRef = useRef<HTMLInputElement | null>(null);
@@ -110,6 +112,7 @@ export default function ChartContainer({
           onDateAction={swapDateFormater}
           onZoomAction={resetZoom}
           onScreenshot={downloadChartsPng}
+          loading={loading || false}
         />
       )}
       <div
