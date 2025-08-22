@@ -21,6 +21,7 @@ export interface SeriesSlice {
   showSerieModal: boolean;
   curentSerie: string | undefined;
   showColorSerieModal: boolean;
+  loading: boolean;
   setCurrentSerie: (serie: string) => void;
   setAllSeries: (data: LightSerieEntry[]) => void;
   searchSeries: (values: SearchFilters) => void;
@@ -55,6 +56,7 @@ const initialState = {
   selectedGroup: undefined,
   selectedSubGroup: undefined,
   errorMessage: undefined,
+  loading: false,
 };
 
 const createSeriesSlice: StateCreator<SeriesSlice> = (set) => ({
@@ -204,10 +206,12 @@ const createSeriesSlice: StateCreator<SeriesSlice> = (set) => ({
     newColor: string,
     serieName: string
   ) => {
+    set({ loading: true });
     const response = await fetchSeriesData({
       idSerie,
       newColor,
     });
+    set({ loading: false });
     if (response.error) {
       set({ errorMessage: response.error });
     } else if (response.data) {

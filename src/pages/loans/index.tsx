@@ -13,6 +13,7 @@ import {
   faFileCsv,
   faPlus,
   faLandmark,
+  faTrash,
 } from '@fortawesome/free-solid-svg-icons';
 import Toolbar from '@components/UI/Toolbar';
 import tokens from 'design-tokens/tokens.json';
@@ -79,6 +80,9 @@ export default function LoansPage() {
     loanDebtData,
     fullLoan,
     wakeServer,
+    selectedLoans,
+    deleteMultipleLoans,
+    loading,
   } = useAppStore();
 
   const cashflowsEmpty = mergedCashFlows.length === 0;
@@ -226,7 +230,7 @@ export default function LoansPage() {
         </Row>
         <Row className="mb-3">
           <Col sm={8}>
-            <Chart showToolbar>
+            <Chart showToolbar loading={loading}>
               <Chart.Bar
                 data={chartData}
                 color={PURPLE_COLOR_100}
@@ -288,14 +292,14 @@ export default function LoansPage() {
           <Col sm={8}>
             <Panel>
               <Row>
-                <Col sm={12} md={4}>
+                <Col sm={12} md={3}>
                   <MultipleSelect
                     data={bankSelectItems}
                     onChange={onBankFilter}
                     placeholder="Filtra tabla por banco"
                   />
                 </Col>
-                <Col sm={12} md={4} className="align-self-end">
+                <Col sm={12} md={3}>
                   <InputGroup>
                     <InputGroup.Text className="bg-white border-right-none">
                       <Icon
@@ -312,6 +316,17 @@ export default function LoansPage() {
                       }}
                     />
                   </InputGroup>
+                </Col>
+                <Col sm={12} md={2} className="position-absolute end-0">
+                  <Button
+                    onClick={() => {
+                      deleteMultipleLoans(selectedLoans);
+                    }}
+                    disabled={selectedLoans.length === 0}
+                  >
+                    <Icon icon={faTrash} />
+                    Borrar creditos
+                  </Button>
                 </Col>
               </Row>
               <LoansTable

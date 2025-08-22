@@ -18,7 +18,7 @@ const supabase = createClientComponentClient();
 const SCHEMA = 'xerenity';
 
 export const deleteLoan = async (
-  loanId: string
+  loanId: string[]
 ): Promise<DeleteLoanResponse> => {
   const response: DeleteLoanResponse = {
     data: undefined,

@@ -64,6 +64,7 @@ export default function Dashboard() {
     setShowSerieColor,
     filterByText,
     resetStore,
+    loading,
   } = useAppStore();
 
   const normalize = useRef<boolean>(false);
@@ -207,7 +208,7 @@ export default function Dashboard() {
         <Row>
           <Row style={{ marginBottom: '23px' }}>
             <Col sm={8}>
-              <Chart showToolbar>
+              <Chart showToolbar loading={loading}>
                 {selectedSeries.map((data) => (
                   <Chart.Line
                     key={`chart-${data.tiker}`}

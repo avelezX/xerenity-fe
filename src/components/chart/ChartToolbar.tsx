@@ -7,6 +7,7 @@ import {
   faCalendar,
   faImage,
   faMagnifyingGlassMinus,
+  faSpinner,
 } from '@fortawesome/free-solid-svg-icons';
 import { Overlay, Tooltip } from 'react-bootstrap';
 
@@ -18,12 +19,14 @@ type ChartToolBarProps = {
   onDateAction: () => void;
   onZoomAction: () => void;
   onScreenshot: () => void;
+  loading: boolean;
 };
 
 const ChartToolBar = ({
   onDateAction,
   onZoomAction,
   onScreenshot,
+  loading,
 }: ChartToolBarProps) => {
   const showYearTarget = useRef<HTMLDivElement | null>(null);
   const showZoomTarget = useRef<HTMLDivElement | null>(null);
@@ -33,7 +36,12 @@ const ChartToolBar = ({
   const [showScreenshotTooltip, onShowScreenshotTooltip] = useState(false);
   return (
     <div>
-      <div className="w-100 d-flex gap-3 justify-content-end mb-4">
+      <div className="w-100 d-flex gap-3 justify-content-end align-items-center mb-4">
+        {loading && (
+          <IconButton>
+            <Icon icon={faSpinner} spin />
+          </IconButton>
+        )}
         <IconButton onClick={() => onDateAction()}>
           <div
             ref={showYearTarget}
