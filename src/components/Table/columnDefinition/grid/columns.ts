@@ -1,3 +1,4 @@
+import React from 'react';
 import currencyFormat from 'src/utils/currencyFormat';
 import { GridEntry } from 'src/types/tes';
 import tokens from 'design-tokens/tokens.json';
@@ -5,78 +6,97 @@ import tokens from 'design-tokens/tokens.json';
 const designSystem = tokens.xerenity;
 const SUCCESS_COLOR = designSystem['green-500'].value;
 const DANGER_COLOR = designSystem['red-600'].value;
-const WHITE_COLOR = designSystem['white-100'].value;
 
-const conditionalColChnageStyles = [
-  {
-    when: (row: GridEntry) => row.close < row.prev,
-    style: {
-      backgroundColor: SUCCESS_COLOR,
-      color: WHITE_COLOR,
-      '&:hover': {
-        cursor: 'pointer',
+function ChangeBadge({ row }: { row: GridEntry }) {
+  const bps = (row.close - row.prev) * 100;
+  const sign = bps > 0 ? '+' : '';
+  const color = bps < 0 ? SUCCESS_COLOR : bps > 0 ? DANGER_COLOR : '#666';
+  return React.createElement(
+    'span',
+    {
+      style: {
+        color,
+        fontWeight: 600,
+        fontSize: '13px',
       },
     },
-  },
-  {
-    when: (row: GridEntry) => row.close > row.prev,
-    style: {
-      backgroundColor: DANGER_COLOR,
-      color: WHITE_COLOR,
-      '&:hover': {
-        cursor: 'pointer',
-      },
-    },
-  },
-];
+    `${sign}${bps.toFixed(1)} bps`
+  );
+}
+
+function formatDateTime(isoString: string): string {
+  if (!isoString) return '';
+  const date = new Date(isoString);
+  const mm = (date.getMonth() + 1).toString().padStart(2, '0');
+  const dd = date.getDate().toString().padStart(2, '0');
+  const hh = date.getHours().toString().padStart(2, '0');
+  const min = date.getMinutes().toString().padStart(2, '0');
+  return `${mm}/${dd} ${hh}:${min}`;
+}
 
 const GridColumns = [
   {
     name: 'Nombre',
     selector: (row: GridEntry) => row.displayname,
     sortable: true,
+    width: '220px',
   },
   {
-    name: 'Chnage',
-    selector: (row: GridEntry) => row.operation_time,
+    name: 'Cambio',
+    selector: (row: GridEntry) => (row.close - row.prev) * 100,
     sortable: true,
-    conditionalCellStyles: conditionalColChnageStyles,
-    cell: (row: GridEntry) => ((row.prev - row.close) * 100 * -1).toFixed(1),
+    cell: (row: GridEntry) => React.createElement(ChangeBadge, { row }),
+    width: '110px',
+    right: true,
   },
   {
     name: 'Fecha/Hora',
     selector: (row: GridEntry) => row.operation_time,
+    cell: (row: GridEntry) => formatDateTime(row.operation_time),
     sortable: true,
+    width: '130px',
   },
   {
     name: 'Last',
     selector: (row: GridEntry) => row.close.toFixed(2),
     sortable: true,
+    width: '80px',
+    right: true,
   },
   {
     name: 'Prev',
     selector: (row: GridEntry) => row.prev.toFixed(2),
     sortable: true,
+    width: '80px',
+    right: true,
   },
   {
     name: 'Open',
     selector: (row: GridEntry) => row.open.toFixed(2),
     sortable: true,
+    width: '80px',
+    right: true,
   },
   {
     name: 'Low',
     selector: (row: GridEntry) => row.low.toFixed(2),
     sortable: true,
+    width: '80px',
+    right: true,
   },
   {
     name: 'High',
     selector: (row: GridEntry) => row.high.toFixed(2),
     sortable: true,
+    width: '80px',
+    right: true,
   },
   {
-    name: 'Volume',
+    name: 'Volumen',
     selector: (row: GridEntry) => currencyFormat(row.volume),
     sortable: true,
+    width: '130px',
+    right: true,
   },
 ];
 

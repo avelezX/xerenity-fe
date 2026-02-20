@@ -9,15 +9,20 @@ import { fetchSeriesData } from 'src/models/series/fetchSerieData';
 const LEFT_AXIS = 'left';
 const RIGHT_AXIS = 'right';
 
+type SelectOption = { value: string; label: string };
+
 export interface SeriesSlice {
   allSeries: LightSerieEntry[];
   filteredSeries: LightSerieEntry[];
   selectedSeries: LightSerie[];
   subGrpByGrp: Map<string, string[]>;
-  grupos: { value: string; label: string }[];
-  subGrupos: { value: string; label: string }[];
+  grupos: SelectOption[];
+  subGrupos: SelectOption[];
+  entidades: SelectOption[];
   selectedGroup: string | undefined;
   selectedSubGroup: string | undefined;
+  selectedEntidad: string | undefined;
+  soloActivos: boolean;
   showSerieModal: boolean;
   curentSerie: string | undefined;
   showColorSerieModal: boolean;
@@ -34,6 +39,8 @@ export interface SeriesSlice {
   errorMessage: string | undefined;
   setSelectedGroup: (grp: string | undefined) => void;
   setSelectedSubGroup: (subGrp: string | undefined) => void;
+  setSelectedEntidad: (entidad: string | undefined) => void;
+  setSoloActivos: (solo: boolean) => void;
   removeSelected: (serie: LightSerie) => void;
   handleColorChnage: (serieId: string, newColor: string) => void;
   handleAxisChnage: (serie: LightSerie) => void;
@@ -48,6 +55,7 @@ const initialState = {
   selectedSeries: [],
   grupos: [],
   subGrupos: [],
+  entidades: [],
   showSerieModal: false,
   curentSerie: undefined,
   showColorSerieModal: false,
@@ -55,9 +63,34 @@ const initialState = {
   subGrpByGrp: new Map(),
   selectedGroup: undefined,
   selectedSubGroup: undefined,
+  selectedEntidad: undefined,
+  soloActivos: true,
   errorMessage: undefined,
   loading: false,
 };
+
+function applyFilters(
+  allSeries: LightSerieEntry[],
+  grupo: string | undefined,
+  subGrp: string | undefined,
+  entidad: string | undefined,
+  soloActivos: boolean
+): LightSerieEntry[] {
+  let result = allSeries;
+  if (grupo) {
+    result = result.filter((s) => s.grupo === grupo);
+  }
+  if (subGrp) {
+    result = result.filter((s) => s.sub_group === subGrp);
+  }
+  if (entidad) {
+    result = result.filter((s) => s.entidad === entidad);
+  }
+  if (soloActivos) {
+    result = result.filter((s) => s.activo !== false);
+  }
+  return result;
+}
 
 const createSeriesSlice: StateCreator<SeriesSlice> = (set) => ({
   ...initialState,
@@ -170,36 +203,66 @@ const createSeriesSlice: StateCreator<SeriesSlice> = (set) => ({
     if (grp) {
       set((state) => {
         const subGrps = state.subGrpByGrp.get(grp);
+        const filtered = applyFilters(state.allSeries, grp, undefined, undefined, state.soloActivos);
 
-        const filtered = state.allSeries.filter((s) => s.grupo === grp);
+        // Build entidades list when FIC is selected
+        const uniqueEntidades = new Set<string>();
+        if (grp === 'FIC') {
+          state.allSeries
+            .filter((s) => s.grupo === 'FIC' && s.entidad)
+            .forEach((s) => uniqueEntidades.add(s.entidad!));
+        }
+
         return {
           filteredSeries: filtered,
           selectedGroup: grp,
           subGrupos: subGrps?.map((gr) => ({ value: gr, label: gr })),
+          entidades: Array.from(uniqueEntidades)
+            .sort()
+            .map((e) => ({ value: e, label: e })),
           selectedSubGroup: undefined,
+          selectedEntidad: undefined,
         };
       });
     }
   },
   setSelectedSubGroup: (subGrp: string | undefined) => {
     if (subGrp) {
-      set((state) => {
-        if (state.selectedGroup) {
-          const filtered = state.allSeries.filter(
-            (s) => s.grupo === state.selectedGroup && s.sub_group === subGrp
-          );
-          return {
-            filteredSeries: filtered,
-            selectedSubGroup: subGrp,
-          };
-        }
-        const filtered = state.allSeries.filter((s) => s.sub_group === subGrp);
-        return {
-          filteredSeries: filtered,
-          selectedSubGroup: subGrp,
-        };
-      });
+      set((state) => ({
+        filteredSeries: applyFilters(
+          state.allSeries,
+          state.selectedGroup,
+          subGrp,
+          state.selectedEntidad,
+          state.soloActivos
+        ),
+        selectedSubGroup: subGrp,
+      }));
     }
+  },
+  setSelectedEntidad: (entidad: string | undefined) => {
+    set((state) => ({
+      filteredSeries: applyFilters(
+        state.allSeries,
+        state.selectedGroup,
+        state.selectedSubGroup,
+        entidad,
+        state.soloActivos
+      ),
+      selectedEntidad: entidad,
+    }));
+  },
+  setSoloActivos: (solo: boolean) => {
+    set((state) => ({
+      filteredSeries: applyFilters(
+        state.allSeries,
+        state.selectedGroup,
+        state.selectedSubGroup,
+        state.selectedEntidad,
+        solo
+      ),
+      soloActivos: solo,
+    }));
   },
   addSelectedSerie: async (
     idSerie: string,

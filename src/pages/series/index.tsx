@@ -26,11 +26,11 @@ import Button from '@components/UI/Button';
 import PageTitle from '@components/PageTitle';
 import useAppStore from '@store';
 import Panel from '@components/Panel';
-import tokens from 'design-tokens/tokens.json';
 import { SingleValue } from 'react-select';
 import SingleSelect from '@components/UI/SingleSelect';
 import { SelectableRows } from 'src/types/selectableRows';
 import { XerenityHexColors } from 'src/utils/getHexColors';
+import { getGroupColor } from 'src/utils/groupConstants';
 import Circle from '@uiw/react-color-circle';
 import SeriesTable from './_seriesTable';
 import SelectedSeriesTable from './_selectedSeriesTable';
@@ -38,8 +38,6 @@ import SerieInfoModal from './_SerieInfoModal';
 
 const PAGE_TITLE = 'Series';
 const NORMALIZE_SINCE = 'Normalizar desde:';
-const designSystem = tokens.xerenity;
-const PURPLE_COLOR_100 = designSystem['purple-100'].value;
 
 export default function Dashboard() {
   const normalizeDate = useRef<string>('');
@@ -51,11 +49,16 @@ export default function Dashboard() {
     allSeries,
     grupos,
     subGrupos,
+    entidades,
+    selectedGroup,
+    soloActivos,
     addSelectedSerie,
     removeSelectedSerie,
     searchSeries,
     setSelectedGroup,
     setSelectedSubGroup,
+    setSelectedEntidad,
+    setSoloActivos,
     curentSerie,
     showSerieModal,
     showColorSerieModal,
@@ -66,6 +69,8 @@ export default function Dashboard() {
     resetStore,
     loading,
   } = useAppStore();
+
+  const isFIC = selectedGroup === 'FIC';
 
   const normalize = useRef<boolean>(false);
   const [applyFunctions, setApplyunctions] = useState<string[]>([]);
@@ -90,7 +95,8 @@ export default function Dashboard() {
       );
       const removedData = selectedRows.find((a) => a.ticker === added);
       if (added && removedData) {
-        addSelectedSerie(added, PURPLE_COLOR_100, removedData.display_name);
+        const color = getGroupColor(removedData.grupo);
+        addSelectedSerie(added, color, removedData.display_name);
       }
     } else {
       const removed = arrayDifference(
@@ -140,6 +146,14 @@ export default function Dashboard() {
   ) => {
     if (newValue) {
       setSelectedSubGroup(newValue?.value);
+    }
+  };
+
+  const onEntidadChange = (
+    newValue: SingleValue<{ value: string; label: string }>
+  ) => {
+    if (newValue) {
+      setSelectedEntidad(newValue.value);
     }
   };
 
@@ -269,6 +283,30 @@ export default function Dashboard() {
                   />
                 </Col>
               </Row>
+              {isFIC && (
+                <Row className="mt-2">
+                  <Col sm={12} md={4}>
+                    <SingleSelect
+                      data={entidades}
+                      onChange={onEntidadChange}
+                      placeholder="Filtrar por Entidad"
+                    />
+                  </Col>
+                  <Col
+                    sm={12}
+                    md={4}
+                    className="d-flex align-items-center"
+                  >
+                    <Form.Check
+                      type="switch"
+                      id="solo-activos"
+                      label="Solo activos (datos en últimos 90 días)"
+                      checked={soloActivos}
+                      onChange={(e) => setSoloActivos(e.target.checked)}
+                    />
+                  </Col>
+                </Row>
+              )}
               <SeriesTable list={filteredSeries} onSelect={handleSelectSerie} />
             </Panel>
           </Col>

@@ -35,6 +35,8 @@ import Chart from '@components/chart/Chart';
 import { Tab, Tabs, TabItemType } from '@components/UI/Tabs';
 import PageTitle from '@components/PageTitle';
 import { SelectableRows } from 'src/types/selectableRows';
+import YieldCurveChart from '@components/yieldCurve/YieldCurveChart';
+import CombinedYieldCurveChart from '@components/yieldCurve/CombinedYieldCurveChart';
 
 const TAB_ITEMS: TabItemType[] = [
   {
@@ -82,6 +84,12 @@ export default function FullTesViewer() {
   const [movingAvg, setMovingAvg] = useState<LightSerie>();
   const [volumenSerie, setvolumenSerie] = useState<LightSerieValue[]>([]);
   const [pageTabs, setTabsState] = useState<TabItemType[]>(TAB_ITEMS);
+  const [viewMode, setViewMode] = useState<'candle' | 'curve' | 'todas'>('candle');
+  const [allCurvesData, setAllCurvesData] = useState<{
+    cop: GridEntry[];
+    uvr: GridEntry[];
+    ibr: GridEntry[];
+  }>({ cop: [], uvr: [], ibr: [] });
 
   const fetchTesRawData = useCallback(
     async (view_tes: string) => {
@@ -277,9 +285,28 @@ export default function FullTesViewer() {
     }
   }, [currencyType, supabase, changeSelection]);
 
+  const fetchAllCurves = useCallback(async () => {
+    const [copRes, uvrRes, ibrRes] = await Promise.all([
+      supabase.schema('xerenity').rpc('get_tes_grid_raw', { money: 'COLTES-COP' }),
+      supabase.schema('xerenity').rpc('get_tes_grid_raw', { money: 'COLTES-UVR' }),
+      supabase.schema('xerenity').rpc('get_ibr_grid_raw', {}),
+    ]);
+    setAllCurvesData({
+      cop: (copRes.data as GridEntry[]) || [],
+      uvr: (uvrRes.data as GridEntry[]) || [],
+      ibr: (ibrRes.data as GridEntry[]) || [],
+    });
+  }, [supabase]);
+
   useEffect(() => {
     fetchTesNames();
   }, [fetchTesNames]);
+
+  useEffect(() => {
+    if (viewMode === 'todas') {
+      fetchAllCurves();
+    }
+  }, [viewMode, fetchAllCurves]);
 
   const handleSelect = ({ selectedRows }: SelectableRows<GridEntry>) => {
     if (selectedRows.length > 0) {
@@ -343,6 +370,29 @@ export default function FullTesViewer() {
                   </Tab>
                 ))}
               </Tabs>
+              <Tabs outlined>
+                <Tab
+                  active={viewMode === 'candle'}
+                  onClick={() => setViewMode('candle')}
+                >
+                  <Icon icon={faBarChart} />
+                  Candlestick
+                </Tab>
+                <Tab
+                  active={viewMode === 'curve'}
+                  onClick={() => setViewMode('curve')}
+                >
+                  <Icon icon={faLineChart} />
+                  Curva
+                </Tab>
+                <Tab
+                  active={viewMode === 'todas'}
+                  onClick={() => setViewMode('todas')}
+                >
+                  <Icon icon={faLineChart} />
+                  Todas
+                </Tab>
+              </Tabs>
             </div>
             <Toolbar>
               <Dropdown>
@@ -373,23 +423,33 @@ export default function FullTesViewer() {
         </Row>
         <Row>
           <Col>
-            <Chart chartHeight={600} showToolbar>
-              <Chart.Candle data={candleSerie.values} scaleId="right" />
-              <Chart.Volume
-                data={volumenSerie}
-                scaleId="left"
-                title="Volumen"
-                color={GRAY_COLOR_300}
-              />
-              {movingAvg ? (
-                <Chart.Line
-                  data={movingAvg.serie}
-                  color={PURPLE_COLOR}
-                  scaleId="right"
-                  title={movingAvg.name}
+            {viewMode === 'candle' ? (
+              <Chart chartHeight={600} showToolbar>
+                <Chart.Candle data={candleSerie.values} scaleId="right" />
+                <Chart.Volume
+                  data={volumenSerie}
+                  scaleId="left"
+                  title="Volumen"
+                  color={GRAY_COLOR_300}
                 />
-              ) : null}
-            </Chart>
+                {movingAvg ? (
+                  <Chart.Line
+                    data={movingAvg.serie}
+                    color={PURPLE_COLOR}
+                    scaleId="right"
+                    title={movingAvg.name}
+                  />
+                ) : null}
+              </Chart>
+            ) : viewMode === 'todas' ? (
+              <CombinedYieldCurveChart
+                copData={allCurvesData.cop}
+                uvrData={allCurvesData.uvr}
+                ibrData={allCurvesData.ibr}
+              />
+            ) : (
+              <YieldCurveChart data={options} curveType={currencyType} />
+            )}
           </Col>
         </Row>
         <Row>

@@ -17,6 +17,8 @@ export interface LightSerieEntry {
   fuente: string;
   sub_group: string;
   ticker: string;
+  entidad: string | null;
+  activo: boolean | null;
 }
 
 export interface PriceFormat {
