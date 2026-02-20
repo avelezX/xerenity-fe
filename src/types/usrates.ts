@@ -5,6 +5,12 @@ export interface USTYieldPoint {
   curve_type: 'NOMINAL' | 'TIPS';
 }
 
+export interface SOFRSwapPoint {
+  fecha: string;
+  tenor_months: number;
+  swap_rate: number;
+}
+
 export interface USReferenceRate {
   fecha: string;
   rate_type: string;
