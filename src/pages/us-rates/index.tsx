@@ -16,11 +16,14 @@ import PageTitle from '@components/PageTitle';
 import USTYieldCurveChart from '@components/yieldCurve/USTYieldCurveChart';
 import SOFRSwapCurveChart from '@components/yieldCurve/SOFRSwapCurveChart';
 import CombinedUSDYieldCurveChart from '@components/yieldCurve/CombinedUSDYieldCurveChart';
+import RatePathChart from '@components/yieldCurve/RatePathChart';
 import {
   USTYieldPoint,
   USReferenceRate,
   SOFRSwapPoint,
 } from 'src/types/usrates';
+import { bootstrapRatePath } from 'src/utils/ratePathBootstrap';
+import { FOMC_MEETINGS } from 'src/utils/centralBankMeetings';
 
 const TAB_ITEMS: TabItemType[] = [
   {
@@ -38,6 +41,12 @@ const TAB_ITEMS: TabItemType[] = [
   {
     name: 'Todas',
     property: 'todas',
+    icon: faLineChart,
+    active: false,
+  },
+  {
+    name: 'Rate Path',
+    property: 'ratepath',
     icon: faLineChart,
     active: false,
   },
@@ -270,6 +279,10 @@ export default function USRatesPage() {
       Promise.all([fetchSOFRCurve(), fetchYieldCurve()]).then(() =>
         setLoading(false)
       );
+    } else if (activeTab === 'ratepath') {
+      Promise.all([fetchSOFRCurve(), fetchRates()]).then(() =>
+        setLoading(false)
+      );
     } else {
       fetchRates().then(() => setLoading(false));
     }
@@ -341,6 +354,30 @@ export default function USRatesPage() {
       .slice(0, 30);
   }, [ratesData]);
 
+  const ratePathData = useMemo(() => {
+    if (sofrData.length === 0) return { path: [], currentRate: 0, curveDate: '' };
+    const latestDate = sofrData.reduce(
+      (max, d) => (d.fecha > max ? d.fecha : max),
+      sofrData[0].fecha
+    );
+    const curve = sofrData
+      .filter((d) => d.fecha === latestDate)
+      .map((d) => ({ tenor_months: d.tenor_months, rate: d.swap_rate }))
+      .sort((a, b) => a.tenor_months - b.tenor_months);
+
+    // Use latest SOFR overnight rate if available, else use shortest swap tenor
+    const sofrRate = latestRates.get('SOFR');
+    let currentRate = 0;
+    if (sofrRate) {
+      currentRate = sofrRate.rate;
+    } else if (curve.length > 0) {
+      currentRate = curve[0].rate;
+    }
+
+    const path = bootstrapRatePath(curve, currentRate, FOMC_MEETINGS, latestDate);
+    return { path, currentRate, curveDate: latestDate };
+  }, [sofrData, latestRates]);
+
   const renderContent = () => {
     if (loading) {
       return (
@@ -404,6 +441,22 @@ export default function USRatesPage() {
             </Col>
           </Row>
         </>
+      );
+    }
+
+    if (activeTab === 'ratepath') {
+      return (
+        <Row>
+          <Col>
+            <RatePathChart
+              data={ratePathData.path}
+              currentRate={ratePathData.currentRate}
+              curveDate={ratePathData.curveDate}
+              color="#ff7f0e"
+              title="Fed Implied Rate Path (SOFR Overnight OIS)"
+            />
+          </Col>
+        </Row>
       );
     }
 

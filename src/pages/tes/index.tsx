@@ -4,7 +4,7 @@ import { CoreLayout } from '@layout';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { Row, Col, DropdownDivider } from 'react-bootstrap';
 import Dropdown from 'react-bootstrap/Dropdown';
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import Container from 'react-bootstrap/Container';
 import {
   LightSerie,
@@ -37,6 +37,9 @@ import PageTitle from '@components/PageTitle';
 import { SelectableRows } from 'src/types/selectableRows';
 import YieldCurveChart from '@components/yieldCurve/YieldCurveChart';
 import CombinedYieldCurveChart from '@components/yieldCurve/CombinedYieldCurveChart';
+import RatePathChart from '@components/yieldCurve/RatePathChart';
+import { bootstrapRatePath } from 'src/utils/ratePathBootstrap';
+import { BANREP_MEETINGS } from 'src/utils/centralBankMeetings';
 
 const TAB_ITEMS: TabItemType[] = [
   {
@@ -84,7 +87,8 @@ export default function FullTesViewer() {
   const [movingAvg, setMovingAvg] = useState<LightSerie>();
   const [volumenSerie, setvolumenSerie] = useState<LightSerieValue[]>([]);
   const [pageTabs, setTabsState] = useState<TabItemType[]>(TAB_ITEMS);
-  const [viewMode, setViewMode] = useState<'candle' | 'curve' | 'todas'>('candle');
+  const [viewMode, setViewMode] = useState<'candle' | 'curve' | 'todas' | 'senda'>('candle');
+  const [ibrGridData, setIbrGridData] = useState<GridEntry[]>([]);
   const [allCurvesData, setAllCurvesData] = useState<{
     cop: GridEntry[];
     uvr: GridEntry[];
@@ -302,11 +306,53 @@ export default function FullTesViewer() {
     fetchTesNames();
   }, [fetchTesNames]);
 
+  const fetchIbrGrid = useCallback(async () => {
+    const { data, error } = await supabase
+      .schema('xerenity')
+      .rpc('get_ibr_grid_raw', {});
+    if (!error && data) {
+      setIbrGridData(data as GridEntry[]);
+    }
+  }, [supabase]);
+
   useEffect(() => {
     if (viewMode === 'todas') {
       fetchAllCurves();
     }
-  }, [viewMode, fetchAllCurves]);
+    if (viewMode === 'senda') {
+      fetchIbrGrid();
+    }
+  }, [viewMode, fetchAllCurves, fetchIbrGrid]);
+
+  const copRatePathData = useMemo(() => {
+    if (ibrGridData.length === 0) return { path: [], currentRate: 0, curveDate: '' };
+
+    // Curve date from the most recent operation_time
+    const latestOp = ibrGridData.reduce(
+      (max, e) => (e.operation_time > max ? e.operation_time : max),
+      ibrGridData[0].operation_time
+    );
+    const curveDate = latestOp.split('T')[0];
+
+    // Filter out stale tenors: only keep entries traded within the last 5 days
+    const cutoffDate = new Date(curveDate);
+    cutoffDate.setDate(cutoffDate.getDate() - 5);
+    const cutoffStr = cutoffDate.toISOString().split('T')[0];
+
+    const curve = ibrGridData
+      .filter((e) => e.close > 0 && e.tes_months > 0 && e.operation_time >= cutoffStr)
+      .map((e) => ({ tenor_months: e.tes_months, rate: e.close }))
+      .sort((a, b) => a.tenor_months - b.tenor_months);
+
+    if (curve.length < 2) return { path: [], currentRate: 0, curveDate: '' };
+
+    // Use 3M IBR swap rate as current rate
+    const threeMonth = curve.find((c) => c.tenor_months === 3);
+    const currentRate = threeMonth ? threeMonth.rate : curve[0].rate;
+
+    const path = bootstrapRatePath(curve, currentRate, BANREP_MEETINGS, curveDate);
+    return { path, currentRate, curveDate };
+  }, [ibrGridData]);
 
   const handleSelect = ({ selectedRows }: SelectableRows<GridEntry>) => {
     if (selectedRows.length > 0) {
@@ -392,6 +438,13 @@ export default function FullTesViewer() {
                   <Icon icon={faLineChart} />
                   Todas
                 </Tab>
+                <Tab
+                  active={viewMode === 'senda'}
+                  onClick={() => setViewMode('senda')}
+                >
+                  <Icon icon={faLineChart} />
+                  Senda
+                </Tab>
               </Tabs>
             </div>
             <Toolbar>
@@ -452,13 +505,24 @@ export default function FullTesViewer() {
             {viewMode === 'curve' && (
               <YieldCurveChart data={options} curveType={currencyType} />
             )}
+            {viewMode === 'senda' && (
+              <RatePathChart
+                data={copRatePathData.path}
+                currentRate={copRatePathData.currentRate}
+                curveDate={copRatePathData.curveDate}
+                color="#6366F1"
+                title="Senda Implícita BanRep (IBR 3M OIS)"
+              />
+            )}
           </Col>
         </Row>
-        <Row>
-          <Col>
-            <CandleGridViewer onSelect={handleSelect} allTes={options} />
-          </Col>
-        </Row>
+        {viewMode !== 'senda' && (
+          <Row>
+            <Col>
+              <CandleGridViewer onSelect={handleSelect} allTes={options} />
+            </Col>
+          </Row>
+        )}
       </Container>
     </CoreLayout>
   );
