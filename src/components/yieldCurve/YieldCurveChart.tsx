@@ -9,7 +9,6 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  ReferenceDot,
 } from 'recharts';
 import { GridEntry } from 'src/types/tes';
 
@@ -59,7 +58,7 @@ function getBusinessDaysAgo(days: number): Date {
   while (count < days) {
     date.setDate(date.getDate() - 1);
     const dow = date.getDay();
-    if (dow !== 0 && dow !== 6) count++;
+    if (dow !== 0 && dow !== 6) count += 1;
   }
   return date;
 }
@@ -99,20 +98,23 @@ function buildYieldCurveData(
 
   // COLTES COP/UVR: parse maturity from displayname, exclude expired bonds
   const now = new Date();
-  const points: YieldPoint[] = [];
-  for (const entry of data) {
-    const maturity = parseMaturityFromDisplayName(entry.displayname);
-    if (!maturity || maturity <= now || entry.close <= 0) continue;
-    points.push({
-      label: formatMaturityLabel(maturity),
-      yield: entry.close,
-      sortKey: maturity.getTime(),
-      displayname: entry.displayname,
-      volume: entry.volume,
-      lastTradeDay: formatTradeDay(entry.operation_time),
-    });
-  }
-  return points.sort((a, b) => a.sortKey - b.sortKey);
+  return data
+    .filter((entry) => {
+      const maturity = parseMaturityFromDisplayName(entry.displayname);
+      return maturity && maturity > now && entry.close > 0;
+    })
+    .map((entry) => {
+      const maturity = parseMaturityFromDisplayName(entry.displayname)!;
+      return {
+        label: formatMaturityLabel(maturity),
+        yield: entry.close,
+        sortKey: maturity.getTime(),
+        displayname: entry.displayname,
+        volume: entry.volume,
+        lastTradeDay: formatTradeDay(entry.operation_time),
+      };
+    })
+    .sort((a, b) => a.sortKey - b.sortKey);
 }
 
 const CustomTooltip = ({

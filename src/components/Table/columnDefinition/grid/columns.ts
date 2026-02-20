@@ -10,7 +10,9 @@ const DANGER_COLOR = designSystem['red-600'].value;
 function ChangeBadge({ row }: { row: GridEntry }) {
   const bps = (row.close - row.prev) * 100;
   const sign = bps > 0 ? '+' : '';
-  const color = bps < 0 ? SUCCESS_COLOR : bps > 0 ? DANGER_COLOR : '#666';
+  let color = '#666';
+  if (bps < 0) color = SUCCESS_COLOR;
+  else if (bps > 0) color = DANGER_COLOR;
   return React.createElement(
     'span',
     {

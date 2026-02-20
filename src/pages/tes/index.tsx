@@ -423,7 +423,7 @@ export default function FullTesViewer() {
         </Row>
         <Row>
           <Col>
-            {viewMode === 'candle' ? (
+            {viewMode === 'candle' && (
               <Chart chartHeight={600} showToolbar>
                 <Chart.Candle data={candleSerie.values} scaleId="right" />
                 <Chart.Volume
@@ -441,13 +441,15 @@ export default function FullTesViewer() {
                   />
                 ) : null}
               </Chart>
-            ) : viewMode === 'todas' ? (
+            )}
+            {viewMode === 'todas' && (
               <CombinedYieldCurveChart
                 copData={allCurvesData.cop}
                 uvrData={allCurvesData.uvr}
                 ibrData={allCurvesData.ibr}
               />
-            ) : (
+            )}
+            {viewMode === 'curve' && (
               <YieldCurveChart data={options} curveType={currencyType} />
             )}
           </Col>

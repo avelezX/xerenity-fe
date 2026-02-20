@@ -40,6 +40,12 @@ const NAV_ITEMS: NavItemProps[] = [
     active: false,
   },
   {
+    name: 'TasasUSD',
+    path: '/us-rates',
+    icon: faDollarSign,
+    active: false,
+  },
+  {
     name: 'Inflación',
     path: '/inflation',
     icon: faMoneyBillTrendUp,

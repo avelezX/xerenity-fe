@@ -73,7 +73,7 @@ function getBusinessDaysAgo(days: number): Date {
   while (count < days) {
     date.setDate(date.getDate() - 1);
     const dow = date.getDay();
-    if (dow !== 0 && dow !== 6) count++;
+    if (dow !== 0 && dow !== 6) count += 1;
   }
   return date;
 }
@@ -92,17 +92,20 @@ function buildCurvePoints(data: GridEntry[], type: CurveKey): CurvePoint[] {
       .sort((a, b) => a.months - b.months);
   }
 
-  const points: CurvePoint[] = [];
-  for (const entry of data) {
-    const maturity = parseMaturityFromDisplayName(entry.displayname);
-    if (!maturity || maturity <= now || entry.close <= 0) continue;
-    points.push({
-      months: Math.round(monthsBetween(now, maturity)),
-      yield: entry.close,
-      name: entry.displayname,
-    });
-  }
-  return points.sort((a, b) => a.months - b.months);
+  return data
+    .filter((entry) => {
+      const maturity = parseMaturityFromDisplayName(entry.displayname);
+      return maturity && maturity > now && entry.close > 0;
+    })
+    .map((entry) => {
+      const maturity = parseMaturityFromDisplayName(entry.displayname)!;
+      return {
+        months: Math.round(monthsBetween(now, maturity)),
+        yield: entry.close,
+        name: entry.displayname,
+      };
+    })
+    .sort((a, b) => a.months - b.months);
 }
 
 function interpolateAt(points: CurvePoint[], targetMonths: number): number | null {
@@ -113,13 +116,12 @@ function interpolateAt(points: CurvePoint[], targetMonths: number): number | nul
   const exact = points.find((p) => p.months === targetMonths);
   if (exact) return exact.yield;
 
-  for (let i = 0; i < points.length - 1; i++) {
-    if (targetMonths > points[i].months && targetMonths < points[i + 1].months) {
-      const t = (targetMonths - points[i].months) / (points[i + 1].months - points[i].months);
-      return points[i].yield + t * (points[i + 1].yield - points[i].yield);
-    }
-  }
-  return null;
+  const idx = points.findIndex((p, i) =>
+    i < points.length - 1 && targetMonths > p.months && targetMonths < points[i + 1].months
+  );
+  if (idx === -1) return null;
+  const t = (targetMonths - points[idx].months) / (points[idx + 1].months - points[idx].months);
+  return points[idx].yield + t * (points[idx + 1].yield - points[idx].yield);
 }
 
 function buildChartData(
@@ -130,16 +132,17 @@ function buildChartData(
 
   // Add points for each visible curve
   const keys: CurveKey[] = ['cop', 'uvr', 'ibr'];
-  for (const key of keys) {
-    if (!visible[key]) continue;
-    for (const pt of curves[key]) {
-      points.push({
-        months: pt.months,
-        [key]: pt.yield,
-        [`${key}Name`]: pt.name,
+  keys
+    .filter((key) => visible[key])
+    .forEach((key) => {
+      curves[key].forEach((pt) => {
+        points.push({
+          months: pt.months,
+          [key]: pt.yield,
+          [`${key}Name`]: pt.name,
+        });
       });
-    }
-  }
+    });
 
   points.sort((a, b) => a.months - b.months);
 
@@ -153,7 +156,6 @@ function buildChartData(
     const curveB = curves[keyB];
     spreadLabel = `${CURVE_CONFIG[keyA].label} - ${CURVE_CONFIG[keyB].label}`;
 
-    // Collect all unique months from both curves within overlapping range
     const minOverlap = Math.max(
       curveA[0]?.months ?? Infinity,
       curveB[0]?.months ?? Infinity
@@ -165,27 +167,27 @@ function buildChartData(
 
     if (minOverlap <= maxOverlap) {
       const allMonths = new Set<number>();
-      for (const pt of curveA) {
-        if (pt.months >= minOverlap && pt.months <= maxOverlap) allMonths.add(pt.months);
-      }
-      for (const pt of curveB) {
-        if (pt.months >= minOverlap && pt.months <= maxOverlap) allMonths.add(pt.months);
-      }
+      curveA
+        .filter((pt) => pt.months >= minOverlap && pt.months <= maxOverlap)
+        .forEach((pt) => allMonths.add(pt.months));
+      curveB
+        .filter((pt) => pt.months >= minOverlap && pt.months <= maxOverlap)
+        .forEach((pt) => allMonths.add(pt.months));
 
-      const sortedMonths = Array.from(allMonths).sort((a, b) => a - b);
-      for (const m of sortedMonths) {
-        const valA = interpolateAt(curveA, m);
-        const valB = interpolateAt(curveB, m);
-        if (valA != null && valB != null) {
-          // Find the existing point at this month or add a new one
-          let existing = points.find((p) => p.months === m);
-          if (!existing) {
-            existing = { months: m };
-            points.push(existing);
+      Array.from(allMonths)
+        .sort((a, b) => a - b)
+        .forEach((m) => {
+          const valA = interpolateAt(curveA, m);
+          const valB = interpolateAt(curveB, m);
+          if (valA != null && valB != null) {
+            let existing = points.find((p) => p.months === m);
+            if (!existing) {
+              existing = { months: m };
+              points.push(existing);
+            }
+            existing.spread = Math.round((valA - valB) * 100);
           }
-          existing.spread = Math.round((valA - valB) * 100); // in bps
-        }
-      }
+        });
 
       points.sort((a, b) => a.months - b.months);
     }
