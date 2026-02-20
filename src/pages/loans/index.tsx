@@ -35,7 +35,8 @@ import NewCreditModal from './_NewCreditModal';
 import CashFlowOverlay from './_cashFlowOverLay/cashFlowOverlay';
 
 const designSystem = tokens.xerenity;
-const PURPLE_COLOR_100 = designSystem['purple-100'].value;
+const INTEREST_COLOR = designSystem['purple-50'].value;
+const PRINCIPAL_COLOR = designSystem['purple-300'].value;
 
 const PAGE_TITLE = 'Créditos';
 const CONFIRM_MODAL_TITLE = '¿Desea Borrar Este Crédito?';
@@ -58,7 +59,6 @@ const CSV_FILE = {
 export default function LoansPage() {
   const {
     banks,
-    chartData,
     errorMessage,
     successMessage,
     deleteLoanItem,
@@ -86,6 +86,21 @@ export default function LoansPage() {
   } = useAppStore();
 
   const cashflowsEmpty = mergedCashFlows.length === 0;
+
+  // Split chart data into interest (total payment) and principal for stacked bars
+  const paymentChartData = mergedCashFlows.map((flow) => ({
+    time: flow.date.split(' ')[0],
+    value: flow.payment,
+  }));
+  const principalChartData = mergedCashFlows.map((flow) => ({
+    time: flow.date.split(' ')[0],
+    value: flow.principal,
+  }));
+  // Implied rate line (rate_tot = forward rate + spread, as percentage)
+  const rateChartData = mergedCashFlows.map((flow) => ({
+    time: flow.date.split(' ')[0],
+    value: flow.rate_tot,
+  }));
 
   const onDownloadSeries = () => {
     const { name, columns, format } = CSV_FILE;
@@ -232,10 +247,22 @@ export default function LoansPage() {
           <Col sm={8}>
             <Chart showToolbar loading={loading}>
               <Chart.Bar
-                data={chartData}
-                color={PURPLE_COLOR_100}
+                data={paymentChartData}
+                color={INTEREST_COLOR}
                 scaleId="right"
-                title="Pago final (Derecho)"
+                title="Interés"
+              />
+              <Chart.Bar
+                data={principalChartData}
+                color={PRINCIPAL_COLOR}
+                scaleId="right"
+                title="Capital"
+              />
+              <Chart.Line
+                data={rateChartData}
+                color={designSystem['green-400'].value}
+                scaleId="left"
+                title="Tasa % (Izq)"
               />
             </Chart>
           </Col>
