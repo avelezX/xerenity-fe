@@ -271,22 +271,10 @@ export default function USRatesPage() {
 
   useEffect(() => {
     setLoading(true);
-    if (activeTab === 'sofr') {
-      fetchSOFRCurve().then(() => setLoading(false));
-    } else if (activeTab === 'curves') {
-      fetchYieldCurve().then(() => setLoading(false));
-    } else if (activeTab === 'todas') {
-      Promise.all([fetchSOFRCurve(), fetchYieldCurve()]).then(() =>
-        setLoading(false)
-      );
-    } else if (activeTab === 'ratepath') {
-      Promise.all([fetchSOFRCurve(), fetchRates()]).then(() =>
-        setLoading(false)
-      );
-    } else {
-      fetchRates().then(() => setLoading(false));
-    }
-  }, [activeTab, fetchSOFRCurve, fetchYieldCurve, fetchRates]);
+    Promise.all([fetchSOFRCurve(), fetchYieldCurve(), fetchRates()]).then(() =>
+      setLoading(false)
+    );
+  }, [fetchSOFRCurve, fetchYieldCurve, fetchRates]);
 
   const handleTabChange = (tabProp: string) => {
     setActiveTab(tabProp);
