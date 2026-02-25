@@ -6,6 +6,8 @@
     "action": "Iniciar Sesion",
     "required": "Este campo es requerido.",
     "forgot": "Olvidé la contraseña",
-    "reset": "Resetear contraseña"
+    "reset": "Resetear contraseña",
+    "tabLogin": "Iniciar Sesión",
+    "tabSignup": "Crear Cuenta"
   }
 }

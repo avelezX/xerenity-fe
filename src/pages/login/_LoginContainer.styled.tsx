@@ -30,6 +30,31 @@ const LoginContainer = styled.div`
       .login-tabs {
         display: flex;
         justify-content: center;
+        gap: 0;
+
+        button {
+          flex: 1;
+          max-width: 200px;
+          padding: 10px 20px;
+          border: none;
+          background: transparent;
+          font-size: 14px;
+          font-weight: 500;
+          color: #8e8e8e;
+          cursor: pointer;
+          border-bottom: 2px solid #DEDEDE;
+          transition: color 0.2s, border-color 0.2s;
+
+          &:hover {
+            color: #302B63;
+          }
+
+          &.active {
+            color: #302B63;
+            border-bottom: 2px solid #302B63;
+            font-weight: 600;
+          }
+        }
       }
       .login-forms {
         display: flex;
