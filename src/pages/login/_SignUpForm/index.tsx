@@ -57,6 +57,7 @@ function SingUpForm() {
       email: preparedValues.email,
       password: preparedValues.password,
       options: {
+        emailRedirectTo: 'https://xerenity.vercel.app/api/auth/callback',
         data: {
           full_name: preparedValues.name,
           country: preparedValues.country,
