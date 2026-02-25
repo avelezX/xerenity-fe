@@ -51,7 +51,8 @@ function SendResetPasswordModal({
       prepareDataForValidation(formValues)
     );
     const { data, error } = await supabase.auth.resetPasswordForEmail(
-      preparedValues.email
+      preparedValues.email,
+      { redirectTo: 'https://xerenity.vercel.app/login/reset' }
     );
     if (error) {
       setMessage(error.message);
