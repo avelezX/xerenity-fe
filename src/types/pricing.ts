@@ -1,0 +1,145 @@
+// ── Curve Status ──
+
+export interface CurveNodeMap {
+  [key: string]: number;
+}
+
+export interface CurveInfo {
+  built: boolean;
+  timestamp?: string;
+  nodes?: CurveNodeMap;
+}
+
+export interface CurveStatus {
+  valuation_date: string;
+  fx_spot: number | null;
+  ibr: CurveInfo;
+  sofr: CurveInfo;
+  ndf: CurveInfo;
+  tes: { built: boolean; timestamp?: string };
+}
+
+export interface BuildResult {
+  status: string;
+  curves: { [key: string]: string };
+  full_status: CurveStatus;
+}
+
+// ── NDF ──
+
+export interface NdfPricingResult {
+  npv_usd: number;
+  npv_cop: number;
+  forward: number;
+  forward_points: number;
+  strike: number;
+  df_usd: number;
+  df_cop: number;
+  delta_cop?: number;
+  notional_usd: number;
+  direction: string;
+  spot: number;
+  maturity: string;
+}
+
+export interface NdfImpliedCurvePoint {
+  tenor: string;
+  tenor_months: number;
+  forward_market: number;
+  forward_irt_parity: number;
+  basis: number;
+}
+
+// ── IBR Swap ──
+
+export interface IbrSwapPricingResult {
+  npv: number;
+  fair_rate: number;
+  fixed_rate: number;
+  fixed_leg_npv: number;
+  floating_leg_npv: number;
+  fixed_leg_bps: number;
+  dv01: number;
+  notional: number;
+  pay_fixed: boolean;
+  spread: number;
+}
+
+export interface ParCurvePoint {
+  tenor: string;
+  tenor_years: number;
+  par_rate: number;
+  error?: string;
+}
+
+// ── TES Bond ──
+
+export interface TesBondResult {
+  clean_price: number;
+  dirty_price: number;
+  accrued_interest: number;
+  npv: number;
+  ytm: number;
+  macaulay_duration: number;
+  modified_duration: number;
+  convexity: number;
+  dv01: number;
+  bpv: number;
+  coupon_rate: number;
+  face_value: number;
+  maturity: string;
+}
+
+// ── Xccy Swap ──
+
+export interface XccySwapCashflow {
+  period: number;
+  start: string;
+  end: string;
+  payment_date: string;
+  notional_usd: number;
+  notional_cop: number;
+  remaining_pct: number;
+  usd_rate: number;
+  cop_rate: number;
+  usd_interest: number;
+  cop_interest: number;
+  usd_principal: number;
+  cop_principal: number;
+  usd_df: number;
+  cop_df: number;
+  net_cop: number;
+}
+
+export interface XccySwapResult {
+  npv_cop: number;
+  npv_usd: number;
+  pnl_rate_cop: number;
+  pnl_rate_usd: number;
+  pnl_fx_cop: number;
+  pnl_fx_usd: number;
+  usd_leg_pv: number;
+  cop_leg_pv: number;
+  usd_principal_pv: number;
+  cop_principal_pv: number;
+  par_basis_bps: number | null;
+  notional_usd: number;
+  notional_cop: number;
+  fx_initial: number;
+  fx_spot: number;
+  usd_spread_bps: number;
+  cop_spread_bps: number;
+  amortization_type: string;
+  payment_frequency: string;
+  start_date: string;
+  maturity_date: string;
+  n_periods: number;
+  cashflows: XccySwapCashflow[];
+}
+
+export interface ParBasisPoint {
+  tenor: string;
+  tenor_years: number;
+  par_basis_bps: number | null;
+  error?: string;
+}
