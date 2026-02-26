@@ -34,6 +34,7 @@
     "react-data-table-component": "^7.6.2",
     "react-device-detect": "^2.2.3",
     "react-dom": "^18.2.0",
+    "react-joyride": "^2.9.3",
     "react-number-format": "^5.3.4",
     "react-paginate": "^8.2.0",
     "react-resize-detector": "^7.1.2",

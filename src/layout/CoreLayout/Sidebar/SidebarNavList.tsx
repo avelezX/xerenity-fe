@@ -6,6 +6,8 @@ import {
   faLineChart,
   faMoneyBillTrendUp,
   faHome,
+  faCalculator,
+  faBriefcase,
 } from '@fortawesome/free-solid-svg-icons';
 import SubNavItem from './SubNavItem';
 import NavigationItem, { NavItemProps } from './NavigationItem';
@@ -21,12 +23,14 @@ const NAV_ITEMS: NavItemProps[] = [
     icon: faHome,
     active: false,
   },
+  /* Old series page — replaced by market dashboards (SUAMECA, Tasas, Monedas, FIC)
   {
     name: 'series',
     path: '/series',
     icon: faChartSimple,
     active: false,
   },
+  */
   {
     name: 'créditos',
     path: '/loans',
@@ -59,6 +63,33 @@ const NAV_ITEMS: NavItemProps[] = [
   },
 ];
 
+const PRICING_SUBNAV: NavItemProps[] = [
+  {
+    name: 'Portafolio',
+    path: '/portfolio',
+    icon: faBriefcase,
+    active: false,
+  },
+  {
+    name: 'NDF Pricer',
+    path: '/ndf-pricer',
+    icon: faCalculator,
+    active: false,
+  },
+  {
+    name: 'IBR Swap',
+    path: '/ibr-swap',
+    icon: faLineChart,
+    active: false,
+  },
+  {
+    name: 'XCCY Swap',
+    path: '/xccy-swap',
+    icon: faLineChart,
+    active: false,
+  },
+];
+
 const MONEDAS_SUBNAV: NavItemProps[] = [
   {
     name: 'Peso Colombiano',
@@ -73,6 +104,8 @@ const MONEDAS_SUBNAV: NavItemProps[] = [
     active: false,
   },
 ];
+
+const SERIES_DASHBOARDS_PREFIX = ['/suameca', '/tasas', '/monedas-dashboard', '/fic', '/par-monedas'];
 
 const MONEDAS_PREFIX = '/currency';
 
@@ -100,6 +133,21 @@ const SidebarNavList = ({ currentPath }: SidebarNavProps) => {
           />
         ))}
       <SubNavItem
+        name="Pricing"
+        icon={faCalculator}
+        active={currentPath.includes('/ndf-pricer') || currentPath.includes('/ibr-swap') || currentPath.includes('/xccy-swap') || currentPath.includes('/portfolio')}
+      >
+        {PRICING_SUBNAV.map(({ name, path, icon }) => (
+          <NavigationItem
+            active={currentPath.includes(path)}
+            name={name}
+            path={path}
+            icon={icon}
+            key={`${name}${path}`}
+          />
+        ))}
+      </SubNavItem>
+      <SubNavItem
         name="Monedas"
         icon={faDollarSign}
         active={currentPath.includes(MONEDAS_PREFIX)}
@@ -114,6 +162,12 @@ const SidebarNavList = ({ currentPath }: SidebarNavProps) => {
           />
         ))}
       </SubNavItem>
+      <NavigationItem
+        name="Series"
+        path="/suameca"
+        icon={faChartSimple}
+        active={SERIES_DASHBOARDS_PREFIX.some((p) => currentPath.includes(p))}
+      />
     </ul>
   );
 };

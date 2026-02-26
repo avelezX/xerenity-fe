@@ -20,6 +20,8 @@ function LineSerie({
   scaleId,
   applyFunctions,
   fromNormalizeDate,
+  lastValueVisible = true,
+  priceLineVisible = true,
 }: TimeValueSerie) {
   const chartContext = useChartContext();
 
@@ -33,6 +35,8 @@ function LineSerie({
           priceFormat: defaultCustomFormat,
           priceScaleId: scaleId || title,
           title,
+          lastValueVisible,
+          priceLineVisible,
         });
       } else {
         const serie = chartContext.addLineSeries({
@@ -40,6 +44,8 @@ function LineSerie({
           priceFormat: defaultCustomFormat,
           priceScaleId: scaleId || title,
           title,
+          lastValueVisible,
+          priceLineVisible,
         });
         thisChart.current = serie;
       }
