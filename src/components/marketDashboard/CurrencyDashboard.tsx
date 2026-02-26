@@ -1,15 +1,17 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { Container, Row, Col, Spinner, InputGroup } from 'react-bootstrap';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faDollarSign } from '@fortawesome/free-solid-svg-icons';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
+import { Step } from 'react-joyride';
 import PageTitle from '@components/PageTitle';
 import Toolbar from '@components/UI/Toolbar';
 import useAppStore from 'src/store';
 import CurrencyPanel from './CurrencyPanel';
 import PerformanceChart from './PerformanceChart';
 import TimePeriodSelector from './TimePeriodSelector';
+import OnboardingTour from './OnboardingTour';
 import { TabsContainer, TabLink } from './styled/DashboardTabs.styled';
 
 const DASHBOARD_TABS = [
@@ -34,6 +36,38 @@ export default function CurrencyDashboard() {
   const [selectedFrom, setSelectedFrom] = useState<string | null>(null);
   const [selectedTo, setSelectedTo] = useState<string | null>(null);
 
+  const tourSteps: Step[] = useMemo(
+    () => [
+      {
+        target: '[data-tour="panel-from"]',
+        content:
+          'Selecciona la moneda de origen (FROM). Por ejemplo: USD si quieres ver USD:COP.',
+        disableBeacon: true,
+      },
+      {
+        target: '[data-tour="panel-to"]',
+        content:
+          'Luego selecciona la moneda destino (TO). Al hacer click se genera el par automáticamente en el gráfico.',
+      },
+      {
+        target: '[data-tour="chart-area"]',
+        content:
+          'Aquí se grafican los pares seleccionados. Puedes agregar varios pares al mismo tiempo.',
+      },
+      {
+        target: '[data-tour="legend-area"]',
+        content:
+          'Cada par aparece aquí con su color. Haz click en la ✕ para quitar un par del gráfico.',
+      },
+      {
+        target: '[data-tour="toolbar"]',
+        content:
+          'Usa los periodos (1D, 5D, 1M...) para cambiar el rango de tiempo. Activa "Normalizar" para comparar pares con escalas diferentes.',
+      },
+    ],
+    []
+  );
+
   const handleFromSelect = useCallback(
     (currency: string) => {
       setSelectedFrom(currency);
@@ -56,6 +90,7 @@ export default function CurrencyDashboard() {
 
   return (
     <Container fluid className="px-4">
+      <OnboardingTour storageKey="tour-par-monedas" steps={tourSteps} />
       <Row className="align-items-center justify-content-between">
         <Col xs="auto">
           <PageTitle>
@@ -80,7 +115,7 @@ export default function CurrencyDashboard() {
         <Col xs="auto" />
       </Row>
       <Row className="mb-3">
-        <Col>
+        <Col data-tour="toolbar">
           <Toolbar>
             <TimePeriodSelector activePeriod={chartPeriod} onChange={setChartPeriod} />
             <InputGroup style={{ width: 'auto' }}>
@@ -113,17 +148,17 @@ export default function CurrencyDashboard() {
         </Col>
       </Row>
       <Row>
-        <Col sm={2}>
+        <Col sm={2} data-tour="panel-from">
           <CurrencyPanel
             title="De (FROM)"
             selected={selectedFrom}
             onSelect={handleFromSelect}
           />
         </Col>
-        <Col sm={8}>
+        <Col sm={8} data-tour="chart-area">
           <PerformanceChart />
         </Col>
-        <Col sm={2}>
+        <Col sm={2} data-tour="panel-to">
           <CurrencyPanel
             title="A (TO)"
             selected={selectedTo}

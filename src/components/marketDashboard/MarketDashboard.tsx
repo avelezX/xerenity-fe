@@ -3,12 +3,14 @@ import { Container, Row, Col, Spinner } from 'react-bootstrap';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
+import { Step } from 'react-joyride';
 import PageTitle from '@components/PageTitle';
 import useAppStore from 'src/store';
 import { DashboardConfig, WatchlistEntry, WatchlistGroup } from 'src/types/watchlist';
 import WatchlistPanel from './WatchlistPanel';
 import PerformanceChart from './PerformanceChart';
 import MarketDashboardToolbar from './MarketDashboardToolbar';
+import OnboardingTour from './OnboardingTour';
 import { TabsContainer, TabLink } from './styled/DashboardTabs.styled';
 
 const DASHBOARD_TABS = [
@@ -16,6 +18,7 @@ const DASHBOARD_TABS = [
   { label: 'Tasas', path: '/tasas' },
   { label: 'Monedas', path: '/monedas-dashboard' },
   { label: 'FIC', path: '/fic' },
+  { label: 'Par de Monedas', path: '/par-monedas' },
 ];
 
 type MarketDashboardProps = {
@@ -56,6 +59,33 @@ export default function MarketDashboard({ config }: MarketDashboardProps) {
   const resetWatchlistOnly = useAppStore((s) => s.resetWatchlistOnly);
   const searchText = useAppStore((s) => s.searchText);
   const [panelsVisible, setPanelsVisible] = useState(true);
+
+  const tourSteps: Step[] = useMemo(
+    () => [
+      {
+        target: '[data-tour="watchlist-left"]',
+        content:
+          'Estas son las series disponibles. Haz click en cualquiera para agregarla al gráfico.',
+        disableBeacon: true,
+      },
+      {
+        target: '[data-tour="chart-area"]',
+        content:
+          'El gráfico muestra las series seleccionadas. Puedes agregar varias al mismo tiempo para compararlas.',
+      },
+      {
+        target: '[data-tour="legend-area"]',
+        content:
+          'Cada serie aparece aquí con su color. Haz click en la ✕ para quitarla del gráfico.',
+      },
+      {
+        target: '[data-tour="dashboard-toolbar"]',
+        content:
+          'Cambia el periodo de tiempo, busca series por nombre, normaliza el gráfico para comparar escalas diferentes, u oculta los paneles laterales.',
+      },
+    ],
+    []
+  );
 
   useEffect(() => {
     fetchWatchlistSnapshot(config);
@@ -112,6 +142,7 @@ export default function MarketDashboard({ config }: MarketDashboardProps) {
 
   return (
     <Container fluid className="px-4">
+      <OnboardingTour storageKey="tour-market-dashboard" steps={tourSteps} />
       <Row className="align-items-center justify-content-between">
         <Col xs="auto">
           <PageTitle>
@@ -136,7 +167,7 @@ export default function MarketDashboard({ config }: MarketDashboardProps) {
         <Col xs="auto" />
       </Row>
       <Row className="mb-3">
-        <Col>
+        <Col data-tour="dashboard-toolbar">
           <MarketDashboardToolbar
             config={config}
             panelsVisible={panelsVisible}
@@ -146,7 +177,7 @@ export default function MarketDashboard({ config }: MarketDashboardProps) {
       </Row>
       <Row>
         {panelsVisible && (
-          <Col sm={3}>
+          <Col sm={3} data-tour="watchlist-left">
             <WatchlistPanel
               groups={left}
               selectedTickers={selectedTickers}
@@ -155,7 +186,7 @@ export default function MarketDashboard({ config }: MarketDashboardProps) {
             />
           </Col>
         )}
-        <Col sm={panelsVisible ? 6 : 12}>
+        <Col sm={panelsVisible ? 6 : 12} data-tour="chart-area">
           <PerformanceChart />
         </Col>
         {panelsVisible && (

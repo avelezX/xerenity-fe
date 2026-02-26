@@ -61,6 +61,7 @@ export interface DashboardConfig {
   showNormalize?: boolean;
   showEntidadFilter?: boolean;
   showActivoFilter?: boolean;
+  showCurrencyPairSelector?: boolean;
 }
 
 export interface ChartSelection {

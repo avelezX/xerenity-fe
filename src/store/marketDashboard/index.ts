@@ -12,6 +12,8 @@ import {
   fetchLatestValuesBatch,
 } from 'src/models/series/fetchWatchlistSnapshot';
 import { fetchSeriesData } from 'src/models/series/fetchSerieData';
+import { fetchCurrencyPairData } from 'src/models/series/fetchCurrencyPairData';
+import { fetchCryptoData, isCryptoPair } from 'src/models/series/fetchCryptoData';
 import { getHexColor } from 'src/utils/getHexColors';
 
 export interface MarketDashboardSlice {
@@ -30,6 +32,7 @@ export interface MarketDashboardSlice {
 
   fetchWatchlistSnapshot: (config: DashboardConfig) => Promise<void>;
   addToChart: (entry: WatchlistEntry) => Promise<void>;
+  addCurrencyPairToChart: (pair: string) => Promise<void>;
   removeFromChart: (ticker: string) => void;
   clearChart: () => void;
   setChartPeriod: (period: TimePeriod) => void;
@@ -232,6 +235,49 @@ const createMarketDashboardSlice: StateCreator<MarketDashboardSlice> = (
           {
             ticker: entry.ticker,
             display_name: entry.display_name,
+            color,
+            fullData: fullSerieData,
+            data: filteredData,
+          },
+        ],
+        chartLoading: false,
+      }));
+    } else {
+      set({ chartLoading: false });
+    }
+  },
+
+  addCurrencyPairToChart: async (pair: string) => {
+    const state = get();
+    const tickerId = `currency_${pair}`;
+    if (state.chartSelections.find((s) => s.ticker === tickerId)) {
+      return;
+    }
+
+    set({ chartLoading: true });
+    const color = getHexColor(state.chartSelections.length);
+
+    const [fromSymbol, toSymbol] = pair.split(':');
+    const useCrypto = isCryptoPair(fromSymbol, toSymbol);
+
+    const response = useCrypto
+      ? await fetchCryptoData(fromSymbol, toSymbol)
+      : await fetchCurrencyPairData(pair);
+
+    if (response.data) {
+      const fullSerieData = response.data;
+
+      const cutoff = getPeriodCutoff(state.chartPeriod);
+      const filteredData = cutoff
+        ? fullSerieData.filter((d) => d.time >= cutoff)
+        : fullSerieData;
+
+      set((prev) => ({
+        chartSelections: [
+          ...prev.chartSelections,
+          {
+            ticker: tickerId,
+            display_name: pair,
             color,
             fullData: fullSerieData,
             data: filteredData,

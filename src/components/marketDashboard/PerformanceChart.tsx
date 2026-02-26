@@ -5,6 +5,7 @@ import {
   LegendContainer,
   LegendItem,
   LegendColor,
+  LegendClose,
 } from './styled/ChartLegend.styled';
 
 const NORMALIZE_SCALE = 'normalized';
@@ -20,7 +21,7 @@ export default function PerformanceChart() {
 
   return (
     <>
-      <LegendContainer>
+      <LegendContainer data-tour="legend-area">
         {chartSelections.map((s) => (
           <LegendItem
             key={s.ticker}
@@ -29,6 +30,7 @@ export default function PerformanceChart() {
           >
             <LegendColor color={s.color} />
             {s.display_name}
+            <LegendClose>✕</LegendClose>
           </LegendItem>
         ))}
       </LegendContainer>
