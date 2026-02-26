@@ -7,6 +7,7 @@ import {
   faMoneyBillTrendUp,
   faHome,
   faCalculator,
+  faBriefcase,
 } from '@fortawesome/free-solid-svg-icons';
 import SubNavItem from './SubNavItem';
 import NavigationItem, { NavItemProps } from './NavigationItem';
@@ -64,6 +65,12 @@ const NAV_ITEMS: NavItemProps[] = [
 
 const PRICING_SUBNAV: NavItemProps[] = [
   {
+    name: 'Portafolio',
+    path: '/portfolio',
+    icon: faBriefcase,
+    active: false,
+  },
+  {
     name: 'NDF Pricer',
     path: '/ndf-pricer',
     icon: faCalculator,
@@ -98,7 +105,7 @@ const MONEDAS_SUBNAV: NavItemProps[] = [
   },
 ];
 
-const SERIES_DASHBOARDS_PREFIX = ['/suameca', '/tasas', '/monedas-dashboard', '/fic'];
+const SERIES_DASHBOARDS_PREFIX = ['/suameca', '/tasas', '/monedas-dashboard', '/fic', '/par-monedas'];
 
 const MONEDAS_PREFIX = '/currency';
 
@@ -128,7 +135,7 @@ const SidebarNavList = ({ currentPath }: SidebarNavProps) => {
       <SubNavItem
         name="Pricing"
         icon={faCalculator}
-        active={currentPath.includes('/ndf-pricer') || currentPath.includes('/ibr-swap') || currentPath.includes('/xccy-swap')}
+        active={currentPath.includes('/ndf-pricer') || currentPath.includes('/ibr-swap') || currentPath.includes('/xccy-swap') || currentPath.includes('/portfolio')}
       >
         {PRICING_SUBNAV.map(({ name, path, icon }) => (
           <NavigationItem

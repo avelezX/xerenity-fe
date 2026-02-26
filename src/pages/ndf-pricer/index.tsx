@@ -10,6 +10,7 @@ import {
   faLineChart,
   faPlay,
   faSyncAlt,
+  faSave,
 } from '@fortawesome/free-solid-svg-icons';
 import { toast } from 'react-toastify';
 import PageTitle from '@components/PageTitle';
@@ -37,6 +38,7 @@ import type {
   NdfImpliedCurvePoint,
   CurveStatus,
 } from 'src/types/pricing';
+import { createNdfPosition } from 'src/models/trading';
 
 const PAGE_TITLE = 'NDF Pricer';
 
@@ -270,7 +272,31 @@ function NdfPricer() {
                 padding: 20,
               }}
             >
-              <h6 style={{ marginBottom: 16 }}>Resultado</h6>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                <h6 style={{ margin: 0 }}>Resultado</h6>
+                <Button
+                  variant="outline-success"
+                  size="sm"
+                  onClick={async () => {
+                    try {
+                      await createNdfPosition({
+                        label: '',
+                        counterparty: '',
+                        notional_usd: notionalUsd,
+                        strike,
+                        maturity_date: maturityDate,
+                        direction,
+                      });
+                      toast.success('Posicion NDF guardada al portafolio');
+                    } catch (e) {
+                      toast.error(`Error: ${e instanceof Error ? e.message : String(e)}`);
+                    }
+                  }}
+                >
+                  <Icon icon={faSave} className="me-1" />
+                  Guardar al Portafolio
+                </Button>
+              </div>
               <table style={{ width: '100%', fontSize: 14, borderCollapse: 'collapse' }}>
                 <tbody>
                   {[

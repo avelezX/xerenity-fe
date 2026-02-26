@@ -6,15 +6,17 @@ import createSeriesSlice, { SeriesSlice } from './series';
 import createMarketDashboardSlice, {
   MarketDashboardSlice,
 } from './marketDashboard';
+import createTradingSlice, { TradingSlice } from './trading';
 
 const useAppStore = create<
-  LoansSlice & DashboardSlice & SeriesSlice & MarketDashboardSlice
+  LoansSlice & DashboardSlice & SeriesSlice & MarketDashboardSlice & TradingSlice
 >()(
   devtools((...args) => ({
     ...createLoansSlice(...args),
     ...createDashboardSlice(...args),
     ...createSeriesSlice(...args),
     ...createMarketDashboardSlice(...args),
+    ...createTradingSlice(...args),
   }))
 );
 

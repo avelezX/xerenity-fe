@@ -11,6 +11,7 @@ import {
   faPlay,
   faSyncAlt,
   faTable,
+  faSave,
 } from '@fortawesome/free-solid-svg-icons';
 import { toast } from 'react-toastify';
 import PageTitle from '@components/PageTitle';
@@ -41,6 +42,7 @@ import type {
   ParBasisPoint,
   CurveStatus,
 } from 'src/types/pricing';
+import { createXccyPosition } from 'src/models/trading';
 
 const PAGE_TITLE = 'Cross-Currency Swap';
 
@@ -445,11 +447,40 @@ function XccySwapPage() {
       <Col md={7}>
         {result ? (
           <div style={{ background: '#fff', border: '1px solid #dee2e6', borderRadius: 8, padding: 20 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 16 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
               <h6 style={{ margin: 0 }}>Resultado</h6>
-              {pricedAt && (
-                <span style={{ fontSize: 11, color: '#999' }}>Valorado a las {pricedAt}</span>
-              )}
+              <div className="d-flex align-items-center gap-2">
+                {pricedAt && (
+                  <span style={{ fontSize: 11, color: '#999' }}>Valorado a las {pricedAt}</span>
+                )}
+                <Button
+                  variant="outline-success"
+                  size="sm"
+                  onClick={async () => {
+                    try {
+                      await createXccyPosition({
+                        label: '',
+                        counterparty: '',
+                        notional_usd: notionalUsd,
+                        start_date: startDate,
+                        maturity_date: maturityDate,
+                        usd_spread_bps: usdSpreadBps,
+                        cop_spread_bps: copSpreadBps,
+                        pay_usd: payUsd,
+                        fx_initial: parseFloat(fxInitial as string) || 0,
+                        payment_frequency: paymentFrequency,
+                        amortization_type: amortizationType,
+                      });
+                      toast.success('Posicion guardada al portafolio');
+                    } catch (e) {
+                      toast.error(`Error: ${e instanceof Error ? e.message : String(e)}`);
+                    }
+                  }}
+                >
+                  <Icon icon={faSave} className="me-1" />
+                  Guardar al Portafolio
+                </Button>
+              </div>
             </div>
 
             {/* NPV highlight box */}

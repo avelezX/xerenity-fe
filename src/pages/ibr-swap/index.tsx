@@ -10,6 +10,7 @@ import {
   faLineChart,
   faPlay,
   faSyncAlt,
+  faSave,
 } from '@fortawesome/free-solid-svg-icons';
 import { toast } from 'react-toastify';
 import PageTitle from '@components/PageTitle';
@@ -37,6 +38,7 @@ import type {
   ParCurvePoint,
   CurveStatus,
 } from 'src/types/pricing';
+import { createIbrSwapPosition } from 'src/models/trading';
 
 const PAGE_TITLE = 'IBR Swap Pricer';
 
@@ -318,7 +320,38 @@ function IbrSwapPricer() {
                 padding: 20,
               }}
             >
-              <h6 style={{ marginBottom: 16 }}>Resultado</h6>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                <h6 style={{ margin: 0 }}>Resultado</h6>
+                <Button
+                  variant="outline-success"
+                  size="sm"
+                  onClick={async () => {
+                    try {
+                      const today = new Date().toISOString().slice(0, 10);
+                      const matDate = useMaturity && maturityDate
+                        ? maturityDate
+                        : new Date(new Date().setFullYear(new Date().getFullYear() + tenorYears)).toISOString().slice(0, 10);
+                      await createIbrSwapPosition({
+                        label: '',
+                        counterparty: '',
+                        notional,
+                        start_date: today,
+                        maturity_date: matDate,
+                        fixed_rate: fixedRate / 100,
+                        pay_fixed: payFixed,
+                        spread_bps: spread,
+                        payment_frequency: '3M',
+                      });
+                      toast.success('Posicion IBR Swap guardada al portafolio');
+                    } catch (e) {
+                      toast.error(`Error: ${e instanceof Error ? e.message : String(e)}`);
+                    }
+                  }}
+                >
+                  <Icon icon={faSave} className="me-1" />
+                  Guardar al Portafolio
+                </Button>
+              </div>
 
               {/* NPV highlight */}
               <div
