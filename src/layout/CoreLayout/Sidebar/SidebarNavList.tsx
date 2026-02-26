@@ -6,6 +6,7 @@ import {
   faLineChart,
   faMoneyBillTrendUp,
   faHome,
+  faCalculator,
 } from '@fortawesome/free-solid-svg-icons';
 import SubNavItem from './SubNavItem';
 import NavigationItem, { NavItemProps } from './NavigationItem';
@@ -59,6 +60,27 @@ const NAV_ITEMS: NavItemProps[] = [
   },
 ];
 
+const PRICING_SUBNAV: NavItemProps[] = [
+  {
+    name: 'NDF Pricer',
+    path: '/ndf-pricer',
+    icon: faCalculator,
+    active: false,
+  },
+  {
+    name: 'IBR Swap',
+    path: '/ibr-swap',
+    icon: faLineChart,
+    active: false,
+  },
+  {
+    name: 'XCCY Swap',
+    path: '/xccy-swap',
+    icon: faLineChart,
+    active: false,
+  },
+];
+
 const MONEDAS_SUBNAV: NavItemProps[] = [
   {
     name: 'Peso Colombiano',
@@ -73,6 +95,35 @@ const MONEDAS_SUBNAV: NavItemProps[] = [
     active: false,
   },
 ];
+
+const MERCADOS_SUBNAV: NavItemProps[] = [
+  {
+    name: 'SUAMECA',
+    path: '/suameca',
+    icon: faLandmark,
+    active: false,
+  },
+  {
+    name: 'Tasas',
+    path: '/tasas',
+    icon: faLineChart,
+    active: false,
+  },
+  {
+    name: 'Monedas',
+    path: '/monedas-dashboard',
+    icon: faDollarSign,
+    active: false,
+  },
+  {
+    name: 'FIC',
+    path: '/fic',
+    icon: faChartSimple,
+    active: false,
+  },
+];
+
+const MERCADOS_PREFIX = ['/suameca', '/tasas', '/monedas-dashboard', '/fic'];
 
 const MONEDAS_PREFIX = '/currency';
 
@@ -100,11 +151,41 @@ const SidebarNavList = ({ currentPath }: SidebarNavProps) => {
           />
         ))}
       <SubNavItem
+        name="Pricing"
+        icon={faCalculator}
+        active={currentPath.includes('/ndf-pricer') || currentPath.includes('/ibr-swap') || currentPath.includes('/xccy-swap')}
+      >
+        {PRICING_SUBNAV.map(({ name, path, icon }) => (
+          <NavigationItem
+            active={currentPath.includes(path)}
+            name={name}
+            path={path}
+            icon={icon}
+            key={`${name}${path}`}
+          />
+        ))}
+      </SubNavItem>
+      <SubNavItem
         name="Monedas"
         icon={faDollarSign}
         active={currentPath.includes(MONEDAS_PREFIX)}
       >
         {MONEDAS_SUBNAV.map(({ name, path, icon }) => (
+          <NavigationItem
+            active={currentPath.includes(path)}
+            name={name}
+            path={path}
+            icon={icon}
+            key={`${name}${path}`}
+          />
+        ))}
+      </SubNavItem>
+      <SubNavItem
+        name="Mercados"
+        icon={faChartSimple}
+        active={MERCADOS_PREFIX.some((p) => currentPath.includes(p))}
+      >
+        {MERCADOS_SUBNAV.map(({ name, path, icon }) => (
           <NavigationItem
             active={currentPath.includes(path)}
             name={name}
