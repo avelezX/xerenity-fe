@@ -21,7 +21,7 @@ const WatchlistGroup = React.memo(({
   chartColorMap,
   onRowClick,
 }: WatchlistGroupProps) => {
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(true);
 
   return (
     <div>

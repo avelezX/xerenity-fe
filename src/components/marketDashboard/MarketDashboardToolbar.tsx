@@ -1,5 +1,7 @@
 import React from 'react';
 import { InputGroup, Form } from 'react-bootstrap';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faExpand, faCompress } from '@fortawesome/free-solid-svg-icons';
 import useAppStore from 'src/store';
 import { DashboardConfig } from 'src/types/watchlist';
 import Toolbar from '@components/UI/Toolbar';
@@ -7,10 +9,14 @@ import TimePeriodSelector from './TimePeriodSelector';
 
 type MarketDashboardToolbarProps = {
   config: DashboardConfig;
+  panelsVisible: boolean;
+  onTogglePanels: () => void;
 };
 
 export default function MarketDashboardToolbar({
   config,
+  panelsVisible,
+  onTogglePanels,
 }: MarketDashboardToolbarProps) {
   const chartPeriod = useAppStore((s) => s.chartPeriod);
   const setChartPeriod = useAppStore((s) => s.setChartPeriod);
@@ -58,6 +64,21 @@ export default function MarketDashboardToolbar({
           Limpiar chart
         </button>
       )}
+      <button
+        type="button"
+        onClick={onTogglePanels}
+        title={panelsVisible ? 'Expandir chart' : 'Mostrar paneles'}
+        style={{
+          border: 'none',
+          background: 'transparent',
+          fontSize: 14,
+          color: '#999',
+          cursor: 'pointer',
+          marginLeft: 'auto',
+        }}
+      >
+        <FontAwesomeIcon icon={panelsVisible ? faExpand : faCompress} />
+      </button>
     </Toolbar>
   );
 }

@@ -67,5 +67,6 @@ export interface ChartSelection {
   ticker: string;
   display_name: string;
   color: string;
+  fullData: LightSerieValue[];
   data: LightSerieValue[];
 }

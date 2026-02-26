@@ -49,7 +49,7 @@ export const GroupHeader = styled.div`
 
 export const GroupColumnHeaders = styled.div`
   display: grid;
-  grid-template-columns: 1fr 80px 70px 60px;
+  grid-template-columns: 1fr 80px 70px 60px 20px;
   padding: 2px 8px;
   font-size: 10px;
   font-weight: 600;

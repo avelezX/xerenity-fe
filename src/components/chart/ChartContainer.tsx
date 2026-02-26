@@ -118,11 +118,10 @@ export default function ChartContainer({
       <div
         ref={chartContainerRef}
         style={{ height: chartHeight || DEFAULT_CHART_HEIGHT }}
-      >
-        <ChartContext.Provider value={chart.current}>
-          {children}
-        </ChartContext.Provider>
-      </div>
+      />
+      <ChartContext.Provider value={chart.current}>
+        {children}
+      </ChartContext.Provider>
     </Panel>
   );
 }

@@ -1,12 +1,22 @@
-import React, { useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Container, Row, Col, Spinner } from 'react-bootstrap';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { useRouter } from 'next/router';
+import Link from 'next/link';
 import PageTitle from '@components/PageTitle';
 import useAppStore from 'src/store';
 import { DashboardConfig, WatchlistEntry, WatchlistGroup } from 'src/types/watchlist';
 import WatchlistPanel from './WatchlistPanel';
 import PerformanceChart from './PerformanceChart';
 import MarketDashboardToolbar from './MarketDashboardToolbar';
+import { TabsContainer, TabLink } from './styled/DashboardTabs.styled';
+
+const DASHBOARD_TABS = [
+  { label: 'BanRep', path: '/suameca' },
+  { label: 'Tasas', path: '/tasas' },
+  { label: 'Monedas', path: '/monedas-dashboard' },
+  { label: 'FIC', path: '/fic' },
+];
 
 type MarketDashboardProps = {
   config: DashboardConfig;
@@ -35,6 +45,7 @@ function splitGroups(
 }
 
 export default function MarketDashboard({ config }: MarketDashboardProps) {
+  const router = useRouter();
   const watchlistGroups = useAppStore((s) => s.watchlistGroups);
   const watchlistLoading = useAppStore((s) => s.watchlistLoading);
   const valuesLoading = useAppStore((s) => s.valuesLoading);
@@ -42,13 +53,14 @@ export default function MarketDashboard({ config }: MarketDashboardProps) {
   const fetchWatchlistSnapshot = useAppStore((s) => s.fetchWatchlistSnapshot);
   const addToChart = useAppStore((s) => s.addToChart);
   const removeFromChart = useAppStore((s) => s.removeFromChart);
-  const resetMarketDashboard = useAppStore((s) => s.resetMarketDashboard);
+  const resetWatchlistOnly = useAppStore((s) => s.resetWatchlistOnly);
   const searchText = useAppStore((s) => s.searchText);
+  const [panelsVisible, setPanelsVisible] = useState(true);
 
   useEffect(() => {
     fetchWatchlistSnapshot(config);
     return () => {
-      resetMarketDashboard();
+      resetWatchlistOnly();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -100,8 +112,8 @@ export default function MarketDashboard({ config }: MarketDashboardProps) {
 
   return (
     <Container fluid className="px-4">
-      <Row>
-        <Col>
+      <Row className="align-items-center justify-content-between">
+        <Col xs="auto">
           <PageTitle>
             <FontAwesomeIcon icon={config.icon} />
             <h4>{config.title}</h4>
@@ -110,32 +122,52 @@ export default function MarketDashboard({ config }: MarketDashboardProps) {
             )}
           </PageTitle>
         </Col>
+        <Col className="d-flex justify-content-center">
+          <TabsContainer>
+            {DASHBOARD_TABS.map((tab) => (
+              <Link key={tab.path} href={tab.path} passHref legacyBehavior>
+                <TabLink isActive={router.pathname === tab.path}>
+                  {tab.label}
+                </TabLink>
+              </Link>
+            ))}
+          </TabsContainer>
+        </Col>
+        <Col xs="auto" />
       </Row>
       <Row className="mb-3">
         <Col>
-          <MarketDashboardToolbar config={config} />
+          <MarketDashboardToolbar
+            config={config}
+            panelsVisible={panelsVisible}
+            onTogglePanels={() => setPanelsVisible((v) => !v)}
+          />
         </Col>
       </Row>
       <Row>
-        <Col sm={3}>
-          <WatchlistPanel
-            groups={left}
-            selectedTickers={selectedTickers}
-            chartColorMap={chartColorMap}
-            onRowClick={handleRowClick}
-          />
-        </Col>
-        <Col sm={6}>
+        {panelsVisible && (
+          <Col sm={3}>
+            <WatchlistPanel
+              groups={left}
+              selectedTickers={selectedTickers}
+              chartColorMap={chartColorMap}
+              onRowClick={handleRowClick}
+            />
+          </Col>
+        )}
+        <Col sm={panelsVisible ? 6 : 12}>
           <PerformanceChart />
         </Col>
-        <Col sm={3}>
-          <WatchlistPanel
-            groups={right}
-            selectedTickers={selectedTickers}
-            chartColorMap={chartColorMap}
-            onRowClick={handleRowClick}
-          />
-        </Col>
+        {panelsVisible && (
+          <Col sm={3}>
+            <WatchlistPanel
+              groups={right}
+              selectedTickers={selectedTickers}
+              chartColorMap={chartColorMap}
+              onRowClick={handleRowClick}
+            />
+          </Col>
+        )}
       </Row>
     </Container>
   );

@@ -11,6 +11,7 @@ const TASAS_CONFIG: DashboardConfig = {
   filters: {
     grupos: [
       'IBR-SWAP',
+      'COLTES',
       'Tasas de Interés',
       'Tasas Implícitas',
       'Tasas de Captación',

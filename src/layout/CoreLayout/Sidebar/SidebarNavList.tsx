@@ -22,12 +22,14 @@ const NAV_ITEMS: NavItemProps[] = [
     icon: faHome,
     active: false,
   },
+  /* Old series page — replaced by market dashboards (SUAMECA, Tasas, Monedas, FIC)
   {
     name: 'series',
     path: '/series',
     icon: faChartSimple,
     active: false,
   },
+  */
   {
     name: 'créditos',
     path: '/loans',
@@ -96,34 +98,7 @@ const MONEDAS_SUBNAV: NavItemProps[] = [
   },
 ];
 
-const MERCADOS_SUBNAV: NavItemProps[] = [
-  {
-    name: 'SUAMECA',
-    path: '/suameca',
-    icon: faLandmark,
-    active: false,
-  },
-  {
-    name: 'Tasas',
-    path: '/tasas',
-    icon: faLineChart,
-    active: false,
-  },
-  {
-    name: 'Monedas',
-    path: '/monedas-dashboard',
-    icon: faDollarSign,
-    active: false,
-  },
-  {
-    name: 'FIC',
-    path: '/fic',
-    icon: faChartSimple,
-    active: false,
-  },
-];
-
-const MERCADOS_PREFIX = ['/suameca', '/tasas', '/monedas-dashboard', '/fic'];
+const SERIES_DASHBOARDS_PREFIX = ['/suameca', '/tasas', '/monedas-dashboard', '/fic'];
 
 const MONEDAS_PREFIX = '/currency';
 
@@ -180,21 +155,12 @@ const SidebarNavList = ({ currentPath }: SidebarNavProps) => {
           />
         ))}
       </SubNavItem>
-      <SubNavItem
-        name="Mercados"
+      <NavigationItem
+        name="Series"
+        path="/suameca"
         icon={faChartSimple}
-        active={MERCADOS_PREFIX.some((p) => currentPath.includes(p))}
-      >
-        {MERCADOS_SUBNAV.map(({ name, path, icon }) => (
-          <NavigationItem
-            active={currentPath.includes(path)}
-            name={name}
-            path={path}
-            icon={icon}
-            key={`${name}${path}`}
-          />
-        ))}
-      </SubNavItem>
+        active={SERIES_DASHBOARDS_PREFIX.some((p) => currentPath.includes(p))}
+      />
     </ul>
   );
 };

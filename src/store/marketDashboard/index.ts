@@ -38,6 +38,7 @@ export interface MarketDashboardSlice {
   setMarketSearchText: (text: string) => void;
   setEntidadFilter: (entidad: string | undefined) => void;
   setActivoFilter: (activo: boolean) => void;
+  resetWatchlistOnly: () => void;
   resetMarketDashboard: () => void;
 }
 
@@ -59,7 +60,10 @@ function groupEntries(
 
   return Array.from(map.entries())
     .sort(([a], [b]) => a.localeCompare(b))
-    .map(([name, items]) => ({ name, entries: items }));
+    .map(([name, items]) => ({
+      name,
+      entries: items.sort((a, b) => a.display_name.localeCompare(b.display_name)),
+    }));
 }
 
 function filterEntries(
@@ -214,13 +218,13 @@ const createMarketDashboardSlice: StateCreator<MarketDashboardSlice> = (
     });
 
     if (response.data) {
-      let serieData = response.data.serie as LightSerieValue[];
+      const fullSerieData = response.data.serie as LightSerieValue[];
 
       // Filter by period
       const cutoff = getPeriodCutoff(state.chartPeriod);
-      if (cutoff) {
-        serieData = serieData.filter((d) => d.time >= cutoff);
-      }
+      const filteredData = cutoff
+        ? fullSerieData.filter((d) => d.time >= cutoff)
+        : fullSerieData;
 
       set((prev) => ({
         chartSelections: [
@@ -229,7 +233,8 @@ const createMarketDashboardSlice: StateCreator<MarketDashboardSlice> = (
             ticker: entry.ticker,
             display_name: entry.display_name,
             color,
-            data: serieData,
+            fullData: fullSerieData,
+            data: filteredData,
           },
         ],
         chartLoading: false,
@@ -252,7 +257,16 @@ const createMarketDashboardSlice: StateCreator<MarketDashboardSlice> = (
   },
 
   setChartPeriod: (period: TimePeriod) => {
-    set({ chartPeriod: period });
+    const cutoff = getPeriodCutoff(period);
+    set((state) => ({
+      chartPeriod: period,
+      chartSelections: state.chartSelections.map((s) => ({
+        ...s,
+        data: cutoff
+          ? s.fullData.filter((d) => d.time >= cutoff)
+          : s.fullData,
+      })),
+    }));
   },
 
   setNormalizeChart: (normalize: boolean) => {
@@ -274,6 +288,16 @@ const createMarketDashboardSlice: StateCreator<MarketDashboardSlice> = (
   setActivoFilter: (activo: boolean) => {
     set({ activoFilter: activo });
   },
+
+  resetWatchlistOnly: () =>
+    set({
+      watchlistEntries: [],
+      watchlistGroups: [],
+      watchlistLoading: false,
+      valuesLoading: false,
+      searchText: '',
+      entidadFilter: undefined,
+    }),
 
   resetMarketDashboard: () => set(initialMarketState),
 });

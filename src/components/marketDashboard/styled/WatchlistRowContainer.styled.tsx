@@ -8,7 +8,7 @@ export const WatchlistRowContainer = styled.div<{
   selectedColor?: string;
 }>`
   display: grid;
-  grid-template-columns: 1fr 80px 70px 60px;
+  grid-template-columns: 1fr 80px 70px 60px 20px;
   align-items: center;
   padding: 4px 8px;
   font-size: 12px;
@@ -34,6 +34,15 @@ export const WatchlistRowContainer = styled.div<{
     text-align: right;
     font-variant-numeric: tabular-nums;
     color: #333;
+  }
+
+  .row-remove {
+    text-align: center;
+    font-size: 10px;
+    color: #bbb;
+    &:hover {
+      color: ${designSystem['red-600'].value};
+    }
   }
 `;
 

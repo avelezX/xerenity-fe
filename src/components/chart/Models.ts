@@ -15,6 +15,8 @@ export type TimeValueSerie = {
   scaleId?: string;
   applyFunctions?: string[];
   fromNormalizeDate?: string;
+  lastValueVisible?: boolean;
+  priceLineVisible?: boolean;
 } & PropsWithChildren;
 
 export type CandleSerieProps = {

@@ -55,6 +55,9 @@ const WatchlistRow = React.memo(({
     >
       {formatPct(entry.pct_change)}
     </ChangeValue>
+    <span className="row-remove">
+      {isSelected ? '\u2715' : ''}
+    </span>
   </WatchlistRowContainer>
 ));
 
