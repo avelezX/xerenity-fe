@@ -29,6 +29,7 @@ export default function OnboardingTour({ storageKey, steps }: OnboardingTourProp
       const timer = setTimeout(() => setRun(true), 600);
       return () => clearTimeout(timer);
     }
+    return undefined;
   }, [storageKey]);
 
   const handleCallback = (data: CallBackProps) => {

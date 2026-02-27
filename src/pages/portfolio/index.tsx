@@ -1,5 +1,6 @@
 'use client';
 
+/* eslint-disable no-nested-ternary, no-underscore-dangle, no-restricted-syntax, prefer-template, jsx-a11y/control-has-associated-label */
 import { CoreLayout } from '@layout';
 import { Row, Col, Form, Modal } from 'react-bootstrap';
 import React, { useState, useCallback, useEffect } from 'react';

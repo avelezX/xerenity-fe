@@ -356,7 +356,10 @@ function IbrSwapPricer() {
                 }}
               >
                 <div
+                  role="button"
+                  tabIndex={0}
                   onClick={() => setShowOperational(!showOperational)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setShowOperational(!showOperational); }}
                   style={{
                     padding: '8px 12px',
                     background: '#f8f9fa',
