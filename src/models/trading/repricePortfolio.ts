@@ -78,48 +78,58 @@ export const repricePortfolio = async (
   const ndfById = Object.fromEntries(ndfPositions.map((p) => [p.id, p]));
   const ibrById = Object.fromEntries(ibrSwapPositions.map((p) => [p.id, p]));
 
+  const n = (v: unknown, fallback = 0) => (v as number) ?? fallback;
+
   const xccyResults: PricedXccy[] = raw.xccy_results.map((r) => {
-    const posId = r.position_id as string;
-    const pos = xccyById[posId];
+    const pos = xccyById[r.position_id as string];
     return {
       ...pos,
-      npv_cop: (r.npv_cop as number) ?? 0,
-      npv_usd: (r.npv_usd as number) ?? 0,
-      pnl_rate_cop: (r.pnl_rate_cop as number) ?? 0,
-      pnl_fx_cop: (r.pnl_fx_cop as number) ?? 0,
-      carry_cop: (r.carry_cop as number) ?? 0,
-      carry_differential_bps: (r.carry_differential_bps as number) ?? 0,
-      par_basis_bps: (r.par_basis_bps as number) ?? null,
+      npv_cop: n(r.npv_cop), npv_usd: n(r.npv_usd),
+      pnl_rate_cop: n(r.pnl_rate_cop), pnl_rate_usd: n(r.pnl_rate_usd),
+      pnl_fx_cop: n(r.pnl_fx_cop), pnl_fx_usd: n(r.pnl_fx_usd),
+      usd_leg_pv: n(r.usd_leg_pv), cop_leg_pv: n(r.cop_leg_pv),
+      usd_principal_pv: n(r.usd_principal_pv), cop_principal_pv: n(r.cop_principal_pv),
+      carry_cop: n(r.carry_cop), carry_usd: n(r.carry_usd),
+      carry_rate_cop_pct: n(r.carry_rate_cop_pct), carry_rate_usd_pct: n(r.carry_rate_usd_pct),
+      carry_differential_bps: n(r.carry_differential_bps),
+      dv01_ibr: n(r.dv01_ibr), dv01_sofr: n(r.dv01_sofr), dv01_total: n(r.dv01_total),
+      fx_delta: n(r.fx_delta), fx_exposure_usd: n(r.fx_exposure_usd),
+      par_basis_bps: r.par_basis_bps != null ? n(r.par_basis_bps) : null,
+      notional_cop: n(r.notional_cop), fx_spot: n(r.fx_spot), n_periods: n(r.n_periods),
+      cashflows: (r.cashflows as PricedXccy['cashflows']) ?? [],
       error: r.error as string | undefined,
     };
   });
 
   const ndfResults: PricedNdf[] = raw.ndf_results.map((r) => {
-    const posId = r.position_id as string;
-    const pos = ndfById[posId];
+    const pos = ndfById[r.position_id as string];
     return {
       ...pos,
-      npv_usd: (r.npv_usd as number) ?? 0,
-      npv_cop: (r.npv_cop as number) ?? 0,
-      forward: (r.forward as number) ?? 0,
-      forward_points: (r.forward_points as number) ?? 0,
-      carry_cop_daily: (r.carry_cop_daily as number) ?? 0,
-      carry_usd_daily: (r.carry_usd_daily as number) ?? 0,
-      days_to_maturity: (r.days_to_maturity as number) ?? 0,
+      npv_usd: n(r.npv_usd), npv_cop: n(r.npv_cop),
+      forward: n(r.forward), forward_points: n(r.forward_points),
+      carry_cop_daily: n(r.carry_cop_daily), carry_usd_daily: n(r.carry_usd_daily),
+      days_to_maturity: n(r.days_to_maturity),
+      df_usd: n(r.df_usd), df_cop: n(r.df_cop),
+      delta_cop: n(r.delta_cop),
+      dv01_cop: n(r.dv01_cop), dv01_usd: n(r.dv01_usd), dv01_total: n(r.dv01_total),
+      fx_delta: n(r.fx_delta), fx_exposure_usd: n(r.fx_exposure_usd),
+      spot: n(r.spot),
       error: r.error as string | undefined,
     };
   });
 
   const ibrSwapResults: PricedIbrSwap[] = raw.ibr_swap_results.map((r) => {
-    const posId = r.position_id as string;
-    const pos = ibrById[posId];
+    const pos = ibrById[r.position_id as string];
     return {
       ...pos,
-      npv: (r.npv as number) ?? 0,
-      fair_rate: (r.fair_rate as number) ?? 0,
-      dv01: (r.dv01 as number) ?? 0,
-      carry_cop: (r.carry_cop as number) ?? 0,
-      carry_differential_bps: (r.carry_differential_bps as number) ?? 0,
+      npv: n(r.npv), fair_rate: n(r.fair_rate), dv01: n(r.dv01),
+      fixed_leg_npv: n(r.fixed_leg_npv), floating_leg_npv: n(r.floating_leg_npv),
+      ibr_overnight_pct: n(r.ibr_overnight_pct),
+      carry_daily_cop: n(r.carry_daily_cop),
+      carry_daily_diff_bps: n(r.carry_daily_diff_bps),
+      ibr_fwd_period_pct: n(r.ibr_fwd_period_pct),
+      carry_period_cop: n(r.carry_period_cop),
+      carry_period_diff_bps: n(r.carry_period_diff_bps),
       error: r.error as string | undefined,
     };
   });

@@ -82,6 +82,8 @@ export interface IbrSwapRequest {
   spread?: number;
   tenor_years?: number;
   maturity_date?: string;
+  start_date?: string;
+  payment_frequency?: string;
 }
 
 export const priceIbrSwap = (params: IbrSwapRequest) =>

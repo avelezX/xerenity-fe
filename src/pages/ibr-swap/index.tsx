@@ -82,6 +82,20 @@ function IbrSwapPricer() {
   const [spread, setSpread] = useState(0);
   const [useMaturity, setUseMaturity] = useState(false);
   const [maturityDate, setMaturityDate] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [paymentFrequency, setPaymentFrequency] = useState('3M');
+
+  // Operational fields (for saving to portfolio)
+  const [showOperational, setShowOperational] = useState(false);
+  const [idOperacion, setIdOperacion] = useState('');
+  const [tradeDate, setTradeDate] = useState('');
+  const [sociedad, setSociedad] = useState('');
+  const [idBanco, setIdBanco] = useState('');
+  const [modalidad, setModalidad] = useState('');
+  const [settlementDate, setSettlementDate] = useState('');
+  const [tipoDivisa, setTipoDivisa] = useState('COP');
+  const [estado, setEstado] = useState('Activo');
+  const [docSap, setDocSap] = useState('');
 
   // Results
   const [result, setResult] = useState<IbrSwapPricingResult | null>(null);
@@ -130,7 +144,9 @@ function IbrSwapPricer() {
         fixed_rate: fixedRate / 100,
         pay_fixed: payFixed,
         spread: spread / 10000,
+        payment_frequency: paymentFrequency,
       };
+      if (startDate) params.start_date = startDate;
       if (useMaturity) {
         params.maturity_date = maturityDate;
       } else {
@@ -143,7 +159,7 @@ function IbrSwapPricer() {
     } finally {
       setLoading(false);
     }
-  }, [notional, fixedRate, tenorYears, payFixed, spread, useMaturity, maturityDate]);
+  }, [notional, fixedRate, tenorYears, payFixed, spread, useMaturity, maturityDate, startDate, paymentFrequency]);
 
   const handleFetchParCurve = useCallback(async () => {
     setLoading(true);
@@ -275,6 +291,40 @@ function IbrSwapPricer() {
                 </Form.Group>
               )}
 
+              <Row>
+                <Col>
+                  <Form.Group className="mb-3">
+                    <Form.Label style={{ fontSize: 13 }}>Fecha Inicio</Form.Label>
+                    <Form.Control
+                      type="date"
+                      value={startDate}
+                      onChange={(e) => setStartDate(e.target.value)}
+                    />
+                    <Form.Text className="text-muted" style={{ fontSize: 11 }}>
+                      Dejar vacio = T+2 desde hoy
+                    </Form.Text>
+                  </Form.Group>
+                </Col>
+                <Col>
+                  <Form.Group className="mb-3">
+                    <Form.Label style={{ fontSize: 13 }}>Frecuencia Pagos</Form.Label>
+                    <Form.Select
+                      value={paymentFrequency}
+                      onChange={(e) => setPaymentFrequency(e.target.value)}
+                    >
+                      <option value="1M">Mensual (1M)</option>
+                      <option value="3M">Trimestral (3M)</option>
+                      <option value="6M">Semestral (6M)</option>
+                      <option value="12M">Anual (12M)</option>
+                      <option value="Bullet">Bullet (al vencimiento)</option>
+                    </Form.Select>
+                    <Form.Text className="text-muted" style={{ fontSize: 11 }}>
+                      Estandar Colombia: 3M
+                    </Form.Text>
+                  </Form.Group>
+                </Col>
+              </Row>
+
               <Form.Group className="mb-3">
                 <Form.Label style={{ fontSize: 13 }}>Dirección</Form.Label>
                 <Form.Select
@@ -295,6 +345,104 @@ function IbrSwapPricer() {
                   onChange={(e) => setSpread(parseFloat(e.target.value) || 0)}
                 />
               </Form.Group>
+
+              {/* Datos Operativos (collapsible) */}
+              <div
+                style={{
+                  marginBottom: 12,
+                  border: '1px solid #dee2e6',
+                  borderRadius: 6,
+                  overflow: 'hidden',
+                }}
+              >
+                <div
+                  onClick={() => setShowOperational(!showOperational)}
+                  style={{
+                    padding: '8px 12px',
+                    background: '#f8f9fa',
+                    cursor: 'pointer',
+                    fontSize: 13,
+                    fontWeight: 600,
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                  }}
+                >
+                  Datos Operativos
+                  <span style={{ fontSize: 11, color: '#888' }}>{showOperational ? '▲' : '▼'}</span>
+                </div>
+                {showOperational && (
+                  <div style={{ padding: 12 }}>
+                    <Row>
+                      <Col>
+                        <Form.Group className="mb-2">
+                          <Form.Label style={{ fontSize: 12 }}>ID Operación</Form.Label>
+                          <Form.Control size="sm" value={idOperacion} onChange={(e) => setIdOperacion(e.target.value)} placeholder="Ej: IRS-BOCS-01" />
+                        </Form.Group>
+                      </Col>
+                      <Col>
+                        <Form.Group className="mb-2">
+                          <Form.Label style={{ fontSize: 12 }}>Fecha Celebración</Form.Label>
+                          <Form.Control size="sm" type="date" value={tradeDate} onChange={(e) => setTradeDate(e.target.value)} />
+                        </Form.Group>
+                      </Col>
+                    </Row>
+                    <Row>
+                      <Col>
+                        <Form.Group className="mb-2">
+                          <Form.Label style={{ fontSize: 12 }}>Sociedad</Form.Label>
+                          <Form.Control size="sm" value={sociedad} onChange={(e) => setSociedad(e.target.value)} placeholder="Ej: BP01" />
+                        </Form.Group>
+                      </Col>
+                      <Col>
+                        <Form.Group className="mb-2">
+                          <Form.Label style={{ fontSize: 12 }}>ID Banco</Form.Label>
+                          <Form.Control size="sm" value={idBanco} onChange={(e) => setIdBanco(e.target.value)} />
+                        </Form.Group>
+                      </Col>
+                    </Row>
+                    <Row>
+                      <Col>
+                        <Form.Group className="mb-2">
+                          <Form.Label style={{ fontSize: 12 }}>Modalidad</Form.Label>
+                          <Form.Control size="sm" value={modalidad} onChange={(e) => setModalidad(e.target.value)} placeholder="Ej: OIS" />
+                        </Form.Group>
+                      </Col>
+                      <Col>
+                        <Form.Group className="mb-2">
+                          <Form.Label style={{ fontSize: 12 }}>Fecha Cumplimiento</Form.Label>
+                          <Form.Control size="sm" type="date" value={settlementDate} onChange={(e) => setSettlementDate(e.target.value)} />
+                        </Form.Group>
+                      </Col>
+                    </Row>
+                    <Row>
+                      <Col>
+                        <Form.Group className="mb-2">
+                          <Form.Label style={{ fontSize: 12 }}>Tipo Divisa</Form.Label>
+                          <Form.Select size="sm" value={tipoDivisa} onChange={(e) => setTipoDivisa(e.target.value)}>
+                            <option value="COP">COP</option>
+                            <option value="USD/COP">USD/COP</option>
+                          </Form.Select>
+                        </Form.Group>
+                      </Col>
+                      <Col>
+                        <Form.Group className="mb-2">
+                          <Form.Label style={{ fontSize: 12 }}>Estado</Form.Label>
+                          <Form.Select size="sm" value={estado} onChange={(e) => setEstado(e.target.value)}>
+                            <option value="Activo">Activo</option>
+                            <option value="Vencido">Vencido</option>
+                            <option value="Cancelado">Cancelado</option>
+                          </Form.Select>
+                        </Form.Group>
+                      </Col>
+                    </Row>
+                    <Form.Group className="mb-2">
+                      <Form.Label style={{ fontSize: 12 }}>Doc. SAP</Form.Label>
+                      <Form.Control size="sm" value={docSap} onChange={(e) => setDocSap(e.target.value)} />
+                    </Form.Group>
+                  </div>
+                )}
+              </div>
 
               <Button
                 variant="primary"
@@ -327,7 +475,7 @@ function IbrSwapPricer() {
                   size="sm"
                   onClick={async () => {
                     try {
-                      const today = new Date().toISOString().slice(0, 10);
+                      const today = startDate || new Date().toISOString().slice(0, 10);
                       const matDate = useMaturity && maturityDate
                         ? maturityDate
                         : new Date(new Date().setFullYear(new Date().getFullYear() + tenorYears)).toISOString().slice(0, 10);
@@ -340,7 +488,16 @@ function IbrSwapPricer() {
                         fixed_rate: fixedRate / 100,
                         pay_fixed: payFixed,
                         spread_bps: spread,
-                        payment_frequency: '3M',
+                        payment_frequency: paymentFrequency,
+                        id_operacion: idOperacion || undefined,
+                        trade_date: tradeDate || undefined,
+                        sociedad: sociedad || undefined,
+                        id_banco: idBanco || undefined,
+                        modalidad: modalidad || undefined,
+                        settlement_date: settlementDate || undefined,
+                        tipo_divisa: tipoDivisa || undefined,
+                        estado: estado || undefined,
+                        doc_sap: docSap || undefined,
                       });
                       toast.success('Posicion IBR Swap guardada al portafolio');
                     } catch (e) {

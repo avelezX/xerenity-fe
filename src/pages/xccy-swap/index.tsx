@@ -95,6 +95,18 @@ function XccySwapPage() {
   const [copSpreadBps, setCopSpreadBps] = useState(0);
   const [payUsd, setPayUsd] = useState(true);
 
+  // Operational fields (for saving to portfolio)
+  const [showOperational, setShowOperational] = useState(false);
+  const [idOperacion, setIdOperacion] = useState('');
+  const [tradeDate, setTradeDate] = useState('');
+  const [sociedad, setSociedad] = useState('');
+  const [idBanco, setIdBanco] = useState('');
+  const [modalidad, setModalidad] = useState('Non Delivery');
+  const [settlementDate, setSettlementDate] = useState('');
+  const [tipoDivisa, setTipoDivisa] = useState('USD/COP');
+  const [estado, setEstado] = useState('Activo');
+  const [docSap, setDocSap] = useState('');
+
   // Results
   const [result, setResult] = useState<XccySwapResult | null>(null);
   const [pricedAt, setPricedAt] = useState<string | null>(null);
@@ -396,6 +408,107 @@ function XccySwapPage() {
               </Form.Text>
             </Form.Group>
 
+            {/* Datos Operativos (collapsible) */}
+            <div
+              style={{
+                marginBottom: 12,
+                border: '1px solid #dee2e6',
+                borderRadius: 6,
+                overflow: 'hidden',
+              }}
+            >
+              <div
+                onClick={() => setShowOperational(!showOperational)}
+                style={{
+                  padding: '8px 12px',
+                  background: '#f8f9fa',
+                  cursor: 'pointer',
+                  fontSize: 13,
+                  fontWeight: 600,
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                }}
+              >
+                Datos Operativos
+                <span style={{ fontSize: 11, color: '#888' }}>{showOperational ? '▲' : '▼'}</span>
+              </div>
+              {showOperational && (
+                <div style={{ padding: 12 }}>
+                  <Row>
+                    <Col>
+                      <Form.Group className="mb-2">
+                        <Form.Label style={{ fontSize: 12 }}>ID Operación</Form.Label>
+                        <Form.Control size="sm" value={idOperacion} onChange={(e) => setIdOperacion(e.target.value)} placeholder="Ej: CCS-BOCS-01" />
+                      </Form.Group>
+                    </Col>
+                    <Col>
+                      <Form.Group className="mb-2">
+                        <Form.Label style={{ fontSize: 12 }}>Fecha Celebración</Form.Label>
+                        <Form.Control size="sm" type="date" value={tradeDate} onChange={(e) => setTradeDate(e.target.value)} />
+                      </Form.Group>
+                    </Col>
+                  </Row>
+                  <Row>
+                    <Col>
+                      <Form.Group className="mb-2">
+                        <Form.Label style={{ fontSize: 12 }}>Sociedad</Form.Label>
+                        <Form.Control size="sm" value={sociedad} onChange={(e) => setSociedad(e.target.value)} placeholder="Ej: BP01" />
+                      </Form.Group>
+                    </Col>
+                    <Col>
+                      <Form.Group className="mb-2">
+                        <Form.Label style={{ fontSize: 12 }}>ID Banco</Form.Label>
+                        <Form.Control size="sm" value={idBanco} onChange={(e) => setIdBanco(e.target.value)} />
+                      </Form.Group>
+                    </Col>
+                  </Row>
+                  <Row>
+                    <Col>
+                      <Form.Group className="mb-2">
+                        <Form.Label style={{ fontSize: 12 }}>Modalidad</Form.Label>
+                        <Form.Select size="sm" value={modalidad} onChange={(e) => setModalidad(e.target.value)}>
+                          <option value="Non Delivery">Non Delivery</option>
+                          <option value="Delivery">Delivery</option>
+                        </Form.Select>
+                      </Form.Group>
+                    </Col>
+                    <Col>
+                      <Form.Group className="mb-2">
+                        <Form.Label style={{ fontSize: 12 }}>Fecha Cumplimiento</Form.Label>
+                        <Form.Control size="sm" type="date" value={settlementDate} onChange={(e) => setSettlementDate(e.target.value)} />
+                      </Form.Group>
+                    </Col>
+                  </Row>
+                  <Row>
+                    <Col>
+                      <Form.Group className="mb-2">
+                        <Form.Label style={{ fontSize: 12 }}>Tipo Divisa</Form.Label>
+                        <Form.Select size="sm" value={tipoDivisa} onChange={(e) => setTipoDivisa(e.target.value)}>
+                          <option value="USD/COP">USD/COP</option>
+                          <option value="EUR/COP">EUR/COP</option>
+                        </Form.Select>
+                      </Form.Group>
+                    </Col>
+                    <Col>
+                      <Form.Group className="mb-2">
+                        <Form.Label style={{ fontSize: 12 }}>Estado</Form.Label>
+                        <Form.Select size="sm" value={estado} onChange={(e) => setEstado(e.target.value)}>
+                          <option value="Activo">Activo</option>
+                          <option value="Vencido">Vencido</option>
+                          <option value="Cancelado">Cancelado</option>
+                        </Form.Select>
+                      </Form.Group>
+                    </Col>
+                  </Row>
+                  <Form.Group className="mb-2">
+                    <Form.Label style={{ fontSize: 12 }}>Doc. SAP</Form.Label>
+                    <Form.Control size="sm" value={docSap} onChange={(e) => setDocSap(e.target.value)} />
+                  </Form.Group>
+                </div>
+              )}
+            </div>
+
             {/* Validation summary */}
             {getMissingFields().length > 0 && (
               <div
@@ -470,6 +583,15 @@ function XccySwapPage() {
                         fx_initial: parseFloat(fxInitial as string) || 0,
                         payment_frequency: paymentFrequency,
                         amortization_type: amortizationType,
+                        id_operacion: idOperacion || undefined,
+                        trade_date: tradeDate || undefined,
+                        sociedad: sociedad || undefined,
+                        id_banco: idBanco || undefined,
+                        modalidad: modalidad || undefined,
+                        settlement_date: settlementDate || undefined,
+                        tipo_divisa: tipoDivisa || undefined,
+                        estado: estado || undefined,
+                        doc_sap: docSap || undefined,
                       });
                       toast.success('Posicion guardada al portafolio');
                     } catch (e) {
