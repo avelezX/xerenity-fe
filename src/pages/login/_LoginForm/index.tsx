@@ -46,7 +46,7 @@ function LoginForm() {
       return redirect.toString();
     }
 
-    return '/';
+    return '/suameca';
   };
 
   const onSubmit: FormikConfig<typeof initialValues>['onSubmit'] = async (

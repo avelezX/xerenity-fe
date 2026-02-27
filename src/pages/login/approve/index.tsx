@@ -42,7 +42,7 @@ function ResetPasswordPage() {
       if (res.error) {
         setError(res.error.message);
       } else {
-        router.push('/dashboard');
+        router.push('/suameca');
       }
     } else {
       setError('No Access Token');
