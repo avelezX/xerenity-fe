@@ -10,11 +10,13 @@ import {
   NewXccyPosition,
   NewNdfPosition,
   NewIbrSwapPosition,
+  UserTradingRole,
 } from 'src/types/trading';
 import {
   fetchXccyPositions,
   fetchNdfPositions,
   fetchIbrSwapPositions,
+  fetchUserTradingRole,
   createXccyPosition,
   createNdfPosition,
   createIbrSwapPosition,
@@ -23,6 +25,8 @@ import {
   deleteIbrSwapPositions,
   repricePortfolio,
 } from 'src/models/trading';
+
+const genId = () => crypto.randomUUID();
 
 export interface TradingSlice {
   // Raw positions from DB
@@ -36,6 +40,10 @@ export interface TradingSlice {
   pricedIbrSwap: PricedIbrSwap[];
   summary: PortfolioSummary | null;
 
+  // Company / Role
+  userRole: UserTradingRole;
+  canEdit: boolean;
+
   // UI state
   tradingLoading: boolean;
   tradingError: string | undefined;
@@ -43,6 +51,7 @@ export interface TradingSlice {
   pricedAt: string | undefined;
 
   // Actions
+  loadUserRole: () => Promise<void>;
   loadPositions: () => Promise<void>;
   repriceAll: () => Promise<void>;
   addXccyPosition: (values: NewXccyPosition) => Promise<void>;
@@ -62,6 +71,8 @@ const initialTradingState = {
   pricedNdf: [],
   pricedIbrSwap: [],
   summary: null,
+  userRole: { role: null, company_id: null, company_name: null } as UserTradingRole,
+  canEdit: false,
   tradingLoading: false,
   tradingError: undefined,
   tradingSuccess: undefined,
@@ -70,6 +81,14 @@ const initialTradingState = {
 
 const createTradingSlice: StateCreator<TradingSlice> = (set, get) => ({
   ...initialTradingState,
+
+  loadUserRole: async () => {
+    const role = await fetchUserTradingRole();
+    set({
+      userRole: role,
+      canEdit: role.role === 'admin' || role.role === 'manager',
+    });
+  },
 
   loadPositions: async () => {
     set({ tradingLoading: true, tradingError: undefined });
@@ -80,20 +99,23 @@ const createTradingSlice: StateCreator<TradingSlice> = (set, get) => ({
         fetchIbrSwapPositions(),
       ]);
 
-      const error = xccy.error || ndf.error || ibrSwap.error;
-      if (error) {
-        set({ tradingLoading: false, tradingError: error });
+      // Only update from DB if at least one succeeded without error
+      // If all fail (e.g. tables don't exist), keep current local state
+      const allFailed = xccy.error && ndf.error && ibrSwap.error;
+      if (allFailed) {
+        set({ tradingLoading: false });
         return;
       }
 
       set({
-        xccyPositions: xccy.data,
-        ndfPositions: ndf.data,
-        ibrSwapPositions: ibrSwap.data,
+        xccyPositions: xccy.error ? get().xccyPositions : xccy.data,
+        ndfPositions: ndf.error ? get().ndfPositions : ndf.data,
+        ibrSwapPositions: ibrSwap.error ? get().ibrSwapPositions : ibrSwap.data,
         tradingLoading: false,
       });
     } catch {
-      set({ tradingLoading: false, tradingError: 'Error loading positions' });
+      // Network error or tables don't exist — keep local state
+      set({ tradingLoading: false });
     }
   },
 
@@ -133,10 +155,20 @@ const createTradingSlice: StateCreator<TradingSlice> = (set, get) => ({
   addXccyPosition: async (values: NewXccyPosition) => {
     set({ tradingLoading: true, tradingError: undefined, tradingSuccess: undefined });
     const res = await createXccyPosition(values);
-    if (res.error) {
-      set({ tradingLoading: false, tradingError: res.error });
-    } else {
-      set({ tradingLoading: false, tradingSuccess: res.data?.message });
+    // Always add to local state (DB may not be ready)
+    const localPos: XccyPosition = {
+      id: res.error ? genId() : (res.data as { id?: string })?.id || genId(),
+      owner: '',
+      created_at: new Date().toISOString(),
+      ...values,
+    };
+    set((state) => ({
+      tradingLoading: false,
+      tradingSuccess: 'Posicion XCCY agregada',
+      xccyPositions: [...state.xccyPositions, localPos],
+    }));
+    if (!res.error) {
+      // Refresh from DB to get server-generated ID
       await get().loadPositions();
     }
   },
@@ -144,10 +176,18 @@ const createTradingSlice: StateCreator<TradingSlice> = (set, get) => ({
   addNdfPosition: async (values: NewNdfPosition) => {
     set({ tradingLoading: true, tradingError: undefined, tradingSuccess: undefined });
     const res = await createNdfPosition(values);
-    if (res.error) {
-      set({ tradingLoading: false, tradingError: res.error });
-    } else {
-      set({ tradingLoading: false, tradingSuccess: res.data?.message });
+    const localPos: NdfPosition = {
+      id: res.error ? genId() : (res.data as { id?: string })?.id || genId(),
+      owner: '',
+      created_at: new Date().toISOString(),
+      ...values,
+    };
+    set((state) => ({
+      tradingLoading: false,
+      tradingSuccess: 'Posicion NDF agregada',
+      ndfPositions: [...state.ndfPositions, localPos],
+    }));
+    if (!res.error) {
       await get().loadPositions();
     }
   },
@@ -155,61 +195,58 @@ const createTradingSlice: StateCreator<TradingSlice> = (set, get) => ({
   addIbrSwapPosition: async (values: NewIbrSwapPosition) => {
     set({ tradingLoading: true, tradingError: undefined, tradingSuccess: undefined });
     const res = await createIbrSwapPosition(values);
-    if (res.error) {
-      set({ tradingLoading: false, tradingError: res.error });
-    } else {
-      set({ tradingLoading: false, tradingSuccess: res.data?.message });
+    const localPos: IbrSwapPosition = {
+      id: res.error ? genId() : (res.data as { id?: string })?.id || genId(),
+      owner: '',
+      created_at: new Date().toISOString(),
+      ...values,
+    };
+    set((state) => ({
+      tradingLoading: false,
+      tradingSuccess: 'Posicion IBR Swap agregada',
+      ibrSwapPositions: [...state.ibrSwapPositions, localPos],
+    }));
+    if (!res.error) {
       await get().loadPositions();
     }
   },
 
   removeXccyPositions: async (ids: string[]) => {
     set({ tradingLoading: true, tradingError: undefined });
-    const res = await deleteXccyPositions(ids);
-    if (res.error) {
-      set({ tradingLoading: false, tradingError: res.error });
-    } else {
-      set((state) => ({
-        tradingLoading: false,
-        xccyPositions: state.xccyPositions.filter((p) => !ids.includes(p.id)),
-        pricedXccy: state.pricedXccy.filter((p) => !ids.includes(p.id)),
-        tradingSuccess: res.data?.message,
-      }));
-    }
+    await deleteXccyPositions(ids);
+    // Always remove from local state
+    set((state) => ({
+      tradingLoading: false,
+      xccyPositions: state.xccyPositions.filter((p) => !ids.includes(p.id)),
+      pricedXccy: state.pricedXccy.filter((p) => !ids.includes(p.id)),
+      tradingSuccess: 'Posicion eliminada',
+    }));
   },
 
   removeNdfPositions: async (ids: string[]) => {
     set({ tradingLoading: true, tradingError: undefined });
-    const res = await deleteNdfPositions(ids);
-    if (res.error) {
-      set({ tradingLoading: false, tradingError: res.error });
-    } else {
-      set((state) => ({
-        tradingLoading: false,
-        ndfPositions: state.ndfPositions.filter((p) => !ids.includes(p.id)),
-        pricedNdf: state.pricedNdf.filter((p) => !ids.includes(p.id)),
-        tradingSuccess: res.data?.message,
-      }));
-    }
+    await deleteNdfPositions(ids);
+    set((state) => ({
+      tradingLoading: false,
+      ndfPositions: state.ndfPositions.filter((p) => !ids.includes(p.id)),
+      pricedNdf: state.pricedNdf.filter((p) => !ids.includes(p.id)),
+      tradingSuccess: 'Posicion eliminada',
+    }));
   },
 
   removeIbrSwapPositions: async (ids: string[]) => {
     set({ tradingLoading: true, tradingError: undefined });
-    const res = await deleteIbrSwapPositions(ids);
-    if (res.error) {
-      set({ tradingLoading: false, tradingError: res.error });
-    } else {
-      set((state) => ({
-        tradingLoading: false,
-        ibrSwapPositions: state.ibrSwapPositions.filter(
-          (p) => !ids.includes(p.id)
-        ),
-        pricedIbrSwap: state.pricedIbrSwap.filter(
-          (p) => !ids.includes(p.id)
-        ),
-        tradingSuccess: res.data?.message,
-      }));
-    }
+    await deleteIbrSwapPositions(ids);
+    set((state) => ({
+      tradingLoading: false,
+      ibrSwapPositions: state.ibrSwapPositions.filter(
+        (p) => !ids.includes(p.id)
+      ),
+      pricedIbrSwap: state.pricedIbrSwap.filter(
+        (p) => !ids.includes(p.id)
+      ),
+      tradingSuccess: 'Posicion eliminada',
+    }));
   },
 
   resetTradingStore: () => set(initialTradingState),

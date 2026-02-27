@@ -31,6 +31,15 @@ export const createXccyPosition = async (
       p_payment_frequency: values.payment_frequency,
       p_amortization_type: values.amortization_type,
       p_amortization_schedule: values.amortization_schedule ?? null,
+      p_id_operacion: values.id_operacion ?? null,
+      p_trade_date: values.trade_date ?? null,
+      p_sociedad: values.sociedad ?? null,
+      p_id_banco: values.id_banco ?? null,
+      p_modalidad: values.modalidad ?? null,
+      p_settlement_date: values.settlement_date ?? null,
+      p_tipo_divisa: values.tipo_divisa ?? null,
+      p_estado: values.estado ?? null,
+      p_doc_sap: values.doc_sap ?? null,
     });
     if (error) {
       response.error = 'Error creating XCCY position';
@@ -56,6 +65,15 @@ export const createNdfPosition = async (
       p_strike: values.strike,
       p_maturity_date: values.maturity_date,
       p_direction: values.direction,
+      p_id_operacion: values.id_operacion ?? null,
+      p_trade_date: values.trade_date ?? null,
+      p_sociedad: values.sociedad ?? null,
+      p_id_banco: values.id_banco ?? null,
+      p_modalidad: values.modalidad ?? null,
+      p_settlement_date: values.settlement_date ?? null,
+      p_tipo_divisa: values.tipo_divisa ?? null,
+      p_estado: values.estado ?? null,
+      p_doc_sap: values.doc_sap ?? null,
     });
     if (error) {
       response.error = 'Error creating NDF position';
@@ -84,6 +102,15 @@ export const createIbrSwapPosition = async (
       p_pay_fixed: values.pay_fixed,
       p_spread_bps: values.spread_bps,
       p_payment_frequency: values.payment_frequency,
+      p_id_operacion: values.id_operacion ?? null,
+      p_trade_date: values.trade_date ?? null,
+      p_sociedad: values.sociedad ?? null,
+      p_id_banco: values.id_banco ?? null,
+      p_modalidad: values.modalidad ?? null,
+      p_settlement_date: values.settlement_date ?? null,
+      p_tipo_divisa: values.tipo_divisa ?? null,
+      p_estado: values.estado ?? null,
+      p_doc_sap: values.doc_sap ?? null,
     });
     if (error) {
       response.error = 'Error creating IBR Swap position';

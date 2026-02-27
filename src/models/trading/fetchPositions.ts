@@ -3,10 +3,23 @@ import {
   XccyPosition,
   NdfPosition,
   IbrSwapPosition,
+  UserTradingRole,
 } from 'src/types/trading';
 
 const supabase = createClientComponentClient();
 const SCHEMA = 'xerenity';
+
+export const fetchUserTradingRole = async (): Promise<UserTradingRole> => {
+  try {
+    const { data, error } = await supabase
+      .schema(SCHEMA)
+      .rpc('get_user_trading_role');
+    if (error || !data) return { role: null, company_id: null, company_name: null };
+    return data as UserTradingRole;
+  } catch {
+    return { role: null, company_id: null, company_name: null };
+  }
+};
 
 export type PositionsResponse<T> = {
   data: T[];

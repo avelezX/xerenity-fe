@@ -2,6 +2,7 @@ import {
   fetchXccyPositions,
   fetchNdfPositions,
   fetchIbrSwapPositions,
+  fetchUserTradingRole,
   PositionsResponse,
 } from './fetchPositions';
 import {
@@ -24,6 +25,7 @@ export {
   fetchXccyPositions,
   fetchNdfPositions,
   fetchIbrSwapPositions,
+  fetchUserTradingRole,
   createXccyPosition,
   createNdfPosition,
   createIbrSwapPosition,
