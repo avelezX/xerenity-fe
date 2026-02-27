@@ -18,6 +18,7 @@ const DASHBOARD_TABS = [
   { label: 'Tasas', path: '/tasas' },
   { label: 'Monedas', path: '/monedas-dashboard' },
   { label: 'FIC', path: '/fic' },
+  { label: 'Peru', path: '/peru' },
   { label: 'Par de Monedas', path: '/par-monedas' },
 ];
 
