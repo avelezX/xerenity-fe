@@ -12,12 +12,14 @@ type MarketDashboardToolbarProps = {
   config: DashboardConfig;
   panelsVisible: boolean;
   onTogglePanels: () => void;
+  uniqueEntidades?: string[];
 };
 
 export default function MarketDashboardToolbar({
   config,
   panelsVisible,
   onTogglePanels,
+  uniqueEntidades,
 }: MarketDashboardToolbarProps) {
   const chartPeriod = useAppStore((s) => s.chartPeriod);
   const setChartPeriod = useAppStore((s) => s.setChartPeriod);
@@ -27,6 +29,10 @@ export default function MarketDashboardToolbar({
   const chartSelections = useAppStore((s) => s.chartSelections);
   const clearChart = useAppStore((s) => s.clearChart);
   const addCurrencyPairToChart = useAppStore((s) => s.addCurrencyPairToChart);
+  const entidadFilter = useAppStore((s) => s.entidadFilter);
+  const setEntidadFilter = useAppStore((s) => s.setEntidadFilter);
+  const activoFilter = useAppStore((s) => s.activoFilter);
+  const setActivoFilter = useAppStore((s) => s.setActivoFilter);
 
   const [showCurrencyModal, setShowCurrencyModal] = useState(false);
 
@@ -80,6 +86,37 @@ export default function MarketDashboardToolbar({
           style={{ maxWidth: 200, fontSize: 12 }}
           onChange={(e) => setMarketSearchText(e.target.value)}
         />
+        {config.showEntidadFilter && uniqueEntidades && uniqueEntidades.length > 0 && (
+          <Form.Select
+            size="sm"
+            aria-label="Filtrar por entidad"
+            value={entidadFilter || ''}
+            onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
+              setEntidadFilter(e.target.value || undefined)
+            }
+            style={{ maxWidth: 220, fontSize: 12 }}
+          >
+            <option value="">Todas las entidades</option>
+            {uniqueEntidades.map((ent) => (
+              <option key={ent} value={ent}>
+                {ent}
+              </option>
+            ))}
+          </Form.Select>
+        )}
+        {config.showActivoFilter && (
+          <InputGroup style={{ width: 'auto' }}>
+            <InputGroup.Checkbox
+              checked={activoFilter}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                setActivoFilter(e.target.checked)
+              }
+            />
+            <InputGroup.Text style={{ fontSize: 12 }}>
+              Solo activos
+            </InputGroup.Text>
+          </InputGroup>
+        )}
         {chartSelections.length > 0 && (
           <button
             type="button"
