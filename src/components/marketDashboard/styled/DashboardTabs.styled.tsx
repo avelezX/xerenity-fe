@@ -12,6 +12,24 @@ export const TabsContainer = styled.div`
   padding: 2px;
 `;
 
+export const InfoLink = styled.a`
+  margin-left: 4px;
+  font-size: 18px;
+  text-decoration: none;
+  opacity: 0.5;
+  transition: opacity 0.15s;
+
+  svg,
+  path {
+    fill: ${designSystem['purple-200'].value} !important;
+  }
+
+  &:hover {
+    opacity: 1;
+    text-decoration: none;
+  }
+`;
+
 export const TabLink = styled.a<{ isActive: boolean }>`
   padding: 6px 18px;
   font-size: 13px;
