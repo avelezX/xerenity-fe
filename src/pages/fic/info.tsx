@@ -1,8 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Container, Row, Col } from 'react-bootstrap';
-import { useRouter } from 'next/router';
+import { Container } from 'react-bootstrap';
 import Link from 'next/link';
 import { CoreLayout } from '@layout';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
