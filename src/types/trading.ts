@@ -289,12 +289,21 @@ export interface HistoricalNdfPoint {
   mid: number | null;
 }
 
+export interface HistoricalTesPoint {
+  name: string;            // bond name e.g. 'COLTES 2030'
+  maturity_date: string;
+  ytm: number;             // decimal (e.g. 0.095 = 9.5%)
+  tenor_years?: number;
+}
+
 export interface HistoricalMark {
   fecha: string;           // 'YYYY-MM-DD'
   ibr: IbrQuotesCurveRow | null;
   sofr: HistoricalSofrPoint[];
   ndf: HistoricalNdfPoint[];
+  tes: HistoricalTesPoint[];
   hasIbr: boolean;
   hasSofr: boolean;
   hasNdf: boolean;
+  hasTes: boolean;
 }

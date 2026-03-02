@@ -22,13 +22,15 @@ interface RawRepriceResponse {
 export const repricePortfolio = async (
   xccyPositions: XccyPosition[],
   ndfPositions: NdfPosition[],
-  ibrSwapPositions: IbrSwapPosition[]
+  ibrSwapPositions: IbrSwapPosition[],
+  options?: { valuation_date?: string }
 ): Promise<PortfolioRepriceResponse> => {
   const url = `${BASE_URL}/pricing/portfolio/reprice`;
   const res = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
+      ...(options?.valuation_date ? { valuation_date: options.valuation_date } : {}),
       xccy_positions: xccyPositions.map((p) => ({
         id: p.id,
         label: p.label,
