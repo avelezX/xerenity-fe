@@ -47,17 +47,31 @@ const fmt2 = (v: number | null | undefined) =>
 const fmtPct = (v: number | null | undefined) =>
   v != null ? `${v.toFixed(2)}%` : '—';
 
-/** Returns yesterday in YYYY-MM-DD (safe default — today may have no data yet) */
-function defaultFecha(): string {
-  const d = new Date();
-  d.setDate(d.getDate() - 1);
-  return d.toISOString().slice(0, 10);
+/** Skip weekends: returns the nearest business day on or before the given date */
+function lastBusinessDay(d: Date): Date {
+  const day = d.getDay(); // 0=Sun, 6=Sat
+  if (day === 0) d.setDate(d.getDate() - 2); // Sun → Fri
+  else if (day === 6) d.setDate(d.getDate() - 1); // Sat → Fri
+  return d;
 }
 
-/** Step one calendar day forward/backward */
+/** Returns last business day in YYYY-MM-DD (safe default — today may have no data yet) */
+function defaultFecha(): string {
+  const d = new Date();
+  d.setDate(d.getDate() - 1); // start from yesterday
+  return lastBusinessDay(d).toISOString().slice(0, 10);
+}
+
+/** Step one business day forward/backward (skips weekends) */
 function stepDate(fecha: string, delta: number): string {
   const d = new Date(`${fecha}T12:00:00`);
-  d.setDate(d.getDate() + delta);
+  const step = delta > 0 ? 1 : -1;
+  let remaining = Math.abs(delta);
+  while (remaining > 0) {
+    d.setDate(d.getDate() + step);
+    const day = d.getDay();
+    if (day !== 0 && day !== 6) remaining--; // count only business days
+  }
   return d.toISOString().slice(0, 10);
 }
 
@@ -307,6 +321,10 @@ export default function MarcasPanel() {
     try {
       const result = await fetchHistoricalMark(f);
       setMark(result);
+      // Auto-switch to first sub-tab that has data
+      if (!result.hasIbr && result.hasSofr) setSubTab('sofr');
+      else if (!result.hasIbr && !result.hasSofr && result.hasNdf) setSubTab('ndf');
+      else setSubTab('ibr');
     } finally {
       setLoading(false);
     }
