@@ -44,6 +44,7 @@ export const fetchWatchlistMetadata = async (
 
     const entries: WatchlistEntry[] = (data as LightSerieEntry[]).map((s) => ({
       ticker: s.ticker,
+      source_name: s.source_name,
       display_name: s.display_name,
       grupo: s.grupo,
       sub_group: s.sub_group,
