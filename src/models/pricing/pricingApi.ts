@@ -9,6 +9,8 @@ import type {
   IbrSwapPricingResult,
   ParCurvePoint,
   TesBondResult,
+  TesCatalogItem,
+  TesYieldCurvePoint,
   XccySwapResult,
   ParBasisPoint,
 } from 'src/types/pricing';
@@ -102,6 +104,7 @@ export interface TesBondRequest {
   maturity_date: string;
   coupon_rate: number;
   market_clean_price?: number;
+  market_ytm?: number;
   face_value?: number;
 }
 
@@ -110,6 +113,12 @@ export const priceTesBond = (params: TesBondRequest) =>
     method: 'POST',
     body: JSON.stringify(params),
   });
+
+export const getTesCatalog = () =>
+  pricingFetch<TesCatalogItem[]>('pricing/tes/catalog');
+
+export const getTesYieldCurve = () =>
+  pricingFetch<TesYieldCurvePoint[]>('pricing/tes/yield-curve');
 
 // ── Xccy Swap ──
 

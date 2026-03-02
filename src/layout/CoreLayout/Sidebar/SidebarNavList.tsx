@@ -88,6 +88,12 @@ const PRICING_SUBNAV: NavItemProps[] = [
     icon: faLineChart,
     active: false,
   },
+  {
+    name: 'COLTES',
+    path: '/coltes-calculator',
+    icon: faCalculator,
+    active: false,
+  },
 ];
 
 const MONEDAS_SUBNAV: NavItemProps[] = [
@@ -135,7 +141,7 @@ const SidebarNavList = ({ currentPath }: SidebarNavProps) => {
       <SubNavItem
         name="Pricing"
         icon={faCalculator}
-        active={currentPath.includes('/ndf-pricer') || currentPath.includes('/ibr-swap') || currentPath.includes('/xccy-swap') || currentPath.includes('/portfolio')}
+        active={currentPath.includes('/ndf-pricer') || currentPath.includes('/ibr-swap') || currentPath.includes('/xccy-swap') || currentPath.includes('/portfolio') || currentPath.includes('/coltes-calculator')}
       >
         {PRICING_SUBNAV.map(({ name, path, icon }) => (
           <NavigationItem

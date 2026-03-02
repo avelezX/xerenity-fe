@@ -74,6 +74,16 @@ export interface ParCurvePoint {
 
 // ── TES Bond ──
 
+export interface TesBondCashflow {
+  date: string;
+  coupon: number;
+  principal: number;
+  total: number;
+  df: number;
+  pv: number;
+  days: number;
+}
+
 export interface TesBondResult {
   clean_price: number;
   dirty_price: number;
@@ -88,6 +98,24 @@ export interface TesBondResult {
   coupon_rate: number;
   face_value: number;
   maturity: string;
+  cashflows?: TesBondCashflow[];
+}
+
+export interface TesCatalogItem {
+  isin?: string;
+  name: string;
+  issue_date: string;
+  maturity_date: string;
+  coupon_rate: number;
+  face_value?: number;
+}
+
+export interface TesYieldCurvePoint {
+  tenor: string;
+  tenor_years: number;
+  ytm: number;
+  maturity_date?: string;
+  name?: string;
 }
 
 // ── Xccy Swap ──
