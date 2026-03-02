@@ -66,6 +66,9 @@ export interface MarketDashboardSlice {
   entidadFilter: string | undefined;
   activoFilter: boolean;
   tipoFondoFilter: string | undefined;
+  claseActivoFilter: string | undefined;
+  tamanoFondoFilter: string | undefined;
+  tamanoInversionistasFilter: string | undefined;
 
   fetchWatchlistSnapshot: (config: DashboardConfig) => Promise<void>;
   addToChart: (entry: WatchlistEntry) => Promise<void>;
@@ -80,6 +83,9 @@ export interface MarketDashboardSlice {
   setEntidadFilter: (entidad: string | undefined) => void;
   setActivoFilter: (activo: boolean) => void;
   setTipoFondoFilter: (tipoFondo: string | undefined) => void;
+  setClaseActivoFilter: (clase: string | undefined) => void;
+  setTamanoFondoFilter: (tamano: string | undefined) => void;
+  setTamanoInversionistasFilter: (tamano: string | undefined) => void;
   resetWatchlistOnly: () => void;
   resetMarketDashboard: () => void;
 }
@@ -113,7 +119,10 @@ function filterEntries(
   searchText: string,
   entidadFilter: string | undefined,
   activoFilter: boolean,
-  tipoFondoFilter: string | undefined
+  tipoFondoFilter: string | undefined,
+  claseActivoFilter: string | undefined,
+  tamanoFondoFilter: string | undefined,
+  tamanoInversionistasFilter: string | undefined
 ): WatchlistEntry[] {
   let result = entries;
 
@@ -131,6 +140,15 @@ function filterEntries(
   }
   if (tipoFondoFilter) {
     result = result.filter((e) => e.tipo_fondo === tipoFondoFilter);
+  }
+  if (claseActivoFilter) {
+    result = result.filter((e) => e.clase_activo === claseActivoFilter);
+  }
+  if (tamanoFondoFilter) {
+    result = result.filter((e) => e.tamano_fondo === tamanoFondoFilter);
+  }
+  if (tamanoInversionistasFilter) {
+    result = result.filter((e) => e.tamano_inversionistas === tamanoInversionistasFilter);
   }
 
   return result;
@@ -150,6 +168,9 @@ const initialMarketState = {
   entidadFilter: undefined as string | undefined,
   activoFilter: true,
   tipoFondoFilter: undefined as string | undefined,
+  claseActivoFilter: undefined as string | undefined,
+  tamanoFondoFilter: undefined as string | undefined,
+  tamanoInversionistasFilter: undefined as string | undefined,
 };
 
 function getPeriodCutoff(period: TimePeriod): string | null {
@@ -240,7 +261,10 @@ const createMarketDashboardSlice: StateCreator<MarketDashboardSlice> = (
         state.searchText,
         state.entidadFilter,
         state.activoFilter,
-        state.tipoFondoFilter
+        state.tipoFondoFilter,
+        state.claseActivoFilter,
+        state.tamanoFondoFilter,
+        state.tamanoInversionistasFilter
       );
 
       return {
@@ -394,6 +418,18 @@ const createMarketDashboardSlice: StateCreator<MarketDashboardSlice> = (
     set({ tipoFondoFilter: tipoFondo });
   },
 
+  setClaseActivoFilter: (clase: string | undefined) => {
+    set({ claseActivoFilter: clase });
+  },
+
+  setTamanoFondoFilter: (tamano: string | undefined) => {
+    set({ tamanoFondoFilter: tamano });
+  },
+
+  setTamanoInversionistasFilter: (tamano: string | undefined) => {
+    set({ tamanoInversionistasFilter: tamano });
+  },
+
   resetWatchlistOnly: () =>
     set({
       watchlistEntries: [],
@@ -403,6 +439,9 @@ const createMarketDashboardSlice: StateCreator<MarketDashboardSlice> = (
       searchText: '',
       entidadFilter: undefined,
       tipoFondoFilter: undefined,
+      claseActivoFilter: undefined,
+      tamanoFondoFilter: undefined,
+      tamanoInversionistasFilter: undefined,
     }),
 
   resetMarketDashboard: () => set(initialMarketState),

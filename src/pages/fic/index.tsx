@@ -17,6 +17,9 @@ const FIC_CONFIG: DashboardConfig = {
   showEntidadFilter: true,
   showActivoFilter: true,
   showTipoFondoFilter: true,
+  showClaseActivoFilter: true,
+  showTamanoFondoFilter: true,
+  showTamanoInversionistasFilter: true,
   infoPath: '/fic/info',
   ficHierarchical: true,
 };
