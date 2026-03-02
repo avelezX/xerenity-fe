@@ -25,7 +25,7 @@ export const repricePortfolio = async (
   ibrSwapPositions: IbrSwapPosition[],
   options?: { valuation_date?: string }
 ): Promise<PortfolioRepriceResponse> => {
-  const url = `${BASE_URL}/pricing/portfolio/reprice`;
+  const url = `${BASE_URL}/pricing/reprice-portfolio`;
   const res = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
