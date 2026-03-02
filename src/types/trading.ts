@@ -140,6 +140,21 @@ export interface PricedNdf extends NdfPosition {
   error?: string;
 }
 
+export interface IbrSwapCashflow {
+  period: number;
+  start: string;
+  end: string;
+  payment_date: string;
+  days: number;
+  fixed_rate: number;
+  floating_rate: number;
+  fixed_amount: number;
+  floating_amount: number;
+  net_amount: number;
+  df: number;
+  pv: number;
+}
+
 export interface PricedIbrSwap extends IbrSwapPosition {
   npv: number;
   fair_rate: number;
@@ -152,6 +167,7 @@ export interface PricedIbrSwap extends IbrSwapPosition {
   ibr_fwd_period_pct: number;
   carry_period_cop: number;
   carry_period_diff_bps: number;
+  cashflows?: IbrSwapCashflow[];
   error?: string;
 }
 

@@ -35,6 +35,7 @@ import {
 } from 'src/models/pricing/pricingApi';
 import type {
   IbrSwapPricingResult,
+  IbrSwapCashflow,
   ParCurvePoint,
   CurveStatus,
 } from 'src/types/pricing';
@@ -66,6 +67,70 @@ const parseInput = (s: string): number => {
   const cleaned = s.replace(/,/g, '');
   return parseFloat(cleaned) || 0;
 };
+
+const npvColor = (v: number) => (v >= 0 ? '#28a745' : '#dc3545');
+
+// Generate projected cashflows from swap parameters (mock when backend doesn't return them)
+function generateCashflows(
+  notional: number,
+  fixedRate: number,    // decimal
+  floatingRate: number, // decimal (fair_rate as proxy)
+  startDateStr: string,
+  maturityDateStr: string,
+  paymentFrequency: string,
+  payFixed: boolean,
+): IbrSwapCashflow[] {
+  const freqMonths: Record<string, number> = { '1M': 1, '3M': 3, '6M': 6, '12M': 12 };
+
+  const addMonths = (d: Date, months: number): Date => {
+    const r = new Date(d);
+    r.setMonth(r.getMonth() + months);
+    return r;
+  };
+
+  const maturity = new Date(maturityDateStr + 'T00:00:00');
+  const result: IbrSwapCashflow[] = [];
+
+  if (paymentFrequency === 'Bullet') {
+    const start = new Date(startDateStr + 'T00:00:00');
+    const days = Math.round((maturity.getTime() - start.getTime()) / 86400000);
+    const fixedAmt = notional * fixedRate * days / 365;
+    const floatAmt = notional * floatingRate * days / 365;
+    const net = payFixed ? floatAmt - fixedAmt : fixedAmt - floatAmt;
+    result.push({
+      period: 1, start: startDateStr, end: maturityDateStr,
+      payment_date: maturityDateStr, days, fixed_rate: fixedRate,
+      floating_rate: floatingRate, fixed_amount: fixedAmt,
+      floating_amount: floatAmt, net_amount: net, df: 1.0, pv: net,
+    });
+    return result;
+  }
+
+  const months = freqMonths[paymentFrequency] || 3;
+  let periodStart = new Date(startDateStr + 'T00:00:00');
+  let period = 1;
+
+  while (periodStart < maturity && period <= 120) {
+    const rawEnd = addMonths(periodStart, months);
+    const periodEnd = rawEnd > maturity ? maturity : rawEnd;
+    const days = Math.round((periodEnd.getTime() - periodStart.getTime()) / 86400000);
+    const fixedAmt = notional * fixedRate * days / 365;
+    const floatAmt = notional * floatingRate * days / 365;
+    const net = payFixed ? floatAmt - fixedAmt : fixedAmt - floatAmt;
+    result.push({
+      period,
+      start: periodStart.toISOString().slice(0, 10),
+      end: periodEnd.toISOString().slice(0, 10),
+      payment_date: periodEnd.toISOString().slice(0, 10),
+      days, fixed_rate: fixedRate, floating_rate: floatingRate,
+      fixed_amount: fixedAmt, floating_amount: floatAmt,
+      net_amount: net, df: 1.0, pv: net,
+    });
+    periodStart = new Date(periodEnd);
+    period++;
+  }
+  return result;
+}
 
 function IbrSwapPricer() {
   const [activeTab, setActiveTab] = useState('pricing');
@@ -536,7 +601,7 @@ function IbrSwapPricer() {
                 </div>
               </div>
 
-              <table style={{ width: '100%', fontSize: 14, borderCollapse: 'collapse' }}>
+              <table style={{ width: '100%', fontSize: 13, borderCollapse: 'collapse', marginBottom: 16 }}>
                 <tbody>
                   {[
                     ['Fair Rate', fmtPct(result.fair_rate)],
@@ -550,30 +615,104 @@ function IbrSwapPricer() {
                     ['Dirección', result.pay_fixed ? 'Pay Fixed' : 'Receive Fixed'],
                   ].map(([label, value]) => (
                     <tr key={label as string} style={{ borderBottom: '1px solid #eee' }}>
-                      <td
-                        style={{
-                          padding: '8px 12px',
-                          fontWeight: 600,
-                          color: '#555',
-                          width: '45%',
-                        }}
-                      >
+                      <td style={{ padding: '6px 12px', fontWeight: 600, color: '#555', width: '45%' }}>
                         {label}
                       </td>
-                      <td
-                        style={{
-                          padding: '8px 12px',
-                          textAlign: 'right',
-                          fontFamily: 'monospace',
-                          fontSize: 14,
-                        }}
-                      >
+                      <td style={{ padding: '6px 12px', textAlign: 'right', fontFamily: 'monospace', fontSize: 13 }}>
                         {value}
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
+
+              {/* ── Carry Diario ── */}
+              {(() => {
+                const ibrO = result.ibr_overnight_pct ?? curveStatus?.ibr?.nodes?.['ibr_1d'];
+                const carryDailyCop = result.carry_daily_cop
+                  ?? (ibrO != null
+                    ? (ibrO / 100 - result.fixed_rate) * result.notional / 365 * (result.pay_fixed ? 1 : -1)
+                    : null);
+                const diffBps = result.carry_daily_diff_bps
+                  ?? (ibrO != null
+                    ? (ibrO / 100 - result.fixed_rate) * 10000 * (result.pay_fixed ? 1 : -1)
+                    : null);
+                const ibrPct = result.ibr_overnight_pct ?? ibrO;
+                return (
+                  <div style={{ padding: 12, border: '2px solid #17a2b8', borderRadius: 8, marginBottom: 8, background: '#e8f8fb' }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: '#17a2b8', marginBottom: 8 }}>Carry Diario (IBR Overnight)</div>
+                    <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+                      <div>
+                        <div style={{ fontSize: 10, color: '#6c757d' }}>Carry COP / día</div>
+                        <div style={{ fontFamily: 'monospace', fontSize: 15, fontWeight: 700, color: carryDailyCop != null ? npvColor(carryDailyCop) : '#999' }}>
+                          {carryDailyCop != null ? `${fmtMM(carryDailyCop)} COP` : '—'}
+                        </div>
+                      </div>
+                      {ibrPct != null && (
+                        <div>
+                          <div style={{ fontSize: 10, color: '#6c757d' }}>IBR Overnight</div>
+                          <div style={{ fontFamily: 'monospace', fontSize: 13, fontWeight: 600 }}>{fmt(ibrPct, 4)}%</div>
+                        </div>
+                      )}
+                      <div>
+                        <div style={{ fontSize: 10, color: '#6c757d' }}>Tasa Fija</div>
+                        <div style={{ fontFamily: 'monospace', fontSize: 13, fontWeight: 600 }}>{fmtPct(result.fixed_rate)}</div>
+                      </div>
+                      {diffBps != null && (
+                        <div>
+                          <div style={{ fontSize: 10, color: '#6c757d' }}>Diferencial</div>
+                          <div style={{ fontFamily: 'monospace', fontSize: 13, fontWeight: 700, color: npvColor(diffBps) }}>
+                            {fmt(diffBps, 1)} bps
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* ── Carry Periodo ── */}
+              {(() => {
+                const ibrFwd = result.ibr_fwd_period_pct;
+                const carryPeriod = result.carry_period_cop
+                  ?? (() => {
+                    // Estimate: fair_rate approximates next period floating
+                    const freq: Record<string, number> = { '1M': 1, '3M': 3, '6M': 6, '12M': 12 };
+                    const months = freq[paymentFrequency] || 3;
+                    return (result.fair_rate - result.fixed_rate) * result.notional * (months / 12) * (payFixed ? 1 : -1);
+                  })();
+                const periodDiffBps = result.carry_period_diff_bps
+                  ?? ((result.fair_rate - result.fixed_rate) * 10000 * (payFixed ? 1 : -1));
+                return (
+                  <div style={{ padding: 12, border: '1px solid #dee2e6', borderRadius: 8, background: '#f8f9fa' }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: '#6c757d', marginBottom: 6 }}>Carry Periodo (Forward implícito)</div>
+                    <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+                      <div>
+                        <div style={{ fontSize: 10, color: '#6c757d' }}>Carry Periodo COP</div>
+                        <div style={{ fontFamily: 'monospace', fontSize: 14, fontWeight: 600, color: npvColor(carryPeriod) }}>
+                          {fmtMM(carryPeriod)} COP
+                        </div>
+                      </div>
+                      {ibrFwd != null && (
+                        <div>
+                          <div style={{ fontSize: 10, color: '#6c757d' }}>IBR Fwd Periodo</div>
+                          <div style={{ fontFamily: 'monospace', fontSize: 13, fontWeight: 600 }}>{fmt(ibrFwd, 4)}%</div>
+                        </div>
+                      )}
+                      <div>
+                        <div style={{ fontSize: 10, color: '#6c757d' }}>Fair Rate (proxy fwd)</div>
+                        <div style={{ fontFamily: 'monospace', fontSize: 13, fontWeight: 600 }}>{fmtPct(result.fair_rate)}</div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 10, color: '#6c757d' }}>Diff Periodo</div>
+                        <div style={{ fontFamily: 'monospace', fontSize: 13, fontWeight: 700, color: npvColor(periodDiffBps) }}>
+                          {fmt(periodDiffBps, 1)} bps
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           ) : (
             <div
@@ -594,6 +733,95 @@ function IbrSwapPricer() {
           )}
         </Col>
       </Row>
+
+      {/* ── Cashflows Proyectados ── */}
+      {result && (() => {
+        const resolvedStart = startDate || (() => {
+          const d = new Date();
+          d.setDate(d.getDate() + 2);
+          return d.toISOString().slice(0, 10);
+        })();
+        const resolvedMaturity = useMaturity && maturityDate
+          ? maturityDate
+          : (() => {
+            const d = new Date(resolvedStart + 'T00:00:00');
+            d.setFullYear(d.getFullYear() + tenorYears);
+            return d.toISOString().slice(0, 10);
+          })();
+        const cashflows: IbrSwapCashflow[] = result.cashflows
+          ?? generateCashflows(
+            notional, fixedRate / 100, result.fair_rate,
+            resolvedStart, resolvedMaturity,
+            paymentFrequency, payFixed,
+          );
+        const totalNet = cashflows.reduce((s, c) => s + c.net_amount, 0);
+        return (
+          <Row className="mt-3">
+            <Col>
+              <div style={{ background: '#fff', border: '1px solid #dee2e6', borderRadius: 8, padding: 16 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                  <h6 style={{ margin: 0, fontSize: 14 }}>Cashflows Proyectados</h6>
+                  <span style={{ fontSize: 12, color: '#6c757d' }}>
+                    Total neto: <strong style={{ fontFamily: 'monospace', color: npvColor(totalNet) }}>{fmtMM(totalNet)} COP</strong>
+                    {!result.cashflows && <span style={{ fontSize: 10, color: '#ffc107', marginLeft: 8 }}>* estimado (fair rate como proxy)</span>}
+                  </span>
+                </div>
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                    <thead>
+                      <tr style={{ borderBottom: '2px solid #dee2e6', background: '#f8f9fa' }}>
+                        {['#', 'Inicio', 'Fin', 'Días', 'Tasa Fija', 'IBR Fwd', 'Pago Fijo', 'Pago Flotante', 'Neto COP'].map((h) => (
+                          <th key={h} style={{ padding: '6px 8px', textAlign: h === '#' || h === 'Días' ? 'center' : 'right', whiteSpace: 'nowrap', fontWeight: 600 }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {cashflows.map((cf) => {
+                        const today = new Date();
+                        const isPast = new Date(cf.end) < today;
+                        const isCurrent = new Date(cf.start) <= today && new Date(cf.end) >= today;
+                        return (
+                          <tr
+                            key={cf.period}
+                            style={{
+                              borderBottom: '1px solid #f0f0f0',
+                              background: isCurrent ? '#fffde7' : isPast ? '#fafafa' : 'transparent',
+                            }}
+                          >
+                            <td style={{ padding: '4px 8px', textAlign: 'center', color: '#6c757d' }}>{cf.period}</td>
+                            <td style={{ padding: '4px 8px', textAlign: 'right', fontFamily: 'monospace' }}>{cf.start}</td>
+                            <td style={{ padding: '4px 8px', textAlign: 'right', fontFamily: 'monospace' }}>{cf.end}</td>
+                            <td style={{ padding: '4px 8px', textAlign: 'center', color: '#6c757d' }}>{cf.days}</td>
+                            <td style={{ padding: '4px 8px', textAlign: 'right', fontFamily: 'monospace' }}>{(cf.fixed_rate * 100).toFixed(4)}%</td>
+                            <td style={{ padding: '4px 8px', textAlign: 'right', fontFamily: 'monospace' }}>{(cf.floating_rate * 100).toFixed(4)}%</td>
+                            <td style={{ padding: '4px 8px', textAlign: 'right', fontFamily: 'monospace', color: '#dc3545' }}>
+                              ({fmtMM(cf.fixed_amount)})
+                            </td>
+                            <td style={{ padding: '4px 8px', textAlign: 'right', fontFamily: 'monospace', color: '#28a745' }}>
+                              {fmtMM(cf.floating_amount)}
+                            </td>
+                            <td style={{ padding: '4px 8px', textAlign: 'right', fontFamily: 'monospace', fontWeight: 600, color: npvColor(cf.net_amount) }}>
+                              {fmtMM(cf.net_amount)}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                    <tfoot>
+                      <tr style={{ borderTop: '2px solid #dee2e6', background: '#f8f9fa' }}>
+                        <td colSpan={8} style={{ padding: '6px 8px', fontWeight: 600, textAlign: 'right', fontSize: 12 }}>Total</td>
+                        <td style={{ padding: '6px 8px', textAlign: 'right', fontFamily: 'monospace', fontWeight: 700, color: npvColor(totalNet) }}>
+                          {fmtMM(totalNet)}
+                        </td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </div>
+            </Col>
+          </Row>
+        );
+      })()}
     </>
   );
 

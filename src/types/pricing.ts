@@ -52,6 +52,21 @@ export interface NdfImpliedCurvePoint {
 
 // ── IBR Swap ──
 
+export interface IbrSwapCashflow {
+  period: number;
+  start: string;
+  end: string;
+  payment_date: string;
+  days: number;
+  fixed_rate: number;      // decimal
+  floating_rate: number;   // decimal (IBR forward rate for the period)
+  fixed_amount: number;    // COP
+  floating_amount: number; // COP
+  net_amount: number;      // COP (positive = net receipt)
+  df: number;              // discount factor
+  pv: number;              // present value COP
+}
+
 export interface IbrSwapPricingResult {
   npv: number;
   fair_rate: number;
@@ -63,6 +78,14 @@ export interface IbrSwapPricingResult {
   notional: number;
   pay_fixed: boolean;
   spread: number;
+  // Optional carry fields (returned by backend when available)
+  carry_daily_cop?: number;
+  carry_daily_diff_bps?: number;
+  ibr_overnight_pct?: number;
+  ibr_fwd_period_pct?: number;
+  carry_period_cop?: number;
+  carry_period_diff_bps?: number;
+  cashflows?: IbrSwapCashflow[];
 }
 
 export interface ParCurvePoint {
