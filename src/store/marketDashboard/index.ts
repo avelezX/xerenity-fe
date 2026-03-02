@@ -65,6 +65,7 @@ export interface MarketDashboardSlice {
   searchText: string;
   entidadFilter: string | undefined;
   activoFilter: boolean;
+  tipoFondoFilter: string | undefined;
 
   fetchWatchlistSnapshot: (config: DashboardConfig) => Promise<void>;
   addToChart: (entry: WatchlistEntry) => Promise<void>;
@@ -78,6 +79,7 @@ export interface MarketDashboardSlice {
   setMarketSearchText: (text: string) => void;
   setEntidadFilter: (entidad: string | undefined) => void;
   setActivoFilter: (activo: boolean) => void;
+  setTipoFondoFilter: (tipoFondo: string | undefined) => void;
   resetWatchlistOnly: () => void;
   resetMarketDashboard: () => void;
 }
@@ -110,7 +112,8 @@ function filterEntries(
   entries: WatchlistEntry[],
   searchText: string,
   entidadFilter: string | undefined,
-  activoFilter: boolean
+  activoFilter: boolean,
+  tipoFondoFilter: string | undefined
 ): WatchlistEntry[] {
   let result = entries;
 
@@ -125,6 +128,9 @@ function filterEntries(
   }
   if (activoFilter) {
     result = result.filter((e) => e.activo !== false);
+  }
+  if (tipoFondoFilter) {
+    result = result.filter((e) => e.tipo_fondo === tipoFondoFilter);
   }
 
   return result;
@@ -143,6 +149,7 @@ const initialMarketState = {
   searchText: '',
   entidadFilter: undefined as string | undefined,
   activoFilter: true,
+  tipoFondoFilter: undefined as string | undefined,
 };
 
 function getPeriodCutoff(period: TimePeriod): string | null {
@@ -232,7 +239,8 @@ const createMarketDashboardSlice: StateCreator<MarketDashboardSlice> = (
         updated,
         state.searchText,
         state.entidadFilter,
-        state.activoFilter
+        state.activoFilter,
+        state.tipoFondoFilter
       );
 
       return {
@@ -382,6 +390,10 @@ const createMarketDashboardSlice: StateCreator<MarketDashboardSlice> = (
     set({ activoFilter: activo });
   },
 
+  setTipoFondoFilter: (tipoFondo: string | undefined) => {
+    set({ tipoFondoFilter: tipoFondo });
+  },
+
   resetWatchlistOnly: () =>
     set({
       watchlistEntries: [],
@@ -390,6 +402,7 @@ const createMarketDashboardSlice: StateCreator<MarketDashboardSlice> = (
       valuesLoading: false,
       searchText: '',
       entidadFilter: undefined,
+      tipoFondoFilter: undefined,
     }),
 
   resetMarketDashboard: () => set(initialMarketState),
