@@ -13,8 +13,10 @@ import {
   ReferenceLine,
 } from 'recharts';
 import { fetchHistoricalMark } from 'src/models/trading/fetchHistoricalMark';
+import useAppStore from 'src/store';
 import type {
   HistoricalMark,
+  HistoricalTesPoint,
   IbrQuotesCurveRow,
   HistoricalSofrPoint,
   HistoricalNdfPoint,
@@ -47,6 +49,9 @@ const fmt2 = (v: number | null | undefined) =>
 const fmtPct = (v: number | null | undefined) =>
   v != null ? `${v.toFixed(2)}%` : '—';
 
+const fmtPct3 = (v: number | null | undefined) =>
+  v != null ? `${(v * 100).toFixed(3)}%` : '—';
+
 /** Skip weekends: returns the nearest business day on or before the given date */
 function lastBusinessDay(d: Date): Date {
   const day = d.getDay(); // 0=Sun, 6=Sat
@@ -70,10 +75,57 @@ function stepDate(fecha: string, delta: number): string {
   while (remaining > 0) {
     d.setDate(d.getDate() + step);
     const day = d.getDay();
-    if (day !== 0 && day !== 6) remaining--; // count only business days
+    if (day !== 0 && day !== 6) remaining -= 1; // count only business days
   }
   return d.toISOString().slice(0, 10);
 }
+
+// ── Styles ────────────────────────────────────────────────────────────────────
+// Defined before components to avoid no-use-before-define
+
+const emptyStyle: React.CSSProperties = {
+  textAlign: 'center',
+  padding: 40,
+  color: '#adb5bd',
+  fontSize: 13,
+  border: '1px dashed #dee2e6',
+  borderRadius: 6,
+};
+
+const thStyle: React.CSSProperties = {
+  padding: '3px 10px',
+  background: '#f8f9fa',
+  border: '1px solid #dee2e6',
+  fontWeight: 600,
+  textAlign: 'center',
+};
+
+const tdStyle: React.CSSProperties = {
+  padding: '3px 10px',
+  border: '1px solid #dee2e6',
+  textAlign: 'right',
+};
+
+const navBtnStyle: React.CSSProperties = {
+  border: '1px solid #ced4da',
+  borderRadius: 4,
+  background: '#fff',
+  padding: '3px 8px',
+  cursor: 'pointer',
+  fontSize: 13,
+  color: '#495057',
+};
+
+// ── Sub-tab ───────────────────────────────────────────────────────────────────
+
+type SubTab = 'ibr' | 'sofr' | 'ndf' | 'tes';
+
+const SUB_TABS: { key: SubTab; label: string }[] = [
+  { key: 'ibr', label: 'IBR' },
+  { key: 'sofr', label: 'SOFR' },
+  { key: 'ndf', label: 'NDF Fwd Pts' },
+  { key: 'tes', label: 'TES' },
+];
 
 // ── Status chip ───────────────────────────────────────────────────────────────
 
@@ -251,6 +303,48 @@ function NdfFwdPtsChart({ ndf }: { ndf: HistoricalNdfPoint[] }) {
   );
 }
 
+// ── TES yield curve chart ─────────────────────────────────────────────────────
+
+function TesCurveChart({ tes }: { tes: HistoricalTesPoint[] }) {
+  if (tes.length === 0) {
+    return <div style={emptyStyle}>Sin datos TES para esta fecha</div>;
+  }
+
+  const sorted = [...tes].sort((a, b) => a.maturity_date.localeCompare(b.maturity_date));
+  const data = sorted.map((p) => ({
+    name: p.name,
+    ytm_pct: p.ytm * 100,
+  }));
+
+  const rates = data.map((d) => d.ytm_pct);
+  const min = Math.min(...rates) - 0.2;
+  const max = Math.max(...rates) + 0.2;
+
+  return (
+    <ResponsiveContainer width="100%" height={260}>
+      <LineChart data={data} margin={{ top: 8, right: 16, left: 0, bottom: 48 }}>
+        <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+        <XAxis dataKey="name" tick={{ fontSize: 10 }} angle={-30} textAnchor="end" height={60} />
+        <YAxis
+          domain={[min, max]}
+          tickFormatter={(v) => `${v.toFixed(2)}%`}
+          tick={{ fontSize: 11 }}
+          width={56}
+        />
+        <Tooltip formatter={(v: number) => [`${v.toFixed(3)}%`, 'YTM']} />
+        <Line
+          type="monotone"
+          dataKey="ytm_pct"
+          stroke="#2ca02c"
+          strokeWidth={2}
+          dot={{ r: 5, fill: '#2ca02c' }}
+          activeDot={{ r: 7 }}
+        />
+      </LineChart>
+    </ResponsiveContainer>
+  );
+}
+
 // ── IBR node table ────────────────────────────────────────────────────────────
 
 function IbrNodeTable({ ibr }: { ibr: IbrQuotesCurveRow }) {
@@ -272,41 +366,6 @@ function IbrNodeTable({ ibr }: { ibr: IbrQuotesCurveRow }) {
   );
 }
 
-// ── Sub-tab bar ───────────────────────────────────────────────────────────────
-
-type SubTab = 'ibr' | 'sofr' | 'ndf';
-
-const SUB_TABS: { key: SubTab; label: string }[] = [
-  { key: 'ibr', label: 'IBR' },
-  { key: 'sofr', label: 'SOFR' },
-  { key: 'ndf', label: 'NDF Fwd Pts' },
-];
-
-// ── Styles ────────────────────────────────────────────────────────────────────
-
-const emptyStyle: React.CSSProperties = {
-  textAlign: 'center',
-  padding: 40,
-  color: '#adb5bd',
-  fontSize: 13,
-  border: '1px dashed #dee2e6',
-  borderRadius: 6,
-};
-
-const thStyle: React.CSSProperties = {
-  padding: '3px 10px',
-  background: '#f8f9fa',
-  border: '1px solid #dee2e6',
-  fontWeight: 600,
-  textAlign: 'center',
-};
-
-const tdStyle: React.CSSProperties = {
-  padding: '3px 10px',
-  border: '1px solid #dee2e6',
-  textAlign: 'right',
-};
-
 // ── Main panel ────────────────────────────────────────────────────────────────
 
 export default function MarcasPanel() {
@@ -314,10 +373,15 @@ export default function MarcasPanel() {
   const [mark, setMark] = useState<HistoricalMark | null>(null);
   const [loading, setLoading] = useState(false);
   const [subTab, setSubTab] = useState<SubTab>('ibr');
+  const [repriceStatus, setRepriceStatus] = useState<'idle' | 'loading' | 'ok' | 'error'>('idle');
+  const [repriceError, setRepriceError] = useState<string | null>(null);
+
+  const repriceAllWithMark = useAppStore((s) => s.repriceAllWithMark);
 
   const load = useCallback(async (f: string) => {
     setLoading(true);
     setMark(null);
+    setRepriceStatus('idle');
     try {
       const result = await fetchHistoricalMark(f);
       setMark(result);
@@ -343,7 +407,20 @@ export default function MarcasPanel() {
     });
   };
 
-  const noData = mark && !mark.hasIbr && !mark.hasSofr && !mark.hasNdf;
+  const handleReprice = async () => {
+    setRepriceStatus('loading');
+    setRepriceError(null);
+    try {
+      await repriceAllWithMark(fecha);
+      setRepriceStatus('ok');
+    } catch (e) {
+      setRepriceStatus('error');
+      setRepriceError(e instanceof Error ? e.message : 'Error al repricear');
+    }
+  };
+
+  const noData = mark && !mark.hasIbr && !mark.hasSofr && !mark.hasNdf && !mark.hasTes;
+  const hasAnyData = mark && (mark.hasIbr || mark.hasSofr || mark.hasNdf || mark.hasTes);
 
   return (
     <div style={{ background: '#fff', border: '1px solid #dee2e6', borderRadius: 8, padding: 20 }}>
@@ -393,6 +470,7 @@ export default function MarcasPanel() {
           <StatusChip label="IBR" ok={mark?.hasIbr ?? false} loading={loading} />
           <StatusChip label="SOFR" ok={mark?.hasSofr ?? false} loading={loading} />
           <StatusChip label="NDF" ok={mark?.hasNdf ?? false} loading={loading} />
+          <StatusChip label="TES" ok={mark?.hasTes ?? false} loading={loading} />
         </div>
       </div>
 
@@ -404,7 +482,7 @@ export default function MarcasPanel() {
       )}
 
       {/* Sub-tabs */}
-      {!noData && (
+      {hasAnyData && (
         <>
           <div style={{ display: 'flex', gap: 4, marginBottom: 16 }}>
             {SUB_TABS.map((t) => (
@@ -511,7 +589,43 @@ export default function MarcasPanel() {
             )
           )}
 
-          {/* Future: Reprice with this mark */}
+          {/* TES tab */}
+          {subTab === 'tes' && (
+            loading ? (
+              <div style={emptyStyle}>Cargando curva TES…</div>
+            ) : mark?.tes && mark.tes.length > 0 ? (
+              <>
+                <div style={{ marginBottom: 4, fontSize: 11, color: '#6c757d' }}>
+                  Fuente: Banco de la República / SEN — {fecha}
+                </div>
+                <TesCurveChart tes={mark.tes} />
+                <table style={{ fontSize: 11, fontFamily: 'monospace', borderCollapse: 'collapse', marginTop: 8, width: '100%' }}>
+                  <thead>
+                    <tr>
+                      <th style={thStyle}>Bono</th>
+                      <th style={thStyle}>Vencimiento</th>
+                      <th style={thStyle}>YTM</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {[...mark.tes]
+                      .sort((a, b) => a.maturity_date.localeCompare(b.maturity_date))
+                      .map((p) => (
+                        <tr key={p.name}>
+                          <td style={{ ...tdStyle, fontWeight: 600, textAlign: 'left' }}>{p.name}</td>
+                          <td style={tdStyle}>{p.maturity_date.slice(0, 10)}</td>
+                          <td style={tdStyle}>{fmtPct3(p.ytm)}</td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+              </>
+            ) : (
+              <div style={emptyStyle}>Sin datos TES para {fecha}</div>
+            )
+          )}
+
+          {/* Reprice with this mark */}
           <div
             style={{
               marginTop: 20,
@@ -522,40 +636,44 @@ export default function MarcasPanel() {
               display: 'flex',
               alignItems: 'center',
               gap: 12,
+              flexWrap: 'wrap',
             }}
           >
             <button
               type="button"
-              disabled
+              onClick={handleReprice}
+              disabled={repriceStatus === 'loading' || loading}
               style={{
                 padding: '6px 16px',
                 fontSize: 12,
                 fontWeight: 600,
                 borderRadius: 6,
-                border: '1px solid #ced4da',
-                background: '#e9ecef',
-                color: '#adb5bd',
-                cursor: 'not-allowed',
+                border: '1px solid #0d6efd',
+                background: repriceStatus === 'loading' ? '#e9ecef' : '#0d6efd',
+                color: repriceStatus === 'loading' ? '#adb5bd' : '#fff',
+                cursor: repriceStatus === 'loading' ? 'not-allowed' : 'pointer',
               }}
             >
-              Repricear portafolio con esta marca
+              {repriceStatus === 'loading' ? 'Repreciando…' : 'Repricear portafolio con esta marca'}
             </button>
-            <span style={{ fontSize: 11, color: '#6c757d' }}>
-              Requiere soporte de fecha histórica en pysdk (pendiente)
-            </span>
+            {repriceStatus === 'ok' && (
+              <span style={{ fontSize: 11, color: '#155724', fontWeight: 600 }}>
+                Portafolio repreciado con marca del {fecha}
+              </span>
+            )}
+            {repriceStatus === 'error' && (
+              <span style={{ fontSize: 11, color: '#721c24' }}>
+                Error: {repriceError}
+              </span>
+            )}
+            {repriceStatus === 'idle' && (
+              <span style={{ fontSize: 11, color: '#6c757d' }}>
+                Repreciará todo el portafolio (derivados + TES) con curvas históricas del {fecha}
+              </span>
+            )}
           </div>
         </>
       )}
     </div>
   );
 }
-
-const navBtnStyle: React.CSSProperties = {
-  border: '1px solid #ced4da',
-  borderRadius: 4,
-  background: '#fff',
-  padding: '3px 8px',
-  cursor: 'pointer',
-  fontSize: 13,
-  color: '#495057',
-};

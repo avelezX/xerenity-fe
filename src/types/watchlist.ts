@@ -3,6 +3,7 @@ import { LightSerieValue } from './lightserie';
 
 export interface WatchlistEntry {
   ticker: string;
+  source_name: string;
   display_name: string;
   grupo: string;
   sub_group: string;
@@ -13,6 +14,15 @@ export interface WatchlistEntry {
   latest_date: string | null;
   change: number | null;
   pct_change: number | null;
+}
+
+export interface FicFundEntry {
+  codigoNegocio: string;
+  fondoName: string;
+  entidad: string | null;
+  subGroup: string;
+  compartimentos: WatchlistEntry[];
+  latestDate: string | null;
 }
 
 export interface WatchlistGroup {
@@ -63,6 +73,7 @@ export interface DashboardConfig {
   showActivoFilter?: boolean;
   showCurrencyPairSelector?: boolean;
   infoPath?: string;
+  ficHierarchical?: boolean;
 }
 
 export interface ChartSelection {
