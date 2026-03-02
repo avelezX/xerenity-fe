@@ -168,9 +168,9 @@ export default function NDFDevalCurveChart({ data }: NDFDevalCurveChartProps) {
           <ReferenceLine y={0} stroke="#666" strokeWidth={1} />
           <Tooltip content={<CustomTooltip />} />
           <Bar dataKey="fwdFwdDeval" radius={[4, 4, 0, 0]} maxBarSize={60}>
-            {data.map((entry, index) => (
+            {data.map((entry) => (
               <Cell
-                key={`cell-${index}`}
+                key={entry.segment}
                 fill={entry.fwdFwdDeval >= 0 ? POSITIVE_COLOR : NEGATIVE_COLOR}
                 fillOpacity={0.8}
               />

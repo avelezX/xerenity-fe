@@ -300,15 +300,18 @@ export default function NDFForwardCurveChart({
           flexWrap: 'wrap',
         }}
       >
-        {(['dtcc', 'fxe', 'implied'] as CurveKey[]).map((key) => (
-          <CurveToggle
-            key={key}
-            curveKey={key}
-            visible={visible[key]}
-            onToggle={() => toggleCurve(key)}
-            hasData={key === 'dtcc' ? hasDtcc : key === 'fxe' ? hasFxe : hasImplied}
-          />
-        ))}
+        {(['dtcc', 'fxe', 'implied'] as CurveKey[]).map((key) => {
+          const hasDataMap: Record<CurveKey, boolean> = { dtcc: hasDtcc, fxe: hasFxe, implied: hasImplied };
+          return (
+            <CurveToggle
+              key={key}
+              curveKey={key}
+              visible={visible[key]}
+              onToggle={() => toggleCurve(key)}
+              hasData={hasDataMap[key]}
+            />
+          );
+        })}
         <span style={{ fontSize: 12, color: '#999', marginLeft: 8 }}>
           COP/USD NDF - Curvas Forward
         </span>

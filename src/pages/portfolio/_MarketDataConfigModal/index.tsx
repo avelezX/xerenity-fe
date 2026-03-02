@@ -8,6 +8,7 @@ import type {
   IbrSource,
   SofrSource,
 } from 'src/types/trading';
+import { DEFAULT_MARKET_DATA_CONFIG } from 'src/types/trading';
 
 const SPOT_FX_OPTIONS: { value: SpotFxSource; label: string }[] = [
   { value: 'set_fx', label: 'SET FX' },
@@ -47,7 +48,7 @@ export default function MarketDataConfigModal({
   config,
   onSave,
 }: Props) {
-  const [draft, setDraft] = useState<MarketDataConfig>(config);
+  const [draft, setDraft] = useState<MarketDataConfig>(config ?? DEFAULT_MARKET_DATA_CONFIG);
   const [saving, setSaving] = useState(false);
 
   // Sync draft when modal opens

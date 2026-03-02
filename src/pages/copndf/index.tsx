@@ -183,8 +183,8 @@ function NdfCopViewer() {
   }, [copndfGrid]);
 
   // DTCC aggregated node points for the forward curve chart
-  const dtccNodePoints = useMemo((): NDFNodePoint[] => {
-    return Array.from(nodeRates.entries())
+  const dtccNodePoints = useMemo((): NDFNodePoint[] =>
+    Array.from(nodeRates.entries())
       .sort((a, b) => bucketOrder(a[0]) - bucketOrder(b[0]))
       .map(([label, node]) => ({
         tenorLabel: label,
@@ -192,20 +192,20 @@ function NdfCopViewer() {
         rate: node.rate,
         trades: node.trades,
         volumeUSD: node.vol,
-      }));
-  }, [nodeRates]);
+      }))
+  , [nodeRates]);
 
   // FXEmpire points mapped for the forward curve chart
-  const fxeChartPoints = useMemo((): FXEPoint[] => {
-    return fxeData
+  const fxeChartPoints = useMemo((): FXEPoint[] =>
+    fxeData
       .filter((d) => d.mid != null && d.mid > 0 && d.tenor_months > 0)
       .map((d) => ({
         tenor: d.tenor,
         days: MONTHS_TO_DAYS[d.tenor_months] ?? d.tenor_months * 30,
         rate: d.mid as number,
       }))
-      .sort((a, b) => a.days - b.days);
-  }, [fxeData]);
+      .sort((a, b) => a.days - b.days)
+  , [fxeData]);
 
   // Forward-forward devaluation between consecutive DTCC nodes
   const curvePoints = useMemo((): NDFCurvePoint[] => {
@@ -445,6 +445,7 @@ function NdfCopViewer() {
                           fxe && imp
                             ? fxe.rate - imp.forward_irt_parity
                             : null;
+                        const basisColor = basis == null ? '#999' : basis > 0 ? '#28a745' : '#dc3545'; // eslint-disable-line no-nested-ternary
 
                         return (
                           <tr
@@ -501,12 +502,7 @@ function NdfCopViewer() {
                                 style={{
                                   padding: '6px 12px',
                                   textAlign: 'right',
-                                  color:
-                                    basis != null
-                                      ? basis > 0
-                                        ? '#28a745'
-                                        : '#dc3545'
-                                      : '#999',
+                                  color: basisColor,
                                   fontWeight: basis != null ? 600 : 400,
                                 }}
                               >
