@@ -233,20 +233,28 @@ const parseInput = (s: string): number => {
 
 const npvColor = (v: number) => (v >= 0 ? '#28a745' : '#dc3545');
 
-// Compute accrued carry from XCCY cashflows
+// Compute accrued carry from XCCY cashflows.
+// Handles mid-life swaps: backend schedule starts at valuation_date+2d,
+// so the first cashflow may start slightly after today. In that case we
+// treat period 0 as current and count days from the trade's start_date.
 const computeAccruedCarry = (row: PricedXccy): number => {
   const today = new Date();
-  return (row.cashflows ?? []).reduce((sum, cf) => {
+  const tradeStart = new Date(`${row.start_date}T12:00:00`);
+  return (row.cashflows ?? []).reduce((sum, cf, i) => {
     const cfEnd = new Date(cf.end);
     const cfStart = new Date(cf.start);
     const daysInPeriod = Math.max(1, Math.floor((cfEnd.getTime() - cfStart.getTime()) / 86400000));
     const carryCop = cf.cop_interest - cf.usd_interest * row.fx_spot;
     const dailyCarry = carryCop / daysInPeriod;
     const isPast = cfEnd <= today;
-    const isCurrent = cfStart <= today && cfEnd > today;
-    const daysElapsed = isCurrent
-      ? Math.floor((today.getTime() - cfStart.getTime()) / 86400000)
-      : isPast ? daysInPeriod : 0;
+    // Stub: first period starts after today (settlement offset) but trade is active
+    const isStub = i === 0 && today < cfStart && today >= tradeStart;
+    const isCurrent = isStub || (!isPast && cfStart <= today && cfEnd > today);
+    const daysElapsed = isStub
+      ? Math.floor((today.getTime() - tradeStart.getTime()) / 86400000)
+      : isCurrent
+        ? Math.floor((today.getTime() - cfStart.getTime()) / 86400000)
+        : isPast ? daysInPeriod : 0;
     return sum + dailyCarry * daysElapsed;
   }, 0);
 };
@@ -1496,20 +1504,26 @@ function XccyDetailModal({ row, show, onHide }: { row: PricedXccy | null; show: 
         {/* Carry breakdown */}
         {(() => {
           const today = new Date();
-          const startD = new Date(row.start_date);
+          const startD = new Date(`${row.start_date}T12:00:00`);
           const daysOpen = Math.max(0, Math.floor((today.getTime() - startD.getTime()) / 86400000));
 
-          // Compute per-period carry from cashflows
-          const cfCarry = (row.cashflows ?? []).map((cf) => {
+          // Compute per-period carry from cashflows.
+          // Handles mid-life stub: backend starts schedule at valuation_date+2d,
+          // so period[0].start may be slightly after today. Use trade start_date
+          // as the reference for days elapsed in that first period.
+          const cfCarry = (row.cashflows ?? []).map((cf, i) => {
             const cfEnd = new Date(cf.end);
             const cfStart = new Date(cf.start);
             const daysInPeriod = Math.max(1, Math.floor((cfEnd.getTime() - cfStart.getTime()) / 86400000));
             const carryCop = cf.cop_interest - cf.usd_interest * row.fx_spot;
             const isPast = cfEnd <= today;
-            const isCurrent = cfStart <= today && cfEnd > today;
-            const daysElapsed = isCurrent
-              ? Math.floor((today.getTime() - cfStart.getTime()) / 86400000)
-              : isPast ? daysInPeriod : 0;
+            const isStub = i === 0 && today < cfStart && today >= startD;
+            const isCurrent = isStub || (!isPast && cfStart <= today && cfEnd > today);
+            const daysElapsed = isStub
+              ? Math.floor((today.getTime() - startD.getTime()) / 86400000)
+              : isCurrent
+                ? Math.floor((today.getTime() - cfStart.getTime()) / 86400000)
+                : isPast ? daysInPeriod : 0;
             const dailyCarry = carryCop / daysInPeriod;
             const accruedCarry = dailyCarry * daysElapsed;
             return {
