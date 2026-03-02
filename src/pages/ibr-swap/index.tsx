@@ -88,11 +88,11 @@ function generateCashflows(
     return r;
   };
 
-  const maturity = new Date(maturityDateStr + 'T00:00:00');
+  const maturity = new Date(`${maturityDateStr}T00:00:00`);
   const result: IbrSwapCashflow[] = [];
 
   if (paymentFrequency === 'Bullet') {
-    const start = new Date(startDateStr + 'T00:00:00');
+    const start = new Date(`${startDateStr}T00:00:00`);
     const days = Math.round((maturity.getTime() - start.getTime()) / 86400000);
     const fixedAmt = notional * fixedRate * days / 365;
     const floatAmt = notional * floatingRate * days / 365;
@@ -107,7 +107,7 @@ function generateCashflows(
   }
 
   const months = freqMonths[paymentFrequency] || 3;
-  let periodStart = new Date(startDateStr + 'T00:00:00');
+  let periodStart = new Date(`${startDateStr}T00:00:00`);
   let period = 1;
 
   while (periodStart < maturity && period <= 120) {
@@ -127,7 +127,7 @@ function generateCashflows(
       net_amount: net, df: 1.0, pv: net,
     });
     periodStart = new Date(periodEnd);
-    period++;
+    period += 1;
   }
   return result;
 }
@@ -628,7 +628,7 @@ function IbrSwapPricer() {
 
               {/* ── Carry Diario ── */}
               {(() => {
-                const ibrO = result.ibr_overnight_pct ?? curveStatus?.ibr?.nodes?.['ibr_1d'];
+                const ibrO = result.ibr_overnight_pct ?? curveStatus?.ibr?.nodes?.ibr_1d;
                 const carryDailyCop = result.carry_daily_cop
                   ?? (ibrO != null
                     ? (ibrO / 100 - result.fixed_rate) * result.notional / 365 * (result.pay_fixed ? 1 : -1)
@@ -744,7 +744,7 @@ function IbrSwapPricer() {
         const resolvedMaturity = useMaturity && maturityDate
           ? maturityDate
           : (() => {
-            const d = new Date(resolvedStart + 'T00:00:00');
+            const d = new Date(`${resolvedStart}T00:00:00`);
             d.setFullYear(d.getFullYear() + tenorYears);
             return d.toISOString().slice(0, 10);
           })();
@@ -780,12 +780,15 @@ function IbrSwapPricer() {
                         const today = new Date();
                         const isPast = new Date(cf.end) < today;
                         const isCurrent = new Date(cf.start) <= today && new Date(cf.end) >= today;
+                        let rowBg = 'transparent';
+                        if (isCurrent) rowBg = '#fffde7';
+                        else if (isPast) rowBg = '#fafafa';
                         return (
                           <tr
                             key={cf.period}
                             style={{
                               borderBottom: '1px solid #f0f0f0',
-                              background: isCurrent ? '#fffde7' : isPast ? '#fafafa' : 'transparent',
+                              background: rowBg,
                             }}
                           >
                             <td style={{ padding: '4px 8px', textAlign: 'center', color: '#6c757d' }}>{cf.period}</td>

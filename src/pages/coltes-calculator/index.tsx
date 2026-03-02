@@ -82,44 +82,54 @@ const fmtMM = (v: number) => {
   return fmt(v, 2);
 };
 
-function generateCashflows(
+// Fallback local: TES colombianos pagan cupón ANUAL (ACT/365.25)
+// Solo se usa si el backend no retorna cashflows
+function generateCashflowsFallback(
   maturityDate: string,
   couponRatePct: number,
   faceValue: number,
   ytmDecimal: number,
 ): TesBondCashflow[] {
-  const mat = new Date(maturityDate + 'T00:00:00');
+  const mat = new Date(`${maturityDate}T00:00:00`);
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
+  // Cupón ANUAL — retroceder de un año en un año desde el vencimiento
   const paymentDates: Date[] = [];
   const d = new Date(mat);
   while (d > today) {
     paymentDates.unshift(new Date(d));
-    d.setMonth(d.getMonth() - 6);
+    d.setFullYear(d.getFullYear() - 1);
   }
 
-  const couponAmt = (faceValue * (couponRatePct / 100)) / 2;
-  const semiYtm = ytmDecimal / 2;
   const n = paymentDates.length;
 
   return paymentDates.map((payDate, i) => {
     const isLast = i === n - 1;
-    const coupon = couponAmt;
-    const principal = isLast ? faceValue : 0;
-    const total = coupon + principal;
     const days = Math.round((payDate.getTime() - today.getTime()) / 86400000);
-    const df = semiYtm > 0 ? 1 / Math.pow(1 + semiYtm, i + 1) : 1;
-    const pv = total * df;
+    const yf = days / 365.25;                            // ACT/365.25
+    const coupon = faceValue * (couponRatePct / 100);    // cupón anual
+    const principal = isLast ? faceValue : 0;
+    const cashflow = coupon + principal;
+    const discountFactor = ytmDecimal > 0
+      ? 1 / (1 + ytmDecimal) ** yf
+      : 1;
+    const pv = cashflow * discountFactor;
+    const dateStr = payDate.toISOString().slice(0, 10);
 
     return {
-      date: payDate.toISOString().slice(0, 10),
-      coupon: parseFloat(coupon.toFixed(4)),
+      date: dateStr,
+      date_str: dateStr,
+      period: i + 1,
+      coupon: parseFloat(coupon.toFixed(6)),
       principal,
-      total: parseFloat(total.toFixed(4)),
-      df: parseFloat(df.toFixed(6)),
-      pv: parseFloat(pv.toFixed(4)),
-      days,
+      cashflow: parseFloat(cashflow.toFixed(6)),
+      discount_factor: parseFloat(discountFactor.toFixed(8)),
+      pv: parseFloat(pv.toFixed(6)),
+      accrual_start: '',
+      accrual_end: dateStr,
+      accrual_days: 365,
+      year_fraction: parseFloat(yf.toFixed(8)),
     };
   });
 }
@@ -175,7 +185,7 @@ function ColTesCalculator() {
       setIssueDate(bond.issue_date);
       setMaturityDate(bond.maturity_date);
       setCouponRate(bond.coupon_rate);
-      setFaceValue(bond.face_value ?? 100);
+      setFaceValue(100); // TES colombianos: valor nominal siempre 100
     }
   }, [selectedBond, catalog, catalogMode]);
 
@@ -208,13 +218,9 @@ function ColTesCalculator() {
       const res = await priceTesBond(params);
       setResult(res);
 
-      // Compute cashflows from inputs + YTM result
-      const flows = generateCashflows(
-        maturityDate,
-        couponRate,
-        faceValue,
-        res.ytm,
-      );
+      // Usar cashflows del backend (QuantLib, cupón anual ACT/365.25)
+      // Si no vienen (curva TES no construida), usar fallback local
+      const flows = generateCashflowsFallback(maturityDate, couponRate, faceValue, res.ytm);
       setCashflows(res.cashflows ?? flows);
 
       toast.success('Bono valorado correctamente');
@@ -574,7 +580,7 @@ function ColTesCalculator() {
                 {[
                   ['Interés Corrido', fmt(result.accrued_interest, 6)],
                   ['NPV', fmtMM(result.npv)],
-                  ['Duration Macaulay', fmt(result.macaulay_duration, 4) + ' años'],
+                  ['Duration Macaulay', `${fmt(result.macaulay_duration, 4)} años`],
                   ['Duration Modificada', fmt(result.modified_duration, 4)],
                   ['Convexidad', fmt(result.convexity, 4)],
                   ['DV01', fmt(result.dv01, 6)],
@@ -595,7 +601,7 @@ function ColTesCalculator() {
               </tbody>
             </table>
 
-            {/* Carry / Roll-down */}
+            {/* Carry / Roll-down — datos del backend (pysdk TesBondPricer.carry_rolldown) */}
             <div
               style={{
                 background: '#f9fbe7',
@@ -605,34 +611,67 @@ function ColTesCalculator() {
               }}
             >
               <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 10, color: '#558b2f' }}>
-                Carry & Roll-down
+                Carry & Roll-down {result.carry ? '(30d)' : '(estimado)'}
               </div>
               <table style={{ width: '100%', fontSize: 13, borderCollapse: 'collapse' }}>
                 <tbody>
-                  <tr>
-                    <td style={{ padding: '5px 8px', color: '#555' }}>Carry Diario (accrual)</td>
-                    <td style={{ padding: '5px 8px', textAlign: 'right', fontFamily: 'monospace' }}>
-                      {fmt((result.coupon_rate * result.face_value) / 365, 6)}
-                    </td>
-                  </tr>
-                  <tr>
-                    <td style={{ padding: '5px 8px', color: '#555' }}>Carry Anual</td>
-                    <td style={{ padding: '5px 8px', textAlign: 'right', fontFamily: 'monospace' }}>
-                      {fmt(result.coupon_rate * result.face_value, 4)}
-                    </td>
-                  </tr>
-                  <tr>
-                    <td style={{ padding: '5px 8px', color: '#555' }}>Carry / YTM spread (bps)</td>
-                    <td style={{ padding: '5px 8px', textAlign: 'right', fontFamily: 'monospace' }}>
-                      {fmt((result.coupon_rate - result.ytm) * 10000, 1)} bps
-                    </td>
-                  </tr>
-                  <tr>
-                    <td style={{ padding: '5px 8px', color: '#555' }}>Roll-down P&L (1d)</td>
-                    <td style={{ padding: '5px 8px', textAlign: 'right', fontFamily: 'monospace', color: '#888' }}>
-                      — (requiere curva TES)
-                    </td>
-                  </tr>
+                  {result.carry ? (
+                    <>
+                      <tr>
+                        <td style={{ padding: '5px 8px', color: '#555' }}>Carry Cupón (30d)</td>
+                        <td style={{ padding: '5px 8px', textAlign: 'right', fontFamily: 'monospace' }}>
+                          {fmt(result.carry.coupon_carry, 6)}
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style={{ padding: '5px 8px', color: '#555' }}>Roll-down (30d)</td>
+                        <td style={{ padding: '5px 8px', textAlign: 'right', fontFamily: 'monospace' }}>
+                          {fmt(result.carry.rolldown, 6)}
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style={{ padding: '5px 8px', color: '#555' }}>Total Carry (30d)</td>
+                        <td style={{ padding: '5px 8px', textAlign: 'right', fontFamily: 'monospace', fontWeight: 600 }}>
+                          {fmt(result.carry.total_carry, 6)}
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style={{ padding: '5px 8px', color: '#555' }}>Carry anualizado</td>
+                        <td style={{ padding: '5px 8px', textAlign: 'right', fontFamily: 'monospace' }}>
+                          {fmt(result.carry.total_carry_bps_annualized, 1)} bps
+                        </td>
+                      </tr>
+                      {result.z_spread_bps != null && (
+                        <tr>
+                          <td style={{ padding: '5px 8px', color: '#555' }}>Z-Spread</td>
+                          <td style={{ padding: '5px 8px', textAlign: 'right', fontFamily: 'monospace' }}>
+                            {fmt(result.z_spread_bps, 1)} bps
+                          </td>
+                        </tr>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <tr>
+                        <td style={{ padding: '5px 8px', color: '#555' }}>Carry Diario (accrual)</td>
+                        <td style={{ padding: '5px 8px', textAlign: 'right', fontFamily: 'monospace' }}>
+                          {fmt((result.coupon_rate * result.face_value) / 365.25, 6)}
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style={{ padding: '5px 8px', color: '#555' }}>Carry / YTM spread</td>
+                        <td style={{ padding: '5px 8px', textAlign: 'right', fontFamily: 'monospace' }}>
+                          {fmt((result.coupon_rate - result.ytm) * 10000, 1)} bps
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style={{ padding: '5px 8px', color: '#aaa' }}>Roll-down</td>
+                        <td style={{ padding: '5px 8px', textAlign: 'right', fontFamily: 'monospace', color: '#aaa' }}>
+                          — (requiere curva TES)
+                        </td>
+                      </tr>
+                    </>
+                  )}
                 </tbody>
               </table>
             </div>
@@ -659,9 +698,8 @@ function ColTesCalculator() {
     </Row>
   );
 
-  const renderCashflowsTab = () => (
-    <>
-      {cashflows.length === 0 ? (
+  const renderCashflowsTab = () =>
+    cashflows.length === 0 ? (
         <div
           style={{
             height: 300,
@@ -707,9 +745,9 @@ function ColTesCalculator() {
                     }}
                   >
                     <td style={{ padding: '6px 12px', color: '#888' }}>{i + 1}</td>
-                    <td style={{ padding: '6px 12px', fontFamily: 'monospace' }}>{cf.date}</td>
+                    <td style={{ padding: '6px 12px', fontFamily: 'monospace' }}>{cf.date_str || cf.date}</td>
                     <td style={{ padding: '6px 12px', textAlign: 'right', fontFamily: 'monospace' }}>
-                      {cf.days}
+                      {cf.accrual_days || '—'}
                     </td>
                     <td style={{ padding: '6px 12px', textAlign: 'right', fontFamily: 'monospace' }}>
                       {fmt(cf.coupon, 4)}
@@ -718,10 +756,10 @@ function ColTesCalculator() {
                       {cf.principal > 0 ? fmt(cf.principal, 2) : '—'}
                     </td>
                     <td style={{ padding: '6px 12px', textAlign: 'right', fontFamily: 'monospace', fontWeight: cf.principal > 0 ? 600 : 400 }}>
-                      {fmt(cf.total, 4)}
+                      {fmt(cf.cashflow, 4)}
                     </td>
                     <td style={{ padding: '6px 12px', textAlign: 'right', fontFamily: 'monospace', color: '#666' }}>
-                      {cf.df.toFixed(6)}
+                      {cf.discount_factor.toFixed(6)}
                     </td>
                     <td style={{ padding: '6px 12px', textAlign: 'right', fontFamily: 'monospace' }}>
                       {fmt(cf.pv, 4)}
@@ -738,9 +776,9 @@ function ColTesCalculator() {
                     {fmt(cashflows.reduce((s, cf) => s + cf.principal, 0), 2)}
                   </td>
                   <td style={{ padding: '8px 12px', textAlign: 'right', fontFamily: 'monospace' }}>
-                    {fmt(cashflows.reduce((s, cf) => s + cf.total, 0), 4)}
+                    {fmt(cashflows.reduce((s, cf) => s + cf.cashflow, 0), 4)}
                   </td>
-                  <td />
+                  <td aria-label="DF" />
                   <td style={{ padding: '8px 12px', textAlign: 'right', fontFamily: 'monospace' }}>
                     {fmt(cashflows.reduce((s, cf) => s + cf.pv, 0), 4)}
                   </td>
@@ -749,9 +787,7 @@ function ColTesCalculator() {
             </table>
           </div>
         </div>
-      )}
-    </>
-  );
+      );
 
   const renderYieldCurveTab = () => {
     const chartData = yieldCurve.map((p) => ({

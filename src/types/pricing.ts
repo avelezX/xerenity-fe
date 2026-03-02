@@ -97,22 +97,41 @@ export interface ParCurvePoint {
 
 // ── TES Bond ──
 
+// Matches pysdk TesBondPricer.cashflow_schedule() response exactly
 export interface TesBondCashflow {
   date: string;
+  date_str: string;
+  period: number;
   coupon: number;
   principal: number;
-  total: number;
-  df: number;
+  cashflow: number;        // total = coupon + principal
+  discount_factor: number; // from TES yield curve
   pv: number;
-  days: number;
+  accrual_start: string;
+  accrual_end: string;
+  accrual_days: number;
+  year_fraction: number;
 }
 
+// Carry/roll-down analytics returned by pysdk
+export interface TesBondCarry {
+  horizon_days: number;
+  horizon_date: string;
+  current_dirty: number;
+  horizon_dirty: number;
+  coupon_carry: number;
+  rolldown: number;
+  total_carry: number;
+  total_carry_bps_annualized: number;
+}
+
+// Matches pysdk TesBondPricer.analytics() response
 export interface TesBondResult {
   clean_price: number;
   dirty_price: number;
   accrued_interest: number;
   npv: number;
-  ytm: number;
+  ytm: number;              // decimal (e.g. 0.095 = 9.5%)
   macaulay_duration: number;
   modified_duration: number;
   convexity: number;
@@ -122,15 +141,16 @@ export interface TesBondResult {
   face_value: number;
   maturity: string;
   cashflows?: TesBondCashflow[];
+  carry?: TesBondCarry;
+  z_spread_bps?: number | null;
 }
 
 export interface TesCatalogItem {
-  isin?: string;
   name: string;
   issue_date: string;
   maturity_date: string;
   coupon_rate: number;
-  face_value?: number;
+  currency?: string;
 }
 
 export interface TesYieldCurvePoint {

@@ -1679,7 +1679,7 @@ function generateIbrCashflows(row: PricedIbrSwap) {
       net_amount: net, df: 1.0, pv: net,
     });
     periodStart = new Date(periodEnd);
-    period++;
+    period += 1;
   }
   return result;
 }
