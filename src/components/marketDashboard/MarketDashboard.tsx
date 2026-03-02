@@ -85,6 +85,7 @@ export default function MarketDashboard({ config }: MarketDashboardProps) {
   const searchText = useAppStore((s) => s.searchText);
   const entidadFilter = useAppStore((s) => s.entidadFilter);
   const activoFilter = useAppStore((s) => s.activoFilter);
+  const tipoFondoFilter = useAppStore((s) => s.tipoFondoFilter);
   const [panelsVisible, setPanelsVisible] = useState(true);
 
   const tourSteps: Step[] = useMemo(
@@ -131,6 +132,15 @@ export default function MarketDashboard({ config }: MarketDashboardProps) {
     return Array.from(set).sort();
   }, [watchlistEntries]);
 
+  // Unique tipos de fondo for the filter dropdown (FIC only)
+  const uniqueTiposFondo = useMemo(() => {
+    const set = new Set<string>();
+    watchlistEntries.forEach((e) => {
+      if (e.tipo_fondo) set.add(e.tipo_fondo);
+    });
+    return Array.from(set).sort();
+  }, [watchlistEntries]);
+
   // Filter + group from raw entries (reactive to all filters)
   const filteredGroups = useMemo(() => {
     let entries = watchlistEntries;
@@ -147,9 +157,12 @@ export default function MarketDashboard({ config }: MarketDashboardProps) {
     if (activoFilter) {
       entries = entries.filter((e) => e.activo !== false);
     }
+    if (tipoFondoFilter) {
+      entries = entries.filter((e) => e.tipo_fondo === tipoFondoFilter);
+    }
 
     return groupEntries(entries, config.groupByField);
-  }, [watchlistEntries, searchText, entidadFilter, activoFilter, config.groupByField]);
+  }, [watchlistEntries, searchText, entidadFilter, activoFilter, tipoFondoFilter, config.groupByField]);
 
   const { left, right } = useMemo(
     () =>
@@ -239,6 +252,7 @@ export default function MarketDashboard({ config }: MarketDashboardProps) {
             panelsVisible={panelsVisible}
             onTogglePanels={() => setPanelsVisible((v) => !v)}
             uniqueEntidades={uniqueEntidades}
+            uniqueTiposFondo={uniqueTiposFondo}
           />
         </Col>
       </Row>
