@@ -46,6 +46,7 @@ import type {
 } from 'src/types/trading';
 import useAppStore from 'src/store';
 import MarketDataConfigModal from './_MarketDataConfigModal';
+import MarcasPanel from './_MarcasPanel';
 
 const PAGE_TITLE = 'Portafolio de Derivados';
 
@@ -1888,7 +1889,7 @@ function PortfolioPage() {
   const [selectedXccy, setSelectedXccy] = useState<PricedXccy | null>(null);
   const [selectedNdf, setSelectedNdf] = useState<PricedNdf | null>(null);
   const [selectedIbrSwap, setSelectedIbrSwap] = useState<PricedIbrSwap | null>(null);
-  const [viewTab, setViewTab] = useState<'portfolio' | 'curves' | 'implied'>('portfolio');
+  const [viewTab, setViewTab] = useState<'portfolio' | 'curves' | 'implied' | 'marcas'>('portfolio');
   const [impliedCurve, setImpliedCurve] = useState<NdfImpliedCurvePoint[]>([]);
   const [showConfigModal, setShowConfigModal] = useState(false);
 
@@ -2121,7 +2122,12 @@ function PortfolioPage() {
 
         {/* View Toggle */}
         <div style={{ display: 'flex', gap: 4, marginBottom: 12 }}>
-          {([['portfolio', 'Portafolio', faTable], ['curves', 'Curvas', faLineChart], ['implied', 'Curva Implicita', faLineChart]] as const).map(([key, label, icon]) => (
+          {([
+            ['portfolio', 'Portafolio', faTable],
+            ['curves', 'Curvas', faLineChart],
+            ['implied', 'Curva Implicita', faLineChart],
+            ['marcas', 'Marcas', faTable],
+          ] as const).map(([key, label, icon]) => (
             <button
               key={key}
               type="button"
@@ -2172,6 +2178,7 @@ function PortfolioPage() {
             curvesReady={!!curvesReady}
           />
         )}
+        {viewTab === 'marcas' && <MarcasPanel />}
 
         {/* Add Modals */}
         <AddXccyModal

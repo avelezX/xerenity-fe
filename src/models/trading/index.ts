@@ -22,6 +22,7 @@ import {
   fetchMarketDataConfig,
   saveMarketDataConfig,
 } from './market-data-config';
+import { fetchHistoricalMark } from './fetchHistoricalMark';
 
 export type { PositionsResponse, CreatePositionResponse, DeletePositionResponse };
 
@@ -39,4 +40,5 @@ export {
   repricePortfolio,
   fetchMarketDataConfig,
   saveMarketDataConfig,
+  fetchHistoricalMark,
 };

@@ -201,3 +201,41 @@ export const DEFAULT_MARKET_DATA_CONFIG: MarketDataConfig = {
   ibr: 'banrep',
   sofr: 'fed',
 };
+
+// ── Historical Marks (Marcas panel) ──
+
+export interface IbrQuotesCurveRow {
+  fecha: string;           // ISO text: '2026-02-28T00:00:00'
+  ibr_1d: number | null;
+  ibr_1m: number | null;
+  ibr_3m: number | null;
+  ibr_6m: number | null;
+  ibr_12m: number | null;
+  ibr_2y: number | null;
+  ibr_5y: number | null;
+  ibr_10y: number | null;
+  ibr_15y: number | null;
+  ibr_20y: number | null;
+}
+
+export interface HistoricalSofrPoint {
+  tenor_months: number;
+  swap_rate: number;
+}
+
+export interface HistoricalNdfPoint {
+  tenor: string;
+  tenor_months: number;
+  fwd_points: number | null;
+  mid: number | null;
+}
+
+export interface HistoricalMark {
+  fecha: string;           // 'YYYY-MM-DD'
+  ibr: IbrQuotesCurveRow | null;
+  sofr: HistoricalSofrPoint[];
+  ndf: HistoricalNdfPoint[];
+  hasIbr: boolean;
+  hasSofr: boolean;
+  hasNdf: boolean;
+}
