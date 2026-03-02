@@ -14,6 +14,7 @@ type MarketDashboardToolbarProps = {
   onTogglePanels: () => void;
   uniqueEntidades?: string[];
   uniqueTiposFondo?: string[];
+  uniqueClasesActivo?: string[];
 };
 
 export default function MarketDashboardToolbar({
@@ -22,6 +23,7 @@ export default function MarketDashboardToolbar({
   onTogglePanels,
   uniqueEntidades,
   uniqueTiposFondo,
+  uniqueClasesActivo,
 }: MarketDashboardToolbarProps) {
   const chartPeriod = useAppStore((s) => s.chartPeriod);
   const setChartPeriod = useAppStore((s) => s.setChartPeriod);
@@ -37,6 +39,8 @@ export default function MarketDashboardToolbar({
   const setActivoFilter = useAppStore((s) => s.setActivoFilter);
   const tipoFondoFilter = useAppStore((s) => s.tipoFondoFilter);
   const setTipoFondoFilter = useAppStore((s) => s.setTipoFondoFilter);
+  const claseActivoFilter = useAppStore((s) => s.claseActivoFilter);
+  const setClaseActivoFilter = useAppStore((s) => s.setClaseActivoFilter);
 
   const [showCurrencyModal, setShowCurrencyModal] = useState(false);
 
@@ -122,6 +126,24 @@ export default function MarketDashboardToolbar({
             {uniqueTiposFondo.map((tipo) => (
               <option key={tipo} value={tipo}>
                 {tipo}
+              </option>
+            ))}
+          </Form.Select>
+        )}
+        {config.showClaseActivoFilter && uniqueClasesActivo && uniqueClasesActivo.length > 0 && (
+          <Form.Select
+            size="sm"
+            aria-label="Filtrar por clase de activo"
+            value={claseActivoFilter || ''}
+            onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
+              setClaseActivoFilter(e.target.value || undefined)
+            }
+            style={{ maxWidth: 200, fontSize: 12 }}
+          >
+            <option value="">Todas las clases</option>
+            {uniqueClasesActivo.map((clase) => (
+              <option key={clase} value={clase}>
+                {clase}
               </option>
             ))}
           </Form.Select>

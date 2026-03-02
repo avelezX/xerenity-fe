@@ -20,6 +20,7 @@ export interface LightSerieEntry {
   entidad: string | null;
   activo: boolean | null;
   tipo_fondo?: string | null;
+  clase_activo?: string | null;
 }
 
 export interface PriceFormat {

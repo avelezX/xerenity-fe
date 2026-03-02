@@ -86,6 +86,7 @@ export default function MarketDashboard({ config }: MarketDashboardProps) {
   const entidadFilter = useAppStore((s) => s.entidadFilter);
   const activoFilter = useAppStore((s) => s.activoFilter);
   const tipoFondoFilter = useAppStore((s) => s.tipoFondoFilter);
+  const claseActivoFilter = useAppStore((s) => s.claseActivoFilter);
   const [panelsVisible, setPanelsVisible] = useState(true);
 
   const tourSteps: Step[] = useMemo(
@@ -141,6 +142,15 @@ export default function MarketDashboard({ config }: MarketDashboardProps) {
     return Array.from(set).sort();
   }, [watchlistEntries]);
 
+  // Unique clases de activo for the filter dropdown (FIC only)
+  const uniqueClasesActivo = useMemo(() => {
+    const set = new Set<string>();
+    watchlistEntries.forEach((e) => {
+      if (e.clase_activo) set.add(e.clase_activo);
+    });
+    return Array.from(set).sort();
+  }, [watchlistEntries]);
+
   // Filter + group from raw entries (reactive to all filters)
   const filteredGroups = useMemo(() => {
     let entries = watchlistEntries;
@@ -160,9 +170,12 @@ export default function MarketDashboard({ config }: MarketDashboardProps) {
     if (tipoFondoFilter) {
       entries = entries.filter((e) => e.tipo_fondo === tipoFondoFilter);
     }
+    if (claseActivoFilter) {
+      entries = entries.filter((e) => e.clase_activo === claseActivoFilter);
+    }
 
     return groupEntries(entries, config.groupByField);
-  }, [watchlistEntries, searchText, entidadFilter, activoFilter, tipoFondoFilter, config.groupByField]);
+  }, [watchlistEntries, searchText, entidadFilter, activoFilter, tipoFondoFilter, claseActivoFilter, config.groupByField]);
 
   const { left, right } = useMemo(
     () =>
@@ -253,6 +266,7 @@ export default function MarketDashboard({ config }: MarketDashboardProps) {
             onTogglePanels={() => setPanelsVisible((v) => !v)}
             uniqueEntidades={uniqueEntidades}
             uniqueTiposFondo={uniqueTiposFondo}
+            uniqueClasesActivo={uniqueClasesActivo}
           />
         </Col>
       </Row>
