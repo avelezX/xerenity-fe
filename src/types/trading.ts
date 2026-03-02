@@ -196,3 +196,46 @@ export interface PortfolioRepriceResponse {
 export type NewXccyPosition = Omit<XccyPosition, 'id' | 'owner' | 'company_id' | 'created_at'>;
 export type NewNdfPosition = Omit<NdfPosition, 'id' | 'owner' | 'company_id' | 'created_at'>;
 export type NewIbrSwapPosition = Omit<IbrSwapPosition, 'id' | 'owner' | 'company_id' | 'created_at'>;
+
+// ── TES Bond Portfolio ──
+
+// Re-exported from pricing.ts for use in trading context
+export type { TesBondCashflow, TesBondCarry } from 'src/types/pricing';
+
+export interface TesPosition extends OperationalFields {
+  id: string;
+  owner: string;
+  company_id?: string;
+  bond_name: string;           // e.g. "COLTES 2030"
+  issue_date: string;
+  maturity_date: string;
+  coupon_rate: number;         // decimal (0.07 = 7%)
+  face_value: number;          // nominal, typically 100
+  notional: number;            // COP total (units × face_value)
+  purchase_price?: number;     // clean price at entry (optional)
+  purchase_ytm?: number;       // YTM at entry, decimal (optional)
+  label?: string;
+  counterparty?: string;       // custodian / broker
+  created_at: string;
+}
+
+export interface PricedTesBond extends TesPosition {
+  // Live results from pysdk TesBondPricer
+  clean_price: number;
+  dirty_price: number;
+  accrued_interest: number;
+  ytm: number;                 // current market YTM (decimal)
+  macaulay_duration: number;
+  modified_duration: number;
+  convexity: number;
+  dv01: number;
+  bpv: number;
+  npv: number;                 // dirty_price * notional / face_value (COP)
+  pnl_mtm: number;             // (clean_price - purchase_price) * notional / face_value
+  z_spread_bps?: number | null;
+  carry?: import('src/types/pricing').TesBondCarry;
+  cashflows?: import('src/types/pricing').TesBondCashflow[];
+  error?: string;
+}
+
+export type NewTesPosition = Omit<TesPosition, 'id' | 'owner' | 'company_id' | 'created_at'>;
