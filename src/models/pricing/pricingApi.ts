@@ -108,6 +108,7 @@ export interface TesBondRequest {
   face_value?: number;
   include_cashflows?: boolean; // pysdk: include full coupon schedule in response
   bond_name?: string;          // pysdk: catalog lookup by name
+  valuation_date?: string;     // pysdk: use historical TES curve for this date
 }
 
 export const priceTesBond = (params: TesBondRequest) =>
