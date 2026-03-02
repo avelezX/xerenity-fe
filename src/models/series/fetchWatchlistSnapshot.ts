@@ -51,6 +51,7 @@ export const fetchWatchlistMetadata = async (
       fuente: s.fuente,
       entidad: s.entidad,
       activo: s.activo,
+      tipo_fondo: s.tipo_fondo ?? null,
       latest_value: null,
       latest_date: null,
       change: null,

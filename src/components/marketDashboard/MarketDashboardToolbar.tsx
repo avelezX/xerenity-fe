@@ -13,6 +13,7 @@ type MarketDashboardToolbarProps = {
   panelsVisible: boolean;
   onTogglePanels: () => void;
   uniqueEntidades?: string[];
+  uniqueTiposFondo?: string[];
 };
 
 export default function MarketDashboardToolbar({
@@ -20,6 +21,7 @@ export default function MarketDashboardToolbar({
   panelsVisible,
   onTogglePanels,
   uniqueEntidades,
+  uniqueTiposFondo,
 }: MarketDashboardToolbarProps) {
   const chartPeriod = useAppStore((s) => s.chartPeriod);
   const setChartPeriod = useAppStore((s) => s.setChartPeriod);
@@ -33,6 +35,8 @@ export default function MarketDashboardToolbar({
   const setEntidadFilter = useAppStore((s) => s.setEntidadFilter);
   const activoFilter = useAppStore((s) => s.activoFilter);
   const setActivoFilter = useAppStore((s) => s.setActivoFilter);
+  const tipoFondoFilter = useAppStore((s) => s.tipoFondoFilter);
+  const setTipoFondoFilter = useAppStore((s) => s.setTipoFondoFilter);
 
   const [showCurrencyModal, setShowCurrencyModal] = useState(false);
 
@@ -100,6 +104,24 @@ export default function MarketDashboardToolbar({
             {uniqueEntidades.map((ent) => (
               <option key={ent} value={ent}>
                 {ent}
+              </option>
+            ))}
+          </Form.Select>
+        )}
+        {config.showTipoFondoFilter && uniqueTiposFondo && uniqueTiposFondo.length > 0 && (
+          <Form.Select
+            size="sm"
+            aria-label="Filtrar por tipo de fondo"
+            value={tipoFondoFilter || ''}
+            onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
+              setTipoFondoFilter(e.target.value || undefined)
+            }
+            style={{ maxWidth: 180, fontSize: 12 }}
+          >
+            <option value="">Abierto y Cerrado</option>
+            {uniqueTiposFondo.map((tipo) => (
+              <option key={tipo} value={tipo}>
+                {tipo}
               </option>
             ))}
           </Form.Select>

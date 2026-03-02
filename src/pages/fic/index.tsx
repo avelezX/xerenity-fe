@@ -16,6 +16,7 @@ const FIC_CONFIG: DashboardConfig = {
   showNormalize: true,
   showEntidadFilter: true,
   showActivoFilter: true,
+  showTipoFondoFilter: true,
   infoPath: '/fic/info',
   ficHierarchical: true,
 };

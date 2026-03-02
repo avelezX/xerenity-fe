@@ -10,6 +10,7 @@ export interface WatchlistEntry {
   fuente: string;
   entidad: string | null;
   activo: boolean | null;
+  tipo_fondo: string | null;
   latest_value: number | null;
   latest_date: string | null;
   change: number | null;
@@ -71,6 +72,7 @@ export interface DashboardConfig {
   showNormalize?: boolean;
   showEntidadFilter?: boolean;
   showActivoFilter?: boolean;
+  showTipoFondoFilter?: boolean;
   showCurrencyPairSelector?: boolean;
   infoPath?: string;
   ficHierarchical?: boolean;
