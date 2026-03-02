@@ -18,6 +18,10 @@ import {
   DeletePositionResponse,
 } from './deletePosition';
 import { repricePortfolio } from './repricePortfolio';
+import {
+  fetchMarketDataConfig,
+  saveMarketDataConfig,
+} from './market-data-config';
 
 export type { PositionsResponse, CreatePositionResponse, DeletePositionResponse };
 
@@ -33,4 +37,6 @@ export {
   deleteNdfPositions,
   deleteIbrSwapPositions,
   repricePortfolio,
+  fetchMarketDataConfig,
+  saveMarketDataConfig,
 };

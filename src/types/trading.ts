@@ -180,3 +180,24 @@ export interface PortfolioRepriceResponse {
 export type NewXccyPosition = Omit<XccyPosition, 'id' | 'owner' | 'company_id' | 'created_at'>;
 export type NewNdfPosition = Omit<NdfPosition, 'id' | 'owner' | 'company_id' | 'created_at'>;
 export type NewIbrSwapPosition = Omit<IbrSwapPosition, 'id' | 'owner' | 'company_id' | 'created_at'>;
+
+// ── Market Data Config ──
+
+export type SpotFxSource = 'set_fx' | 'fxempire' | 'manual';
+export type NdfCurveSource = 'fxempire_fwd_pts' | 'dtcc' | 'implied' | 'manual';
+export type IbrSource = 'banrep' | 'set' | 'manual';
+export type SofrSource = 'fed' | 'dtcc' | 'manual';
+
+export interface MarketDataConfig {
+  spot_fx: SpotFxSource;
+  ndf_curve: NdfCurveSource;
+  ibr: IbrSource;
+  sofr: SofrSource;
+}
+
+export const DEFAULT_MARKET_DATA_CONFIG: MarketDataConfig = {
+  spot_fx: 'set_fx',
+  ndf_curve: 'fxempire_fwd_pts',
+  ibr: 'banrep',
+  sofr: 'fed',
+};

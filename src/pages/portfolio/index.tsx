@@ -14,6 +14,7 @@ import {
   faTrash,
   faLineChart,
   faTable,
+  faCog,
 } from '@fortawesome/free-solid-svg-icons';
 import { toast } from 'react-toastify';
 import PageTitle from '@components/PageTitle';
@@ -44,8 +45,21 @@ import type {
   PortfolioSummary,
 } from 'src/types/trading';
 import useAppStore from 'src/store';
+import MarketDataConfigModal from './_MarketDataConfigModal';
 
 const PAGE_TITLE = 'Portafolio de Derivados';
+
+const SOURCE_LABELS: Record<string, string> = {
+  set_fx: 'SET FX',
+  fxempire: 'FXEmpire',
+  fxempire_fwd_pts: 'FXEmpire',
+  dtcc: 'DTCC',
+  implied: 'Implied',
+  banrep: 'Banrep',
+  set: 'SET',
+  fed: 'Fed',
+  manual: 'Manual',
+};
 
 const ADD_TYPE_OPTIONS = [
   { value: 'xccy', label: 'XCCY Swap' },
@@ -1876,6 +1890,7 @@ function PortfolioPage() {
   const [selectedIbrSwap, setSelectedIbrSwap] = useState<PricedIbrSwap | null>(null);
   const [viewTab, setViewTab] = useState<'portfolio' | 'curves' | 'implied'>('portfolio');
   const [impliedCurve, setImpliedCurve] = useState<NdfImpliedCurvePoint[]>([]);
+  const [showConfigModal, setShowConfigModal] = useState(false);
 
   const {
     xccyPositions,
@@ -1899,6 +1914,9 @@ function PortfolioPage() {
     canEdit,
     loadUserRole,
     userRole,
+    marketDataConfig,
+    loadMarketDataConfig,
+    updateMarketDataConfig,
   } = useAppStore();
 
   const handleCheckStatus = useCallback(async () => {
@@ -1940,12 +1958,13 @@ function PortfolioPage() {
     toast.success('Portafolio repriceado');
   }, [repriceAll]);
 
-  // Auto-load on mount: check curves + load positions + role
+  // Auto-load on mount: check curves + load positions + role + market data config
   useEffect(() => {
     handleCheckStatus();
     loadPositions();
     loadUserRole();
-  }, [handleCheckStatus, loadPositions, loadUserRole]);
+    loadMarketDataConfig();
+  }, [handleCheckStatus, loadPositions, loadUserRole, loadMarketDataConfig]);
 
 
   // Auto-reprice when positions loaded and curves are ready
@@ -2039,12 +2058,47 @@ function PortfolioPage() {
                   ))}
                 </div>
               )}
+              <Button
+                variant="outline-secondary"
+                size="sm"
+                onClick={() => setShowConfigModal(true)}
+                title="Configurar fuentes de market data"
+              >
+                <Icon icon={faCog} className="me-1" />
+                Fuentes
+              </Button>
             </div>
           </div>
         </Row>
 
         {/* Curve status */}
         <CurveStatusBar status={curveStatus} />
+
+        {/* Active market data sources */}
+        <div style={{ display: 'flex', gap: 6, marginBottom: 12, flexWrap: 'wrap' }}>
+          {(
+            [
+              ['FX', SOURCE_LABELS[marketDataConfig.spot_fx]],
+              ['NDF', SOURCE_LABELS[marketDataConfig.ndf_curve]],
+              ['IBR', SOURCE_LABELS[marketDataConfig.ibr]],
+              ['SOFR', SOURCE_LABELS[marketDataConfig.sofr]],
+            ] as [string, string][]
+          ).map(([variable, source]) => (
+            <span
+              key={variable}
+              style={{
+                fontSize: 11,
+                padding: '2px 7px',
+                borderRadius: 4,
+                background: '#e9ecef',
+                color: '#495057',
+                fontFamily: 'monospace',
+              }}
+            >
+              {variable}: <strong>{source}</strong>
+            </span>
+          ))}
+        </div>
 
         {/* Error */}
         {tradingError && (
@@ -2151,6 +2205,14 @@ function PortfolioPage() {
         <XccyDetailModal row={selectedXccy} show={!!selectedXccy} onHide={() => setSelectedXccy(null)} />
         <NdfDetailModal row={selectedNdf} show={!!selectedNdf} onHide={() => setSelectedNdf(null)} />
         <IbrSwapDetailModal row={selectedIbrSwap} show={!!selectedIbrSwap} onHide={() => setSelectedIbrSwap(null)} />
+
+        {/* Market Data Config Modal */}
+        <MarketDataConfigModal
+          show={showConfigModal}
+          onHide={() => setShowConfigModal(false)}
+          config={marketDataConfig}
+          onSave={updateMarketDataConfig}
+        />
       </Container>
     </CoreLayout>
   );

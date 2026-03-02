@@ -11,6 +11,8 @@ import {
   NewNdfPosition,
   NewIbrSwapPosition,
   UserTradingRole,
+  MarketDataConfig,
+  DEFAULT_MARKET_DATA_CONFIG,
 } from 'src/types/trading';
 import {
   fetchXccyPositions,
@@ -24,6 +26,8 @@ import {
   deleteNdfPositions,
   deleteIbrSwapPositions,
   repricePortfolio,
+  fetchMarketDataConfig,
+  saveMarketDataConfig,
 } from 'src/models/trading';
 
 const genId = () => crypto.randomUUID();
@@ -50,6 +54,9 @@ export interface TradingSlice {
   tradingSuccess: string | undefined;
   pricedAt: string | undefined;
 
+  // Market data config
+  marketDataConfig: MarketDataConfig;
+
   // Actions
   loadUserRole: () => Promise<void>;
   loadPositions: () => Promise<void>;
@@ -60,6 +67,8 @@ export interface TradingSlice {
   removeXccyPositions: (ids: string[]) => Promise<void>;
   removeNdfPositions: (ids: string[]) => Promise<void>;
   removeIbrSwapPositions: (ids: string[]) => Promise<void>;
+  loadMarketDataConfig: () => Promise<void>;
+  updateMarketDataConfig: (config: MarketDataConfig) => Promise<void>;
   resetTradingStore: () => void;
 }
 
@@ -77,6 +86,7 @@ const initialTradingState = {
   tradingError: undefined,
   tradingSuccess: undefined,
   pricedAt: undefined,
+  marketDataConfig: { ...DEFAULT_MARKET_DATA_CONFIG },
 };
 
 const createTradingSlice: StateCreator<TradingSlice> = (set, get) => ({
@@ -247,6 +257,16 @@ const createTradingSlice: StateCreator<TradingSlice> = (set, get) => ({
       ),
       tradingSuccess: 'Posicion eliminada',
     }));
+  },
+
+  loadMarketDataConfig: async () => {
+    const config = await fetchMarketDataConfig();
+    set({ marketDataConfig: config });
+  },
+
+  updateMarketDataConfig: async (config: MarketDataConfig) => {
+    set({ marketDataConfig: config });
+    await saveMarketDataConfig(config);
   },
 
   resetTradingStore: () => set(initialTradingState),
