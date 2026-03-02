@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Container, Row, Col, Spinner } from 'react-bootstrap';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faCircleInfo } from '@fortawesome/free-solid-svg-icons';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import { Step } from 'react-joyride';
@@ -11,7 +12,28 @@ import WatchlistPanel from './WatchlistPanel';
 import PerformanceChart from './PerformanceChart';
 import MarketDashboardToolbar from './MarketDashboardToolbar';
 import OnboardingTour from './OnboardingTour';
-import { TabsContainer, TabLink } from './styled/DashboardTabs.styled';
+import { TabsContainer, TabLink, InfoLink } from './styled/DashboardTabs.styled';
+
+function groupEntries(
+  entries: WatchlistEntry[],
+  groupByField: DashboardConfig['groupByField']
+): WatchlistGroup[] {
+  const map = new Map<string, WatchlistEntry[]>();
+  entries.forEach((e) => {
+    const key = (e[groupByField] as string) || 'Otros';
+    const existing = map.get(key);
+    if (existing) existing.push(e);
+    else map.set(key, [e]);
+  });
+  return Array.from(map.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([name, items]) => ({
+      name,
+      entries: items.sort((a, b) =>
+        a.display_name.localeCompare(b.display_name)
+      ),
+    }));
+}
 
 const DASHBOARD_TABS = [
   { label: 'BanRep', path: '/suameca' },
@@ -50,7 +72,7 @@ function splitGroups(
 
 export default function MarketDashboard({ config }: MarketDashboardProps) {
   const router = useRouter();
-  const watchlistGroups = useAppStore((s) => s.watchlistGroups);
+  const watchlistEntries = useAppStore((s) => s.watchlistEntries);
   const watchlistLoading = useAppStore((s) => s.watchlistLoading);
   const valuesLoading = useAppStore((s) => s.valuesLoading);
   const chartSelections = useAppStore((s) => s.chartSelections);
@@ -59,6 +81,8 @@ export default function MarketDashboard({ config }: MarketDashboardProps) {
   const removeFromChart = useAppStore((s) => s.removeFromChart);
   const resetWatchlistOnly = useAppStore((s) => s.resetWatchlistOnly);
   const searchText = useAppStore((s) => s.searchText);
+  const entidadFilter = useAppStore((s) => s.entidadFilter);
+  const activoFilter = useAppStore((s) => s.activoFilter);
   const [panelsVisible, setPanelsVisible] = useState(true);
 
   const tourSteps: Step[] = useMemo(
@@ -96,19 +120,34 @@ export default function MarketDashboard({ config }: MarketDashboardProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Filter groups by search text
+  // Unique entidades for the filter dropdown
+  const uniqueEntidades = useMemo(() => {
+    const set = new Set<string>();
+    watchlistEntries.forEach((e) => {
+      if (e.entidad) set.add(e.entidad);
+    });
+    return Array.from(set).sort();
+  }, [watchlistEntries]);
+
+  // Filter + group from raw entries (reactive to all filters)
   const filteredGroups = useMemo(() => {
-    if (!searchText) return watchlistGroups;
-    const lower = searchText.toLowerCase();
-    return watchlistGroups
-      .map((g) => ({
-        ...g,
-        entries: g.entries.filter((e) =>
-          e.display_name.toLowerCase().includes(lower)
-        ),
-      }))
-      .filter((g) => g.entries.length > 0);
-  }, [watchlistGroups, searchText]);
+    let entries = watchlistEntries;
+
+    if (searchText) {
+      const lower = searchText.toLowerCase();
+      entries = entries.filter((e) =>
+        e.display_name.toLowerCase().includes(lower)
+      );
+    }
+    if (entidadFilter) {
+      entries = entries.filter((e) => e.entidad === entidadFilter);
+    }
+    if (activoFilter) {
+      entries = entries.filter((e) => e.activo !== false);
+    }
+
+    return groupEntries(entries, config.groupByField);
+  }, [watchlistEntries, searchText, entidadFilter, activoFilter, config.groupByField]);
 
   const { left, right } = useMemo(
     () =>
@@ -149,6 +188,13 @@ export default function MarketDashboard({ config }: MarketDashboardProps) {
           <PageTitle>
             <FontAwesomeIcon icon={config.icon} />
             <h4>{config.title}</h4>
+            {config.infoPath && (
+              <Link href={config.infoPath} passHref legacyBehavior>
+                <InfoLink title="Guía técnica">
+                  <FontAwesomeIcon icon={faCircleInfo} />
+                </InfoLink>
+              </Link>
+            )}
             {(watchlistLoading || valuesLoading) && (
               <Spinner animation="border" size="sm" style={{ marginLeft: 8 }} />
             )}
@@ -173,6 +219,7 @@ export default function MarketDashboard({ config }: MarketDashboardProps) {
             config={config}
             panelsVisible={panelsVisible}
             onTogglePanels={() => setPanelsVisible((v) => !v)}
+            uniqueEntidades={uniqueEntidades}
           />
         </Col>
       </Row>

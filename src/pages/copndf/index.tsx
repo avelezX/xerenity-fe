@@ -14,10 +14,13 @@ import {
   faLineChart,
   faTable,
   faGlobe,
+  faBarChart,
+  faSyncAlt,
 } from '@fortawesome/free-solid-svg-icons';
 import { toast } from 'react-toastify';
 import PageTitle from '@components/PageTitle';
 import { CopNdf, CopFwdPoint, NDFCurvePoint } from 'src/types/condf';
+import type { NdfImpliedCurvePoint } from 'src/types/pricing';
 import Toolbar from '@components/UI/Toolbar';
 import Button from '@components/UI/Button';
 import DataTableBase from '@components/Table/BaseDataTable';
@@ -26,14 +29,25 @@ import NDFCurveChart, {
   assignTenorBucket,
   bucketOrder,
   bucketMidDays,
+  TENOR_BUCKETS,
 } from '@components/yieldCurve/NDFCurveChart';
+import NDFForwardCurveChart from '@components/yieldCurve/NDFForwardCurveChart';
+import type { NDFNodePoint, FXEPoint } from '@components/yieldCurve/NDFForwardCurveChart';
+import NDFDevalCurveChart from '@components/yieldCurve/NDFDevalCurveChart';
+import { getNdfImpliedCurve, buildCurves, getCurveStatus } from 'src/models/pricing/pricingApi';
 
 import NdfColumns from '../../components/Table/columnDefinition/copndf/columns';
 
 const PAGE_TITLE = 'COP NDF';
 
+const MONTHS_TO_DAYS: Record<number, number> = {
+  0: 1, 1: 30, 2: 60, 3: 90, 6: 180, 9: 270, 12: 360,
+};
+
 const TAB_ITEMS: TabItemType[] = [
   { name: 'Curva NDF', property: 'curve', icon: faLineChart, active: true },
+  { name: 'Curvas Forward', property: 'forward', icon: faLineChart, active: false },
+  { name: 'Devaluacion', property: 'deval', icon: faBarChart, active: false },
   { name: 'DTCC', property: 'dtcc', icon: faTable, active: false },
   { name: 'FXEmpire', property: 'fxe', icon: faGlobe, active: false },
 ];
@@ -46,6 +60,11 @@ function NdfCopViewer() {
   const [copndfGrid, setCopNdfGrid] = useState<CopNdf[]>([]);
   const [fxeData, setFxeData] = useState<CopFwdPoint[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Implied curve state (from pysdk)
+  const [impliedCurve, setImpliedCurve] = useState<NdfImpliedCurvePoint[]>([]);
+  const [impliedLoading, setImpliedLoading] = useState(false);
+  const [curvesReady, setCurvesReady] = useState(false);
 
   const fetchNDFData = useCallback(async () => {
     const { data, error } = await supabase
@@ -84,6 +103,43 @@ function NdfCopViewer() {
     setLoading(true);
     Promise.all([fetchNDFData(), fetchFXEmpireData()]).then(() => setLoading(false));
   }, [fetchNDFData, fetchFXEmpireData]);
+
+  // Check pysdk curve status on mount
+  useEffect(() => {
+    getCurveStatus()
+      .then((status) => {
+        setCurvesReady(status.ibr.built && status.sofr.built);
+      })
+      .catch(() => {
+        // pysdk unavailable — implied curve won't be available
+      });
+  }, []);
+
+  const handleBuildCurves = useCallback(async () => {
+    setImpliedLoading(true);
+    try {
+      const res = await buildCurves();
+      setCurvesReady(res.full_status.ibr.built && res.full_status.sofr.built);
+      toast.success('Curvas construidas correctamente');
+    } catch (e) {
+      toast.error(`Error: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setImpliedLoading(false);
+    }
+  }, []);
+
+  const handleFetchImpliedCurve = useCallback(async () => {
+    setImpliedLoading(true);
+    try {
+      const data = await getNdfImpliedCurve();
+      setImpliedCurve(data);
+      toast.success('Curva implicita cargada');
+    } catch (e) {
+      toast.error(`Error: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setImpliedLoading(false);
+    }
+  }, []);
 
   const handleTabChange = (tabProp: string) => {
     setActiveTab(tabProp);
@@ -126,6 +182,31 @@ function NdfCopViewer() {
     return result;
   }, [copndfGrid]);
 
+  // DTCC aggregated node points for the forward curve chart
+  const dtccNodePoints = useMemo((): NDFNodePoint[] => {
+    return Array.from(nodeRates.entries())
+      .sort((a, b) => bucketOrder(a[0]) - bucketOrder(b[0]))
+      .map(([label, node]) => ({
+        tenorLabel: label,
+        days: bucketMidDays(label),
+        rate: node.rate,
+        trades: node.trades,
+        volumeUSD: node.vol,
+      }));
+  }, [nodeRates]);
+
+  // FXEmpire points mapped for the forward curve chart
+  const fxeChartPoints = useMemo((): FXEPoint[] => {
+    return fxeData
+      .filter((d) => d.mid != null && d.mid > 0 && d.tenor_months > 0)
+      .map((d) => ({
+        tenor: d.tenor,
+        days: MONTHS_TO_DAYS[d.tenor_months] ?? d.tenor_months * 30,
+        rate: d.mid as number,
+      }))
+      .sort((a, b) => a.days - b.days);
+  }, [fxeData]);
+
   // Forward-forward devaluation between consecutive DTCC nodes
   const curvePoints = useMemo((): NDFCurvePoint[] => {
     const sortedLabels = Array.from(nodeRates.keys()).sort(
@@ -152,7 +233,7 @@ function NdfCopViewer() {
         tenorLabel: currLabel,
         medianRate: curr.rate,
         fwdFwdDeval,
-        segment: `${prevLabel}→${currLabel}`,
+        segment: `${prevLabel}\u2192${currLabel}`,
         tradeCount: curr.trades,
         volumeUSD: curr.vol,
       });
@@ -176,6 +257,90 @@ function NdfCopViewer() {
     downloadBlob(csv, 'xerenity_ndf.csv', 'text/csv;charset=utf-8;');
   };
 
+  const downloadCurve = () => {
+    const allValues: string[][] = [];
+    allValues.push([
+      'Tenor',
+      'Dias',
+      'NDF Rate (DTCC)',
+      'FXEmpire Mid',
+      'Implied (IBR/SOFR)',
+      'Trades',
+      'Vol USD',
+    ]);
+
+    // Merge all tenor labels
+    const allTenors = new Set<string>();
+    TENOR_BUCKETS.forEach((b) => allTenors.add(b.label));
+
+    Array.from(allTenors).forEach((label) => {
+      const days = bucketMidDays(label);
+      const dtcc = nodeRates.get(label);
+      const fxe = fxeChartPoints.find((f) => Math.abs(f.days - days) < 15);
+      const imp = impliedCurve.find((ip) => {
+        const impDays = MONTHS_TO_DAYS[ip.tenor_months] ?? ip.tenor_months * 30;
+        return Math.abs(impDays - days) < 15;
+      });
+
+      allValues.push([
+        label,
+        days.toString(),
+        dtcc ? dtcc.rate.toFixed(2) : '',
+        fxe ? fxe.rate.toFixed(2) : '',
+        imp ? imp.forward_irt_parity.toFixed(2) : '',
+        dtcc ? dtcc.trades.toString() : '',
+        dtcc ? (dtcc.vol / 1e6).toFixed(1) : '',
+      ]);
+    });
+
+    const csv = ExportToCsv(allValues);
+    downloadBlob(csv, 'xerenity_ndf_curves.csv', 'text/csv;charset=utf-8;');
+  };
+
+  const renderImpliedCurveControls = () => (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 8,
+        marginBottom: 16,
+        padding: '8px 12px',
+        background: '#f8f9fa',
+        borderRadius: 6,
+        fontSize: 13,
+      }}
+    >
+      <span style={{ fontWeight: 600, color: '#555' }}>Curva Implicita (IBR/SOFR):</span>
+      {!curvesReady ? (
+        <Button
+          variant="outline-success"
+          size="sm"
+          onClick={handleBuildCurves}
+          disabled={impliedLoading}
+        >
+          <Icon icon={faSyncAlt} className="me-1" />
+          Construir Curvas
+        </Button>
+      ) : (
+        <Button
+          variant="outline-primary"
+          size="sm"
+          onClick={handleFetchImpliedCurve}
+          disabled={impliedLoading}
+        >
+          <Icon icon={faSyncAlt} className="me-1" />
+          {impliedCurve.length > 0 ? 'Actualizar' : 'Cargar'}
+        </Button>
+      )}
+      {impliedCurve.length > 0 && (
+        <span style={{ color: '#28a745', fontWeight: 600 }}>
+          {impliedCurve.length} nodos cargados
+        </span>
+      )}
+      {impliedLoading && <span style={{ color: '#999' }}>Cargando...</span>}
+    </div>
+  );
+
   const renderContent = () => {
     if (loading) {
       return (
@@ -197,7 +362,7 @@ function NdfCopViewer() {
       );
     }
 
-    // ── Tab: Curva NDF (chart only, both sources) ──
+    // ── Tab: Curva NDF (scatter chart, both sources) ──
     if (activeTab === 'curve') {
       return (
         <Row>
@@ -205,6 +370,246 @@ function NdfCopViewer() {
             <NDFCurveChart rawData={copndfGrid} fxeData={fxeData} />
           </Col>
         </Row>
+      );
+    }
+
+    // ── Tab: Curvas Forward (line chart comparison with implied) ──
+    if (activeTab === 'forward') {
+      return (
+        <>
+          {renderImpliedCurveControls()}
+          <Row>
+            <Col>
+              <NDFForwardCurveChart
+                dtccNodes={dtccNodePoints}
+                fxePoints={fxeChartPoints}
+                impliedPoints={impliedCurve}
+              />
+            </Col>
+          </Row>
+
+          {/* Summary comparison table */}
+          {(dtccNodePoints.length > 0 || fxeChartPoints.length > 0) && (
+            <Row className="mt-3">
+              <Col>
+                <div className="d-flex justify-content-between align-items-center mb-2">
+                  <h6 style={{ margin: 0 }}>Comparacion de Curvas NDF</h6>
+                  <Button variant="outline-primary" size="sm" onClick={downloadCurve}>
+                    <Icon icon={faFileCsv} className="me-1" />
+                    Descargar CSV
+                  </Button>
+                </div>
+                <div style={{ overflowX: 'auto' }}>
+                  <table
+                    style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}
+                  >
+                    <thead>
+                      <tr style={{ borderBottom: '2px solid #dee2e6' }}>
+                        <th style={{ padding: '8px 12px', textAlign: 'left' }}>Tenor</th>
+                        <th style={{ padding: '8px 12px', textAlign: 'right' }}>Dias</th>
+                        <th style={{ padding: '8px 12px', textAlign: 'right', color: '#2ca02c' }}>
+                          DTCC
+                        </th>
+                        <th style={{ padding: '8px 12px', textAlign: 'right', color: '#1f77b4' }}>
+                          FXEmpire
+                        </th>
+                        {impliedCurve.length > 0 && (
+                          <th style={{ padding: '8px 12px', textAlign: 'right', color: '#ff7f0e' }}>
+                            Implicito
+                          </th>
+                        )}
+                        {impliedCurve.length > 0 && (
+                          <th style={{ padding: '8px 12px', textAlign: 'right' }}>
+                            Basis (FXE-Impl)
+                          </th>
+                        )}
+                        <th style={{ padding: '8px 12px', textAlign: 'right' }}># Trades</th>
+                        <th style={{ padding: '8px 12px', textAlign: 'right' }}>Vol (USD M)</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {TENOR_BUCKETS.map((bucket) => {
+                        const dtcc = nodeRates.get(bucket.label);
+                        const fxe = fxeChartPoints.find(
+                          (f) => Math.abs(f.days - bucket.mid) < 15
+                        );
+                        const imp = impliedCurve.find((ip) => {
+                          const impDays =
+                            MONTHS_TO_DAYS[ip.tenor_months] ?? ip.tenor_months * 30;
+                          return Math.abs(impDays - bucket.mid) < 15;
+                        });
+
+                        if (!dtcc && !fxe && !imp) return null;
+
+                        const basis =
+                          fxe && imp
+                            ? fxe.rate - imp.forward_irt_parity
+                            : null;
+
+                        return (
+                          <tr
+                            key={bucket.label}
+                            style={{ borderBottom: '1px solid #eee' }}
+                          >
+                            <td style={{ padding: '6px 12px', fontWeight: 600 }}>
+                              {bucket.label}
+                            </td>
+                            <td
+                              style={{
+                                padding: '6px 12px',
+                                textAlign: 'right',
+                                color: '#666',
+                                fontSize: 13,
+                              }}
+                            >
+                              {bucket.mid}
+                            </td>
+                            <td
+                              style={{
+                                padding: '6px 12px',
+                                textAlign: 'right',
+                                color: '#2ca02c',
+                                fontWeight: dtcc ? 600 : 400,
+                              }}
+                            >
+                              {dtcc ? dtcc.rate.toFixed(2) : '\u2014'}
+                            </td>
+                            <td
+                              style={{
+                                padding: '6px 12px',
+                                textAlign: 'right',
+                                color: '#1f77b4',
+                                fontWeight: fxe ? 600 : 400,
+                              }}
+                            >
+                              {fxe ? fxe.rate.toFixed(2) : '\u2014'}
+                            </td>
+                            {impliedCurve.length > 0 && (
+                              <td
+                                style={{
+                                  padding: '6px 12px',
+                                  textAlign: 'right',
+                                  color: '#ff7f0e',
+                                  fontWeight: imp ? 600 : 400,
+                                }}
+                              >
+                                {imp ? imp.forward_irt_parity.toFixed(2) : '\u2014'}
+                              </td>
+                            )}
+                            {impliedCurve.length > 0 && (
+                              <td
+                                style={{
+                                  padding: '6px 12px',
+                                  textAlign: 'right',
+                                  color:
+                                    basis != null
+                                      ? basis > 0
+                                        ? '#28a745'
+                                        : '#dc3545'
+                                      : '#999',
+                                  fontWeight: basis != null ? 600 : 400,
+                                }}
+                              >
+                                {basis != null ? basis.toFixed(2) : '\u2014'}
+                              </td>
+                            )}
+                            <td style={{ padding: '6px 12px', textAlign: 'right' }}>
+                              {dtcc ? dtcc.trades : '\u2014'}
+                            </td>
+                            <td style={{ padding: '6px 12px', textAlign: 'right' }}>
+                              {dtcc ? (dtcc.vol / 1e6).toFixed(1) : '\u2014'}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </Col>
+            </Row>
+          )}
+        </>
+      );
+    }
+
+    // ── Tab: Devaluacion (bar chart + table) ──
+    if (activeTab === 'deval') {
+      return (
+        <>
+          <Row>
+            <Col>
+              <NDFDevalCurveChart data={curvePoints} />
+            </Col>
+          </Row>
+
+          {/* Devaluation table below the chart */}
+          {curvePoints.length > 0 && (
+            <Row className="mt-3">
+              <Col>
+                <h6 style={{ marginBottom: 12 }}>Devaluacion Forward-Forward (Detalle)</h6>
+                <div style={{ overflowX: 'auto' }}>
+                  <table
+                    style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}
+                  >
+                    <thead>
+                      <tr style={{ borderBottom: '2px solid #dee2e6' }}>
+                        <th style={{ padding: '8px 12px', textAlign: 'left' }}>Segmento</th>
+                        <th style={{ padding: '8px 12px', textAlign: 'right' }}>Tenor</th>
+                        <th style={{ padding: '8px 12px', textAlign: 'right' }}>
+                          Dev. Implicita
+                        </th>
+                        <th style={{ padding: '8px 12px', textAlign: 'right' }}>NDF Rate</th>
+                        <th style={{ padding: '8px 12px', textAlign: 'right' }}># Trades</th>
+                        <th style={{ padding: '8px 12px', textAlign: 'right' }}>
+                          Vol (USD M)
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {curvePoints.map((pt) => (
+                        <tr key={pt.segment} style={{ borderBottom: '1px solid #eee' }}>
+                          <td style={{ padding: '6px 12px', fontWeight: 600 }}>
+                            {pt.segment}
+                          </td>
+                          <td
+                            style={{
+                              padding: '6px 12px',
+                              textAlign: 'right',
+                              color: '#666',
+                            }}
+                          >
+                            {pt.tenorLabel}
+                          </td>
+                          <td
+                            style={{
+                              padding: '6px 12px',
+                              textAlign: 'right',
+                              color:
+                                pt.fwdFwdDeval >= 0 ? '#2ca02c' : '#dc3545',
+                              fontWeight: 600,
+                            }}
+                          >
+                            {pt.fwdFwdDeval >= 0 ? '+' : ''}
+                            {pt.fwdFwdDeval.toFixed(2)}%
+                          </td>
+                          <td style={{ padding: '6px 12px', textAlign: 'right' }}>
+                            {pt.medianRate.toFixed(2)}
+                          </td>
+                          <td style={{ padding: '6px 12px', textAlign: 'right' }}>
+                            {pt.tradeCount}
+                          </td>
+                          <td style={{ padding: '6px 12px', textAlign: 'right' }}>
+                            {(pt.volumeUSD / 1e6).toFixed(1)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </Col>
+            </Row>
+          )}
+        </>
       );
     }
 
@@ -224,7 +629,7 @@ function NdfCopViewer() {
                     <thead>
                       <tr style={{ borderBottom: '2px solid #dee2e6' }}>
                         <th style={{ padding: '8px 12px', textAlign: 'left' }}>Tenor</th>
-                        <th style={{ padding: '8px 12px', textAlign: 'right' }}>Días</th>
+                        <th style={{ padding: '8px 12px', textAlign: 'right' }}>Dias</th>
                         <th style={{ padding: '8px 12px', textAlign: 'right' }}>NDF Rate</th>
                         <th style={{ padding: '8px 12px', textAlign: 'right' }}># Trades</th>
                         <th style={{ padding: '8px 12px', textAlign: 'right' }}>Vol (USD M)</th>
@@ -237,7 +642,7 @@ function NdfCopViewer() {
                           <tr key={label} style={{ borderBottom: '1px solid #eee' }}>
                             <td style={{ padding: '6px 12px', fontWeight: 600 }}>{label}</td>
                             <td style={{ padding: '6px 12px', textAlign: 'right', color: '#666', fontSize: 13 }}>
-                              {node.minDays === node.maxDays ? node.minDays : `${node.minDays}–${node.maxDays}`}
+                              {node.minDays === node.maxDays ? node.minDays : `${node.minDays}\u2013${node.maxDays}`}
                             </td>
                             <td style={{ padding: '6px 12px', textAlign: 'right' }}>
                               {node.rate.toFixed(2)}
@@ -267,7 +672,7 @@ function NdfCopViewer() {
               <Row className="mt-2">
                 <Col>
                   <div style={{ fontSize: 13, color: '#999' }}>
-                    {unclassified} trades ({copndfGrid.filter(r => !assignTenorBucket(r.days_diff_effective_expiration)).length} plazos) no clasificados en ningún bucket tenor
+                    {unclassified} trades ({copndfGrid.filter(r => !assignTenorBucket(r.days_diff_effective_expiration)).length} plazos) no clasificados en ningun bucket tenor
                   </div>
                 </Col>
               </Row>
@@ -278,7 +683,7 @@ function NdfCopViewer() {
           {curvePoints.length > 0 && (
             <Row className="mt-3">
               <Col>
-                <h6 style={{ marginBottom: 12 }}>Devaluación Forward-Forward</h6>
+                <h6 style={{ marginBottom: 12 }}>Devaluacion Forward-Forward</h6>
                 <div style={{ overflowX: 'auto' }}>
                   <table
                     style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}
@@ -286,7 +691,7 @@ function NdfCopViewer() {
                     <thead>
                       <tr style={{ borderBottom: '2px solid #dee2e6' }}>
                         <th style={{ padding: '8px 12px', textAlign: 'left' }}>Segmento</th>
-                        <th style={{ padding: '8px 12px', textAlign: 'right' }}>Dev. Implícita</th>
+                        <th style={{ padding: '8px 12px', textAlign: 'right' }}>Dev. Implicita</th>
                         <th style={{ padding: '8px 12px', textAlign: 'right' }}>NDF Rate</th>
                         <th style={{ padding: '8px 12px', textAlign: 'right' }}># Trades</th>
                       </tr>
@@ -378,16 +783,16 @@ function NdfCopViewer() {
                       <tr key={row.tenor} style={{ borderBottom: '1px solid #eee' }}>
                         <td style={{ padding: '6px 12px', fontWeight: 600 }}>{row.tenor}</td>
                         <td style={{ padding: '6px 12px', textAlign: 'right' }}>
-                          {row.bid?.toFixed(2) ?? '—'}
+                          {row.bid?.toFixed(2) ?? '\u2014'}
                         </td>
                         <td style={{ padding: '6px 12px', textAlign: 'right' }}>
-                          {row.ask?.toFixed(2) ?? '—'}
+                          {row.ask?.toFixed(2) ?? '\u2014'}
                         </td>
                         <td style={{ padding: '6px 12px', textAlign: 'right', color: '#1f77b4', fontWeight: 600 }}>
-                          {row.mid?.toFixed(2) ?? '—'}
+                          {row.mid?.toFixed(2) ?? '\u2014'}
                         </td>
                         <td style={{ padding: '6px 12px', textAlign: 'right' }}>
-                          {row.fwd_points?.toFixed(2) ?? '—'}
+                          {row.fwd_points?.toFixed(2) ?? '\u2014'}
                         </td>
                       </tr>
                     ))}
