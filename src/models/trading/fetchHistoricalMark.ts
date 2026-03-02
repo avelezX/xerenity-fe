@@ -1,6 +1,7 @@
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import type {
   HistoricalMark,
+  HistoricalTesPoint,
   IbrQuotesCurveRow,
   HistoricalSofrPoint,
   HistoricalNdfPoint,
@@ -15,10 +16,11 @@ const supabase = createClientComponentClient();
  * so we use .like('fecha', `${fecha}%`) for safe matching across both
  * text and date column types.
  */
+// eslint-disable-next-line import/prefer-default-export
 export const fetchHistoricalMark = async (
   fecha: string // 'YYYY-MM-DD'
 ): Promise<HistoricalMark> => {
-  const [ibrRes, sofrRes, ndfRes] = await Promise.allSettled([
+  const [ibrRes, sofrRes, ndfRes, tesRes] = await Promise.allSettled([
     supabase
       .schema('xerenity')
       .from('ibr_quotes_curve')
@@ -40,6 +42,10 @@ export const fetchHistoricalMark = async (
       .select('tenor, tenor_months, fwd_points, mid')
       .like('fecha', `${fecha}%`)
       .order('tenor_months'),
+
+    supabase
+      .schema('trading')
+      .rpc('get_tes_yield_curve_for_date', { p_fecha: fecha }),
   ]);
 
   const ibr =
@@ -57,13 +63,20 @@ export const fetchHistoricalMark = async (
       ? ((ndfRes.value.data ?? []) as HistoricalNdfPoint[])
       : [];
 
+  const tes =
+    tesRes.status === 'fulfilled' && !tesRes.value.error && tesRes.value.data
+      ? (tesRes.value.data as HistoricalTesPoint[])
+      : [];
+
   return {
     fecha,
     ibr,
     sofr,
     ndf,
+    tes,
     hasIbr: ibr !== null,
     hasSofr: sofr.length > 0,
     hasNdf: ndf.length > 0,
+    hasTes: tes.length > 0,
   };
 };
