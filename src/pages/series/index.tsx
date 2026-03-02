@@ -9,6 +9,7 @@ import {
   InputGroup,
   ToastContainer,
   Toast,
+  Badge,
 } from 'react-bootstrap';
 import React, { useState, useEffect, useRef } from 'react';
 import { LightSerieEntry, lightSerieValueArray } from 'src/types/lightserie';
@@ -17,6 +18,7 @@ import {
   faFileCsv,
   faChartSimple,
   faSearch,
+  faLayerGroup,
 } from '@fortawesome/free-solid-svg-icons';
 import { ExportToCsv, downloadBlob } from 'src/utils/downloadCSV';
 import 'react-toastify/dist/ReactToastify.css';
@@ -191,21 +193,20 @@ export default function Dashboard() {
         </Toast>
       </ToastContainer>
       <Container fluid className="px-4 pb-3">
-        <Row>
-          <div className="d-flex align-items-center gap-2 py-1">
+        <Row className="align-items-center mb-2">
+          <Col>
             <PageTitle>
               <Icon icon={faChartSimple} size="1x" />
               <h4>{PAGE_TITLE}</h4>
             </PageTitle>
-          </div>
-        </Row>
-        <Row>
-          <div className="d-flex justify-content-end pb-3">
+          </Col>
+          <Col className="d-flex justify-content-end">
             <Toolbar>
-              <InputGroup>
+              <InputGroup size="sm">
                 <InputGroup.Checkbox onChange={handleNormalize} />
                 <InputGroup.Text>{NORMALIZE_SINCE}</InputGroup.Text>
                 <Form.Control
+                  size="sm"
                   type="date"
                   onChange={(a) => {
                     normalizeDate.current = a.target.value;
@@ -217,36 +218,62 @@ export default function Dashboard() {
                 Descargar
               </Button>
             </Toolbar>
-          </div>
+          </Col>
         </Row>
-        <Row>
-          <Row style={{ marginBottom: '23px' }}>
-            <Col sm={8}>
-              <Chart showToolbar loading={loading}>
-                {selectedSeries.map((data) => (
-                  <Chart.Line
-                    key={`chart-${data.tiker}`}
-                    data={data.serie}
-                    color={data.color}
-                    title={data.name}
-                    scaleId={data.axisName}
-                    applyFunctions={applyFunctions}
-                    fromNormalizeDate={normalizeDate.current}
-                  />
-                ))}
-              </Chart>
-            </Col>
-            <Col sm={4}>
+
+        <Row className="mb-3" style={{ minHeight: '420px' }}>
+          <Col sm={8}>
+            <Chart showToolbar loading={loading}>
+              {selectedSeries.map((data) => (
+                <Chart.Line
+                  key={`chart-${data.tiker}`}
+                  data={data.serie}
+                  color={data.color}
+                  title={data.name}
+                  scaleId={data.axisName}
+                  applyFunctions={applyFunctions}
+                  fromNormalizeDate={normalizeDate.current}
+                />
+              ))}
+            </Chart>
+          </Col>
+          <Col sm={4} className="d-flex flex-column">
+            <div className="d-flex align-items-center gap-2 mb-2">
+              <Icon icon={faLayerGroup} className="text-secondary" size="sm" />
+              <span className="fw-semibold text-secondary small">
+                Series en el gráfico
+              </span>
+              <Badge bg="secondary" pill>
+                {selectedSeries.length}
+              </Badge>
+            </div>
+            <div className="flex-grow-1">
               <SelectedSeriesTable list={selectedSeries} />
-            </Col>
-          </Row>
+            </div>
+          </Col>
+        </Row>
+
+        <Row>
           <Col sm={12}>
             <Panel>
-              <Row>
+              <div className="d-flex justify-content-between align-items-center mb-3">
+                <span className="fw-semibold text-secondary small">
+                  Explorar series
+                </span>
+                <span className="text-muted small">
+                  {filteredSeries.length}{' '}
+                  {filteredSeries.length !== allSeries.length
+                    ? `de ${allSeries.length} `
+                    : ''}
+                  {filteredSeries.length === 1 ? 'serie' : 'series'}
+                </span>
+              </div>
+              <Row className="g-2 mb-3">
                 <Col sm={12} md={4}>
                   <InputGroup>
                     <Form.Control
                       type="text"
+                      placeholder="Buscar por nombre..."
                       onChange={(a) => {
                         searchByName.current = a.target.value;
                       }}
@@ -256,47 +283,40 @@ export default function Dashboard() {
                         }
                       }}
                     />
-                    <InputGroup.Text className="bg-white border-right-none">
-                      <Icon
-                        className="text-primary"
-                        icon={faSearch}
-                        fixedWidth
-                        onClick={() => {
-                          filterByText(searchByName.current);
-                        }}
-                      />
+                    <InputGroup.Text
+                      className="bg-white"
+                      style={{ cursor: 'pointer' }}
+                      onClick={() => filterByText(searchByName.current)}
+                    >
+                      <Icon className="text-primary" icon={faSearch} fixedWidth />
                     </InputGroup.Text>
                   </InputGroup>
                 </Col>
                 <Col sm={12} md={4}>
                   <SingleSelect
                     data={grupos}
-                    placeholder="Seleccione el Grupo"
+                    placeholder="Filtrar por grupo"
                     onChange={onGroupChnage}
                   />
                 </Col>
-                <Col sm={12} md={4} className="align-self-end">
+                <Col sm={12} md={4}>
                   <SingleSelect
                     data={subGrupos}
                     onChange={onSubGroupChnage}
-                    placeholder="Seleccione el Sub Grupo"
+                    placeholder="Filtrar por subgrupo"
                   />
                 </Col>
               </Row>
               {isFIC && (
-                <Row className="mt-2">
+                <Row className="g-2 mb-3">
                   <Col sm={12} md={4}>
                     <SingleSelect
                       data={entidades}
                       onChange={onEntidadChange}
-                      placeholder="Filtrar por Entidad"
+                      placeholder="Filtrar por entidad"
                     />
                   </Col>
-                  <Col
-                    sm={12}
-                    md={4}
-                    className="d-flex align-items-center"
-                  >
+                  <Col sm={12} md={4} className="d-flex align-items-center">
                     <Form.Check
                       type="switch"
                       id="solo-activos"
