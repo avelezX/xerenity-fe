@@ -87,6 +87,8 @@ export default function MarketDashboard({ config }: MarketDashboardProps) {
   const activoFilter = useAppStore((s) => s.activoFilter);
   const tipoFondoFilter = useAppStore((s) => s.tipoFondoFilter);
   const claseActivoFilter = useAppStore((s) => s.claseActivoFilter);
+  const tamanoFondoFilter = useAppStore((s) => s.tamanoFondoFilter);
+  const tamanoInversionistasFilter = useAppStore((s) => s.tamanoInversionistasFilter);
   const [panelsVisible, setPanelsVisible] = useState(true);
 
   const tourSteps: Step[] = useMemo(
@@ -151,6 +153,26 @@ export default function MarketDashboard({ config }: MarketDashboardProps) {
     return Array.from(set).sort();
   }, [watchlistEntries]);
 
+  // Unique tamanos de fondo for the filter dropdown (FIC only)
+  const uniqueTamanosFondo = useMemo(() => {
+    const order = ['Micro', 'Pequeño', 'Mediano', 'Grande'];
+    const set = new Set<string>();
+    watchlistEntries.forEach((e) => {
+      if (e.tamano_fondo) set.add(e.tamano_fondo);
+    });
+    return order.filter((t) => set.has(t));
+  }, [watchlistEntries]);
+
+  // Unique tamanos de inversionistas for the filter dropdown (FIC only)
+  const uniqueTamanosInversionistas = useMemo(() => {
+    const order = ['Institucional', 'Pequeño', 'Mediano', 'Masivo'];
+    const set = new Set<string>();
+    watchlistEntries.forEach((e) => {
+      if (e.tamano_inversionistas) set.add(e.tamano_inversionistas);
+    });
+    return order.filter((t) => set.has(t));
+  }, [watchlistEntries]);
+
   // Filter + group from raw entries (reactive to all filters)
   const filteredGroups = useMemo(() => {
     let entries = watchlistEntries;
@@ -173,9 +195,15 @@ export default function MarketDashboard({ config }: MarketDashboardProps) {
     if (claseActivoFilter) {
       entries = entries.filter((e) => e.clase_activo === claseActivoFilter);
     }
+    if (tamanoFondoFilter) {
+      entries = entries.filter((e) => e.tamano_fondo === tamanoFondoFilter);
+    }
+    if (tamanoInversionistasFilter) {
+      entries = entries.filter((e) => e.tamano_inversionistas === tamanoInversionistasFilter);
+    }
 
     return groupEntries(entries, config.groupByField);
-  }, [watchlistEntries, searchText, entidadFilter, activoFilter, tipoFondoFilter, claseActivoFilter, config.groupByField]);
+  }, [watchlistEntries, searchText, entidadFilter, activoFilter, tipoFondoFilter, claseActivoFilter, tamanoFondoFilter, tamanoInversionistasFilter, config.groupByField]);
 
   const { left, right } = useMemo(
     () =>
@@ -267,6 +295,8 @@ export default function MarketDashboard({ config }: MarketDashboardProps) {
             uniqueEntidades={uniqueEntidades}
             uniqueTiposFondo={uniqueTiposFondo}
             uniqueClasesActivo={uniqueClasesActivo}
+            uniqueTamanosFondo={uniqueTamanosFondo}
+            uniqueTamanosInversionistas={uniqueTamanosInversionistas}
           />
         </Col>
       </Row>

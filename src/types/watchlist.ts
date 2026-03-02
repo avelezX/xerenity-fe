@@ -12,6 +12,8 @@ export interface WatchlistEntry {
   activo: boolean | null;
   tipo_fondo: string | null;
   clase_activo: string | null;
+  tamano_fondo: string | null;
+  tamano_inversionistas: string | null;
   latest_value: number | null;
   latest_date: string | null;
   change: number | null;
@@ -75,6 +77,8 @@ export interface DashboardConfig {
   showActivoFilter?: boolean;
   showTipoFondoFilter?: boolean;
   showClaseActivoFilter?: boolean;
+  showTamanoFondoFilter?: boolean;
+  showTamanoInversionistasFilter?: boolean;
   showCurrencyPairSelector?: boolean;
   infoPath?: string;
   ficHierarchical?: boolean;
