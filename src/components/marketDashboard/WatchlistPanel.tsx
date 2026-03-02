@@ -1,5 +1,9 @@
 import React from 'react';
-import { WatchlistEntry, WatchlistGroup as WatchlistGroupType } from 'src/types/watchlist';
+import {
+  WatchlistEntry,
+  WatchlistGroup as WatchlistGroupType,
+  FicFundEntry,
+} from 'src/types/watchlist';
 import WatchlistPanelContainer from './styled/WatchlistPanelContainer.styled';
 import WatchlistGroup from './WatchlistGroup';
 
@@ -8,6 +12,9 @@ type WatchlistPanelProps = {
   selectedTickers: Set<string>;
   chartColorMap: Map<string, string>;
   onRowClick: (entry: WatchlistEntry) => void;
+  ficHierarchical?: boolean;
+  ficFunds?: FicFundEntry[];
+  onCompareFund?: (fund: FicFundEntry) => void;
 };
 
 export default function WatchlistPanel({
@@ -15,6 +22,9 @@ export default function WatchlistPanel({
   selectedTickers,
   chartColorMap,
   onRowClick,
+  ficHierarchical,
+  ficFunds,
+  onCompareFund,
 }: WatchlistPanelProps) {
   return (
     <WatchlistPanelContainer>
@@ -25,6 +35,9 @@ export default function WatchlistPanel({
           selectedTickers={selectedTickers}
           chartColorMap={chartColorMap}
           onRowClick={onRowClick}
+          ficHierarchical={ficHierarchical}
+          ficFunds={ficFunds?.filter((f) => f.subGroup === group.name)}
+          onCompareFund={onCompareFund}
         />
       ))}
       {groups.length === 0 && (

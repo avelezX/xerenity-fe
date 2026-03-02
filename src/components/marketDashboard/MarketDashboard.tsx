@@ -7,7 +7,8 @@ import Link from 'next/link';
 import { Step } from 'react-joyride';
 import PageTitle from '@components/PageTitle';
 import useAppStore from 'src/store';
-import { DashboardConfig, WatchlistEntry, WatchlistGroup } from 'src/types/watchlist';
+import { DashboardConfig, FicFundEntry, WatchlistEntry, WatchlistGroup } from 'src/types/watchlist';
+import { buildFicHierarchy } from 'src/store/marketDashboard';
 import WatchlistPanel from './WatchlistPanel';
 import PerformanceChart from './PerformanceChart';
 import MarketDashboardToolbar from './MarketDashboardToolbar';
@@ -78,6 +79,7 @@ export default function MarketDashboard({ config }: MarketDashboardProps) {
   const chartSelections = useAppStore((s) => s.chartSelections);
   const fetchWatchlistSnapshot = useAppStore((s) => s.fetchWatchlistSnapshot);
   const addToChart = useAppStore((s) => s.addToChart);
+  const addFundToChart = useAppStore((s) => s.addFundToChart);
   const removeFromChart = useAppStore((s) => s.removeFromChart);
   const resetWatchlistOnly = useAppStore((s) => s.resetWatchlistOnly);
   const searchText = useAppStore((s) => s.searchText);
@@ -169,6 +171,16 @@ export default function MarketDashboard({ config }: MarketDashboardProps) {
     [chartSelections]
   );
 
+  const filteredEntries = useMemo(
+    () => filteredGroups.flatMap((g) => g.entries),
+    [filteredGroups]
+  );
+
+  const ficFunds = useMemo(
+    () => config.ficHierarchical ? buildFicHierarchy(filteredEntries) : [],
+    [filteredEntries, config.ficHierarchical]
+  );
+
   const handleRowClick = useCallback(
     (entry: WatchlistEntry) => {
       if (selectedTickers.has(entry.ticker)) {
@@ -178,6 +190,13 @@ export default function MarketDashboard({ config }: MarketDashboardProps) {
       }
     },
     [selectedTickers, addToChart, removeFromChart]
+  );
+
+  const handleCompareFund = useCallback(
+    (fund: FicFundEntry) => {
+      addFundToChart(fund.compartimentos);
+    },
+    [addFundToChart]
   );
 
   return (
@@ -231,6 +250,9 @@ export default function MarketDashboard({ config }: MarketDashboardProps) {
               selectedTickers={selectedTickers}
               chartColorMap={chartColorMap}
               onRowClick={handleRowClick}
+              ficHierarchical={config.ficHierarchical}
+              ficFunds={ficFunds}
+              onCompareFund={handleCompareFund}
             />
           </Col>
         )}
@@ -244,6 +266,9 @@ export default function MarketDashboard({ config }: MarketDashboardProps) {
               selectedTickers={selectedTickers}
               chartColorMap={chartColorMap}
               onRowClick={handleRowClick}
+              ficHierarchical={config.ficHierarchical}
+              ficFunds={ficFunds}
+              onCompareFund={handleCompareFund}
             />
           </Col>
         )}

@@ -17,6 +17,7 @@ const FIC_CONFIG: DashboardConfig = {
   showEntidadFilter: true,
   showActivoFilter: true,
   infoPath: '/fic/info',
+  ficHierarchical: true,
 };
 
 export default function FICPage() {

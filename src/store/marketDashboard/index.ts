@@ -5,6 +5,7 @@ import {
   ChartSelection,
   TimePeriod,
   DashboardConfig,
+  FicFundEntry,
 } from 'src/types/watchlist';
 import { LightSerieValue } from 'src/types/lightserie';
 import {
@@ -15,6 +16,41 @@ import { fetchSeriesData } from 'src/models/series/fetchSerieData';
 import { fetchCurrencyPairData } from 'src/models/series/fetchCurrencyPairData';
 import { fetchCryptoData, isCryptoPair } from 'src/models/series/fetchCryptoData';
 import { getHexColor } from 'src/utils/getHexColors';
+
+export const buildFicHierarchy = (entries: WatchlistEntry[]): FicFundEntry[] => {
+  const map = new Map<string, FicFundEntry>();
+
+  entries.forEach((entry) => {
+    const codigoNegocio = entry.source_name.split('_')[0];
+    const fondoName = entry.display_name.split(' Tipo de participacion:')[0].trim();
+
+    if (!map.has(codigoNegocio)) {
+      map.set(codigoNegocio, {
+        codigoNegocio,
+        fondoName,
+        entidad: entry.entidad,
+        subGroup: entry.sub_group,
+        compartimentos: [],
+        latestDate: null,
+      });
+    }
+    map.get(codigoNegocio)!.compartimentos.push(entry);
+  });
+
+  Array.from(map.values()).forEach((fund) => {
+    fund.compartimentos.sort(
+      (a, b) =>
+        Number(a.source_name.split('_').at(-1)) -
+        Number(b.source_name.split('_').at(-1))
+    );
+    // eslint-disable-next-line no-param-reassign
+    fund.latestDate = fund.compartimentos[0]?.latest_date ?? null;
+  });
+
+  return Array.from(map.values()).sort((a, b) =>
+    a.fondoName.localeCompare(b.fondoName)
+  );
+};
 
 export interface MarketDashboardSlice {
   watchlistEntries: WatchlistEntry[];
@@ -32,6 +68,7 @@ export interface MarketDashboardSlice {
 
   fetchWatchlistSnapshot: (config: DashboardConfig) => Promise<void>;
   addToChart: (entry: WatchlistEntry) => Promise<void>;
+  addFundToChart: (compartimentos: WatchlistEntry[]) => Promise<void>;
   addCurrencyPairToChart: (pair: string) => Promise<void>;
   removeFromChart: (ticker: string) => void;
   clearChart: () => void;
@@ -246,6 +283,16 @@ const createMarketDashboardSlice: StateCreator<MarketDashboardSlice> = (
       set({ chartLoading: false });
     }
   },
+
+  addFundToChart: (compartimentos: WatchlistEntry[]): Promise<void> =>
+    compartimentos
+      .reduce(
+        (promise, entry) => promise.then(() => get().addToChart(entry)),
+        Promise.resolve() as Promise<void>
+      )
+      .then(() => {
+        get().setNormalizeChart(true);
+      }),
 
   addCurrencyPairToChart: async (pair: string) => {
     const state = get();
