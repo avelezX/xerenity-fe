@@ -15,8 +15,8 @@ export interface CurveStatus {
   fx_spot: number | null;
   ibr: CurveInfo;
   sofr: CurveInfo;
-  ndf: CurveInfo;
-  tes: { built: boolean; timestamp?: string };
+  ndf?: CurveInfo;
+  tes?: { built: boolean; timestamp?: string };
 }
 
 export interface BuildResult {

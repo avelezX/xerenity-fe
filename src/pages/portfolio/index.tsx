@@ -34,7 +34,9 @@ import {
   getCurveStatus,
   getNdfImpliedCurve,
 } from 'src/models/pricing/pricingApi';
+import { fetchHistoricalMark } from 'src/models/trading/fetchHistoricalMark';
 import type { CurveStatus, NdfImpliedCurvePoint } from 'src/types/pricing';
+import type { HistoricalMark } from 'src/types/trading';
 import type {
   NewXccyPosition,
   NewNdfPosition,
@@ -49,6 +51,142 @@ import MarketDataConfigModal from './_MarketDataConfigModal';
 import MarcasPanel from './_MarcasPanel';
 
 const PAGE_TITLE = 'Portafolio de Derivados';
+
+// ── Mark date helpers ──
+/** Parse pysdk valuation_date string ("February 27th, 2026") → "2026-02-27" */
+function parseValuationDate(valDate: string | undefined): string | undefined {
+  if (!valDate) return undefined;
+  const d = new Date(valDate);
+  if (!isNaN(d.getTime())) return d.toISOString().slice(0, 10);
+  return undefined;
+}
+
+function lastBusinessDay(d: Date): Date {
+  const day = d.getDay();
+  if (day === 0) d.setDate(d.getDate() - 2);
+  else if (day === 6) d.setDate(d.getDate() - 1);
+  return d;
+}
+function defaultMarkFecha(): string {
+  const d = new Date();
+  d.setDate(d.getDate() - 1);
+  return lastBusinessDay(d).toISOString().slice(0, 10);
+}
+function stepMarkDate(fecha: string, delta: number): string {
+  const d = new Date(`${fecha}T12:00:00`);
+  const step = delta > 0 ? 1 : -1;
+  let remaining = Math.abs(delta);
+  while (remaining > 0) {
+    d.setDate(d.getDate() + step);
+    const day = d.getDay();
+    if (day !== 0 && day !== 6) remaining -= 1;
+  }
+  return d.toISOString().slice(0, 10);
+}
+
+// ── Mark Date Bar ──
+const markNavBtn: React.CSSProperties = {
+  background: 'none', border: '1px solid #ced4da', borderRadius: 4,
+  padding: '2px 8px', cursor: 'pointer', fontSize: 12, color: '#495057',
+};
+
+function MarkDateBar({
+  onReprice,
+  repricing,
+  initialFecha,
+}: {
+  onReprice: (fecha: string) => Promise<void>;
+  repricing: boolean;
+  initialFecha?: string;
+}) {
+  const today = new Date().toISOString().slice(0, 10);
+  const [fecha, setFecha] = useState(initialFecha ?? defaultMarkFecha());
+
+  // Sync to pysdk valuation_date once it loads (overrides the default)
+  useEffect(() => {
+    if (initialFecha) setFecha(initialFecha);
+  }, [initialFecha]);
+  const [mark, setMark] = useState<HistoricalMark | null>(null);
+  const [loadingMark, setLoadingMark] = useState(false);
+
+  useEffect(() => {
+    setLoadingMark(true);
+    setMark(null);
+    fetchHistoricalMark(fecha).then(setMark).finally(() => setLoadingMark(false));
+  }, [fecha]);
+
+  const daysDiff = Math.round(
+    (new Date(today).getTime() - new Date(`${fecha}T12:00:00`).getTime()) / 86400000
+  );
+  const hasData = mark && (mark.hasIbr || mark.hasSofr);
+
+  const markChips = [
+    { label: 'IBR', ok: mark?.hasIbr ?? false },
+    { label: 'SOFR', ok: mark?.hasSofr ?? false },
+    { label: 'NDF', ok: mark?.hasNdf ?? false },
+    { label: 'TES', ok: mark?.hasTes ?? false },
+  ];
+
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12,
+      fontSize: 12, flexWrap: 'wrap', background: '#f8f9fa',
+      borderRadius: 6, padding: '6px 12px',
+    }}>
+      <span style={{ color: '#495057', fontWeight: 600 }}>Marca:</span>
+      <input
+        type="date"
+        value={fecha}
+        min="2026-01-01"
+        max={today}
+        onChange={(e) => e.target.value && setFecha(e.target.value)}
+        style={{ border: '1px solid #ced4da', borderRadius: 4, padding: '2px 6px', fontSize: 12, fontFamily: 'monospace' }}
+      />
+      <button type="button" onClick={() => setFecha((f) => stepMarkDate(f, -1))} disabled={loadingMark} style={markNavBtn}>◀</button>
+      <button type="button" onClick={() => { const next = stepMarkDate(fecha, 1); if (next <= today) setFecha(next); }} disabled={loadingMark} style={markNavBtn}>▶</button>
+      <button type="button" onClick={() => setFecha(defaultMarkFecha())} disabled={loadingMark} style={{ ...markNavBtn, padding: '2px 10px' }}>Ayer</button>
+      {loadingMark ? (
+        <span style={{ color: '#6c757d' }}>…</span>
+      ) : (
+        <>
+          <span style={{ display: 'flex', gap: 4 }}>
+            {markChips.map(({ label, ok }) => (
+              <span key={label} style={{
+                padding: '1px 6px', borderRadius: 4, fontSize: 11, fontWeight: 600,
+                background: ok ? '#d4edda' : '#f8d7da',
+                color: ok ? '#155724' : '#721c24',
+              }}>
+                {label} {ok ? '✓' : '✗'}
+              </span>
+            ))}
+          </span>
+          {daysDiff > 0 && (
+            <span style={{
+              color: '#856404', background: '#fff3cd', padding: '2px 8px',
+              borderRadius: 4, fontSize: 11,
+            }}>
+              ⚠ último dato: {daysDiff === 1 ? 'ayer' : `hace ${daysDiff} días`}
+            </span>
+          )}
+          <button
+            type="button"
+            onClick={() => onReprice(fecha)}
+            disabled={repricing || loadingMark || !hasData}
+            style={{
+              padding: '3px 12px', borderRadius: 4, fontSize: 12, fontWeight: 600,
+              border: '1px solid #0d6efd',
+              background: hasData && !repricing ? '#0d6efd' : '#e9ecef',
+              color: hasData && !repricing ? '#fff' : '#6c757d',
+              cursor: hasData && !repricing ? 'pointer' : 'not-allowed',
+            }}
+          >
+            {repricing ? 'Repriceando…' : 'Repricear con esta marca'}
+          </button>
+        </>
+      )}
+    </div>
+  );
+}
 
 const SOURCE_LABELS: Record<string, string> = {
   set_fx: 'SET FX',
@@ -155,12 +293,20 @@ function SummaryBar({ summary, pricedAt }: { summary: PortfolioSummary | null; p
 }
 
 // ── Curve Status Bar ──
-function CurveStatusBar({ status }: { status: CurveStatus | null }) {
+function CurveStatusBar({
+  status,
+  onRefresh,
+  loading,
+}: {
+  status: CurveStatus | null;
+  onRefresh: () => void;
+  loading: boolean;
+}) {
   if (!status) return null;
   const curves = [
     { name: 'IBR', built: status.ibr.built },
     { name: 'SOFR', built: status.sofr.built },
-    { name: 'NDF', built: status.ndf.built },
+    { name: 'TES', built: status.tes?.built ?? false },
   ];
   return (
     <div
@@ -192,6 +338,27 @@ function CurveStatusBar({ status }: { status: CurveStatus | null }) {
           Spot: {fmt(status.fx_spot, 2)}
         </span>
       )}
+      {status.valuation_date && (
+        <span style={{ color: '#6c757d', fontSize: 11 }}>
+          {status.valuation_date}
+        </span>
+      )}
+      <button
+        onClick={onRefresh}
+        disabled={loading}
+        title="Refrescar curvas con las marcas más recientes"
+        style={{
+          background: 'none',
+          border: 'none',
+          cursor: loading ? 'not-allowed' : 'pointer',
+          color: '#6c757d',
+          padding: '0 4px',
+          fontSize: 12,
+          opacity: loading ? 0.5 : 1,
+        }}
+      >
+        ↻
+      </button>
     </div>
   );
 }
@@ -2026,6 +2193,7 @@ function ImpliedCurvePanel({ data, onLoad, loading, curvesReady }: { data: NdfIm
 function PortfolioPage() {
   const [curveStatus, setCurveStatus] = useState<CurveStatus | null>(null);
   const [loading, setLoading] = useState(false);
+  const [markRepricing, setMarkRepricing] = useState(false);
   const [addType, setAddType] = useState<string | null>(null); // 'xccy' | 'ndf' | 'ibr' | null
   const [selectedXccy, setSelectedXccy] = useState<PricedXccy | null>(null);
   const [selectedNdf, setSelectedNdf] = useState<PricedNdf | null>(null);
@@ -2047,6 +2215,7 @@ function PortfolioPage() {
     tradingError,
     loadPositions,
     repriceAll,
+    repriceAllWithMark,
     addXccyPosition,
     addNdfPosition,
     addIbrSwapPosition,
@@ -2061,23 +2230,14 @@ function PortfolioPage() {
     updateMarketDataConfig,
   } = useAppStore();
 
-  const handleCheckStatus = useCallback(async () => {
-    try {
-      const status = await getCurveStatus();
-      setCurveStatus(status);
-    } catch {
-      // silently fail
-    }
-  }, []);
-
-  const handleBuild = useCallback(async () => {
+  const handleBuild = useCallback(async (silent = false) => {
     setLoading(true);
     try {
       const result = await buildCurves();
       setCurveStatus(result.full_status);
-      toast.success('Curvas construidas');
+      if (!silent) toast.success('Curvas actualizadas');
     } catch (e) {
-      toast.error(`Error: ${e instanceof Error ? e.message : String(e)}`);
+      if (!silent) toast.error(`Error: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
       setLoading(false);
     }
@@ -2100,13 +2260,37 @@ function PortfolioPage() {
     toast.success('Portafolio repriceado');
   }, [repriceAll]);
 
-  // Auto-load on mount: check curves + load positions + role + market data config
+  const handleRepriceWithMark = useCallback(async (fecha: string) => {
+    setMarkRepricing(true);
+    try {
+      await repriceAllWithMark(fecha);
+      toast.success(`Portafolio valorado con marca ${fecha}`);
+    } catch (e) {
+      toast.error(`Error al valorar: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setMarkRepricing(false);
+    }
+  }, [repriceAllWithMark]);
+
+  // Auto-load on mount: init curves + load positions + role + market data config
   useEffect(() => {
-    handleCheckStatus();
+    const initCurves = async () => {
+      try {
+        const status = await getCurveStatus();
+        if (status.ibr.built && status.sofr.built) {
+          setCurveStatus(status);
+        } else {
+          await handleBuild(true); // auto-build silently
+        }
+      } catch {
+        await handleBuild(true);
+      }
+    };
+    initCurves();
     loadPositions();
     loadUserRole();
     loadMarketDataConfig();
-  }, [handleCheckStatus, loadPositions, loadUserRole, loadMarketDataConfig]);
+  }, [handleBuild, loadPositions, loadUserRole, loadMarketDataConfig]);
 
 
   // Auto-reprice when positions loaded and curves are ready
@@ -2170,14 +2354,6 @@ function PortfolioPage() {
             </PageTitle>
             <div className="d-flex align-items-center gap-2">
               <Button
-                variant="outline-success"
-                onClick={handleBuild}
-                disabled={isLoading}
-              >
-                <Icon icon={faPlay} className="me-1" />
-                {curvesReady ? 'Rebuild Curvas' : 'Construir Curvas'}
-              </Button>
-              <Button
                 variant="outline-primary"
                 onClick={handleReprice}
                 disabled={isLoading || !curvesReady}
@@ -2214,7 +2390,12 @@ function PortfolioPage() {
         </Row>
 
         {/* Curve status */}
-        <CurveStatusBar status={curveStatus} />
+        <CurveStatusBar status={curveStatus} onRefresh={() => handleBuild()} loading={isLoading} />
+        <MarkDateBar
+          onReprice={handleRepriceWithMark}
+          repricing={markRepricing}
+          initialFecha={parseValuationDate(curveStatus?.valuation_date)}
+        />
 
         {/* Active market data sources */}
         <div style={{ display: 'flex', gap: 6, marginBottom: 12, flexWrap: 'wrap' }}>
