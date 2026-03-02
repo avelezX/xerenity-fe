@@ -382,6 +382,7 @@ type PortfolioRow = {
   detail: string;          // type-specific summary
   npv_cop: number;
   npv_usd: number;
+  pnl_cop: number;         // P&L from inception in COP
   carry_cop: number;       // accrued carry or daily carry
   carry_label: string;     // "Acum" / "Diario" / "Periodo"
   dv01: number;
@@ -422,6 +423,7 @@ function buildPortfolioRows(
       notional_usd: r.notional_usd, maturity_date: r.maturity_date,
       detail: `${r.pay_usd ? 'Pay SOFR' : 'Pay IBR'} | ${fmt(r.usd_spread_bps, 0)}bps | ${r.amortization_type} ${r.payment_frequency}`,
       npv_cop: r.npv_cop, npv_usd: r.npv_usd,
+      pnl_cop: r.error ? 0 : (r.pnl_rate_cop ?? 0) + (r.pnl_fx_cop ?? 0),
       carry_cop: accrued, carry_label: 'Acum',
       dv01: r.dv01_ibr, dv01_label: 'IBR',
       dv01_2: r.dv01_sofr, dv01_2_label: 'SOFR',
@@ -437,6 +439,7 @@ function buildPortfolioRows(
       notional_usd: r.notional_usd, maturity_date: r.maturity_date,
       detail: `${r.direction === 'buy' ? 'Compra' : 'Venta'} | Strike ${fmt(r.strike, 2)} | Fwd ${r.error ? '-' : fmt(r.forward, 2)} | ${r.days_to_maturity ?? '?'}d`,
       npv_cop: r.npv_cop, npv_usd: r.npv_usd,
+      pnl_cop: r.error ? 0 : r.npv_cop,
       carry_cop: r.carry_cop_daily, carry_label: '/dia',
       dv01: r.dv01_cop, dv01_label: 'COP',
       dv01_2: r.dv01_usd, dv01_2_label: 'USD',
@@ -454,6 +457,7 @@ function buildPortfolioRows(
       maturity_date: r.maturity_date,
       detail: `${r.pay_fixed ? 'Pay Fija' : 'Pay IBR'} | Fija ${fmt(r.fixed_rate * 100, 2)}% | Fair ${r.error ? '-' : fmt(r.fair_rate * 100, 2)}% | IBR O/N ${r.error ? '-' : fmt(r.ibr_overnight_pct, 2)}% | Diff ${r.error ? '-' : fmt(r.carry_daily_diff_bps, 0)}bps`,
       npv_cop: r.npv, npv_usd: r.npv / 4200,
+      pnl_cop: r.error ? 0 : r.npv,
       carry_cop: r.carry_daily_cop, carry_label: '/dia',
       dv01: r.dv01, dv01_label: 'IBR',
       error: r.error,
@@ -507,6 +511,7 @@ function PortfolioTable({
     ['Estado', 'Estado de la operacion: Activo, Vencido, Cancelado'],
     ['NPV COP', 'Valor presente neto en COP. Positivo = a favor'],
     ['NPV USD', 'Valor presente neto en USD. Positivo = a favor'],
+    ['PyG', 'P&L desde inicio en COP. XCCY: tasa + FX. NDF/IBR: NPV (≈ MTM)'],
     ['Carry COP', 'XCCY: carry acumulado. NDF: theta diario. IBR: carry periodo'],
     ['DV01', 'Sensibilidad en USD a +1bp. XCCY: IBR. NDF: COP curve. IBR: IBR'],
     ['DV01 (2)', 'Sensibilidad en USD a +1bp. XCCY: SOFR. NDF: USD curve'],
@@ -578,6 +583,10 @@ function PortfolioTable({
                 <td style={{ padding: '6px', fontFamily: 'monospace', fontSize: 11, color: npvColor(r.npv_usd) }}>
                   {r.error ? 'Err' : fmtMM(r.npv_usd)}
                 </td>
+                {/* PyG */}
+                <td style={{ padding: '6px', fontFamily: 'monospace', fontSize: 11, fontWeight: 700, color: r.error ? '#6c757d' : npvColor(r.pnl_cop) }}>
+                  {r.error ? '\u2014' : fmtMM(r.pnl_cop)}
+                </td>
                 {/* Carry COP */}
                 <td style={{ padding: '6px', fontFamily: 'monospace', fontSize: 11, color: npvColor(r.carry_cop) }}>
                   {r.error ? '\u2014' : <>{fmtMM(r.carry_cop)} <span style={{ fontSize: 9, color: '#6c757d' }}>{r.carry_label}</span></>}
@@ -610,6 +619,7 @@ function PortfolioTable({
           const valid = rows.filter((r) => !r.error);
           const sumNpvCop = valid.reduce((s, r) => s + r.npv_cop, 0);
           const sumNpvUsd = valid.reduce((s, r) => s + r.npv_usd, 0);
+          const sumPnl = valid.reduce((s, r) => s + r.pnl_cop, 0);
           const sumCarry = valid.reduce((s, r) => s + r.carry_cop, 0);
           const sumDv01 = valid.reduce((s, r) => s + r.dv01, 0);
           const sumDv012 = valid.reduce((s, r) => s + (r.dv01_2 ?? 0), 0);
@@ -621,6 +631,7 @@ function PortfolioTable({
                 <td style={tStyle} colSpan={9}>TOTAL ({valid.length} posiciones)</td>
                 <td style={{ ...tStyle, color: npvColor(sumNpvCop) }}>{fmtMM(sumNpvCop)}</td>
                 <td style={{ ...tStyle, color: npvColor(sumNpvUsd) }}>{fmtMM(sumNpvUsd)}</td>
+                <td style={{ ...tStyle, color: npvColor(sumPnl) }}>{fmtMM(sumPnl)}</td>
                 <td style={{ ...tStyle, color: npvColor(sumCarry) }}>{fmtMM(sumCarry)}</td>
                 <td style={{ ...tStyle, color: npvColor(sumDv01) }}>{fmtMM(sumDv01)}</td>
                 <td style={{ ...tStyle, color: npvColor(sumDv012) }}>{fmtMM(sumDv012)}</td>
