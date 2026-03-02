@@ -13,8 +13,10 @@ const supabase = createClientComponentClient();
  * Fetches all historical curve data for a given fecha (YYYY-MM-DD).
  *
  * ibr_quotes_curve.fecha is stored as ISO text '2026-02-28T00:00:00'
- * so we use .like('fecha', `${fecha}%`) for safe matching across both
- * text and date column types.
+ * so we use .like('fecha', `${fecha}%`) for safe matching.
+ *
+ * sofr_swap_curve and cop_fwd_points store fecha as a native date column
+ * so we use .eq('fecha', fecha) — LIKE does not work on date columns.
  */
 // eslint-disable-next-line import/prefer-default-export
 export const fetchHistoricalMark = async (
@@ -33,19 +35,19 @@ export const fetchHistoricalMark = async (
       .schema('xerenity')
       .from('sofr_swap_curve')
       .select('tenor_months, swap_rate')
-      .like('fecha', `${fecha}%`)
+      .eq('fecha', fecha)
       .order('tenor_months'),
 
     supabase
       .schema('xerenity')
       .from('cop_fwd_points')
       .select('tenor, tenor_months, fwd_points, mid')
-      .like('fecha', `${fecha}%`)
+      .eq('fecha', fecha)
       .order('tenor_months'),
 
     supabase
-      .schema('trading')
-      .rpc('get_tes_yield_curve_for_date', { p_fecha: fecha }),
+      .schema('xerenity')
+      .rpc('get_tes_yield_curve_for_date', { p_money: 'COLTES-COP', p_fecha: fecha }),
   ]);
 
   const ibr =
