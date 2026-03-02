@@ -3,6 +3,7 @@ import {
   NewXccyPosition,
   NewNdfPosition,
   NewIbrSwapPosition,
+  NewTesPosition,
 } from 'src/types/trading';
 
 const supabase = createClientComponentClient();
@@ -120,6 +121,38 @@ export const createIbrSwapPosition = async (
     return response;
   } catch {
     response.error = 'Error creating IBR Swap position';
+    return response;
+  }
+};
+
+export const createTesPosition = async (
+  values: NewTesPosition
+): Promise<CreatePositionResponse> => {
+  const response: CreatePositionResponse = { data: undefined, error: undefined };
+  try {
+    const { data, error } = await supabase.schema(SCHEMA).rpc('create_tes_position', {
+      p_bond_name: values.bond_name,
+      p_issue_date: values.issue_date,
+      p_maturity_date: values.maturity_date,
+      p_coupon_rate: values.coupon_rate,
+      p_notional: values.notional,
+      p_face_value: values.face_value ?? 100,
+      p_purchase_price: values.purchase_price ?? null,
+      p_purchase_ytm: values.purchase_ytm ?? null,
+      p_trade_date: values.trade_date ?? null,
+      p_sociedad: values.sociedad ?? null,
+      p_estado: values.estado ?? 'Activo',
+      p_label: values.label ?? null,
+      p_counterparty: values.counterparty ?? null,
+    });
+    if (error) {
+      response.error = 'Error creating TES position';
+      return response;
+    }
+    response.data = data;
+    return response;
+  } catch {
+    response.error = 'Error creating TES position';
     return response;
   }
 };

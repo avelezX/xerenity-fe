@@ -9,6 +9,8 @@ import type {
   IbrSwapPricingResult,
   ParCurvePoint,
   TesBondResult,
+  TesCatalogItem,
+  TesYieldCurvePoint,
   XccySwapResult,
   ParBasisPoint,
 } from 'src/types/pricing';
@@ -102,14 +104,26 @@ export interface TesBondRequest {
   maturity_date: string;
   coupon_rate: number;
   market_clean_price?: number;
+  market_ytm?: number;
   face_value?: number;
+  include_cashflows?: boolean; // pysdk: include full coupon schedule in response
+  bond_name?: string;          // pysdk: catalog lookup by name
 }
 
 export const priceTesBond = (params: TesBondRequest) =>
   pricingFetch<TesBondResult>('pricing/tes-bond', {
     method: 'POST',
-    body: JSON.stringify(params),
+    body: JSON.stringify({ include_cashflows: true, ...params }),
   });
+
+// Backend returns { count, bonds[] } — unwrap to TesCatalogItem[]
+export const getTesCatalog = () =>
+  pricingFetch<{ count: number; bonds: TesCatalogItem[] }>('pricing/tes/catalog')
+    .then((res) => res.bonds);
+
+// No backend endpoint yet — caller should catch and use mock data
+export const getTesYieldCurve = () =>
+  pricingFetch<TesYieldCurvePoint[]>('pricing/tes/yield-curve');
 
 // ── Xccy Swap ──
 

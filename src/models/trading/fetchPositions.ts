@@ -3,6 +3,7 @@ import {
   XccyPosition,
   NdfPosition,
   IbrSwapPosition,
+  TesPosition,
   UserTradingRole,
 } from 'src/types/trading';
 
@@ -91,6 +92,29 @@ export const fetchIbrSwapPositions = async (): Promise<
     return response;
   } catch {
     response.error = 'Error fetching IBR Swap positions';
+    return response;
+  }
+};
+
+export const fetchTesPositions = async (): Promise<
+  PositionsResponse<TesPosition>
+> => {
+  const response: PositionsResponse<TesPosition> = {
+    data: [],
+    error: undefined,
+  };
+  try {
+    const { data, error } = await supabase
+      .schema(SCHEMA)
+      .rpc('get_tes_positions');
+    if (error) {
+      response.error = 'Error fetching TES positions';
+      return response;
+    }
+    response.data = data ?? [];
+    return response;
+  } catch {
+    response.error = 'Error fetching TES positions';
     return response;
   }
 };
