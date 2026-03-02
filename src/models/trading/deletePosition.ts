@@ -67,3 +67,23 @@ export const deleteIbrSwapPositions = async (
     return response;
   }
 };
+
+export const deleteTesPositions = async (
+  ids: string[]
+): Promise<DeletePositionResponse> => {
+  const response: DeletePositionResponse = { data: undefined, error: undefined };
+  try {
+    const { data, error } = await supabase
+      .schema(SCHEMA)
+      .rpc('delete_tes_position', { position_ids: ids });
+    if (error) {
+      response.error = 'Error deleting TES position(s)';
+      return response;
+    }
+    response.data = data;
+    return response;
+  } catch {
+    response.error = 'Error deleting TES position(s)';
+    return response;
+  }
+};

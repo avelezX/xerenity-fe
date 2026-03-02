@@ -894,6 +894,14 @@ function AddNdfModal({
   );
 }
 
+// Compute default dates
+const getTodayStr = () => new Date().toISOString().slice(0, 10);
+const getT2Str = () => {
+  const d = new Date();
+  d.setDate(d.getDate() + 2);
+  return d.toISOString().slice(0, 10);
+};
+
 function AddIbrSwapModal({
   show,
   onHide,
@@ -906,7 +914,7 @@ function AddIbrSwapModal({
   const [label, setLabel] = useState('');
   const [counterparty, setCounterparty] = useState('');
   const [notional, setNotional] = useState(0);
-  const [startDate, setStartDate] = useState('');
+  const [startDate, setStartDate] = useState(getT2Str);
   const [maturityDate, setMaturityDate] = useState('');
   const [fixedRate, setFixedRate] = useState(0);
   const [payFixed, setPayFixed] = useState(true);
@@ -938,18 +946,34 @@ function AddIbrSwapModal({
 
   // Operational
   const [idOperacion, setIdOperacion] = useState('');
-  const [tradeDate, setTradeDate] = useState('');
+  const [tradeDate, setTradeDate] = useState(getTodayStr);
   const [sociedad, setSociedad] = useState('BP01');
   const [idBanco, setIdBanco] = useState('');
-  const [modalidad, setModalidad] = useState('');
-  const [settlementDate, setSettlementDate] = useState('');
+  const [modalidad, setModalidad] = useState('OIS');
+  const [settlementDate, setSettlementDate] = useState(getT2Str);
   const [tipoDivisa, setTipoDivisa] = useState('COP');
   const [estado, setEstado] = useState('Activo');
   const [docSap, setDocSap] = useState('');
 
   const handleSave = () => {
-    if (!notional || !startDate || !maturityDate || !fixedRate) {
-      toast.warn('Completa nocional, fechas y tasa fija');
+    if (!notional || notional <= 0) {
+      toast.warn('El nocional debe ser mayor a cero');
+      return;
+    }
+    if (!fixedRate || fixedRate <= 0) {
+      toast.warn('Ingrese una tasa fija válida');
+      return;
+    }
+    if (!startDate) {
+      toast.warn('Ingrese la fecha de inicio');
+      return;
+    }
+    if (!maturityDate) {
+      toast.warn('Ingrese la fecha de vencimiento (o seleccione un tenor)');
+      return;
+    }
+    if (new Date(maturityDate) <= new Date(startDate)) {
+      toast.warn('La fecha de vencimiento debe ser posterior a la fecha de inicio');
       return;
     }
     onSave({
@@ -1626,10 +1650,63 @@ function NdfDetailModal({ row, show, onHide }: { row: PricedNdf | null; show: bo
   );
 }
 
+// Generate projected cashflows for IBR swap detail
+function generateIbrCashflows(row: PricedIbrSwap) {
+  const freqMonths: Record<string, number> = { '1M': 1, '3M': 3, '6M': 6, '12M': 12 };
+  const floatingRate = row.fair_rate; // proxy for floating leg
+  const maturity = new Date(row.maturity_date + 'T00:00:00');
+  const result = [];
+
+  if (row.payment_frequency === 'Bullet') {
+    const start = new Date(row.start_date + 'T00:00:00');
+    const days = Math.round((maturity.getTime() - start.getTime()) / 86400000);
+    const fixedAmt = row.notional * row.fixed_rate * days / 365;
+    const floatAmt = row.notional * floatingRate * days / 365;
+    const net = row.pay_fixed ? floatAmt - fixedAmt : fixedAmt - floatAmt;
+    result.push({
+      period: 1, start: row.start_date, end: row.maturity_date,
+      payment_date: row.maturity_date, days, fixed_rate: row.fixed_rate,
+      floating_rate: floatingRate, fixed_amount: fixedAmt,
+      floating_amount: floatAmt, net_amount: net, df: 1.0, pv: net,
+    });
+    return result;
+  }
+
+  const months = freqMonths[row.payment_frequency] || 3;
+  let periodStart = new Date(row.start_date + 'T00:00:00');
+  let period = 1;
+
+  while (periodStart < maturity && period <= 120) {
+    const rawEnd = new Date(periodStart);
+    rawEnd.setMonth(rawEnd.getMonth() + months);
+    const periodEnd = rawEnd > maturity ? maturity : rawEnd;
+    const days = Math.round((periodEnd.getTime() - periodStart.getTime()) / 86400000);
+    const fixedAmt = row.notional * row.fixed_rate * days / 365;
+    const floatAmt = row.notional * floatingRate * days / 365;
+    const net = row.pay_fixed ? floatAmt - fixedAmt : fixedAmt - floatAmt;
+    result.push({
+      period,
+      start: periodStart.toISOString().slice(0, 10),
+      end: periodEnd.toISOString().slice(0, 10),
+      payment_date: periodEnd.toISOString().slice(0, 10),
+      days, fixed_rate: row.fixed_rate, floating_rate: floatingRate,
+      fixed_amount: fixedAmt, floating_amount: floatAmt,
+      net_amount: net, df: 1.0, pv: net,
+    });
+    periodStart = new Date(periodEnd);
+    period += 1;
+  }
+  return result;
+}
+
 function IbrSwapDetailModal({ row, show, onHide }: { row: PricedIbrSwap | null; show: boolean; onHide: () => void }) {
   if (!row) return null;
+  const cashflows = row.cashflows ?? (row.error ? [] : generateIbrCashflows(row));
+  const totalNet = cashflows.reduce((s, c) => s + c.net_amount, 0);
+  const today = new Date();
+
   return (
-    <Modal show={show} onHide={onHide} size="lg">
+    <Modal show={show} onHide={onHide} size="xl">
       <Modal.Header closeButton>
         <Modal.Title style={{ fontSize: 16 }}>{row.label} — {row.counterparty}</Modal.Title>
       </Modal.Header>
@@ -1716,6 +1793,70 @@ function IbrSwapDetailModal({ row, show, onHide }: { row: PricedIbrSwap | null; 
             </div>
           </div>
         </div>
+
+        {/* Cashflows por periodo */}
+        {cashflows.length > 0 && (
+          <div style={{ marginTop: 16 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#495057' }}>Cashflows por Periodo</div>
+              <span style={{ fontSize: 12, color: '#6c757d' }}>
+                Total neto: <strong style={{ fontFamily: 'monospace', color: npvColor(totalNet) }}>{fmtMM(totalNet)} COP</strong>
+                {!row.cashflows && <span style={{ fontSize: 10, color: '#ffc107', marginLeft: 6 }}>* estimado</span>}
+              </span>
+            </div>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                <thead>
+                  <tr style={{ borderBottom: '2px solid #dee2e6', background: '#f8f9fa' }}>
+                    {['#', 'Inicio', 'Fin', 'Días', 'Tasa Fija', 'IBR Fwd', 'Pago Fijo', 'Pago Flotante', 'Neto COP'].map((h) => (
+                      <th key={h} style={{ padding: '5px 8px', textAlign: h === '#' || h === 'Días' ? 'center' : 'right', whiteSpace: 'nowrap' }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {cashflows.map((cf) => {
+                    const isPast = new Date(cf.end) < today;
+                    const isCurrent = new Date(cf.start) <= today && new Date(cf.end) >= today;
+                    return (
+                      <tr
+                        key={cf.period}
+                        style={{
+                          borderBottom: '1px solid #f0f0f0',
+                          background: isCurrent ? '#fffde7' : isPast ? '#fafafa' : 'transparent',
+                        }}
+                      >
+                        <td style={{ padding: '3px 8px', textAlign: 'center', color: '#6c757d' }}>{cf.period}</td>
+                        <td style={{ padding: '3px 8px', textAlign: 'right', fontFamily: 'monospace' }}>{cf.start}</td>
+                        <td style={{ padding: '3px 8px', textAlign: 'right', fontFamily: 'monospace' }}>{cf.end}</td>
+                        <td style={{ padding: '3px 8px', textAlign: 'center', color: '#6c757d' }}>{cf.days}</td>
+                        <td style={{ padding: '3px 8px', textAlign: 'right', fontFamily: 'monospace' }}>{(cf.fixed_rate * 100).toFixed(4)}%</td>
+                        <td style={{ padding: '3px 8px', textAlign: 'right', fontFamily: 'monospace' }}>{(cf.floating_rate * 100).toFixed(4)}%</td>
+                        <td style={{ padding: '3px 8px', textAlign: 'right', fontFamily: 'monospace', color: '#dc3545' }}>
+                          ({fmtMM(cf.fixed_amount)})
+                        </td>
+                        <td style={{ padding: '3px 8px', textAlign: 'right', fontFamily: 'monospace', color: '#28a745' }}>
+                          {fmtMM(cf.floating_amount)}
+                        </td>
+                        <td style={{ padding: '3px 8px', textAlign: 'right', fontFamily: 'monospace', fontWeight: 600, color: npvColor(cf.net_amount) }}>
+                          {fmtMM(cf.net_amount)}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+                <tfoot>
+                  <tr style={{ borderTop: '2px solid #dee2e6', background: '#f8f9fa' }}>
+                    <td colSpan={8} style={{ padding: '5px 8px', fontWeight: 600, textAlign: 'right', fontSize: 12 }}>Total</td>
+                    <td style={{ padding: '5px 8px', textAlign: 'right', fontFamily: 'monospace', fontWeight: 700, color: npvColor(totalNet) }}>
+                      {fmtMM(totalNet)}
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+        )}
+
         <OperationalSection row={row} />
       </Modal.Body>
     </Modal>

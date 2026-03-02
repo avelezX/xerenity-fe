@@ -52,6 +52,21 @@ export interface NdfImpliedCurvePoint {
 
 // ── IBR Swap ──
 
+export interface IbrSwapCashflow {
+  period: number;
+  start: string;
+  end: string;
+  payment_date: string;
+  days: number;
+  fixed_rate: number;      // decimal
+  floating_rate: number;   // decimal (IBR forward rate for the period)
+  fixed_amount: number;    // COP
+  floating_amount: number; // COP
+  net_amount: number;      // COP (positive = net receipt)
+  df: number;              // discount factor
+  pv: number;              // present value COP
+}
+
 export interface IbrSwapPricingResult {
   npv: number;
   fair_rate: number;
@@ -63,6 +78,14 @@ export interface IbrSwapPricingResult {
   notional: number;
   pay_fixed: boolean;
   spread: number;
+  // Optional carry fields (returned by backend when available)
+  carry_daily_cop?: number;
+  carry_daily_diff_bps?: number;
+  ibr_overnight_pct?: number;
+  ibr_fwd_period_pct?: number;
+  carry_period_cop?: number;
+  carry_period_diff_bps?: number;
+  cashflows?: IbrSwapCashflow[];
 }
 
 export interface ParCurvePoint {
@@ -74,12 +97,41 @@ export interface ParCurvePoint {
 
 // ── TES Bond ──
 
+// Matches pysdk TesBondPricer.cashflow_schedule() response exactly
+export interface TesBondCashflow {
+  date: string;
+  date_str: string;
+  period: number;
+  coupon: number;
+  principal: number;
+  cashflow: number;        // total = coupon + principal
+  discount_factor: number; // from TES yield curve
+  pv: number;
+  accrual_start: string;
+  accrual_end: string;
+  accrual_days: number;
+  year_fraction: number;
+}
+
+// Carry/roll-down analytics returned by pysdk
+export interface TesBondCarry {
+  horizon_days: number;
+  horizon_date: string;
+  current_dirty: number;
+  horizon_dirty: number;
+  coupon_carry: number;
+  rolldown: number;
+  total_carry: number;
+  total_carry_bps_annualized: number;
+}
+
+// Matches pysdk TesBondPricer.analytics() response
 export interface TesBondResult {
   clean_price: number;
   dirty_price: number;
   accrued_interest: number;
   npv: number;
-  ytm: number;
+  ytm: number;              // decimal (e.g. 0.095 = 9.5%)
   macaulay_duration: number;
   modified_duration: number;
   convexity: number;
@@ -88,6 +140,25 @@ export interface TesBondResult {
   coupon_rate: number;
   face_value: number;
   maturity: string;
+  cashflows?: TesBondCashflow[];
+  carry?: TesBondCarry;
+  z_spread_bps?: number | null;
+}
+
+export interface TesCatalogItem {
+  name: string;
+  issue_date: string;
+  maturity_date: string;
+  coupon_rate: number;
+  currency?: string;
+}
+
+export interface TesYieldCurvePoint {
+  tenor: string;
+  tenor_years: number;
+  ytm: number;
+  maturity_date?: string;
+  name?: string;
 }
 
 // ── Xccy Swap ──
