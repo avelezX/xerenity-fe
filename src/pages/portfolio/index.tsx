@@ -2198,7 +2198,8 @@ function PortfolioPage() {
   const [selectedXccy, setSelectedXccy] = useState<PricedXccy | null>(null);
   const [selectedNdf, setSelectedNdf] = useState<PricedNdf | null>(null);
   const [selectedIbrSwap, setSelectedIbrSwap] = useState<PricedIbrSwap | null>(null);
-  const [viewTab, setViewTab] = useState<'portfolio' | 'curves' | 'implied' | 'marcas'>('portfolio');
+  const [viewTab, setViewTab] = useState<'portfolio' | 'curves'>('portfolio');
+  const [curvesSubTab, setCurvesSubTab] = useState<'ibr_sofr' | 'marcas' | 'implied'>('ibr_sofr');
   const [impliedCurve, setImpliedCurve] = useState<NdfImpliedCurvePoint[]>([]);
   const [showConfigModal, setShowConfigModal] = useState(false);
 
@@ -2447,8 +2448,6 @@ function PortfolioPage() {
           {([
             ['portfolio', 'Portafolio', faTable],
             ['curves', 'Curvas', faLineChart],
-            ['implied', 'Curva Implicita', faLineChart],
-            ['marcas', 'Marcas', faTable],
           ] as const).map(([key, label, icon]) => (
             <button
               key={key}
@@ -2491,16 +2490,47 @@ function PortfolioPage() {
             />
           </div>
         )}
-        {viewTab === 'curves' && <CurvesPanel status={curveStatus} />}
-        {viewTab === 'implied' && (
-          <ImpliedCurvePanel
-            data={impliedCurve}
-            onLoad={handleFetchImplied}
-            loading={isLoading}
-            curvesReady={!!curvesReady}
-          />
+        {viewTab === 'curves' && (
+          <>
+            {/* Curves sub-tabs */}
+            <div style={{ display: 'flex', gap: 4, marginBottom: 12, borderBottom: '1px solid #dee2e6', paddingBottom: 8 }}>
+              {([
+                ['ibr_sofr', 'IBR / SOFR'],
+                ['marcas', 'Marcas'],
+                ['implied', 'Curva Implícita'],
+              ] as const).map(([key, label]) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setCurvesSubTab(key)}
+                  style={{
+                    padding: '4px 12px',
+                    fontSize: 12,
+                    fontWeight: 600,
+                    border: 'none',
+                    borderBottom: curvesSubTab === key ? '2px solid #0d6efd' : '2px solid transparent',
+                    borderRadius: 0,
+                    cursor: 'pointer',
+                    background: 'none',
+                    color: curvesSubTab === key ? '#0d6efd' : '#6c757d',
+                  }}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            {curvesSubTab === 'ibr_sofr' && <CurvesPanel status={curveStatus} />}
+            {curvesSubTab === 'marcas' && <MarcasPanel />}
+            {curvesSubTab === 'implied' && (
+              <ImpliedCurvePanel
+                data={impliedCurve}
+                onLoad={handleFetchImplied}
+                loading={isLoading}
+                curvesReady={!!curvesReady}
+              />
+            )}
+          </>
         )}
-        {viewTab === 'marcas' && <MarcasPanel />}
 
         {/* Add Modals */}
         <AddXccyModal
