@@ -52,6 +52,14 @@ const fmtPct = (v: number | null | undefined) =>
 const fmtPct3 = (v: number | null | undefined) =>
   v != null ? `${(v * 100).toFixed(3)}%` : '—';
 
+/** Format date as YYYY-MM-DD using LOCAL timezone (avoids UTC midnight cutoff issues) */
+function toLocalYMD(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
 /** Skip weekends: returns the nearest business day on or before the given date */
 function lastBusinessDay(d: Date): Date {
   const day = d.getDay(); // 0=Sun, 6=Sat
@@ -60,11 +68,11 @@ function lastBusinessDay(d: Date): Date {
   return d;
 }
 
-/** Returns last business day in YYYY-MM-DD (safe default — today may have no data yet) */
+/** Returns last business day in YYYY-MM-DD (local timezone, safe default) */
 function defaultFecha(): string {
   const d = new Date();
-  d.setDate(d.getDate() - 1); // start from yesterday
-  return lastBusinessDay(d).toISOString().slice(0, 10);
+  d.setDate(d.getDate() - 1); // start from yesterday (local)
+  return toLocalYMD(lastBusinessDay(d));
 }
 
 /** Step one business day forward/backward (skips weekends) */
@@ -77,7 +85,7 @@ function stepDate(fecha: string, delta: number): string {
     const day = d.getDay();
     if (day !== 0 && day !== 6) remaining -= 1; // count only business days
   }
-  return d.toISOString().slice(0, 10);
+  return toLocalYMD(d);
 }
 
 // ── Styles ────────────────────────────────────────────────────────────────────
@@ -400,7 +408,7 @@ export default function MarcasPanel() {
 
   const handlePrev = () => setFecha((f) => stepDate(f, -1));
   const handleNext = () => {
-    const tomorrow = stepDate(new Date().toISOString().slice(0, 10), 1);
+    const tomorrow = stepDate(toLocalYMD(new Date()), 1);
     setFecha((f) => {
       const next = stepDate(f, 1);
       return next <= tomorrow ? next : f;
@@ -431,7 +439,7 @@ export default function MarcasPanel() {
           type="date"
           value={fecha}
           min="2026-01-01"
-          max={new Date().toISOString().slice(0, 10)}
+          max={toLocalYMD(new Date())}
           onChange={(e) => e.target.value && setFecha(e.target.value)}
           style={{
             border: '1px solid #ced4da',
