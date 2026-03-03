@@ -1455,14 +1455,14 @@ function XccyDetailModal({ row, show, onHide }: { row: PricedXccy | null; show: 
         <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
           {npvBox('NPV USD', row.npv_usd)}
           {npvBox('NPV COP', row.npv_cop)}
-          {row.par_basis_bps != null && (
-            <div style={{ flex: 1, padding: '12px 16px', borderRadius: 8, textAlign: 'center', background: '#cce5ff' }}>
-              <div style={{ fontSize: 10, textTransform: 'uppercase', color: '#004085' }}>Par Basis</div>
-              <div style={{ fontSize: 20, fontWeight: 700, fontFamily: 'monospace', color: '#004085' }}>
-                {fmt(row.par_basis_bps, 1)} bps
-              </div>
+          <div style={{ flex: 1, padding: '12px 16px', borderRadius: 8, textAlign: 'center', background: row.par_basis_bps != null ? '#cce5ff' : '#f8f9fa', border: '1px solid #dee2e6' }}>
+            <div style={{ fontSize: 10, textTransform: 'uppercase', color: row.par_basis_bps != null ? '#004085' : '#6c757d' }}>
+              <ColTip label="Par Basis" tip="Spread justo de basis XCCY para una nueva operación hoy. No disponible para swaps mid-life ya que el cálculo de estructura FX fija no es comparable al basis de mercado." />
             </div>
-          )}
+            <div style={{ fontSize: 20, fontWeight: 700, fontFamily: 'monospace', color: row.par_basis_bps != null ? '#004085' : '#adb5bd' }}>
+              {row.par_basis_bps != null ? `${fmt(row.par_basis_bps, 1)} bps` : 'N/A'}
+            </div>
+          </div>
         </div>
 
         {/* P&L decomposition */}
@@ -1641,7 +1641,7 @@ function XccyDetailModal({ row, show, onHide }: { row: PricedXccy | null; show: 
                   <table style={{ width: '100%', fontSize: 11, borderCollapse: 'collapse' }}>
                     <thead>
                       <tr style={{ borderBottom: '2px solid #17a2b8' }}>
-                        {['#', 'Inicio', 'Fin', 'Dias', 'IBR %', 'SOFR %', 'Diff bps', 'Carry COP', 'Diario COP', 'Dias Devengo', 'Devengado COP', ''].map((h) => (
+                        {['#', 'Inicio', 'Fin', 'Dias', 'Noc. USD (MM)', 'Noc. COP (MM)', 'IBR %', 'SOFR %', 'Diff bps', 'Carry COP', 'Diario COP', 'Dias Devengo', 'Devengado COP', ''].map((h) => (
                           <th key={h} style={{ padding: '4px 4px', fontWeight: 600, whiteSpace: 'nowrap', textAlign: 'right', fontSize: 10, color: '#17a2b8' }}>{h}</th>
                         ))}
                       </tr>
@@ -1659,8 +1659,10 @@ function XccyDetailModal({ row, show, onHide }: { row: PricedXccy | null; show: 
                           <td style={{ padding: '3px 4px' }}>{c.start}</td>
                           <td style={{ padding: '3px 4px' }}>{c.end}</td>
                           <td style={{ padding: '3px 4px', textAlign: 'right', fontFamily: 'monospace' }}>{c.daysInPeriod}</td>
-                          <td style={{ padding: '3px 4px', textAlign: 'right', fontFamily: 'monospace' }}>{fmt(c.cop_rate, 4)}</td>
-                          <td style={{ padding: '3px 4px', textAlign: 'right', fontFamily: 'monospace' }}>{fmt(c.usd_rate, 4)}</td>
+                          <td style={{ padding: '3px 4px', textAlign: 'right', fontFamily: 'monospace', color: '#6c757d' }}>{fmtMM(c.notional_usd)}</td>
+                          <td style={{ padding: '3px 4px', textAlign: 'right', fontFamily: 'monospace', color: '#6c757d' }}>{fmtMM(c.notional_cop)}</td>
+                          <td style={{ padding: '3px 4px', textAlign: 'right', fontFamily: 'monospace' }}>{fmt(c.cop_rate * 100, 4)}%</td>
+                          <td style={{ padding: '3px 4px', textAlign: 'right', fontFamily: 'monospace' }}>{fmt(c.usd_rate * 100, 4)}%</td>
                           <td style={{ padding: '3px 4px', textAlign: 'right', fontFamily: 'monospace', fontWeight: 600, color: npvColor(c.diffBps) }}>
                             {fmt(c.diffBps, 1)}
                           </td>
