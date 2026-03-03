@@ -30,7 +30,7 @@ const EmptyState = () => (
 );
 
 const SelectedSeriesTable = ({ list }: LoanListProps) => {
-  if (list.length === 0) {
+  if (!list || list.length === 0) {
     return <EmptyState />;
   }
   return (
