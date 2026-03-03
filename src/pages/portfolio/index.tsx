@@ -8,7 +8,6 @@ import Container from 'react-bootstrap/Container';
 import { FontAwesomeIcon as Icon } from '@fortawesome/react-fontawesome';
 import {
   faBriefcase,
-  faPlay,
   faSyncAlt,
   faPlus,
   faTrash,
@@ -36,8 +35,8 @@ import {
 } from 'src/models/pricing/pricingApi';
 import { fetchHistoricalMark } from 'src/models/trading/fetchHistoricalMark';
 import type { CurveStatus, NdfImpliedCurvePoint } from 'src/types/pricing';
-import type { HistoricalMark } from 'src/types/trading';
 import type {
+  HistoricalMark,
   NewXccyPosition,
   NewNdfPosition,
   NewIbrSwapPosition,
@@ -57,7 +56,7 @@ const PAGE_TITLE = 'Portafolio de Derivados';
 function parseValuationDate(valDate: string | undefined): string | undefined {
   if (!valDate) return undefined;
   const d = new Date(valDate);
-  if (!isNaN(d.getTime())) return d.toISOString().slice(0, 10);
+  if (!Number.isNaN(d.getTime())) return d.toISOString().slice(0, 10);
   return undefined;
 }
 
@@ -352,6 +351,7 @@ function CurveStatusBar({
         </span>
       )}
       <button
+        type="button"
         onClick={onRefresh}
         disabled={loading}
         title="Refrescar curvas con las marcas más recientes"
@@ -374,7 +374,7 @@ function CurveStatusBar({
 // ── Column header with instant hover tooltip ──
 function ColTip({ label, tip }: { label: string; tip: string }) {
   const [show, setShow] = useState(false);
-  if (!tip) return <>{label}</>;
+  if (!tip) return <span>{label}</span>;
   return (
     <span style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', gap: 3 }}>
       {label}
