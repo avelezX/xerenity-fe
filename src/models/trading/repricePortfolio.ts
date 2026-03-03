@@ -82,8 +82,8 @@ export const repricePortfolio = async (
 
   const n = (v: unknown, fallback = 0) => (v as number) ?? fallback;
 
-  const xccyResults: PricedXccy[] = raw.xccy_results.map((r) => {
-    const pos = xccyById[r.position_id as string];
+  const xccyResults: PricedXccy[] = (raw.xccy_results ?? []).map((r) => {
+    const pos = xccyById[r.id as string];
     return {
       ...pos,
       npv_cop: n(r.npv_cop), npv_usd: n(r.npv_usd),
@@ -103,8 +103,8 @@ export const repricePortfolio = async (
     };
   });
 
-  const ndfResults: PricedNdf[] = raw.ndf_results.map((r) => {
-    const pos = ndfById[r.position_id as string];
+  const ndfResults: PricedNdf[] = (raw.ndf_results ?? []).map((r) => {
+    const pos = ndfById[r.id as string];
     return {
       ...pos,
       npv_usd: n(r.npv_usd), npv_cop: n(r.npv_cop),
@@ -120,8 +120,8 @@ export const repricePortfolio = async (
     };
   });
 
-  const ibrSwapResults: PricedIbrSwap[] = raw.ibr_swap_results.map((r) => {
-    const pos = ibrById[r.position_id as string];
+  const ibrSwapResults: PricedIbrSwap[] = (raw.ibr_swap_results ?? []).map((r) => {
+    const pos = ibrById[r.id as string];
     return {
       ...pos,
       npv: n(r.npv), fair_rate: n(r.fair_rate), dv01: n(r.dv01),
@@ -140,6 +140,10 @@ export const repricePortfolio = async (
     xccy_results: xccyResults,
     ndf_results: ndfResults,
     ibr_swap_results: ibrSwapResults,
-    summary: raw.summary,
+    summary: raw.summary ?? {
+      total_npv_cop: 0, total_npv_usd: 0,
+      total_carry_cop: 0, total_carry_usd: 0,
+      total_pnl_rate_cop: 0, total_pnl_fx_cop: 0,
+    },
   };
 };
