@@ -371,6 +371,41 @@ function CurveStatusBar({
   );
 }
 
+// ── Column header with instant hover tooltip ──
+function ColTip({ label, tip }: { label: string; tip: string }) {
+  const [show, setShow] = useState(false);
+  if (!tip) return <>{label}</>;
+  return (
+    <span style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+      {label}
+      <span
+        onMouseEnter={() => setShow(true)}
+        onMouseLeave={() => setShow(false)}
+        style={{
+          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+          width: 13, height: 13, borderRadius: '50%',
+          background: '#adb5bd', color: '#fff',
+          fontSize: 9, fontWeight: 700, cursor: 'help', userSelect: 'none', flexShrink: 0,
+        }}
+      >
+        ?
+      </span>
+      {show && (
+        <div style={{
+          position: 'absolute', bottom: 'calc(100% + 6px)', left: '50%',
+          transform: 'translateX(-50%)',
+          zIndex: 9999, background: '#212529', color: '#fff',
+          padding: '6px 10px', borderRadius: 5, fontSize: 11, lineHeight: 1.5,
+          width: 220, whiteSpace: 'normal', pointerEvents: 'none',
+          boxShadow: '0 3px 10px rgba(0,0,0,0.35)',
+        }}>
+          {tip}
+        </div>
+      )}
+    </span>
+  );
+}
+
 // ── Unified Portfolio Row ──
 type PortfolioRow = {
   id: string;
@@ -500,22 +535,22 @@ function PortfolioTable({
   };
 
   const COLS: [string, string][] = [
-    ['Tipo', 'Tipo de instrumento: XCCY, NDF, IBR'],
-    ['ID Op', 'ID Operacion Interno'],
-    ['Contraparte', ''],
-    ['Sociedad', 'Codigo sociedad (BP01, BP02, etc.)'],
-    ['Nocional', 'Nocional USD (XCCY/NDF) o COP (IBR Swap)'],
-    ['Tasa/Strike', 'NDF: Tasa FW. XCCY: Spread USD. IBR: Tasa Fija'],
-    ['F. Celebr.', 'Fecha de celebracion de la operacion'],
-    ['Vencimiento', 'Fecha de vencimiento o fixing'],
-    ['Estado', 'Estado de la operacion: Activo, Vencido, Cancelado'],
-    ['NPV COP', 'Valor presente neto en COP. Positivo = a favor'],
-    ['NPV USD', 'Valor presente neto en USD. Positivo = a favor'],
-    ['PyG', 'P&L desde inicio en COP. XCCY: tasa + FX. NDF/IBR: NPV (≈ MTM)'],
-    ['Carry COP', 'XCCY: carry acumulado. NDF: theta diario. IBR: carry periodo'],
-    ['DV01', 'Sensibilidad en USD a +1bp. XCCY: IBR. NDF: COP curve. IBR: IBR'],
-    ['DV01 (2)', 'Sensibilidad en USD a +1bp. XCCY: SOFR. NDF: USD curve'],
-    ['FX Delta', 'Cambio en NPV COP por +$1 en USDCOP'],
+    ['Tipo', 'Clase de derivado: XCCY = Cross-Currency Swap USD/COP, NDF = Forward de tasa de cambio sin entrega, IBR = Swap de tasa fija vs IBR overnight.'],
+    ['ID Op', 'ID de operación interno o código SAP. Haz clic para abrir el detalle completo.'],
+    ['Contraparte', 'Banco o entidad financiera contraparte del derivado.'],
+    ['Sociedad', 'Código interno de la sociedad que contrata el instrumento (ej. BP01, BP02).'],
+    ['Nocional', 'Monto nocional del contrato. XCCY y NDF en USD; IBR Swap en COP.'],
+    ['Tasa/Strike', 'NDF: tasa de cambio pactada (strike). XCCY: spread sobre SOFR en bps. IBR: tasa fija del swap.'],
+    ['F. Celebr.', 'Fecha de celebración o contratación del derivado.'],
+    ['Vencimiento', 'Fecha de vencimiento, maduración o fixing del instrumento.'],
+    ['Estado', 'Estado administrativo del derivado: Activo, Vencido, o Cancelado.'],
+    ['NPV COP', 'Valor Presente Neto en COP con curvas actuales (IBR + SOFR). Positivo = posición a favor de la empresa.'],
+    ['NPV USD', 'NPV convertido a USD al tipo de cambio spot actual. Positivo = a favor.'],
+    ['PyG', 'P&L desde inicio en COP. XCCY: descomposición en tasas + FX desde inception. NDF e IBR: equivalente al NPV (mark-to-market).'],
+    ['Carry COP', 'Ingreso neto por tasas. XCCY: carry acumulado (días transcurridos × diferenciales). NDF: theta diario. IBR: carry diario.'],
+    ['DV01', 'Sensibilidad del NPV a un movimiento de +1bp. XCCY: curva IBR. NDF: curva COP. IBR: curva IBR. Positivo = gana si la tasa sube.'],
+    ['DV01 (2)', 'Segundo DV01. XCCY: sensibilidad a +1bp en SOFR. NDF: sensibilidad a +1bp en curva USD. Vacío para IBR (solo una curva).'],
+    ['FX Delta', 'Cambio en NPV COP por cada +$1 en el tipo de cambio USDCOP. Mide la exposición cambiaria lineal de la posición.'],
     ['', ''],
   ];
 
@@ -525,7 +560,9 @@ function PortfolioTable({
         <thead>
           <tr style={{ background: '#f8f9fa', borderBottom: '2px solid #dee2e6' }}>
             {COLS.map(([h, tip]) => (
-              <th key={h} style={{ padding: '8px 6px', fontWeight: 600, whiteSpace: 'nowrap', cursor: tip ? 'help' : 'default' }} title={tip || undefined}>{h}</th>
+              <th key={h} style={{ padding: '8px 6px', fontWeight: 600, whiteSpace: 'nowrap', position: 'relative' }}>
+                <ColTip label={h} tip={tip} />
+              </th>
             ))}
           </tr>
         </thead>
