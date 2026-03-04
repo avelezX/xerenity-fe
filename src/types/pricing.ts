@@ -92,49 +92,78 @@ export interface TesBondResult {
 
 // ── Xccy Swap ──
 
-export interface XccySwapCashflow {
-  period: number;
+export interface CurrentPeriodInfo {
   start: string;
   end: string;
-  payment_date: string;
+  days_elapsed: number;
   notional_usd: number;
   notional_cop: number;
-  remaining_pct: number;
-  usd_rate: number;
-  cop_rate: number;
-  usd_interest: number;
-  cop_interest: number;
-  usd_principal: number;
-  cop_principal: number;
-  usd_df: number;
-  cop_df: number;
-  net_cop: number;
+  ibr_fwd_pct: number;
+  sofr_fwd_pct: number;
+  differential_bps: number;
 }
 
 export interface XccySwapResult {
+  // Valuation
   npv_cop: number;
   npv_usd: number;
-  pnl_rate_cop: number;
-  pnl_rate_usd: number;
-  pnl_fx_cop: number;
-  pnl_fx_usd: number;
+  // Leg PVs
   usd_leg_pv: number;
   cop_leg_pv: number;
-  usd_principal_pv: number;
-  cop_principal_pv: number;
-  par_basis_bps: number | null;
+  usd_notional_exchange_pv: number;
+  cop_notional_exchange_pv: number;
+  usd_total: number;
+  cop_total: number;
+  // Notionals & FX
   notional_usd: number;
   notional_cop: number;
   fx_initial: number;
   fx_spot: number;
-  usd_spread_bps: number;
-  cop_spread_bps: number;
+  // Risk
+  fx_delta_cop: number;
+  // Carry
+  carry_daily_cop: number;
+  carry_accrued_cop: number;
+  // Period metadata
+  days_open: number;
+  periods_remaining: number;
+  current_period: CurrentPeriodInfo | null;
+  // Trade inputs
+  xccy_basis_bps: number;
   amortization_type: string;
-  payment_frequency: string;
   start_date: string;
   maturity_date: string;
+}
+
+/** One row in the cashflow schedule (from /xccy-swap/cashflows). */
+export interface PeriodCashflow {
+  period_num: number;
+  date_start: string;
+  date_end: string;
+  notional_usd: number;
+  notional_cop: number;
+  usd_coupon: number | null;
+  cop_coupon: number | null;
+  usd_principal: number;
+  cop_principal: number;
+  usd_net: number;
+  cop_net: number;
+  ibr_fwd_pct: number | null;
+  sofr_fwd_pct: number | null;
+  status: 'settled' | 'current' | 'future';
+}
+
+export interface XccyCashflowResponse {
+  notional_usd: number;
+  notional_cop: number;
+  fx_initial: number;
+  fx_spot: number;
+  start_date: string;
+  maturity_date: string;
+  amortization_type: string;
+  pay_usd: boolean;
   n_periods: number;
-  cashflows: XccySwapCashflow[];
+  periods: PeriodCashflow[];
 }
 
 export interface ParBasisPoint {

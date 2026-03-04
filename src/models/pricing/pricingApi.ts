@@ -10,6 +10,7 @@ import type {
   ParCurvePoint,
   TesBondResult,
   XccySwapResult,
+  XccyCashflowResponse,
   ParBasisPoint,
 } from 'src/types/pricing';
 
@@ -119,15 +120,23 @@ export interface XccySwapRequest {
   maturity_date: string;
   usd_spread_bps?: number;
   cop_spread_bps?: number;
+  xccy_basis_bps?: number;
   pay_usd?: boolean;
   fx_initial?: number;
-  payment_frequency?: string;
+  /** Payment frequency in months: 1 = monthly, 3 = quarterly, 6 = semi-annual, 12 = annual */
+  payment_frequency_months?: number;
   amortization_type?: string;
   amortization_schedule?: number[];
 }
 
 export const priceXccySwap = (params: XccySwapRequest) =>
   pricingFetch<XccySwapResult>('pricing/xccy-swap', {
+    method: 'POST',
+    body: JSON.stringify(params),
+  });
+
+export const getXccyCashflows = (params: XccySwapRequest) =>
+  pricingFetch<XccyCashflowResponse>('pricing/xccy-swap/cashflows', {
     method: 'POST',
     body: JSON.stringify(params),
   });
