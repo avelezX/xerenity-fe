@@ -4,6 +4,7 @@
 import { CoreLayout } from '@layout';
 import { Row, Col, Form, Modal } from 'react-bootstrap';
 import React, { useState, useCallback, useEffect } from 'react';
+import { useRouter } from 'next/router';
 import Container from 'react-bootstrap/Container';
 import { FontAwesomeIcon as Icon } from '@fortawesome/react-fontawesome';
 import {
@@ -29,8 +30,6 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 import {
-  buildCurves,
-  getCurveStatus,
   getNdfImpliedCurve,
 } from 'src/models/pricing/pricingApi';
 import type { CurveStatus, NdfImpliedCurvePoint } from 'src/types/pricing';
@@ -1868,12 +1867,9 @@ function ImpliedCurvePanel({ data, onLoad, loading, curvesReady }: { data: NdfIm
 // ── Main Page ──
 
 function PortfolioPage() {
-  const [curveStatus, setCurveStatus] = useState<CurveStatus | null>(null);
+  const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [addType, setAddType] = useState<string | null>(null); // 'xccy' | 'ndf' | 'ibr' | null
-  const [selectedXccy, setSelectedXccy] = useState<PricedXccy | null>(null);
-  const [selectedNdf, setSelectedNdf] = useState<PricedNdf | null>(null);
-  const [selectedIbrSwap, setSelectedIbrSwap] = useState<PricedIbrSwap | null>(null);
   const [viewTab, setViewTab] = useState<'portfolio' | 'curves' | 'implied'>('portfolio');
   const [impliedCurve, setImpliedCurve] = useState<NdfImpliedCurvePoint[]>([]);
 
@@ -1899,29 +1895,21 @@ function PortfolioPage() {
     canEdit,
     loadUserRole,
     userRole,
+    curveStatus,
+    curveLoading,
+    curvesReady,
+    checkCurveStatus,
+    triggerBuildCurves,
   } = useAppStore();
 
-  const handleCheckStatus = useCallback(async () => {
-    try {
-      const status = await getCurveStatus();
-      setCurveStatus(status);
-    } catch {
-      // silently fail
-    }
-  }, []);
-
   const handleBuild = useCallback(async () => {
-    setLoading(true);
     try {
-      const result = await buildCurves();
-      setCurveStatus(result.full_status);
+      await triggerBuildCurves();
       toast.success('Curvas construidas');
     } catch (e) {
       toast.error(`Error: ${e instanceof Error ? e.message : String(e)}`);
-    } finally {
-      setLoading(false);
     }
-  }, []);
+  }, [triggerBuildCurves]);
 
   const handleFetchImplied = useCallback(async () => {
     setLoading(true);
@@ -1942,16 +1930,12 @@ function PortfolioPage() {
 
   // Auto-load on mount: check curves + load positions + role
   useEffect(() => {
-    handleCheckStatus();
+    checkCurveStatus();
     loadPositions();
     loadUserRole();
-  }, [handleCheckStatus, loadPositions, loadUserRole]);
+  }, [checkCurveStatus, loadPositions, loadUserRole]);
 
-
-  // Auto-reprice when positions loaded and curves are ready
-  const curvesReady =
-    curveStatus?.ibr.built && curveStatus?.sofr.built;
-
+  // Auto-reprice when curves become ready
   useEffect(() => {
     if (curvesReady) {
       repriceAll();
@@ -1970,7 +1954,47 @@ function PortfolioPage() {
     [removeXccyPositions, removeNdfPositions, removeIbrSwapPositions]
   );
 
-  const isLoading = loading || tradingLoading;
+  const onSelectXccy = useCallback((pos: PricedXccy) => {
+    const p = new URLSearchParams({
+      prefill: '1',
+      notional_usd: String(pos.notional_usd),
+      start_date: pos.start_date ?? '',
+      maturity_date: pos.maturity_date,
+      usd_spread_bps: String(pos.usd_spread_bps ?? 0),
+      cop_spread_bps: String(pos.cop_spread_bps ?? 0),
+      fx_initial: String(pos.fx_initial ?? ''),
+      pay_usd: String(pos.pay_usd ?? true),
+      xccy_basis_bps: String(pos.xccy_basis_bps ?? 0),
+      payment_frequency: pos.payment_frequency ?? '3M',
+      amortization_type: pos.amortization_type ?? 'bullet',
+    });
+    router.push(`/xccy-swap?${p}`);
+  }, [router]);
+
+  const onSelectNdf = useCallback((pos: PricedNdf) => {
+    const p = new URLSearchParams({
+      prefill: '1',
+      notional_usd: String(pos.notional_usd),
+      strike: String(pos.strike),
+      maturity_date: pos.maturity_date,
+      direction: pos.direction ?? 'buy',
+    });
+    router.push(`/ndf-pricer?${p}`);
+  }, [router]);
+
+  const onSelectIbr = useCallback((pos: PricedIbrSwap) => {
+    const p = new URLSearchParams({
+      prefill: '1',
+      notional: String(pos.notional),
+      fixed_rate: String(pos.fixed_rate),
+      maturity_date: pos.maturity_date,
+      pay_fixed: String(pos.pay_fixed ?? true),
+      payment_frequency: pos.payment_frequency ?? '3M',
+    });
+    router.push(`/ibr-swap?${p}`);
+  }, [router]);
+
+  const isLoading = curveLoading || tradingLoading || loading;
 
   // Build unified portfolio rows
   const xccyRows: PricedXccy[] = pricedXccy.length > 0
@@ -2102,9 +2126,9 @@ function PortfolioPage() {
             <PortfolioTable
               rows={portfolioRows}
               onDelete={handleDelete}
-              onSelectXccy={setSelectedXccy}
-              onSelectNdf={setSelectedNdf}
-              onSelectIbr={setSelectedIbrSwap}
+              onSelectXccy={onSelectXccy}
+              onSelectNdf={onSelectNdf}
+              onSelectIbr={onSelectIbr}
               canEdit={canEdit}
             />
           </div>
@@ -2147,10 +2171,7 @@ function PortfolioPage() {
             if (curvesReady) await repriceAll();
           }}
         />
-        {/* Detail Modals */}
-        <XccyDetailModal row={selectedXccy} show={!!selectedXccy} onHide={() => setSelectedXccy(null)} />
-        <NdfDetailModal row={selectedNdf} show={!!selectedNdf} onHide={() => setSelectedNdf(null)} />
-        <IbrSwapDetailModal row={selectedIbrSwap} show={!!selectedIbrSwap} onHide={() => setSelectedIbrSwap(null)} />
+        {/* Row clicks navigate to individual pricers — see onSelectXccy/Ndf/Ibr handlers */}
       </Container>
     </CoreLayout>
   );

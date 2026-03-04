@@ -2,7 +2,8 @@
 
 import { CoreLayout } from '@layout';
 import { Row, Col, Form } from 'react-bootstrap';
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
+import { useRouter } from 'next/router';
 import Container from 'react-bootstrap/Container';
 import { FontAwesomeIcon as Icon } from '@fortawesome/react-fontawesome';
 import {
@@ -27,18 +28,16 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 import {
-  buildCurves,
   priceNdf,
   getNdfImpliedCurve,
-  getCurveStatus,
   type NdfRequest,
 } from 'src/models/pricing/pricingApi';
 import type {
   NdfPricingResult,
   NdfImpliedCurvePoint,
-  CurveStatus,
 } from 'src/types/pricing';
 import { createNdfPosition } from 'src/models/trading';
+import useAppStore from 'src/store';
 
 const PAGE_TITLE = 'NDF Pricer';
 
@@ -60,11 +59,13 @@ const parseInput = (s: string): number => {
 };
 
 function NdfPricer() {
+  const router = useRouter();
+  const { curvesReady, curveLoading, curveStatus, checkCurveStatus, triggerBuildCurves } = useAppStore();
+  const prefillApplied = useRef(false);
+
   const [activeTab, setActiveTab] = useState('pricing');
   const [pageTabs, setPageTabs] = useState<TabItemType[]>(TAB_ITEMS);
   const [loading, setLoading] = useState(false);
-  const [curvesReady, setCurvesReady] = useState(false);
-  const [curveStatus, setCurveStatus] = useState<CurveStatus | null>(null);
 
   // NDF form state
   const [notionalUsd, setNotionalUsd] = useState(1_000_000);
@@ -97,28 +98,30 @@ function NdfPricer() {
   };
 
   const handleBuildCurves = useCallback(async () => {
-    setLoading(true);
     try {
-      const res = await buildCurves();
-      setCurvesReady(true);
-      setCurveStatus(res.full_status);
+      await triggerBuildCurves();
       toast.success('Curvas construidas correctamente');
     } catch (e) {
       toast.error(`Error: ${e instanceof Error ? e.message : String(e)}`);
-    } finally {
-      setLoading(false);
     }
-  }, []);
+  }, [triggerBuildCurves]);
 
-  const handleCheckStatus = useCallback(async () => {
-    try {
-      const status = await getCurveStatus();
-      setCurveStatus(status);
-      setCurvesReady(status.ibr.built && status.sofr.built);
-    } catch (e) {
-      toast.error(`Error: ${e instanceof Error ? e.message : String(e)}`);
-    }
-  }, []);
+  // On mount: check curve status from global store
+  useEffect(() => {
+    checkCurveStatus();
+  }, [checkCurveStatus]);
+
+  // Prefill from URL params (when navigating from portfolio)
+  useEffect(() => {
+    if (!router.isReady || prefillApplied.current) return;
+    const q = router.query;
+    if (q.prefill !== '1') return;
+    prefillApplied.current = true;
+    if (q.notional_usd) setNotionalUsd(Number(q.notional_usd));
+    if (q.strike)       setStrike(Number(q.strike));
+    if (q.maturity_date) setMaturityDate(String(q.maturity_date));
+    if (q.direction)    setDirection(q.direction as 'buy' | 'sell');
+  }, [router.isReady, router.query]);
 
   const spotRequired = curvesReady && curveStatus && !curveStatus.fx_spot;
 
@@ -797,17 +800,18 @@ function NdfPricer() {
               <h4>{PAGE_TITLE}</h4>
             </PageTitle>
             <div className="d-flex align-items-center gap-2">
-              <Button
-                variant="outline-success"
-                onClick={handleBuildCurves}
-                disabled={loading}
-              >
-                <Icon icon={faSyncAlt} className="me-1" />
-                {curvesReady ? 'Rebuild Curvas' : 'Construir Curvas'}
-              </Button>
-              <Button variant="outline-secondary" onClick={handleCheckStatus} disabled={loading}>
-                Status
-              </Button>
+              {curvesReady ? (
+                <span style={{ fontSize: 12, color: '#28a745', fontWeight: 600 }}>● Curvas OK</span>
+              ) : (
+                <Button
+                  variant="outline-success"
+                  onClick={handleBuildCurves}
+                  disabled={curveLoading || loading}
+                >
+                  <Icon icon={faSyncAlt} className="me-1" />
+                  Construir Curvas
+                </Button>
+              )}
             </div>
           </div>
         </Row>

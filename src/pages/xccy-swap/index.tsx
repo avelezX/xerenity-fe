@@ -2,7 +2,8 @@
 
 import { CoreLayout } from '@layout';
 import { Row, Col, Form } from 'react-bootstrap';
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
+import { useRouter } from 'next/router';
 import Container from 'react-bootstrap/Container';
 import { FontAwesomeIcon as Icon } from '@fortawesome/react-fontawesome';
 import {
@@ -30,11 +31,9 @@ import {
   ReferenceLine,
 } from 'recharts';
 import {
-  buildCurves,
   priceXccySwap,
   getXccyCashflows,
   getXccyParBasisCurve,
-  getCurveStatus,
   type XccySwapRequest,
   type ParBasisCurveRequest,
 } from 'src/models/pricing/pricingApi';
@@ -42,9 +41,9 @@ import type {
   XccySwapResult,
   XccyCashflowResponse,
   ParBasisPoint,
-  CurveStatus,
 } from 'src/types/pricing';
 import { createXccyPosition } from 'src/models/trading';
+import useAppStore from 'src/store';
 
 const PAGE_TITLE = 'Cross-Currency Swap';
 
@@ -79,11 +78,13 @@ const parseInput = (s: string): number => {
 };
 
 function XccySwapPage() {
+  const router = useRouter();
+  const { curvesReady, curveLoading, curveStatus, checkCurveStatus, triggerBuildCurves } = useAppStore();
+  const prefillApplied = useRef(false);
+
   const [activeTab, setActiveTab] = useState('pricing');
   const [pageTabs, setPageTabs] = useState<TabItemType[]>(TAB_ITEMS);
   const [loading, setLoading] = useState(false);
-  const [curvesReady, setCurvesReady] = useState(false);
-  const [curveStatus, setCurveStatus] = useState<CurveStatus | null>(null);
 
   // Form state
   const [notionalUsd, setNotionalUsd] = useState(1_000_000);
@@ -124,33 +125,36 @@ function XccySwapPage() {
   };
 
   const handleBuildCurves = useCallback(async () => {
-    setLoading(true);
     try {
-      const res = await buildCurves();
-      setCurvesReady(true);
-      setCurveStatus(res.full_status);
+      await triggerBuildCurves();
       toast.success('Curvas construidas correctamente');
     } catch (e) {
       toast.error(`Error: ${e instanceof Error ? e.message : String(e)}`);
-    } finally {
-      setLoading(false);
     }
-  }, []);
+  }, [triggerBuildCurves]);
 
-  const handleCheckStatus = useCallback(async () => {
-    try {
-      const status = await getCurveStatus();
-      setCurveStatus(status);
-      setCurvesReady(status.ibr.built && status.sofr.built);
-    } catch (e) {
-      toast.error(`Error: ${e instanceof Error ? e.message : String(e)}`);
-    }
-  }, []);
-
-  // On mount: check if curves are already built on the backend
+  // On mount: check curve status from global store
   useEffect(() => {
-    handleCheckStatus();
-  }, [handleCheckStatus]);
+    checkCurveStatus();
+  }, [checkCurveStatus]);
+
+  // Prefill form from URL params (when navigating from portfolio)
+  useEffect(() => {
+    if (!router.isReady || prefillApplied.current) return;
+    const q = router.query;
+    if (q.prefill !== '1') return;
+    prefillApplied.current = true;
+    if (q.notional_usd)      setNotionalUsd(Number(q.notional_usd));
+    if (q.start_date)        setStartDate(String(q.start_date));
+    if (q.maturity_date)     setMaturityDate(String(q.maturity_date));
+    if (q.usd_spread_bps)    setUsdSpreadBps(Number(q.usd_spread_bps));
+    if (q.cop_spread_bps)    setCopSpreadBps(Number(q.cop_spread_bps));
+    if (q.fx_initial)        setFxInitial(String(q.fx_initial));
+    if (q.pay_usd)           setPayUsd(q.pay_usd === 'true');
+    if (q.xccy_basis_bps)    setXccyBasisBps(Number(q.xccy_basis_bps));
+    if (q.payment_frequency) setPaymentFrequency(String(q.payment_frequency));
+    if (q.amortization_type) setAmortizationType(String(q.amortization_type));
+  }, [router.isReady, router.query]);
 
   // Validation: returns list of missing field names
   const getMissingFields = useCallback((): string[] => {
@@ -1140,17 +1144,18 @@ function XccySwapPage() {
               <h4>{PAGE_TITLE}</h4>
             </PageTitle>
             <div className="d-flex align-items-center gap-2">
-              <Button
-                variant="outline-success"
-                onClick={handleBuildCurves}
-                disabled={loading}
-              >
-                <Icon icon={faSyncAlt} className="me-1" />
-                {curvesReady ? 'Rebuild Curvas' : 'Construir Curvas'}
-              </Button>
-              <Button variant="outline-secondary" onClick={handleCheckStatus} disabled={loading}>
-                Status
-              </Button>
+              {curvesReady ? (
+                <span style={{ fontSize: 12, color: '#28a745', fontWeight: 600 }}>● Curvas OK</span>
+              ) : (
+                <Button
+                  variant="outline-success"
+                  onClick={handleBuildCurves}
+                  disabled={curveLoading || loading}
+                >
+                  <Icon icon={faSyncAlt} className="me-1" />
+                  Construir Curvas
+                </Button>
+              )}
             </div>
           </div>
         </Row>
