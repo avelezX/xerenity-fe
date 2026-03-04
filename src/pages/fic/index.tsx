@@ -20,6 +20,7 @@ const FIC_CONFIG: DashboardConfig = {
   showClaseActivoFilter: true,
   showTamanoFondoFilter: true,
   showTamanoInversionistasFilter: true,
+  showAperturaFilter: true,
   infoPath: '/fic/info',
   ficHierarchical: true,
 };

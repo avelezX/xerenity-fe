@@ -23,6 +23,7 @@ export interface LightSerieEntry {
   clase_activo?: string | null;
   tamano_fondo?: string | null;
   tamano_inversionistas?: string | null;
+  apertura?: string | null;
 }
 
 export interface PriceFormat {

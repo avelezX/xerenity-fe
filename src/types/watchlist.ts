@@ -14,6 +14,7 @@ export interface WatchlistEntry {
   clase_activo: string | null;
   tamano_fondo: string | null;
   tamano_inversionistas: string | null;
+  apertura: string | null;
   latest_value: number | null;
   latest_date: string | null;
   change: number | null;
@@ -79,6 +80,7 @@ export interface DashboardConfig {
   showClaseActivoFilter?: boolean;
   showTamanoFondoFilter?: boolean;
   showTamanoInversionistasFilter?: boolean;
+  showAperturaFilter?: boolean;
   showCurrencyPairSelector?: boolean;
   infoPath?: string;
   ficHierarchical?: boolean;

@@ -49,6 +49,8 @@ export default function MarketDashboardToolbar({
   const setTamanoFondoFilter = useAppStore((s) => s.setTamanoFondoFilter);
   const tamanoInversionistasFilter = useAppStore((s) => s.tamanoInversionistasFilter);
   const setTamanoInversionistasFilter = useAppStore((s) => s.setTamanoInversionistasFilter);
+  const aperturaFilter = useAppStore((s) => s.aperturaFilter);
+  const setAperturaFilter = useAppStore((s) => s.setAperturaFilter);
 
   const [showCurrencyModal, setShowCurrencyModal] = useState(false);
 
@@ -190,6 +192,23 @@ export default function MarketDashboardToolbar({
                 {t}
               </option>
             ))}
+          </Form.Select>
+        )}
+        {config.showAperturaFilter && (
+          <Form.Select
+            size="sm"
+            aria-label="Filtrar por apertura"
+            value={aperturaFilter || ''}
+            onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
+              setAperturaFilter(e.target.value || undefined)
+            }
+            style={{ maxWidth: 200, fontSize: 12 }}
+          >
+            <option value="">Todos los fondos</option>
+            <option value="Abierto">Abierto</option>
+            <option value="Abierto con pacto">Abierto con pacto</option>
+            <option value="Abierto sin pacto">Abierto sin pacto</option>
+            <option value="Cerrado">Cerrado</option>
           </Form.Select>
         )}
         {config.showActivoFilter && (

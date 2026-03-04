@@ -69,6 +69,7 @@ export interface MarketDashboardSlice {
   claseActivoFilter: string | undefined;
   tamanoFondoFilter: string | undefined;
   tamanoInversionistasFilter: string | undefined;
+  aperturaFilter: string | undefined;
 
   fetchWatchlistSnapshot: (config: DashboardConfig) => Promise<void>;
   addToChart: (entry: WatchlistEntry) => Promise<void>;
@@ -86,6 +87,7 @@ export interface MarketDashboardSlice {
   setClaseActivoFilter: (clase: string | undefined) => void;
   setTamanoFondoFilter: (tamano: string | undefined) => void;
   setTamanoInversionistasFilter: (tamano: string | undefined) => void;
+  setAperturaFilter: (apertura: string | undefined) => void;
   resetWatchlistOnly: () => void;
   resetMarketDashboard: () => void;
 }
@@ -122,7 +124,8 @@ function filterEntries(
   tipoFondoFilter: string | undefined,
   claseActivoFilter: string | undefined,
   tamanoFondoFilter: string | undefined,
-  tamanoInversionistasFilter: string | undefined
+  tamanoInversionistasFilter: string | undefined,
+  aperturaFilter: string | undefined
 ): WatchlistEntry[] {
   let result = entries;
 
@@ -150,6 +153,9 @@ function filterEntries(
   if (tamanoInversionistasFilter) {
     result = result.filter((e) => e.tamano_inversionistas === tamanoInversionistasFilter);
   }
+  if (aperturaFilter) {
+    result = result.filter((e) => e.apertura === aperturaFilter);
+  }
 
   return result;
 }
@@ -171,6 +177,7 @@ const initialMarketState = {
   claseActivoFilter: undefined as string | undefined,
   tamanoFondoFilter: undefined as string | undefined,
   tamanoInversionistasFilter: undefined as string | undefined,
+  aperturaFilter: undefined as string | undefined,
 };
 
 function getPeriodCutoff(period: TimePeriod): string | null {
@@ -264,7 +271,8 @@ const createMarketDashboardSlice: StateCreator<MarketDashboardSlice> = (
         state.tipoFondoFilter,
         state.claseActivoFilter,
         state.tamanoFondoFilter,
-        state.tamanoInversionistasFilter
+        state.tamanoInversionistasFilter,
+        state.aperturaFilter
       );
 
       return {
@@ -430,6 +438,10 @@ const createMarketDashboardSlice: StateCreator<MarketDashboardSlice> = (
     set({ tamanoInversionistasFilter: tamano });
   },
 
+  setAperturaFilter: (apertura: string | undefined) => {
+    set({ aperturaFilter: apertura });
+  },
+
   resetWatchlistOnly: () =>
     set({
       watchlistEntries: [],
@@ -442,6 +454,7 @@ const createMarketDashboardSlice: StateCreator<MarketDashboardSlice> = (
       claseActivoFilter: undefined,
       tamanoFondoFilter: undefined,
       tamanoInversionistasFilter: undefined,
+      aperturaFilter: undefined,
     }),
 
   resetMarketDashboard: () => set(initialMarketState),
