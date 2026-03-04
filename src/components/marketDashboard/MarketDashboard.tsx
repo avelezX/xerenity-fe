@@ -135,15 +135,6 @@ export default function MarketDashboard({ config }: MarketDashboardProps) {
     return Array.from(set).sort();
   }, [watchlistEntries]);
 
-  // Unique tipos de fondo for the filter dropdown (FIC only)
-  const uniqueTiposFondo = useMemo(() => {
-    const set = new Set<string>();
-    watchlistEntries.forEach((e) => {
-      if (e.tipo_fondo) set.add(e.tipo_fondo);
-    });
-    return Array.from(set).sort();
-  }, [watchlistEntries]);
-
   // Unique clases de activo for the filter dropdown (FIC only)
   const uniqueClasesActivo = useMemo(() => {
     const set = new Set<string>();
@@ -293,7 +284,7 @@ export default function MarketDashboard({ config }: MarketDashboardProps) {
             panelsVisible={panelsVisible}
             onTogglePanels={() => setPanelsVisible((v) => !v)}
             uniqueEntidades={uniqueEntidades}
-            uniqueTiposFondo={uniqueTiposFondo}
+
             uniqueClasesActivo={uniqueClasesActivo}
             uniqueTamanosFondo={uniqueTamanosFondo}
             uniqueTamanosInversionistas={uniqueTamanosInversionistas}
