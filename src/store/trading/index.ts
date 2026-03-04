@@ -53,7 +53,7 @@ export interface TradingSlice {
   // Actions
   loadUserRole: () => Promise<void>;
   loadPositions: () => Promise<void>;
-  repriceAll: () => Promise<void>;
+  repriceAll: (valuationDate?: string) => Promise<void>;
   addXccyPosition: (values: NewXccyPosition) => Promise<void>;
   addNdfPosition: (values: NewNdfPosition) => Promise<void>;
   addIbrSwapPosition: (values: NewIbrSwapPosition) => Promise<void>;
@@ -119,7 +119,7 @@ const createTradingSlice: StateCreator<TradingSlice> = (set, get) => ({
     }
   },
 
-  repriceAll: async () => {
+  repriceAll: async (valuationDate?: string) => {
     const { xccyPositions, ndfPositions, ibrSwapPositions } = get();
     const total =
       xccyPositions.length + ndfPositions.length + ibrSwapPositions.length;
@@ -130,7 +130,8 @@ const createTradingSlice: StateCreator<TradingSlice> = (set, get) => ({
       const result = await repricePortfolio(
         xccyPositions,
         ndfPositions,
-        ibrSwapPositions
+        ibrSwapPositions,
+        valuationDate
       );
       set({
         pricedXccy: result.xccy_results,

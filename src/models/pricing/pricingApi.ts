@@ -154,3 +154,8 @@ export const getXccyParBasisCurve = (params?: ParBasisCurveRequest) =>
     method: 'POST',
     body: JSON.stringify(params || {}),
   });
+
+// ── Market Marks ──
+
+export const getMarksDates = () =>
+  pricingFetch<{ dates: string[] }>('pricing/marks/dates');

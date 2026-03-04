@@ -31,6 +31,7 @@ import {
 } from 'recharts';
 import {
   getNdfImpliedCurve,
+  getMarksDates,
 } from 'src/models/pricing/pricingApi';
 import type { CurveStatus, NdfImpliedCurvePoint } from 'src/types/pricing';
 import type {
@@ -1872,6 +1873,8 @@ function PortfolioPage() {
   const [addType, setAddType] = useState<string | null>(null); // 'xccy' | 'ndf' | 'ibr' | null
   const [viewTab, setViewTab] = useState<'portfolio' | 'curves' | 'implied'>('portfolio');
   const [impliedCurve, setImpliedCurve] = useState<NdfImpliedCurvePoint[]>([]);
+  const [marksDates, setMarksDates] = useState<string[]>([]);
+  const [selectedMarkDate, setSelectedMarkDate] = useState<string>('');
 
   const {
     xccyPositions,
@@ -1924,18 +1927,20 @@ function PortfolioPage() {
   }, []);
 
   const handleReprice = useCallback(async () => {
-    await repriceAll();
-    toast.success('Portafolio repriceado');
-  }, [repriceAll]);
+    await repriceAll(selectedMarkDate || undefined);
+    const label = selectedMarkDate ? `al ${selectedMarkDate}` : 'con curvas actuales';
+    toast.success(`Portafolio repriceado ${label}`);
+  }, [repriceAll, selectedMarkDate]);
 
-  // Auto-load on mount: check curves + load positions + role
+  // Auto-load on mount: check curves + load positions + role + marks dates
   useEffect(() => {
     checkCurveStatus();
     loadPositions();
     loadUserRole();
+    getMarksDates().then((res) => setMarksDates(res.dates)).catch(() => {});
   }, [checkCurveStatus, loadPositions, loadUserRole]);
 
-  // Auto-reprice when curves become ready
+  // Auto-reprice when curves become ready (using live curves, no date)
   useEffect(() => {
     if (curvesReady) {
       repriceAll();
@@ -2040,13 +2045,32 @@ function PortfolioPage() {
                 <Icon icon={faPlay} className="me-1" />
                 {curvesReady ? 'Rebuild Curvas' : 'Construir Curvas'}
               </Button>
+              {/* Marks date selector */}
+              {marksDates.length > 0 && (
+                <div className="d-flex align-items-center gap-1">
+                  <select
+                    value={selectedMarkDate}
+                    onChange={(e) => setSelectedMarkDate(e.target.value)}
+                    style={{
+                      fontSize: 12, padding: '4px 8px', borderRadius: 6,
+                      border: '1px solid #dee2e6', background: selectedMarkDate ? '#fff3cd' : '#fff',
+                      color: '#212529', cursor: 'pointer',
+                    }}
+                  >
+                    <option value="">Hoy (curvas actuales)</option>
+                    {marksDates.map((d) => (
+                      <option key={d} value={d}>{d}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
               <Button
-                variant="outline-primary"
+                variant={selectedMarkDate ? 'warning' : 'outline-primary'}
                 onClick={handleReprice}
                 disabled={isLoading || !curvesReady}
               >
                 <Icon icon={faSyncAlt} className="me-1" />
-                Repricear
+                {selectedMarkDate ? `Marcar ${selectedMarkDate}` : 'Repricear'}
               </Button>
               {canEdit && (
                 <div className="d-flex align-items-center gap-1">
