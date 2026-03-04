@@ -6,12 +6,7 @@ import { Row, Col, DropdownDivider } from 'react-bootstrap';
 import Dropdown from 'react-bootstrap/Dropdown';
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import Container from 'react-bootstrap/Container';
-import {
-  LightSerie,
-  LightSerieValue,
-  defaultCustomFormat,
-} from 'src/types/lightserie';
-import { MovingAvgValue } from 'src/types/movingAvg';
+import { LightSerieValue } from 'src/types/lightserie';
 import { ExportToCsv, downloadBlob } from 'src/utils/downloadCSV';
 import { FontAwesomeIcon as Icon } from '@fortawesome/react-fontawesome';
 import {
@@ -101,10 +96,10 @@ export default function FullTesViewer() {
   });
   const ibrAllData = useRef<Map<string, GridEntry>>();
   const serieId = useRef<string>('tes_24');
-  const movingAvgDays = useRef<number>(20);
+  const [movingAvgDays, setMovingAvgDays] = useState<number>(20);
+  const [smaEnabled, setSmaEnabled] = useState(false);
   const displayName = useRef<string>('');
   const [currencyType, setCurrencyType] = useState(TAB_ITEMS[0].property);
-  const [movingAvg, setMovingAvg] = useState<LightSerie>();
   const [volumenSerie, setvolumenSerie] = useState<LightSerieValue[]>([]);
   const [pageTabs, setTabsState] = useState<TabItemType[]>(TAB_ITEMS);
   const [viewMode, setViewMode] = useState<'candle' | 'curve' | 'todas' | 'senda'>('candle');
@@ -163,89 +158,27 @@ export default function FullTesViewer() {
     [supabase]
   );
 
-  const fetchTesMvingAvgIbr = useCallback(
-    async (selected_name: string, moving_days: number, display_name: string) => {
-      if (ibrAllData.current) {
-        const ibrIdentifier = ibrAllData.current.get(selected_name)?.tes_months;
-        if (ibrIdentifier) {
-          const { data, error } = await supabase
-            .schema('xerenity')
-            .rpc('ibr_moving_average', {
-              ibr_months: ibrIdentifier,
-              average_days: moving_days,
-            });
-          if (error) {
-            toast.error(error.message, { position: toast.POSITION.TOP_CENTER });
-          } else if (data) {
-            const avgValues = data.moving_avg as MovingAvgValue[];
-            const avgSerie = Array<LightSerieValue>();
-            avgValues.forEach((avgval) => {
-              avgSerie.push({
-                value: avgval.avg,
-                time: avgval.close_date.split('T')[0],
-              });
-            });
-            setMovingAvg({
-              serie: avgSerie,
-              color: PURPLE_COLOR,
-              name: display_name,
-              type: 'line',
-              priceFormat: defaultCustomFormat,
-              axisName: 'right',
-              tiker: '',
-            });
-          }
-        }
-      }
-    },
-    [supabase]
-  );
-
-  const fetchTesMvingAvg = useCallback(
-    async (selected_name: string, moving_days: number, display_name: string) => {
-      const { data, error } = await supabase
-        .schema('xerenity')
-        .rpc('tes_moving_average', {
-          tes_name: selected_name,
-          average_days: moving_days,
-        });
-      if (error) {
-        toast.error(error.message, { position: toast.POSITION.TOP_CENTER });
-      } else if (data) {
-        const avgValues = data.moving_avg as MovingAvgValue[];
-        const avgSerie = Array<LightSerieValue>();
-        avgValues.forEach((avgval) => {
-          avgSerie.push({
-            value: avgval.avg,
-            time: avgval.close_date.split('T')[0],
-          });
-        });
-        setMovingAvg({
-          serie: avgSerie,
-          color: PURPLE_COLOR,
-          name: display_name,
-          type: 'line',
-          priceFormat: defaultCustomFormat,
-          axisName: 'right',
-          tiker: '',
-        });
-      }
-    },
-    [supabase, setMovingAvg]
-  );
+  // Local SMA: calculated from candle data already in memory — no extra network call
+  const movingAvgSerie = useMemo<LightSerieValue[] | null>(() => {
+    if (!smaEnabled || candleSerie.values.length < movingAvgDays) return null;
+    const vals = candleSerie.values;
+    const result: LightSerieValue[] = [];
+    for (let i = movingAvgDays - 1; i < vals.length; i++) {
+      const avg =
+        vals.slice(i - movingAvgDays + 1, i + 1).reduce((s, v) => s + v.close, 0) /
+        movingAvgDays;
+      result.push({ time: vals[i].day.split('T')[0], value: avg });
+    }
+    return result;
+  }, [smaEnabled, candleSerie.values, movingAvgDays]);
 
   const changeSelection = useCallback(
     async (id: string, placeholder: string) => {
       serieId.current = id;
       displayName.current = placeholder;
       fetchTesRawData(serieId.current);
-      if (id.includes('ibr')) {
-        fetchTesMvingAvgIbr(serieId.current, movingAvgDays.current, placeholder);
-      } else {
-        fetchTesMvingAvg(serieId.current, movingAvgDays.current, placeholder);
-      }
     },
-    [fetchTesMvingAvg, fetchTesMvingAvgIbr, fetchTesRawData, movingAvgDays]
+    [fetchTesRawData]
   );
 
   const fetchTesNames = useCallback(async () => {
@@ -369,11 +302,8 @@ export default function FullTesViewer() {
   };
 
   const handleMonthChange = (month: number) => {
-    movingAvgDays.current = month;
-    if (serieId.current.includes('ibr')) {
-      return fetchTesMvingAvgIbr(serieId.current, month, displayName.current);
-    }
-    return fetchTesMvingAvg(serieId.current, month, displayName.current);
+    setMovingAvgDays(month);
+    setSmaEnabled(true);
   };
 
   const downloadGrid = () => {
@@ -512,12 +442,12 @@ export default function FullTesViewer() {
                   title="Volumen"
                   color={GRAY_COLOR_300}
                 />
-                {movingAvg ? (
+                {movingAvgSerie ? (
                   <Chart.Line
-                    data={movingAvg.serie}
+                    data={movingAvgSerie}
                     color={PURPLE_COLOR}
                     scaleId="right"
-                    title={movingAvg.name}
+                    title={`SMA ${movingAvgDays}`}
                   />
                 ) : null}
               </Chart>
