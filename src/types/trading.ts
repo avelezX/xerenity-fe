@@ -89,6 +89,12 @@ export interface XccyCashflow {
   usd_df: number;
   cop_df: number;
   net_cop: number;
+  status: 'settled' | 'current' | 'future';
+  days_in_period: number;
+  days_elapsed: number;
+  daily_carry_cop: number;
+  accrued_carry_cop: number;
+  diff_bps: number;
 }
 
 export interface PricedXccy extends XccyPosition {
@@ -116,6 +122,8 @@ export interface PricedXccy extends XccyPosition {
   notional_cop: number;
   fx_spot: number;
   n_periods: number;
+  carry_accrued_cop?: number;
+  days_open?: number;
   cashflows: XccyCashflow[];
   error?: string;
 }
@@ -137,6 +145,8 @@ export interface PricedNdf extends NdfPosition {
   fx_delta: number;
   fx_exposure_usd: number;
   spot: number;
+  days_open?: number;
+  accrued_cop?: number;
   error?: string;
 }
 
@@ -167,6 +177,8 @@ export interface PricedIbrSwap extends IbrSwapPosition {
   ibr_fwd_period_pct: number;
   carry_period_cop: number;
   carry_period_diff_bps: number;
+  days_open?: number;
+  accrued_carry_cop?: number;
   cashflows?: IbrSwapCashflow[];
   error?: string;
 }

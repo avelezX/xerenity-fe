@@ -1549,151 +1549,42 @@ function XccyDetailModal({ row, show, onHide }: { row: PricedXccy | null; show: 
           </div>
         </div>
 
-        {/* Carry breakdown */}
-        {(() => {
-          const today = new Date();
-          const startD = new Date(`${row.start_date}T12:00:00`);
-          const daysOpen = Math.max(0, Math.floor((today.getTime() - startD.getTime()) / 86400000));
-
-          // Compute per-period carry from cashflows.
-          // Handles mid-life stub: backend starts schedule at valuation_date+2d,
-          // so period[0].start may be slightly after today. Use trade start_date
-          // as the reference for days elapsed in that first period.
-          const cfCarry = (row.cashflows ?? []).map((cf, i) => {
-            const cfEnd = new Date(cf.end);
-            const cfStart = new Date(cf.start);
-            const daysInPeriod = Math.max(1, Math.floor((cfEnd.getTime() - cfStart.getTime()) / 86400000));
-            const carryCop = cf.cop_interest - cf.usd_interest * row.fx_spot;
-            const isPast = cfEnd <= today;
-            const isStub = i === 0 && today < cfStart && today >= startD;
-            const isCurrent = isStub || (!isPast && cfStart <= today && cfEnd > today);
-            const daysElapsed = isStub
-              ? Math.floor((today.getTime() - startD.getTime()) / 86400000)
-              : isCurrent
-                ? Math.floor((today.getTime() - cfStart.getTime()) / 86400000)
-                : isPast ? daysInPeriod : 0;
-            const dailyCarry = carryCop / daysInPeriod;
-            const accruedCarry = dailyCarry * daysElapsed;
-            return {
-              ...cf,
-              daysInPeriod,
-              carryCop,
-              dailyCarry,
-              daysElapsed,
-              accruedCarry,
-              isPast,
-              isCurrent,
-              diffBps: (cf.cop_rate - cf.usd_rate) * 10000,
-            };
-          });
-
-          const totalAccrued = cfCarry.reduce((s, c) => s + c.accruedCarry, 0);
-          const currentPeriod = cfCarry.find((c) => c.isCurrent);
-          const dailyCarryNow = currentPeriod?.dailyCarry ?? 0;
-
-          return (
-            <div style={{ padding: 12, border: '2px solid #17a2b8', borderRadius: 8, marginBottom: 16, background: '#e8f8fb' }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: '#17a2b8', marginBottom: 8 }}>Carry &amp; Devengado</div>
-
-              {/* Summary metrics */}
-              <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', marginBottom: 12 }}>
-                <div>
-                  <div style={{ fontSize: 10, color: '#6c757d' }}>Dias Abierto</div>
-                  <div style={{ fontFamily: 'monospace', fontSize: 16, fontWeight: 700 }}>{daysOpen}</div>
-                </div>
-                <div>
-                  <div style={{ fontSize: 10, color: '#6c757d' }}>Carry Diario COP</div>
-                  <div style={{ fontFamily: 'monospace', fontSize: 16, fontWeight: 700, color: npvColor(dailyCarryNow) }}>
-                    {fmtMM(dailyCarryNow)}
-                  </div>
-                </div>
-                <div>
-                  <div style={{ fontSize: 10, color: '#6c757d' }}>Devengado Acumulado</div>
-                  <div style={{ fontFamily: 'monospace', fontSize: 16, fontWeight: 700, color: npvColor(totalAccrued) }}>
-                    {fmtMM(totalAccrued)}
-                  </div>
-                </div>
-                <div>
-                  <div style={{ fontSize: 10, color: '#6c757d' }}>Carry Periodo Actual</div>
-                  <div style={{ fontFamily: 'monospace', fontSize: 14, fontWeight: 600, color: npvColor(row.carry_cop) }}>
-                    {fmtMM(row.carry_cop)}
-                  </div>
-                </div>
-                <div>
-                  <div style={{ fontSize: 10, color: '#6c757d' }}>Tasa IBR</div>
-                  <div style={{ fontFamily: 'monospace', fontSize: 14, fontWeight: 600 }}>{fmt(row.carry_rate_cop_pct, 4)}%</div>
-                </div>
-                <div>
-                  <div style={{ fontSize: 10, color: '#6c757d' }}>Tasa SOFR+Sprd</div>
-                  <div style={{ fontFamily: 'monospace', fontSize: 14, fontWeight: 600 }}>{fmt(row.carry_rate_usd_pct, 4)}%</div>
-                </div>
-                <div>
-                  <div style={{ fontSize: 10, color: '#6c757d' }}>Diferencial</div>
-                  <div style={{ fontFamily: 'monospace', fontSize: 14, fontWeight: 700, color: npvColor(row.carry_differential_bps) }}>
-                    {fmt(row.carry_differential_bps, 1)} bps
-                  </div>
-                </div>
-              </div>
-
-              {/* Per-period carry table */}
-              {cfCarry.length > 0 && (
-                <div style={{ overflowX: 'auto' }}>
-                  <table style={{ width: '100%', fontSize: 11, borderCollapse: 'collapse' }}>
-                    <thead>
-                      <tr style={{ borderBottom: '2px solid #17a2b8' }}>
-                        {['#', 'Inicio', 'Fin', 'Dias', 'Noc. USD (MM)', 'Noc. COP (MM)', 'IBR %', 'SOFR %', 'Diff bps', 'Carry COP', 'Diario COP', 'Dias Devengo', 'Devengado COP', ''].map((h) => (
-                          <th key={h} style={{ padding: '4px 4px', fontWeight: 600, whiteSpace: 'nowrap', textAlign: 'right', fontSize: 10, color: '#17a2b8' }}>{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {cfCarry.map((c) => (
-                        <tr
-                          key={c.period}
-                          style={{
-                            borderBottom: '1px solid #bee5eb',
-                            background: c.isCurrent ? '#d1ecf1' : c.isPast ? '#f0fafb' : 'transparent',
-                          }}
-                        >
-                          <td style={{ padding: '3px 4px', textAlign: 'right' }}>{c.period}</td>
-                          <td style={{ padding: '3px 4px' }}>{c.start}</td>
-                          <td style={{ padding: '3px 4px' }}>{c.end}</td>
-                          <td style={{ padding: '3px 4px', textAlign: 'right', fontFamily: 'monospace' }}>{c.daysInPeriod}</td>
-                          <td style={{ padding: '3px 4px', textAlign: 'right', fontFamily: 'monospace', color: '#6c757d' }}>{fmtMM(c.notional_usd)}</td>
-                          <td style={{ padding: '3px 4px', textAlign: 'right', fontFamily: 'monospace', color: '#6c757d' }}>{fmtMM(c.notional_cop)}</td>
-                          <td style={{ padding: '3px 4px', textAlign: 'right', fontFamily: 'monospace' }}>{fmt(c.cop_rate * 100, 4)}%</td>
-                          <td style={{ padding: '3px 4px', textAlign: 'right', fontFamily: 'monospace' }}>{fmt(c.usd_rate * 100, 4)}%</td>
-                          <td style={{ padding: '3px 4px', textAlign: 'right', fontFamily: 'monospace', fontWeight: 600, color: npvColor(c.diffBps) }}>
-                            {fmt(c.diffBps, 1)}
-                          </td>
-                          <td style={{ padding: '3px 4px', textAlign: 'right', fontFamily: 'monospace', color: npvColor(c.carryCop) }}>
-                            {fmtMM(c.carryCop)}
-                          </td>
-                          <td style={{ padding: '3px 4px', textAlign: 'right', fontFamily: 'monospace', color: npvColor(c.dailyCarry) }}>
-                            {fmtMM(c.dailyCarry)}
-                          </td>
-                          <td style={{ padding: '3px 4px', textAlign: 'right', fontFamily: 'monospace' }}>
-                            {c.daysElapsed > 0 ? c.daysElapsed : '\u2014'}
-                          </td>
-                          <td style={{ padding: '3px 4px', textAlign: 'right', fontFamily: 'monospace', fontWeight: 600, color: npvColor(c.accruedCarry) }}>
-                            {c.daysElapsed > 0 ? fmtMM(c.accruedCarry) : '\u2014'}
-                          </td>
-                          <td style={{ padding: '3px 4px', textAlign: 'center', fontSize: 10 }}>
-                            {c.isCurrent ? 'HOY' : c.isPast ? 'OK' : ''}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-
-              <div style={{ fontSize: 10, color: '#6c757d', marginTop: 6 }}>
-                Carry = interes COP recibido - interes USD pagado (en COP al spot). Devengado = carry diario x dias transcurridos del periodo.
+        {/* Carry & Devengado — backend-computed */}
+        <div style={{ padding: 12, border: '2px solid #17a2b8', borderRadius: 8, marginBottom: 16, background: '#e8f8fb' }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: '#17a2b8', marginBottom: 8 }}>Carry &amp; Devengado</div>
+          <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
+            <div>
+              <div style={{ fontSize: 10, color: '#6c757d' }}>Dias Abierto</div>
+              <div style={{ fontFamily: 'monospace', fontSize: 16, fontWeight: 700 }}>{row.days_open ?? 0}</div>
+            </div>
+            <div>
+              <div style={{ fontSize: 10, color: '#6c757d' }}>Carry Diario COP</div>
+              <div style={{ fontFamily: 'monospace', fontSize: 16, fontWeight: 700, color: npvColor(row.carry_cop) }}>
+                {fmtMM(row.carry_cop)}
               </div>
             </div>
-          );
-        })()}
+            <div>
+              <div style={{ fontSize: 10, color: '#6c757d' }}>Devengado Acumulado</div>
+              <div style={{ fontFamily: 'monospace', fontSize: 16, fontWeight: 700, color: npvColor(row.carry_accrued_cop ?? 0) }}>
+                {fmtMM(row.carry_accrued_cop ?? 0)}
+              </div>
+            </div>
+            <div>
+              <div style={{ fontSize: 10, color: '#6c757d' }}>Tasa IBR</div>
+              <div style={{ fontFamily: 'monospace', fontSize: 14, fontWeight: 600 }}>{fmt(row.carry_rate_cop_pct, 4)}%</div>
+            </div>
+            <div>
+              <div style={{ fontSize: 10, color: '#6c757d' }}>Tasa SOFR+Sprd</div>
+              <div style={{ fontFamily: 'monospace', fontSize: 14, fontWeight: 600 }}>{fmt(row.carry_rate_usd_pct, 4)}%</div>
+            </div>
+            <div>
+              <div style={{ fontSize: 10, color: '#6c757d' }}>Diferencial</div>
+              <div style={{ fontFamily: 'monospace', fontSize: 14, fontWeight: 700, color: npvColor(row.carry_differential_bps) }}>
+                {fmt(row.carry_differential_bps, 1)} bps
+              </div>
+            </div>
+          </div>
+        </div>
 
         {/* Trade details */}
         <Row>
@@ -1725,35 +1616,52 @@ function XccyDetailModal({ row, show, onHide }: { row: PricedXccy | null; show: 
           </Col>
         </Row>
 
-        {/* Cashflows */}
+        {/* Flujos de Caja & Carry — unified table, all fields from backend */}
         {row.cashflows && row.cashflows.length > 0 && (
           <div style={{ marginTop: 16 }}>
-            <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>Flujos de Caja</div>
+            <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>Flujos de Caja &amp; Carry</div>
             <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', fontSize: 11, borderCollapse: 'collapse' }}>
                 <thead>
                   <tr style={{ background: '#f8f9fa', borderBottom: '2px solid #dee2e6' }}>
-                    {['#', 'Inicio', 'Fin', 'Rem%', 'Not USD', 'Rate USD', 'Rate COP', 'Int USD', 'Int COP', 'Princ USD', 'DF USD', 'DF COP', 'Neto COP'].map((h) => (
+                    {['#', 'Inicio', 'Fin', 'Dias', 'Rem%', 'Not USD', 'Rate USD %', 'Rate COP %', 'Diff bps', 'Int USD', 'Int COP', 'Neto COP', 'Diario COP', 'D.Dev', 'Devengado', ''].map((h) => (
                       <th key={h} style={{ padding: '4px 4px', fontWeight: 600, whiteSpace: 'nowrap', textAlign: 'right' }}>{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
                   {row.cashflows.map((cf) => (
-                    <tr key={cf.period} style={{ borderBottom: '1px solid #eee' }}>
+                    <tr
+                      key={cf.period}
+                      style={{
+                        borderBottom: '1px solid #eee',
+                        background: cf.status === 'current' ? '#d1ecf1' : cf.status === 'settled' ? '#f0fafb' : 'transparent',
+                      }}
+                    >
                       <td style={{ padding: '3px 4px', textAlign: 'right' }}>{cf.period}</td>
                       <td style={{ padding: '3px 4px' }}>{cf.start}</td>
                       <td style={{ padding: '3px 4px' }}>{cf.end}</td>
+                      <td style={{ padding: '3px 4px', textAlign: 'right', fontFamily: 'monospace' }}>{cf.days_in_period}</td>
                       <td style={{ padding: '3px 4px', textAlign: 'right', fontFamily: 'monospace' }}>{fmt(cf.remaining_pct, 1)}%</td>
-                      <td style={{ padding: '3px 4px', textAlign: 'right', fontFamily: 'monospace' }}>{fmtMM(cf.notional_usd)}</td>
-                      <td style={{ padding: '3px 4px', textAlign: 'right', fontFamily: 'monospace' }}>{fmt(cf.usd_rate, 4)}%</td>
-                      <td style={{ padding: '3px 4px', textAlign: 'right', fontFamily: 'monospace' }}>{fmt(cf.cop_rate, 4)}%</td>
-                      <td style={{ padding: '3px 4px', textAlign: 'right', fontFamily: 'monospace' }}>{fmtMM(cf.usd_interest)}</td>
-                      <td style={{ padding: '3px 4px', textAlign: 'right', fontFamily: 'monospace' }}>{fmtMM(cf.cop_interest)}</td>
-                      <td style={{ padding: '3px 4px', textAlign: 'right', fontFamily: 'monospace' }}>{fmtMM(cf.usd_principal)}</td>
-                      <td style={{ padding: '3px 4px', textAlign: 'right', fontFamily: 'monospace' }}>{fmt(cf.usd_df, 6)}</td>
-                      <td style={{ padding: '3px 4px', textAlign: 'right', fontFamily: 'monospace' }}>{fmt(cf.cop_df, 6)}</td>
+                      <td style={{ padding: '3px 4px', textAlign: 'right', fontFamily: 'monospace', color: '#6c757d' }}>{fmtMM(cf.notional_usd)}</td>
+                      <td style={{ padding: '3px 4px', textAlign: 'right', fontFamily: 'monospace' }}>{fmt(cf.usd_rate * 100, 4)}</td>
+                      <td style={{ padding: '3px 4px', textAlign: 'right', fontFamily: 'monospace' }}>{fmt(cf.cop_rate * 100, 4)}</td>
+                      <td style={{ padding: '3px 4px', textAlign: 'right', fontFamily: 'monospace', fontWeight: 600, color: npvColor(cf.diff_bps) }}>
+                        {fmt(cf.diff_bps, 1)}
+                      </td>
+                      <td style={{ padding: '3px 4px', textAlign: 'right', fontFamily: 'monospace', color: '#6c757d' }}>{fmtMM(cf.usd_interest)}</td>
+                      <td style={{ padding: '3px 4px', textAlign: 'right', fontFamily: 'monospace', color: '#6c757d' }}>{fmtMM(cf.cop_interest)}</td>
                       <td style={{ padding: '3px 4px', textAlign: 'right', fontFamily: 'monospace', color: npvColor(cf.net_cop) }}>{fmtMM(cf.net_cop)}</td>
+                      <td style={{ padding: '3px 4px', textAlign: 'right', fontFamily: 'monospace', color: npvColor(cf.daily_carry_cop) }}>{fmtMM(cf.daily_carry_cop)}</td>
+                      <td style={{ padding: '3px 4px', textAlign: 'right', fontFamily: 'monospace' }}>
+                        {cf.days_elapsed > 0 ? cf.days_elapsed : '\u2014'}
+                      </td>
+                      <td style={{ padding: '3px 4px', textAlign: 'right', fontFamily: 'monospace', fontWeight: 600, color: npvColor(cf.accrued_carry_cop) }}>
+                        {cf.days_elapsed > 0 ? fmtMM(cf.accrued_carry_cop) : '\u2014'}
+                      </td>
+                      <td style={{ padding: '3px 4px', textAlign: 'center', fontSize: 10, color: cf.status === 'current' ? '#0c5460' : '#6c757d' }}>
+                        {cf.status === 'current' ? 'HOY' : cf.status === 'settled' ? 'OK' : ''}
+                      </td>
                     </tr>
                   ))}
                 </tbody>

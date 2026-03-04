@@ -52,6 +52,7 @@ export const repricePortfolio = async (
         strike: p.strike,
         maturity_date: p.maturity_date,
         direction: p.direction,
+        ...(p.trade_date ? { trade_date: p.trade_date } : {}),
       })),
       ibr_swap_positions: ibrSwapPositions.map((p) => ({
         id: p.id,
@@ -94,6 +95,8 @@ export const repricePortfolio = async (
       carry_cop: n(r.carry_cop), carry_usd: n(r.carry_usd),
       carry_rate_cop_pct: n(r.carry_rate_cop_pct), carry_rate_usd_pct: n(r.carry_rate_usd_pct),
       carry_differential_bps: n(r.carry_differential_bps),
+      carry_accrued_cop: n(r.carry_accrued_cop),
+      days_open: n(r.days_open),
       dv01_ibr: n(r.dv01_ibr), dv01_sofr: n(r.dv01_sofr), dv01_total: n(r.dv01_total),
       fx_delta: n(r.fx_delta), fx_exposure_usd: n(r.fx_exposure_usd),
       par_basis_bps: r.par_basis_bps != null ? n(r.par_basis_bps) : null,
@@ -116,6 +119,8 @@ export const repricePortfolio = async (
       dv01_cop: n(r.dv01_cop), dv01_usd: n(r.dv01_usd), dv01_total: n(r.dv01_total),
       fx_delta: n(r.fx_delta), fx_exposure_usd: n(r.fx_exposure_usd),
       spot: n(r.spot),
+      days_open: n(r.days_open),
+      accrued_cop: n(r.accrued_cop),
       error: r.error as string | undefined,
     };
   });
@@ -129,6 +134,8 @@ export const repricePortfolio = async (
       ibr_overnight_pct: n(r.ibr_overnight_pct),
       carry_daily_cop: n(r.carry_daily_cop),
       carry_daily_diff_bps: n(r.carry_daily_diff_bps),
+      days_open: n(r.days_open),
+      accrued_carry_cop: n(r.accrued_carry_cop),
       ibr_fwd_period_pct: n(r.ibr_fwd_period_pct),
       carry_period_cop: n(r.carry_period_cop),
       carry_period_diff_bps: n(r.carry_period_diff_bps),
