@@ -78,3 +78,24 @@
 .filterHidden {
   color: #9ca3af;
 }
+
+.filterRowSenda {
+  composes: filterRow;
+  margin-bottom: 8px;
+}
+
+.chartTitle {
+  font-size: 15px;
+  font-weight: 600;
+  color: #374151;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.chartTitleYield {
+  font-size: 22px;
+  font-weight: 700;
+  color: #786cf7;
+  letter-spacing: -0.5px;
+}

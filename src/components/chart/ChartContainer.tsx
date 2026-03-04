@@ -4,11 +4,14 @@ import Panel from '@components/Panel';
 import charOptions from './ChartOptions';
 import { ChartContext } from './ChartContext';
 import ChartToolBar from './ChartToolbar';
+import styles from './ChartContainer.module.css';
 
 type ChartProps = {
   chartHeight?: number | string;
   showToolbar?: boolean | undefined;
   loading?: boolean;
+  title?: string;
+  header?: React.ReactNode;
 } & PropsWithChildren;
 
 const DEFAULT_CHART_HEIGHT = 400;
@@ -21,6 +24,8 @@ export default function ChartContainer({
   chartHeight,
   showToolbar,
   loading,
+  title,
+  header,
 }: ChartProps) {
   const chart = useRef<IChartApi>();
   const chartContainerRef = useRef<HTMLInputElement | null>(null);
@@ -29,12 +34,15 @@ export default function ChartContainer({
 
   useEffect(() => {
     if (chartContainerRef.current) {
+      const h = chartHeight || DEFAULT_CHART_HEIGHT;
+      chartContainerRef.current.style.height = typeof h === 'number' ? `${h}px` : h;
       chartContainerRef.current.innerHTML = '';
       charOptions.width = chartContainerRef.current.offsetWidth;
       charOptions.height = chartContainerRef.current.offsetHeight;
       chart.current = createChart(chartContainerRef.current, charOptions);
       chart.current.timeScale().fitContent();
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const downloadChartsPng = () => {
@@ -107,6 +115,7 @@ export default function ChartContainer({
 
   return (
     <Panel>
+      {header && <div className={styles.header}>{header}</div>}
       {showToolbar && (
         <ChartToolBar
           onDateAction={swapDateFormater}
@@ -115,10 +124,10 @@ export default function ChartContainer({
           loading={loading || false}
         />
       )}
-      <div
-        ref={chartContainerRef}
-        style={{ height: chartHeight || DEFAULT_CHART_HEIGHT }}
-      />
+      <div className={styles.wrapper}>
+        {title && <div className={styles.titleOverlay}>{title}</div>}
+        <div ref={chartContainerRef} className={styles.chartCanvas} />
+      </div>
       <ChartContext.Provider value={chart.current}>
         {children}
       </ChartContext.Provider>

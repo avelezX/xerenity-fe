@@ -24,6 +24,7 @@ type YieldPoint = {
 type YieldCurveChartProps = {
   data: GridEntry[];
   curveType: string;
+  showTodayOnly?: boolean;
 };
 
 function parseMaturityFromDisplayName(displayname: string): Date | null {
@@ -74,17 +75,22 @@ function formatTradeDay(isoString: string): string {
 
 function buildYieldCurveData(
   data: GridEntry[],
-  curveType: string
+  curveType: string,
+  showTodayOnly: boolean
 ): YieldPoint[] {
   if (curveType === 'COLTES-IBR') {
-    // IBR: only show tenors traded in last 5 business days
-    const cutoff = getBusinessDaysAgo(5);
-    return data
-      .filter((entry) => {
-        if (entry.tes_months <= 0 || entry.close <= 0) return false;
-        const tradeDate = new Date(entry.operation_time);
-        return tradeDate >= cutoff;
-      })
+    const baseFilter = (entry: GridEntry) => entry.tes_months > 0 && entry.close > 0;
+    let filtered: GridEntry[];
+    if (showTodayOnly && data.length > 0) {
+      const latestDate = data
+        .reduce((max, e) => (e.operation_time > max ? e.operation_time : max), data[0].operation_time)
+        .split('T')[0];
+      filtered = data.filter((e) => baseFilter(e) && e.operation_time.split('T')[0] === latestDate);
+    } else {
+      const cutoff = getBusinessDaysAgo(5);
+      filtered = data.filter((e) => baseFilter(e) && new Date(e.operation_time) >= cutoff);
+    }
+    return filtered
       .map((entry) => ({
         label: formatTenorLabel(entry.tes_months),
         yield: entry.close,
@@ -153,10 +159,11 @@ const CustomTooltip = ({
 export default function YieldCurveChart({
   data,
   curveType,
+  showTodayOnly = true,
 }: YieldCurveChartProps) {
   const curveData = useMemo(
-    () => buildYieldCurveData(data, curveType),
-    [data, curveType]
+    () => buildYieldCurveData(data, curveType, showTodayOnly),
+    [data, curveType, showTodayOnly]
   );
 
   if (curveData.length === 0) {

@@ -89,6 +89,9 @@ export default function FullTesViewer() {
   const supabase = createClientComponentClient();
   const [options, setOptions] = useState<GridEntry[]>([]);
   const [filterExpired, setFilterExpired] = useState(true);
+  const [filterTradedToday, setFilterTradedToday] = useState(true);
+  const [showCurveToday, setShowCurveToday] = useState(true);
+  const [filterSendaToday, setFilterSendaToday] = useState(true);
   const [selectedEntry, setSelectedEntry] = useState<GridEntry | null>(null);
   const [candleSerie, setCandleSerie] = useState<CandleSerie>({
     name: '',
@@ -112,9 +115,16 @@ export default function FullTesViewer() {
 
   // Derived: hide expired bonds when checkbox is on (IBR has no maturity dates)
   const filteredOptions = useMemo(() => {
-    if (!filterExpired || currencyType === 'COLTES-IBR') return options;
+    if (currencyType === 'COLTES-IBR') {
+      if (!filterTradedToday || options.length === 0) return options;
+      const latestDate = options
+        .reduce((max, e) => (e.operation_time > max ? e.operation_time : max), options[0].operation_time)
+        .split('T')[0];
+      return options.filter((e) => e.operation_time.split('T')[0] === latestDate);
+    }
+    if (!filterExpired) return options;
     return options.filter((e) => !isExpired(e.displayname));
-  }, [options, filterExpired, currencyType]);
+  }, [options, filterExpired, filterTradedToday, currencyType]);
 
   // KPI computations
   const kpis = useMemo(() => {
@@ -271,11 +281,14 @@ export default function FullTesViewer() {
       ibrGridData[0].operation_time
     );
     const curveDate = latestOp.split('T')[0];
-    const cutoffDate = new Date(curveDate);
-    cutoffDate.setDate(cutoffDate.getDate() - 5);
-    const cutoffStr = cutoffDate.toISOString().split('T')[0];
     const curve = ibrGridData
-      .filter((e) => e.close > 0 && e.tes_months > 0 && e.operation_time >= cutoffStr)
+      .filter((e) => {
+        if (e.close <= 0 || e.tes_months <= 0) return false;
+        if (filterSendaToday) return e.operation_time.split('T')[0] === curveDate;
+        const cutoff = new Date(curveDate);
+        cutoff.setDate(cutoff.getDate() - 5);
+        return e.operation_time >= cutoff.toISOString().split('T')[0];
+      })
       .map((e) => ({ tenor_months: e.tes_months, rate: e.close }))
       .sort((a, b) => a.tenor_months - b.tenor_months);
     if (curve.length < 2) return { path: [], currentRate: 0, curveDate: '' };
@@ -283,7 +296,7 @@ export default function FullTesViewer() {
     const currentRate = threeMonth ? threeMonth.rate : curve[0].rate;
     const path = bootstrapRatePath(curve, currentRate, BANREP_MEETINGS, curveDate);
     return { path, currentRate, curveDate };
-  }, [ibrGridData]);
+  }, [ibrGridData, filterSendaToday]);
 
   const handleSelect = ({ selectedRows }: SelectableRows<GridEntry>) => {
     if (selectedRows.length > 0) {
@@ -434,24 +447,38 @@ export default function FullTesViewer() {
         <Row>
           <Col>
             {viewMode === 'candle' && (
-              <Chart chartHeight={500} showToolbar>
-                <Chart.Candle data={candleSerie.values} scaleId="right" />
-                <Chart.Volume
-                  data={volumenSerie}
-                  scaleId="left"
-                  title="Volumen"
-                  color={GRAY_COLOR_300}
-                />
-                {movingAvgSerie ? (
-                  <Chart.Line
-                    data={movingAvgSerie}
-                    color={PURPLE_COLOR}
-                    scaleId="right"
-                    title={`SMA ${movingAvgDays}`}
+              <>
+                <Chart
+                  chartHeight={500}
+                  showToolbar
+                  header={selectedEntry && (
+                    <div className={styles.chartTitle}>
+                      {selectedEntry.displayname}
+                      <span className={styles.chartTitleYield}>
+                        {selectedEntry.close.toFixed(2)}%
+                      </span>
+                    </div>
+                  )}
+                >
+                  <Chart.Candle data={candleSerie.values} scaleId="right" />
+                  <Chart.Volume
+                    data={volumenSerie}
+                    scaleId="left"
+                    title="Volumen"
+                    color={GRAY_COLOR_300}
                   />
-                ) : null}
-              </Chart>
+                  {movingAvgSerie ? (
+                    <Chart.Line
+                      data={movingAvgSerie}
+                      color={PURPLE_COLOR}
+                      scaleId="right"
+                      title={`SMA ${movingAvgDays}`}
+                    />
+                  ) : null}
+                </Chart>
+              </>
             )}
+
             {viewMode === 'todas' && (
               <CombinedYieldCurveChart
                 copData={allCurvesData.cop}
@@ -460,16 +487,29 @@ export default function FullTesViewer() {
               />
             )}
             {viewMode === 'curve' && (
-              <YieldCurveChart data={options} curveType={currencyType} />
+              <YieldCurveChart data={options} curveType={currencyType} showTodayOnly={showCurveToday} />
             )}
             {viewMode === 'senda' && (
-              <RatePathChart
-                data={copRatePathData.path}
-                currentRate={copRatePathData.currentRate}
-                curveDate={copRatePathData.curveDate}
-                color="#6366F1"
-                title="Senda Implícita BanRep (IBR 3M OIS)"
-              />
+              <>
+                <div className={styles.filterRowSenda}>
+                  <label className={styles.filterLabel}>
+                    <input
+                      type="checkbox"
+                      className={styles.filterCheckbox}
+                      checked={filterSendaToday}
+                      onChange={(e) => setFilterSendaToday(e.target.checked)}
+                    />
+                    Solo hoy (curva OIS)
+                  </label>
+                </div>
+                <RatePathChart
+                  data={copRatePathData.path}
+                  currentRate={copRatePathData.currentRate}
+                  curveDate={copRatePathData.curveDate}
+                  color="#6366F1"
+                  title="Senda Implícita BanRep (IBR 3M OIS)"
+                />
+              </>
             )}
           </Col>
         </Row>
@@ -478,19 +518,42 @@ export default function FullTesViewer() {
           <Row className="mt-2">
             <Col>
               <div className={styles.filterRow}>
-                <label className={styles.filterLabel}>
-                  <input
-                    type="checkbox"
-                    className={styles.filterCheckbox}
-                    checked={filterExpired}
-                    onChange={(e) => setFilterExpired(e.target.checked)}
-                  />
-                  Solo vigentes
-                </label>
-                {filterExpired && options.length > filteredOptions.length && (
+                {currencyType !== 'COLTES-IBR' && (
+                  <label className={styles.filterLabel}>
+                    <input
+                      type="checkbox"
+                      className={styles.filterCheckbox}
+                      checked={filterExpired}
+                      onChange={(e) => setFilterExpired(e.target.checked)}
+                    />
+                    Solo vigentes
+                  </label>
+                )}
+                {currencyType === 'COLTES-IBR' && viewMode !== 'curve' && (
+                  <label className={styles.filterLabel}>
+                    <input
+                      type="checkbox"
+                      className={styles.filterCheckbox}
+                      checked={filterTradedToday}
+                      onChange={(e) => setFilterTradedToday(e.target.checked)}
+                    />
+                    Solo operados hoy
+                  </label>
+                )}
+                {currencyType === 'COLTES-IBR' && viewMode === 'curve' && (
+                  <label className={styles.filterLabel}>
+                    <input
+                      type="checkbox"
+                      className={styles.filterCheckbox}
+                      checked={showCurveToday}
+                      onChange={(e) => setShowCurveToday(e.target.checked)}
+                    />
+                    Solo hoy (curva)
+                  </label>
+                )}
+                {options.length > filteredOptions.length && (
                   <span className={styles.filterHidden}>
-                    ({options.length - filteredOptions.length} vencido
-                    {options.length - filteredOptions.length !== 1 ? 's' : ''} oculto
+                    ({options.length - filteredOptions.length} oculto
                     {options.length - filteredOptions.length !== 1 ? 's' : ''})
                   </span>
                 )}
