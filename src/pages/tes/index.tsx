@@ -40,6 +40,7 @@ import CombinedYieldCurveChart from '@components/yieldCurve/CombinedYieldCurveCh
 import RatePathChart from '@components/yieldCurve/RatePathChart';
 import { bootstrapRatePath } from 'src/utils/ratePathBootstrap';
 import { BANREP_MEETINGS } from 'src/utils/centralBankMeetings';
+import styles from './tes.module.css';
 
 const TAB_ITEMS: TabItemType[] = [
   {
@@ -67,14 +68,33 @@ const PURPLE_COLOR = designSystem['purple-100'].value;
 const GRAY_COLOR_300 = designSystem['gray-300'].value;
 const OPCIONES = 'Opciones';
 const MONTH_OPTIONS = [20, 30, 50];
-
 const DEFAULT_IBR_NAME = 'IBR_2Y';
-const DEFAULT_UVR_NAME = 'COLTES 3.3 03/17/27';
-const DEFAULT_COP_NAME = 'COLTES 6.25 11/26/25';
+
+function isExpired(displayname: string): boolean {
+  const parts = displayname.trim().split(' ');
+  const dateStr = parts[parts.length - 1];
+  if (!dateStr || !dateStr.includes('/')) return false;
+  const segments = dateStr.split('/');
+  if (segments.length !== 3) return false;
+  const [mm, dd, yy] = segments;
+  const year = 2000 + parseInt(yy, 10);
+  if (Number.isNaN(year)) return false;
+  const maturity = new Date(year, parseInt(mm, 10) - 1, parseInt(dd, 10));
+  return maturity < new Date();
+}
+
+function formatKpiVolume(v: number): string {
+  if (v >= 1e12) return `${(v / 1e12).toFixed(1)}T`;
+  if (v >= 1e9) return `${(v / 1e9).toFixed(1)}B`;
+  if (v >= 1e6) return `${(v / 1e6).toFixed(1)}M`;
+  return v.toLocaleString('es-CO');
+}
 
 export default function FullTesViewer() {
   const supabase = createClientComponentClient();
   const [options, setOptions] = useState<GridEntry[]>([]);
+  const [filterExpired, setFilterExpired] = useState(true);
+  const [selectedEntry, setSelectedEntry] = useState<GridEntry | null>(null);
   const [candleSerie, setCandleSerie] = useState<CandleSerie>({
     name: '',
     values: [],
@@ -95,6 +115,29 @@ export default function FullTesViewer() {
     ibr: GridEntry[];
   }>({ cop: [], uvr: [], ibr: [] });
 
+  // Derived: hide expired bonds when checkbox is on (IBR has no maturity dates)
+  const filteredOptions = useMemo(() => {
+    if (!filterExpired || currencyType === 'COLTES-IBR') return options;
+    return options.filter((e) => !isExpired(e.displayname));
+  }, [options, filterExpired, currencyType]);
+
+  // KPI computations
+  const kpis = useMemo(() => {
+    const total = filteredOptions.reduce((s, e) => s + e.volume, 0);
+    const weightedBps = filteredOptions.reduce(
+      (s, e) => s + (e.close - e.prev) * 100 * e.volume,
+      0
+    );
+    const avgBps = total > 0 ? weightedBps / total : 0;
+    return {
+      totalVolume: total,
+      avgBps,
+      activeYield: selectedEntry?.close ?? null,
+      activeName: selectedEntry?.displayname ?? '',
+      count: filteredOptions.length,
+    };
+  }, [filteredOptions, selectedEntry]);
+
   const fetchTesRawData = useCallback(
     async (view_tes: string) => {
       const { data, error } = await supabase
@@ -107,13 +150,10 @@ export default function FullTesViewer() {
         setCandleSerie({ name: '', values: [] });
       } else if (data) {
         const allData = data as TesYields[];
-
         const volData: { time: string; value: number }[] = [];
-
         allData.forEach((tes) => {
           volData.push({ time: tes.day.split('T')[0], value: tes.volume });
         });
-
         setvolumenSerie(volData);
         setCandleSerie({ name: '', values: allData });
       } else {
@@ -124,14 +164,9 @@ export default function FullTesViewer() {
   );
 
   const fetchTesMvingAvgIbr = useCallback(
-    async (
-      selected_name: string,
-      moving_days: number,
-      display_name: string
-    ) => {
+    async (selected_name: string, moving_days: number, display_name: string) => {
       if (ibrAllData.current) {
         const ibrIdentifier = ibrAllData.current.get(selected_name)?.tes_months;
-
         if (ibrIdentifier) {
           const { data, error } = await supabase
             .schema('xerenity')
@@ -139,7 +174,6 @@ export default function FullTesViewer() {
               ibr_months: ibrIdentifier,
               average_days: moving_days,
             });
-
           if (error) {
             toast.error(error.message, { position: toast.POSITION.TOP_CENTER });
           } else if (data) {
@@ -168,18 +202,13 @@ export default function FullTesViewer() {
   );
 
   const fetchTesMvingAvg = useCallback(
-    async (
-      selected_name: string,
-      moving_days: number,
-      display_name: string
-    ) => {
+    async (selected_name: string, moving_days: number, display_name: string) => {
       const { data, error } = await supabase
         .schema('xerenity')
         .rpc('tes_moving_average', {
           tes_name: selected_name,
           average_days: moving_days,
         });
-
       if (error) {
         toast.error(error.message, { position: toast.POSITION.TOP_CENTER });
       } else if (data) {
@@ -209,15 +238,9 @@ export default function FullTesViewer() {
     async (id: string, placeholder: string) => {
       serieId.current = id;
       displayName.current = placeholder;
-
       fetchTesRawData(serieId.current);
-
       if (id.includes('ibr')) {
-        fetchTesMvingAvgIbr(
-          serieId.current,
-          movingAvgDays.current,
-          placeholder
-        );
+        fetchTesMvingAvgIbr(serieId.current, movingAvgDays.current, placeholder);
       } else {
         fetchTesMvingAvg(serieId.current, movingAvgDays.current, placeholder);
       }
@@ -231,25 +254,23 @@ export default function FullTesViewer() {
         .schema('xerenity')
         .rpc('get_tes_grid_raw', { money: currencyType });
 
-      if (error) {
-        setOptions([]);
-      }
+      if (error) setOptions([]);
 
       if (data) {
         const allData = data as GridEntry[];
-        const filterValue =
-          currencyType === 'COLTES-COP' ? DEFAULT_COP_NAME : DEFAULT_UVR_NAME;
 
-        const defIbr = allData.find(
-          (ibrSea) => ibrSea.displayname === filterValue
-        );
+        // Select highest-volume non-expired bond as default
+        const activeData = allData.filter((e) => !isExpired(e.displayname));
+        const pool = activeData.length > 0 ? activeData : allData;
+        const defEntry = [...pool].sort((a, b) => b.volume - a.volume)[0];
 
-        if (defIbr) {
-          changeSelection(defIbr.tes, defIbr.displayname);
+        if (defEntry) {
+          setSelectedEntry(defEntry);
+          changeSelection(defEntry.tes, defEntry.displayname);
         }
         setOptions(allData);
       } else {
-        setOptions([] as GridEntry[]);
+        setOptions([]);
       }
     } else {
       const { data, error } = await supabase
@@ -265,26 +286,20 @@ export default function FullTesViewer() {
         const allIbr = data as GridEntry[];
         const mapping = new Map<string, GridEntry>();
         if (allIbr.length > 0) {
-          allIbr.forEach((entry) => {
-            mapping.set(entry.tes, entry);
-          });
+          allIbr.forEach((entry) => mapping.set(entry.tes, entry));
 
-          const defIbr = allIbr.find(
-            (ibrSea) => ibrSea.displayname === DEFAULT_IBR_NAME
-          );
-
+          const defIbr = allIbr.find((e) => e.displayname === DEFAULT_IBR_NAME);
           if (defIbr) {
+            setSelectedEntry(defIbr);
             changeSelection(defIbr.tes, defIbr.displayname);
           }
         } else {
           setOptions([]);
         }
-
         ibrAllData.current = mapping;
-
         setOptions(allIbr);
       } else {
-        setOptions([] as GridEntry[]);
+        setOptions([]);
       }
     }
   }, [currencyType, supabase, changeSelection]);
@@ -307,49 +322,32 @@ export default function FullTesViewer() {
   }, [fetchTesNames]);
 
   const fetchIbrGrid = useCallback(async () => {
-    const { data, error } = await supabase
-      .schema('xerenity')
-      .rpc('get_ibr_grid_raw', {});
-    if (!error && data) {
-      setIbrGridData(data as GridEntry[]);
-    }
+    const { data, error } = await supabase.schema('xerenity').rpc('get_ibr_grid_raw', {});
+    if (!error && data) setIbrGridData(data as GridEntry[]);
   }, [supabase]);
 
   useEffect(() => {
-    if (viewMode === 'todas') {
-      fetchAllCurves();
-    }
-    if (viewMode === 'senda') {
-      fetchIbrGrid();
-    }
+    if (viewMode === 'todas') fetchAllCurves();
+    if (viewMode === 'senda') fetchIbrGrid();
   }, [viewMode, fetchAllCurves, fetchIbrGrid]);
 
   const copRatePathData = useMemo(() => {
     if (ibrGridData.length === 0) return { path: [], currentRate: 0, curveDate: '' };
-
-    // Curve date from the most recent operation_time
     const latestOp = ibrGridData.reduce(
       (max, e) => (e.operation_time > max ? e.operation_time : max),
       ibrGridData[0].operation_time
     );
     const curveDate = latestOp.split('T')[0];
-
-    // Filter out stale tenors: only keep entries traded within the last 5 days
     const cutoffDate = new Date(curveDate);
     cutoffDate.setDate(cutoffDate.getDate() - 5);
     const cutoffStr = cutoffDate.toISOString().split('T')[0];
-
     const curve = ibrGridData
       .filter((e) => e.close > 0 && e.tes_months > 0 && e.operation_time >= cutoffStr)
       .map((e) => ({ tenor_months: e.tes_months, rate: e.close }))
       .sort((a, b) => a.tenor_months - b.tenor_months);
-
     if (curve.length < 2) return { path: [], currentRate: 0, curveDate: '' };
-
-    // Use 3M IBR swap rate as current rate
     const threeMonth = curve.find((c) => c.tenor_months === 3);
     const currentRate = threeMonth ? threeMonth.rate : curve[0].rate;
-
     const path = bootstrapRatePath(curve, currentRate, BANREP_MEETINGS, curveDate);
     return { path, currentRate, curveDate };
   }, [ibrGridData]);
@@ -357,17 +355,16 @@ export default function FullTesViewer() {
   const handleSelect = ({ selectedRows }: SelectableRows<GridEntry>) => {
     if (selectedRows.length > 0) {
       const entry: GridEntry = selectedRows[0];
+      setSelectedEntry(entry);
       changeSelection(entry.tes, entry.displayname);
     }
   };
 
   const handleCurrencyChange = (tabProp: string) => {
     setCurrencyType(tabProp);
+    setSelectedEntry(null);
     setTabsState((prevState) =>
-      prevState.map((tab) => ({
-        ...tab,
-        active: tab.property === tabProp,
-      }))
+      prevState.map((tab) => ({ ...tab, active: tab.property === tabProp }))
     );
   };
 
@@ -382,13 +379,19 @@ export default function FullTesViewer() {
   const downloadGrid = () => {
     const allValues: string[][] = [];
     allValues.push(['open', 'high', 'low', 'close', 'volume', 'day']);
-    candleSerie.values.forEach((entry) => {
-      allValues.push(TesEntryToArray(entry));
-    });
-
+    candleSerie.values.forEach((entry) => allValues.push(TesEntryToArray(entry)));
     const csv = ExportToCsv(allValues);
     downloadBlob(csv, `xerenity_${displayName}.csv`, 'text/csv;charset=utf-8;');
   };
+
+  const bpsSign = kpis.avgBps > 0 ? '+' : '';
+  let bpsArrow = '—';
+  if (kpis.avgBps > 0) bpsArrow = '▲';
+  else if (kpis.avgBps < 0) bpsArrow = '▼';
+
+  let bpsClassName = styles.kpiValueNeutral;
+  if (kpis.avgBps > 0) bpsClassName = styles.kpiValueDanger;
+  else if (kpis.avgBps < 0) bpsClassName = styles.kpiValueSuccess;
 
   return (
     <CoreLayout>
@@ -417,31 +420,19 @@ export default function FullTesViewer() {
                 ))}
               </Tabs>
               <Tabs outlined>
-                <Tab
-                  active={viewMode === 'candle'}
-                  onClick={() => setViewMode('candle')}
-                >
+                <Tab active={viewMode === 'candle'} onClick={() => setViewMode('candle')}>
                   <Icon icon={faBarChart} />
                   Candlestick
                 </Tab>
-                <Tab
-                  active={viewMode === 'curve'}
-                  onClick={() => setViewMode('curve')}
-                >
+                <Tab active={viewMode === 'curve'} onClick={() => setViewMode('curve')}>
                   <Icon icon={faLineChart} />
                   Curva
                 </Tab>
-                <Tab
-                  active={viewMode === 'todas'}
-                  onClick={() => setViewMode('todas')}
-                >
+                <Tab active={viewMode === 'todas'} onClick={() => setViewMode('todas')}>
                   <Icon icon={faLineChart} />
                   Todas
                 </Tab>
-                <Tab
-                  active={viewMode === 'senda'}
-                  onClick={() => setViewMode('senda')}
-                >
+                <Tab active={viewMode === 'senda'} onClick={() => setViewMode('senda')}>
                   <Icon icon={faLineChart} />
                   Senda
                 </Tab>
@@ -459,10 +450,7 @@ export default function FullTesViewer() {
                   </Dropdown.Item>
                   <DropdownDivider />
                   {MONTH_OPTIONS.map((month) => (
-                    <Dropdown.Item
-                      key={month}
-                      onClick={() => handleMonthChange(month)}
-                    >
+                    <Dropdown.Item key={month} onClick={() => handleMonthChange(month)}>
                       <div className="d-flex gap-2 align-items-center">
                         <Icon icon={faCaretRight} />
                         <span>{`Promedio Movil ${month}`}</span>
@@ -474,10 +462,49 @@ export default function FullTesViewer() {
             </Toolbar>
           </div>
         </Row>
+
+        {/* KPI Summary Bar */}
+        <Row className="mb-3">
+          <Col>
+            <div className={styles.kpiBar}>
+              <div className={styles.kpiBox}>
+                <span className={styles.kpiLabel}>VOLUMEN TOTAL</span>
+                <span className={styles.kpiValueNeutral}>
+                  {formatKpiVolume(kpis.totalVolume)}
+                </span>
+                <span className={styles.kpiSub}>COP en el día</span>
+              </div>
+              <div className={styles.kpiBox}>
+                <span className={styles.kpiLabel}>CAMBIO PROM.</span>
+                <span className={bpsClassName}>
+                  {bpsArrow} {bpsSign}{kpis.avgBps.toFixed(1)} bps
+                </span>
+                <span className={styles.kpiSub}>pond. por volumen</span>
+              </div>
+              <div className={styles.kpiBox}>
+                <span className={styles.kpiLabel}>YIELD ACTIVO</span>
+                <span className={styles.kpiValuePurple}>
+                  {kpis.activeYield !== null ? `${kpis.activeYield.toFixed(2)}%` : '—'}
+                </span>
+                <span className={styles.kpiSub}>
+                  {kpis.activeName
+                    ? kpis.activeName.split(' ').slice(0, 3).join(' ')
+                    : 'selecciona un bono'}
+                </span>
+              </div>
+              <div className={styles.kpiBox}>
+                <span className={styles.kpiLabel}>TÍTULOS</span>
+                <span className={styles.kpiValueNeutral}>{kpis.count}</span>
+                <span className={styles.kpiSub}>en pantalla</span>
+              </div>
+            </div>
+          </Col>
+        </Row>
+
         <Row>
           <Col>
             {viewMode === 'candle' && (
-              <Chart chartHeight={600} showToolbar>
+              <Chart chartHeight={500} showToolbar>
                 <Chart.Candle data={candleSerie.values} scaleId="right" />
                 <Chart.Volume
                   data={volumenSerie}
@@ -516,10 +543,29 @@ export default function FullTesViewer() {
             )}
           </Col>
         </Row>
+
         {viewMode !== 'senda' && (
-          <Row>
+          <Row className="mt-2">
             <Col>
-              <CandleGridViewer onSelect={handleSelect} allTes={options} />
+              <div className={styles.filterRow}>
+                <label className={styles.filterLabel}>
+                  <input
+                    type="checkbox"
+                    className={styles.filterCheckbox}
+                    checked={filterExpired}
+                    onChange={(e) => setFilterExpired(e.target.checked)}
+                  />
+                  Solo vigentes
+                </label>
+                {filterExpired && options.length > filteredOptions.length && (
+                  <span className={styles.filterHidden}>
+                    ({options.length - filteredOptions.length} vencido
+                    {options.length - filteredOptions.length !== 1 ? 's' : ''} oculto
+                    {options.length - filteredOptions.length !== 1 ? 's' : ''})
+                  </span>
+                )}
+              </div>
+              <CandleGridViewer onSelect={handleSelect} allTes={filteredOptions} />
             </Col>
           </Row>
         )}
@@ -527,3 +573,4 @@ export default function FullTesViewer() {
     </CoreLayout>
   );
 }
+

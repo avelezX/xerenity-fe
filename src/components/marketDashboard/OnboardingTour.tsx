@@ -26,24 +26,21 @@ export default function OnboardingTour({ storageKey, steps }: OnboardingTourProp
 
   useEffect(() => {
     // Quick check: if already seen on this device, skip the Supabase call
-    if (localStorage.getItem(storageKey)) return;
+    if (localStorage.getItem(storageKey)) return undefined;
 
-    const checkIfSeen = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
+    let timer: ReturnType<typeof setTimeout>;
+
+    supabase.auth.getUser().then(({ data: { user } }) => {
       const seenInAccount = user?.user_metadata?.[storageKey];
-
       if (seenInAccount) {
-        // Sync to localStorage so next visits skip the Supabase call
         localStorage.setItem(storageKey, 'true');
         return;
       }
-
       // Not seen anywhere — show the tour after DOM is ready
-      const timer = setTimeout(() => setRun(true), 600);
-      return () => clearTimeout(timer);
-    };
+      timer = setTimeout(() => setRun(true), 600);
+    });
 
-    checkIfSeen();
+    return () => clearTimeout(timer);
   }, [storageKey, supabase]);
 
   const handleCallback = (data: CallBackProps) => {
