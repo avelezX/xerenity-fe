@@ -17,6 +17,25 @@ type GridViewProps = {
   }: SelectableRows<GridEntry>) => void;
 };
 
+const compactStyles = {
+  headCells: {
+    style: {
+      fontSize: '12px',
+      fontWeight: 600,
+      padding: '8px 10px',
+      color: '#6b7280',
+      textTransform: 'uppercase' as const,
+      letterSpacing: '0.4px',
+    },
+  },
+  cells: {
+    style: {
+      fontSize: '13px',
+      padding: '8px 10px',
+    },
+  },
+};
+
 const conditionalRowStyles = [
   {
     when: (row: GridEntry) => (row.close - row.prev) * 100 > 0,
@@ -37,6 +56,7 @@ export default function CandleGridViewer({ onSelect, allTes }: GridViewProps) {
       selectableRows
       onSelectedRowsChange={onSelect}
       conditionalRowStyles={conditionalRowStyles}
+      customStyles={compactStyles}
     />
   );
 }

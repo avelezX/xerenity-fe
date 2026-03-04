@@ -34,6 +34,7 @@ function BaseDataTable<T>({
   pagination,
   paginationComponentOptions,
   selectableRowsNoSelectAll,
+  customStyles: customStylesProp,
 }: TableProps<T>): JSX.Element {
   return (
     <DataTable
@@ -42,7 +43,7 @@ function BaseDataTable<T>({
       dense
       data={data}
       columns={columns}
-      customStyles={customStyles}
+      customStyles={customStylesProp ?? customStyles}
       selectableRows={selectableRows}
       expandableRows={expandableRows}
       subHeaderComponent={subHeaderComponent}
