@@ -68,7 +68,7 @@ export interface DashboardConfig {
     fuentes?: string[];
     subGroups?: string[];
   };
-  groupByField: 'grupo' | 'sub_group' | 'fuente' | 'entidad';
+  groupByField: 'grupo' | 'sub_group' | 'fuente' | 'entidad' | 'clase_activo';
   leftPanelGroups?: string[];
   rightPanelGroups?: string[];
   defaultChartTickers?: string[];

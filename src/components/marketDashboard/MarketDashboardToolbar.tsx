@@ -13,7 +13,6 @@ type MarketDashboardToolbarProps = {
   panelsVisible: boolean;
   onTogglePanels: () => void;
   uniqueEntidades?: string[];
-  uniqueTiposFondo?: string[];
   uniqueClasesActivo?: string[];
   uniqueTamanosFondo?: string[];
   uniqueTamanosInversionistas?: string[];
@@ -24,7 +23,6 @@ export default function MarketDashboardToolbar({
   panelsVisible,
   onTogglePanels,
   uniqueEntidades,
-  uniqueTiposFondo,
   uniqueClasesActivo,
   uniqueTamanosFondo,
   uniqueTamanosInversionistas,
@@ -122,23 +120,16 @@ export default function MarketDashboardToolbar({
             ))}
           </Form.Select>
         )}
-        {config.showTipoFondoFilter && uniqueTiposFondo && uniqueTiposFondo.length > 0 && (
-          <Form.Select
-            size="sm"
-            aria-label="Filtrar por tipo de fondo"
-            value={tipoFondoFilter || ''}
-            onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
-              setTipoFondoFilter(e.target.value || undefined)
-            }
-            style={{ maxWidth: 180, fontSize: 12 }}
-          >
-            <option value="">Abierto y Cerrado</option>
-            {uniqueTiposFondo.map((tipo) => (
-              <option key={tipo} value={tipo}>
-                {tipo}
-              </option>
-            ))}
-          </Form.Select>
+        {config.showTipoFondoFilter && (
+          <InputGroup style={{ width: 'auto' }}>
+            <InputGroup.Checkbox
+              checked={tipoFondoFilter === 'Cerrado'}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                setTipoFondoFilter(e.target.checked ? 'Cerrado' : undefined)
+              }
+            />
+            <InputGroup.Text style={{ fontSize: 12 }}>Solo cerrado</InputGroup.Text>
+          </InputGroup>
         )}
         {config.showClaseActivoFilter && uniqueClasesActivo && uniqueClasesActivo.length > 0 && (
           <Form.Select
@@ -148,7 +139,7 @@ export default function MarketDashboardToolbar({
             onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
               setClaseActivoFilter(e.target.value || undefined)
             }
-            style={{ maxWidth: 200, fontSize: 12 }}
+            style={{ maxWidth: 160, fontSize: 12 }}
           >
             <option value="">Todas las clases</option>
             {uniqueClasesActivo.map((clase) => (
@@ -202,7 +193,7 @@ export default function MarketDashboardToolbar({
             onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
               setAperturaFilter(e.target.value || undefined)
             }
-            style={{ maxWidth: 200, fontSize: 12 }}
+            style={{ maxWidth: 160, fontSize: 12 }}
           >
             <option value="">Todos los fondos</option>
             <option value="Abierto">Abierto</option>
