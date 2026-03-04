@@ -192,6 +192,7 @@ export interface PortfolioSummary {
   total_carry_usd: number;
   total_pnl_rate_cop: number;
   total_pnl_fx_cop: number;
+  fx_spot?: number;
 }
 
 // ── Portfolio reprice response ──

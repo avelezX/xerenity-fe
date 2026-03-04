@@ -304,10 +304,12 @@ function CurveStatusBar({
   status,
   onRefresh,
   loading,
+  spotOverride,
 }: {
   status: CurveStatus | null;
   onRefresh: () => void;
   loading: boolean;
+  spotOverride?: number;
 }) {
   if (!status) return null;
   const curves = [
@@ -340,9 +342,9 @@ function CurveStatusBar({
           {c.name} {c.built ? '\u2713' : '\u2717'}
         </span>
       ))}
-      {status.fx_spot && (
+      {(spotOverride ?? status.fx_spot) && (
         <span style={{ color: '#004085', fontFamily: 'monospace', fontWeight: 600 }}>
-          Spot: {fmt(status.fx_spot, 2)}
+          Spot: {fmt((spotOverride ?? status.fx_spot)!, 2)}
         </span>
       )}
       {status.valuation_date && (
@@ -2363,7 +2365,7 @@ function PortfolioPage() {
         </Row>
 
         {/* Curve status */}
-        <CurveStatusBar status={curveStatus} onRefresh={() => handleBuild()} loading={isLoading} />
+        <CurveStatusBar status={curveStatus} onRefresh={() => handleBuild()} loading={isLoading} spotOverride={summary?.fx_spot} />
         <MarkDateBar
           onReprice={handleRepriceWithMark}
           repricing={markRepricing}
