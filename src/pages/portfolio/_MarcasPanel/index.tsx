@@ -24,17 +24,17 @@ import type {
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-const IBR_TENORS: { key: keyof IbrQuotesCurveRow; label: string }[] = [
-  { key: 'ibr_1d', label: '1d' },
-  { key: 'ibr_1m', label: '1m' },
-  { key: 'ibr_3m', label: '3m' },
-  { key: 'ibr_6m', label: '6m' },
-  { key: 'ibr_12m', label: '12m' },
-  { key: 'ibr_2y', label: '2y' },
-  { key: 'ibr_5y', label: '5y' },
-  { key: 'ibr_10y', label: '10y' },
-  { key: 'ibr_15y', label: '15y' },
-  { key: 'ibr_20y', label: '20y' },
+const IBR_TENORS: { key: keyof IbrQuotesCurveRow; label: string; months: number }[] = [
+  { key: 'ibr_1d', label: '1d', months: 0.03 },
+  { key: 'ibr_1m', label: '1m', months: 1 },
+  { key: 'ibr_3m', label: '3m', months: 3 },
+  { key: 'ibr_6m', label: '6m', months: 6 },
+  { key: 'ibr_12m', label: '12m', months: 12 },
+  { key: 'ibr_2y', label: '2y', months: 24 },
+  { key: 'ibr_5y', label: '5y', months: 60 },
+  { key: 'ibr_10y', label: '10y', months: 120 },
+  { key: 'ibr_15y', label: '15y', months: 180 },
+  { key: 'ibr_20y', label: '20y', months: 240 },
 ];
 
 const SOFR_TENOR_LABEL: Record<number, string> = {
@@ -168,8 +168,9 @@ function StatusChip({
 // ── IBR chart ─────────────────────────────────────────────────────────────────
 
 function IbrCurveChart({ ibr }: { ibr: IbrQuotesCurveRow }) {
-  const data = IBR_TENORS.map(({ key, label }) => ({
+  const data = IBR_TENORS.map(({ key, label, months }) => ({
     tenor: label,
+    months,
     rate: ibr[key] as number | null,
   })).filter((p) => p.rate != null);
 
@@ -186,14 +187,23 @@ function IbrCurveChart({ ibr }: { ibr: IbrQuotesCurveRow }) {
     <ResponsiveContainer width="100%" height={260}>
       <LineChart data={data} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
         <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-        <XAxis dataKey="tenor" tick={{ fontSize: 11 }} />
+        <XAxis
+          type="number"
+          dataKey="months"
+          ticks={data.map((d) => d.months)}
+          tickFormatter={(m: number) => data.find((d) => d.months === m)?.tenor || ''}
+          tick={{ fontSize: 11 }}
+        />
         <YAxis
           domain={[min, max]}
           tickFormatter={(v) => `${v.toFixed(1)}%`}
           tick={{ fontSize: 11 }}
           width={48}
         />
-        <Tooltip formatter={(v: number) => [`${v.toFixed(3)}%`, 'IBR']} />
+        <Tooltip
+          labelFormatter={(m: number) => data.find((d) => d.months === m)?.tenor || ''}
+          formatter={(v: number) => [`${v.toFixed(3)}%`, 'IBR']}
+        />
         <ReferenceLine y={data[0]?.rate ?? 0} stroke="#e0e0e0" strokeDasharray="4 4" />
         <Line
           type="monotone"
@@ -217,6 +227,7 @@ function SofrCurveChart({ sofr }: { sofr: HistoricalSofrPoint[] }) {
 
   const data = sofr.map((p) => ({
     tenor: SOFR_TENOR_LABEL[p.tenor_months] ?? `${p.tenor_months}M`,
+    months: p.tenor_months,
     rate: p.swap_rate,
   }));
 
@@ -227,14 +238,23 @@ function SofrCurveChart({ sofr }: { sofr: HistoricalSofrPoint[] }) {
     <ResponsiveContainer width="100%" height={260}>
       <LineChart data={data} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
         <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-        <XAxis dataKey="tenor" tick={{ fontSize: 11 }} />
+        <XAxis
+          type="number"
+          dataKey="months"
+          ticks={data.map((d) => d.months)}
+          tickFormatter={(m: number) => data.find((d) => d.months === m)?.tenor || ''}
+          tick={{ fontSize: 11 }}
+        />
         <YAxis
           domain={[min, max]}
           tickFormatter={(v) => `${v.toFixed(2)}%`}
           tick={{ fontSize: 11 }}
           width={52}
         />
-        <Tooltip formatter={(v: number) => [`${v.toFixed(3)}%`, 'SOFR Swap']} />
+        <Tooltip
+          labelFormatter={(m: number) => data.find((d) => d.months === m)?.tenor || ''}
+          formatter={(v: number) => [`${v.toFixed(3)}%`, 'SOFR Swap']}
+        />
         <Line
           type="monotone"
           dataKey="rate"
@@ -255,6 +275,7 @@ function NdfFwdPtsChart({ ndf }: { ndf: HistoricalNdfPoint[] }) {
     .filter((p) => p.fwd_points != null || p.mid != null)
     .map((p) => ({
       tenor: p.tenor,
+      months: p.tenor_months,
       fwd_pts: p.fwd_points,
       mid: p.mid,
     }));
@@ -273,7 +294,13 @@ function NdfFwdPtsChart({ ndf }: { ndf: HistoricalNdfPoint[] }) {
     <ResponsiveContainer width="100%" height={260}>
       <LineChart data={data} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
         <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-        <XAxis dataKey="tenor" tick={{ fontSize: 11 }} />
+        <XAxis
+          type="number"
+          dataKey="months"
+          ticks={data.map((d) => d.months)}
+          tickFormatter={(m: number) => data.find((d) => d.months === m)?.tenor || ''}
+          tick={{ fontSize: 11 }}
+        />
         <YAxis
           domain={[min, max]}
           tickFormatter={(v) => v.toFixed(0)}
@@ -281,6 +308,7 @@ function NdfFwdPtsChart({ ndf }: { ndf: HistoricalNdfPoint[] }) {
           width={52}
         />
         <Tooltip
+          labelFormatter={(m: number) => data.find((d) => d.months === m)?.tenor || ''}
           formatter={(v: number, name: string) => [
             v.toFixed(1),
             name === 'fwd_pts' ? 'Fwd Pts' : 'Mid',
@@ -375,6 +403,107 @@ function IbrNodeTable({ ibr }: { ibr: IbrQuotesCurveRow }) {
 }
 
 // ── Main panel ────────────────────────────────────────────────────────────────
+
+// ── Exported sub-views (used by MarkDateBar chip dropdowns) ──────────────────
+
+export function IbrMarkView({ ibr, fecha }: { ibr: IbrQuotesCurveRow; fecha: string }) {
+  return (
+    <>
+      <div style={{ marginBottom: 4, fontSize: 11, color: '#6c757d' }}>
+        Fuente: Banrep (1d-12m) + DTCC swaps (2y-20y) — {fecha}
+      </div>
+      <IbrCurveChart ibr={ibr} />
+      <IbrNodeTable ibr={ibr} />
+    </>
+  );
+}
+
+export function SofrMarkView({ sofr, fecha }: { sofr: HistoricalSofrPoint[]; fecha: string }) {
+  return (
+    <>
+      <div style={{ marginBottom: 4, fontSize: 11, color: '#6c757d' }}>
+        Fuente: Fed (sofr_swap_curve) — {fecha}
+      </div>
+      <SofrCurveChart sofr={sofr} />
+      <table style={{ fontSize: 11, fontFamily: 'monospace', borderCollapse: 'collapse', marginTop: 8 }}>
+        <tbody>
+          <tr>
+            {sofr.map((p) => (
+              <th key={p.tenor_months} style={thStyle}>
+                {SOFR_TENOR_LABEL[p.tenor_months] ?? `${p.tenor_months}M`}
+              </th>
+            ))}
+          </tr>
+          <tr>
+            {sofr.map((p) => (
+              <td key={p.tenor_months} style={tdStyle}>{fmtPct(p.swap_rate)}</td>
+            ))}
+          </tr>
+        </tbody>
+      </table>
+    </>
+  );
+}
+
+export function NdfMarkView({ ndf, fecha }: { ndf: HistoricalNdfPoint[]; fecha: string }) {
+  return (
+    <>
+      <div style={{ marginBottom: 4, fontSize: 11, color: '#6c757d' }}>
+        Fuente: FXEmpire (cop_fwd_points) — {fecha}
+      </div>
+      <NdfFwdPtsChart ndf={ndf} />
+      <table style={{ fontSize: 11, fontFamily: 'monospace', borderCollapse: 'collapse', marginTop: 8 }}>
+        <thead>
+          <tr>
+            <th style={thStyle}>Tenor</th>
+            <th style={thStyle}>Fwd Pts</th>
+            <th style={thStyle}>Mid</th>
+          </tr>
+        </thead>
+        <tbody>
+          {ndf.map((p) => (
+            <tr key={p.tenor}>
+              <td style={{ ...tdStyle, fontWeight: 600 }}>{p.tenor}</td>
+              <td style={tdStyle}>{fmt2(p.fwd_points)}</td>
+              <td style={tdStyle}>{fmt2(p.mid)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </>
+  );
+}
+
+export function TesMarkView({ tes, fecha }: { tes: HistoricalTesPoint[]; fecha: string }) {
+  return (
+    <>
+      <div style={{ marginBottom: 4, fontSize: 11, color: '#6c757d' }}>
+        Fuente: Banco de la Republica / SEN — {fecha}
+      </div>
+      <TesCurveChart tes={tes} />
+      <table style={{ fontSize: 11, fontFamily: 'monospace', borderCollapse: 'collapse', marginTop: 8, width: '100%' }}>
+        <thead>
+          <tr>
+            <th style={thStyle}>Bono</th>
+            <th style={thStyle}>Vencimiento</th>
+            <th style={thStyle}>YTM</th>
+          </tr>
+        </thead>
+        <tbody>
+          {[...tes]
+            .sort((a, b) => a.maturity_date.localeCompare(b.maturity_date))
+            .map((p) => (
+              <tr key={p.name}>
+                <td style={{ ...tdStyle, fontWeight: 600, textAlign: 'left' }}>{p.name}</td>
+                <td style={tdStyle}>{p.maturity_date.slice(0, 10)}</td>
+                <td style={tdStyle}>{fmtPct3(p.ytm)}</td>
+              </tr>
+            ))}
+        </tbody>
+      </table>
+    </>
+  );
+}
 
 export default function MarcasPanel() {
   const [fecha, setFecha] = useState<string>(defaultFecha);

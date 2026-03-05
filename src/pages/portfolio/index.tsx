@@ -26,16 +26,15 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
-  Legend,
   ResponsiveContainer,
 } from 'recharts';
 import {
-  getNdfImpliedCurve,
   buildCurves,
   getCurveStatus,
 } from 'src/models/pricing/pricingApi';
 import { fetchHistoricalMark } from 'src/models/trading/fetchHistoricalMark';
-import type { CurveStatus, NdfImpliedCurvePoint } from 'src/types/pricing';
+import { IbrMarkView, SofrMarkView, NdfMarkView } from './_MarcasPanel';
+import type { CurveStatus } from 'src/types/pricing';
 import type {
   HistoricalMark,
   NewXccyPosition,
@@ -48,7 +47,6 @@ import type {
 } from 'src/types/trading';
 import useAppStore from 'src/store';
 import MarketDataConfigModal from './_MarketDataConfigModal';
-import MarcasPanel from './_MarcasPanel';
 
 const PAGE_TITLE = 'Portafolio de Derivados';
 
@@ -101,6 +99,7 @@ function MarkDateBar({
 }) {
   const today = new Date().toISOString().slice(0, 10);
   const [fecha, setFecha] = useState(initialFecha ?? defaultMarkFecha());
+  const [expandedChip, setExpandedChip] = useState<string | null>(null);
 
   // Sync to pysdk valuation_date once it loads (overrides the default)
   useEffect(() => {
@@ -112,6 +111,7 @@ function MarkDateBar({
   useEffect(() => {
     setLoadingMark(true);
     setMark(null);
+    setExpandedChip(null);
     fetchHistoricalMark(fecha).then(setMark).finally(() => setLoadingMark(false));
   }, [fecha]);
 
@@ -123,66 +123,96 @@ function MarkDateBar({
   const markChips = [
     { label: 'IBR', ok: mark?.hasIbr ?? false },
     { label: 'SOFR', ok: mark?.hasSofr ?? false },
-    { label: 'NDF', ok: mark?.hasNdf ?? false },
-    { label: 'TES', ok: mark?.hasTes ?? false },
+    ...(mark?.hasNdf ? [{ label: 'NDF', ok: true }] : []),
   ];
 
+  const toggleChip = (label: string, ok: boolean) => {
+    if (!ok) return;
+    setExpandedChip((prev) => (prev === label ? null : label));
+  };
+
   return (
-    <div style={{
-      display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12,
-      fontSize: 12, flexWrap: 'wrap', background: '#f8f9fa',
-      borderRadius: 6, padding: '6px 12px',
-    }}>
-      <span style={{ color: '#495057', fontWeight: 600 }}>Marca:</span>
-      <input
-        type="date"
-        value={fecha}
-        min="2026-01-01"
-        max={today}
-        onChange={(e) => e.target.value && setFecha(e.target.value)}
-        style={{ border: '1px solid #ced4da', borderRadius: 4, padding: '2px 6px', fontSize: 12, fontFamily: 'monospace' }}
-      />
-      <button type="button" onClick={() => setFecha((f) => stepMarkDate(f, -1))} disabled={loadingMark} style={markNavBtn}>◀</button>
-      <button type="button" onClick={() => { const next = stepMarkDate(fecha, 1); if (next <= today) setFecha(next); }} disabled={loadingMark} style={markNavBtn}>▶</button>
-      <button type="button" onClick={() => setFecha(defaultMarkFecha())} disabled={loadingMark} style={{ ...markNavBtn, padding: '2px 10px' }}>Ayer</button>
-      {loadingMark ? (
-        <span style={{ color: '#6c757d' }}>…</span>
-      ) : (
-        <>
-          <span style={{ display: 'flex', gap: 4 }}>
-            {markChips.map(({ label, ok }) => (
-              <span key={label} style={{
-                padding: '1px 6px', borderRadius: 4, fontSize: 11, fontWeight: 600,
-                background: ok ? '#d4edda' : '#f8d7da',
-                color: ok ? '#155724' : '#721c24',
-              }}>
-                {label} {ok ? '✓' : '✗'}
-              </span>
-            ))}
-          </span>
-          {daysDiff > 0 && (
-            <span style={{
-              color: '#856404', background: '#fff3cd', padding: '2px 8px',
-              borderRadius: 4, fontSize: 11,
-            }}>
-              ⚠ último dato: {daysDiff === 1 ? 'ayer' : `hace ${daysDiff} días`}
+    <div style={{ marginBottom: 12 }}>
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 8,
+        fontSize: 12, flexWrap: 'wrap', background: '#f8f9fa',
+        borderRadius: 6, padding: '6px 12px',
+      }}>
+        <span style={{ color: '#495057', fontWeight: 600 }}>Marca:</span>
+        <input
+          type="date"
+          value={fecha}
+          min="2026-01-01"
+          max={today}
+          onChange={(e) => e.target.value && setFecha(e.target.value)}
+          style={{ border: '1px solid #ced4da', borderRadius: 4, padding: '2px 6px', fontSize: 12, fontFamily: 'monospace' }}
+        />
+        <button type="button" onClick={() => setFecha((f) => stepMarkDate(f, -1))} disabled={loadingMark} style={markNavBtn}>◀</button>
+        <button type="button" onClick={() => { const next = stepMarkDate(fecha, 1); if (next <= today) setFecha(next); }} disabled={loadingMark} style={markNavBtn}>▶</button>
+        <button type="button" onClick={() => setFecha(defaultMarkFecha())} disabled={loadingMark} style={{ ...markNavBtn, padding: '2px 10px' }}>Ayer</button>
+        {loadingMark ? (
+          <span style={{ color: '#6c757d' }}>…</span>
+        ) : (
+          <>
+            <span style={{ display: 'flex', gap: 4 }}>
+              {markChips.map(({ label, ok }) => (
+                <button
+                  key={label}
+                  type="button"
+                  onClick={() => toggleChip(label, ok)}
+                  style={{
+                    padding: '1px 6px', borderRadius: 4, fontSize: 11, fontWeight: 600,
+                    border: expandedChip === label ? '2px solid #0d6efd' : '1px solid transparent',
+                    background: ok ? '#d4edda' : '#f8d7da',
+                    color: ok ? '#155724' : '#721c24',
+                    cursor: ok ? 'pointer' : 'default',
+                  }}
+                >
+                  {label} {ok ? (expandedChip === label ? '▾' : '▸') : '✗'}
+                </button>
+              ))}
             </span>
+            {daysDiff > 0 && (
+              <span style={{
+                color: '#856404', background: '#fff3cd', padding: '2px 8px',
+                borderRadius: 4, fontSize: 11,
+              }}>
+                ⚠ último dato: {daysDiff === 1 ? 'ayer' : `hace ${daysDiff} días`}
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={() => onReprice(fecha)}
+              disabled={repricing || loadingMark || !hasData}
+              style={{
+                padding: '3px 12px', borderRadius: 4, fontSize: 12, fontWeight: 600,
+                border: '1px solid #0d6efd',
+                background: hasData && !repricing ? '#0d6efd' : '#e9ecef',
+                color: hasData && !repricing ? '#fff' : '#6c757d',
+                cursor: hasData && !repricing ? 'pointer' : 'not-allowed',
+              }}
+            >
+              {repricing ? 'Repriceando…' : 'Repricear con esta marca'}
+            </button>
+          </>
+        )}
+      </div>
+      {/* Expanded curve panel */}
+      {expandedChip && mark && (
+        <div style={{
+          background: '#fff', border: '1px solid #dee2e6', borderRadius: 8,
+          padding: 16, marginTop: 8,
+        }}>
+          {expandedChip === 'IBR' && mark.ibr && (
+            <IbrMarkView ibr={mark.ibr} fecha={fecha} />
           )}
-          <button
-            type="button"
-            onClick={() => onReprice(fecha)}
-            disabled={repricing || loadingMark || !hasData}
-            style={{
-              padding: '3px 12px', borderRadius: 4, fontSize: 12, fontWeight: 600,
-              border: '1px solid #0d6efd',
-              background: hasData && !repricing ? '#0d6efd' : '#e9ecef',
-              color: hasData && !repricing ? '#fff' : '#6c757d',
-              cursor: hasData && !repricing ? 'pointer' : 'not-allowed',
-            }}
-          >
-            {repricing ? 'Repriceando…' : 'Repricear con esta marca'}
-          </button>
-        </>
+          {expandedChip === 'SOFR' && mark.sofr && mark.sofr.length > 0 && (
+            <SofrMarkView sofr={mark.sofr} fecha={fecha} />
+          )}
+          {expandedChip === 'NDF' && mark.ndf && mark.ndf.length > 0 && (
+            <NdfMarkView ndf={mark.ndf} fecha={fecha} />
+          )}
+        </div>
       )}
     </div>
   );
@@ -313,11 +343,13 @@ function CurveStatusBar({
   spotOverride?: number;
 }) {
   if (!status) return null;
-  const curves = [
+  const curves: { name: string; built: boolean }[] = [
     { name: 'IBR', built: status.ibr.built },
     { name: 'SOFR', built: status.sofr.built },
-    { name: 'TES', built: status.tes?.built ?? false },
   ];
+  // Only show NDF/TES when they are actually built (avoid confusing red X for optional curves)
+  if (status.ndf?.built) curves.push({ name: 'NDF', built: true });
+  if (status.tes?.built) curves.push({ name: 'TES', built: true });
   return (
     <div
       style={{
@@ -2105,65 +2137,6 @@ function CurvesPanel({ status }: { status: CurveStatus | null }) {
   );
 }
 
-// ── NDF Implied Curve Panel ──
-function ImpliedCurvePanel({ data, onLoad, loading, curvesReady }: { data: NdfImpliedCurvePoint[]; onLoad: () => void; loading: boolean; curvesReady: boolean }) {
-  return (
-    <>
-      <div className="mb-3">
-        <Button variant="outline-primary" size="sm" onClick={onLoad} disabled={loading || !curvesReady}>
-          <Icon icon={faSyncAlt} className="me-1" />
-          Cargar Curva Implicita
-        </Button>
-      </div>
-      {data.length > 0 ? (
-        <>
-          <div style={{ background: '#fff', borderRadius: 8, padding: 16, border: '1px solid #dee2e6' }}>
-            <ResponsiveContainer width="100%" height={350}>
-              <LineChart data={data}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis type="number" dataKey="tenor_months" ticks={data.map((d) => d.tenor_months)} tickFormatter={(m: number) => data.find((d) => d.tenor_months === m)?.tenor || ''} />
-                <YAxis domain={['auto', 'auto']} tickFormatter={(v: number) => fmt(v, 0)} />
-                <Tooltip labelFormatter={(m: number) => data.find((d) => d.tenor_months === m)?.tenor || ''} formatter={(v: number) => fmt(v, 2)} />
-                <Legend />
-                <Line type="monotone" dataKey="forward_market" name="Mercado (FXEmpire)" stroke="#1f77b4" strokeWidth={2} dot={{ r: 4 }} />
-                <Line type="monotone" dataKey="forward_irt_parity" name="Implicito (IBR/SOFR)" stroke="#ff7f0e" strokeWidth={2} dot={{ r: 4 }} />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-          <div style={{ overflowX: 'auto', marginTop: 12 }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-              <thead>
-                <tr style={{ borderBottom: '2px solid #dee2e6' }}>
-                  <th style={{ padding: '6px 10px', textAlign: 'left' }}>Tenor</th>
-                  <th style={{ padding: '6px 10px', textAlign: 'right' }}>Meses</th>
-                  <th style={{ padding: '6px 10px', textAlign: 'right', color: '#1f77b4' }}>Fwd Mercado</th>
-                  <th style={{ padding: '6px 10px', textAlign: 'right', color: '#ff7f0e' }}>Fwd Implicito</th>
-                  <th style={{ padding: '6px 10px', textAlign: 'right' }}>Basis</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.map((pt) => (
-                  <tr key={pt.tenor} style={{ borderBottom: '1px solid #eee' }}>
-                    <td style={{ padding: '4px 10px', fontWeight: 600 }}>{pt.tenor}</td>
-                    <td style={{ padding: '4px 10px', textAlign: 'right' }}>{pt.tenor_months}</td>
-                    <td style={{ padding: '4px 10px', textAlign: 'right', color: '#1f77b4', fontFamily: 'monospace' }}>{fmt(pt.forward_market, 2)}</td>
-                    <td style={{ padding: '4px 10px', textAlign: 'right', color: '#ff7f0e', fontFamily: 'monospace' }}>{fmt(pt.forward_irt_parity, 2)}</td>
-                    <td style={{ padding: '4px 10px', textAlign: 'right', fontWeight: 600, fontFamily: 'monospace', color: pt.basis > 0 ? '#28a745' : '#dc3545' }}>{fmt(pt.basis, 2)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </>
-      ) : (
-        <div style={{ height: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#999', border: '1px dashed #dee2e6', borderRadius: 8 }}>
-          Presione &quot;Cargar Curva Implicita&quot; para ver Mercado vs Implicita
-        </div>
-      )}
-    </>
-  );
-}
-
 // ── Main Page ──
 
 function PortfolioPage() {
@@ -2176,8 +2149,6 @@ function PortfolioPage() {
   const [selectedNdf, setSelectedNdf] = useState<PricedNdf | null>(null);
   const [selectedIbrSwap, setSelectedIbrSwap] = useState<PricedIbrSwap | null>(null);
   const [viewTab, setViewTab] = useState<'portfolio' | 'curves'>('portfolio');
-  const [curvesSubTab, setCurvesSubTab] = useState<'ibr_sofr' | 'marcas' | 'implied'>('ibr_sofr');
-  const [impliedCurve, setImpliedCurve] = useState<NdfImpliedCurvePoint[]>([]);
   const [showConfigModal, setShowConfigModal] = useState(false);
 
   const {
@@ -2220,18 +2191,6 @@ function PortfolioPage() {
       setLoading(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const handleFetchImplied = useCallback(async () => {
-    setLoading(true);
-    try {
-      const data = await getNdfImpliedCurve();
-      setImpliedCurve(data);
-    } catch (e) {
-      toast.error(`Error: ${e instanceof Error ? e.message : String(e)}`);
-    } finally {
-      setLoading(false);
-    }
   }, []);
 
   const handleReprice = useCallback(async () => {
@@ -2465,7 +2424,7 @@ function PortfolioPage() {
         <div style={{ display: 'flex', gap: 4, marginBottom: 12 }}>
           {([
             ['portfolio', 'Portafolio', faTable],
-            ['curves', 'Curvas', faLineChart],
+            ['curves', 'Curva-Marcas', faLineChart],
           ] as const).map(([key, label, icon]) => (
             <button
               key={key}
@@ -2509,45 +2468,7 @@ function PortfolioPage() {
           </div>
         )}
         {viewTab === 'curves' && (
-          <>
-            {/* Curves sub-tabs */}
-            <div style={{ display: 'flex', gap: 4, marginBottom: 12, borderBottom: '1px solid #dee2e6', paddingBottom: 8 }}>
-              {([
-                ['ibr_sofr', 'IBR / SOFR'],
-                ['marcas', 'Marcas'],
-                ['implied', 'Curva Implícita'],
-              ] as const).map(([key, label]) => (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => setCurvesSubTab(key)}
-                  style={{
-                    padding: '4px 12px',
-                    fontSize: 12,
-                    fontWeight: 600,
-                    border: 'none',
-                    borderBottom: curvesSubTab === key ? '2px solid #0d6efd' : '2px solid transparent',
-                    borderRadius: 0,
-                    cursor: 'pointer',
-                    background: 'none',
-                    color: curvesSubTab === key ? '#0d6efd' : '#6c757d',
-                  }}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-            {curvesSubTab === 'ibr_sofr' && <CurvesPanel status={curveStatus} />}
-            {curvesSubTab === 'marcas' && <MarcasPanel />}
-            {curvesSubTab === 'implied' && (
-              <ImpliedCurvePanel
-                data={impliedCurve}
-                onLoad={handleFetchImplied}
-                loading={isLoading}
-                curvesReady={!!curvesReady}
-              />
-            )}
-          </>
+          <CurvesPanel status={curveStatus} />
         )}
 
         {/* Add Modals */}
