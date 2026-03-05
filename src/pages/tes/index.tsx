@@ -6,12 +6,7 @@ import { Row, Col, DropdownDivider } from 'react-bootstrap';
 import Dropdown from 'react-bootstrap/Dropdown';
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import Container from 'react-bootstrap/Container';
-import {
-  LightSerie,
-  LightSerieValue,
-  defaultCustomFormat,
-} from 'src/types/lightserie';
-import { MovingAvgValue } from 'src/types/movingAvg';
+import { LightSerieValue } from 'src/types/lightserie';
 import { ExportToCsv, downloadBlob } from 'src/utils/downloadCSV';
 import { FontAwesomeIcon as Icon } from '@fortawesome/react-fontawesome';
 import {
@@ -40,6 +35,7 @@ import CombinedYieldCurveChart from '@components/yieldCurve/CombinedYieldCurveCh
 import RatePathChart from '@components/yieldCurve/RatePathChart';
 import { bootstrapRatePath } from 'src/utils/ratePathBootstrap';
 import { BANREP_MEETINGS } from 'src/utils/centralBankMeetings';
+import styles from './tes.module.css';
 
 const TAB_ITEMS: TabItemType[] = [
   {
@@ -67,24 +63,46 @@ const PURPLE_COLOR = designSystem['purple-100'].value;
 const GRAY_COLOR_300 = designSystem['gray-300'].value;
 const OPCIONES = 'Opciones';
 const MONTH_OPTIONS = [20, 30, 50];
-
 const DEFAULT_IBR_NAME = 'IBR_2Y';
-const DEFAULT_UVR_NAME = 'COLTES 3.3 03/17/27';
-const DEFAULT_COP_NAME = 'COLTES 6.25 11/26/25';
+
+function isExpired(displayname: string): boolean {
+  const parts = displayname.trim().split(' ');
+  const dateStr = parts[parts.length - 1];
+  if (!dateStr || !dateStr.includes('/')) return false;
+  const segments = dateStr.split('/');
+  if (segments.length !== 3) return false;
+  const [mm, dd, yy] = segments;
+  const year = 2000 + parseInt(yy, 10);
+  if (Number.isNaN(year)) return false;
+  const maturity = new Date(year, parseInt(mm, 10) - 1, parseInt(dd, 10));
+  return maturity < new Date();
+}
+
+function formatKpiVolume(v: number): string {
+  if (v >= 1e12) return `${(v / 1e12).toFixed(1)}T`;
+  if (v >= 1e9) return `${(v / 1e9).toFixed(1)}B`;
+  if (v >= 1e6) return `${(v / 1e6).toFixed(1)}M`;
+  return v.toLocaleString('es-CO');
+}
 
 export default function FullTesViewer() {
   const supabase = createClientComponentClient();
   const [options, setOptions] = useState<GridEntry[]>([]);
+  const [filterExpired, setFilterExpired] = useState(true);
+  const [filterTradedToday, setFilterTradedToday] = useState(true);
+  const [showCurveToday, setShowCurveToday] = useState(true);
+  const [filterSendaToday, setFilterSendaToday] = useState(true);
+  const [selectedEntry, setSelectedEntry] = useState<GridEntry | null>(null);
   const [candleSerie, setCandleSerie] = useState<CandleSerie>({
     name: '',
     values: [],
   });
   const ibrAllData = useRef<Map<string, GridEntry>>();
   const serieId = useRef<string>('tes_24');
-  const movingAvgDays = useRef<number>(20);
+  const [movingAvgDays, setMovingAvgDays] = useState<number>(20);
+  const [smaEnabled, setSmaEnabled] = useState(false);
   const displayName = useRef<string>('');
   const [currencyType, setCurrencyType] = useState(TAB_ITEMS[0].property);
-  const [movingAvg, setMovingAvg] = useState<LightSerie>();
   const [volumenSerie, setvolumenSerie] = useState<LightSerieValue[]>([]);
   const [pageTabs, setTabsState] = useState<TabItemType[]>(TAB_ITEMS);
   const [viewMode, setViewMode] = useState<'candle' | 'curve' | 'todas' | 'senda'>('candle');
@@ -94,6 +112,36 @@ export default function FullTesViewer() {
     uvr: GridEntry[];
     ibr: GridEntry[];
   }>({ cop: [], uvr: [], ibr: [] });
+
+  // Derived: hide expired bonds when checkbox is on (IBR has no maturity dates)
+  const filteredOptions = useMemo(() => {
+    if (currencyType === 'COLTES-IBR') {
+      if (!filterTradedToday || options.length === 0) return options;
+      const latestDate = options
+        .reduce((max, e) => (e.operation_time > max ? e.operation_time : max), options[0].operation_time)
+        .split('T')[0];
+      return options.filter((e) => e.operation_time.split('T')[0] === latestDate);
+    }
+    if (!filterExpired) return options;
+    return options.filter((e) => !isExpired(e.displayname));
+  }, [options, filterExpired, filterTradedToday, currencyType]);
+
+  // KPI computations
+  const kpis = useMemo(() => {
+    const total = filteredOptions.reduce((s, e) => s + e.volume, 0);
+    const weightedBps = filteredOptions.reduce(
+      (s, e) => s + (e.close - e.prev) * 100 * e.volume,
+      0
+    );
+    const avgBps = total > 0 ? weightedBps / total : 0;
+    return {
+      totalVolume: total,
+      avgBps,
+      activeYield: selectedEntry?.close ?? null,
+      activeName: selectedEntry?.displayname ?? '',
+      count: filteredOptions.length,
+    };
+  }, [filteredOptions, selectedEntry]);
 
   const fetchTesRawData = useCallback(
     async (view_tes: string) => {
@@ -107,13 +155,10 @@ export default function FullTesViewer() {
         setCandleSerie({ name: '', values: [] });
       } else if (data) {
         const allData = data as TesYields[];
-
         const volData: { time: string; value: number }[] = [];
-
         allData.forEach((tes) => {
           volData.push({ time: tes.day.split('T')[0], value: tes.volume });
         });
-
         setvolumenSerie(volData);
         setCandleSerie({ name: '', values: allData });
       } else {
@@ -123,106 +168,27 @@ export default function FullTesViewer() {
     [supabase]
   );
 
-  const fetchTesMvingAvgIbr = useCallback(
-    async (
-      selected_name: string,
-      moving_days: number,
-      display_name: string
-    ) => {
-      if (ibrAllData.current) {
-        const ibrIdentifier = ibrAllData.current.get(selected_name)?.tes_months;
-
-        if (ibrIdentifier) {
-          const { data, error } = await supabase
-            .schema('xerenity')
-            .rpc('ibr_moving_average', {
-              ibr_months: ibrIdentifier,
-              average_days: moving_days,
-            });
-
-          if (error) {
-            toast.error(error.message, { position: toast.POSITION.TOP_CENTER });
-          } else if (data) {
-            const avgValues = data.moving_avg as MovingAvgValue[];
-            const avgSerie = Array<LightSerieValue>();
-            avgValues.forEach((avgval) => {
-              avgSerie.push({
-                value: avgval.avg,
-                time: avgval.close_date.split('T')[0],
-              });
-            });
-            setMovingAvg({
-              serie: avgSerie,
-              color: PURPLE_COLOR,
-              name: display_name,
-              type: 'line',
-              priceFormat: defaultCustomFormat,
-              axisName: 'right',
-              tiker: '',
-            });
-          }
-        }
-      }
-    },
-    [supabase]
-  );
-
-  const fetchTesMvingAvg = useCallback(
-    async (
-      selected_name: string,
-      moving_days: number,
-      display_name: string
-    ) => {
-      const { data, error } = await supabase
-        .schema('xerenity')
-        .rpc('tes_moving_average', {
-          tes_name: selected_name,
-          average_days: moving_days,
-        });
-
-      if (error) {
-        toast.error(error.message, { position: toast.POSITION.TOP_CENTER });
-      } else if (data) {
-        const avgValues = data.moving_avg as MovingAvgValue[];
-        const avgSerie = Array<LightSerieValue>();
-        avgValues.forEach((avgval) => {
-          avgSerie.push({
-            value: avgval.avg,
-            time: avgval.close_date.split('T')[0],
-          });
-        });
-        setMovingAvg({
-          serie: avgSerie,
-          color: PURPLE_COLOR,
-          name: display_name,
-          type: 'line',
-          priceFormat: defaultCustomFormat,
-          axisName: 'right',
-          tiker: '',
-        });
-      }
-    },
-    [supabase, setMovingAvg]
-  );
+  // Local SMA: calculated from candle data already in memory — no extra network call
+  const movingAvgSerie = useMemo<LightSerieValue[] | null>(() => {
+    if (!smaEnabled || candleSerie.values.length < movingAvgDays) return null;
+    const vals = candleSerie.values;
+    const result: LightSerieValue[] = [];
+    for (let i = movingAvgDays - 1; i < vals.length; i += 1) {
+      const avg =
+        vals.slice(i - movingAvgDays + 1, i + 1).reduce((s, v) => s + v.close, 0) /
+        movingAvgDays;
+      result.push({ time: vals[i].day.split('T')[0], value: avg });
+    }
+    return result;
+  }, [smaEnabled, candleSerie.values, movingAvgDays]);
 
   const changeSelection = useCallback(
     async (id: string, placeholder: string) => {
       serieId.current = id;
       displayName.current = placeholder;
-
       fetchTesRawData(serieId.current);
-
-      if (id.includes('ibr')) {
-        fetchTesMvingAvgIbr(
-          serieId.current,
-          movingAvgDays.current,
-          placeholder
-        );
-      } else {
-        fetchTesMvingAvg(serieId.current, movingAvgDays.current, placeholder);
-      }
     },
-    [fetchTesMvingAvg, fetchTesMvingAvgIbr, fetchTesRawData, movingAvgDays]
+    [fetchTesRawData]
   );
 
   const fetchTesNames = useCallback(async () => {
@@ -231,25 +197,23 @@ export default function FullTesViewer() {
         .schema('xerenity')
         .rpc('get_tes_grid_raw', { money: currencyType });
 
-      if (error) {
-        setOptions([]);
-      }
+      if (error) setOptions([]);
 
       if (data) {
         const allData = data as GridEntry[];
-        const filterValue =
-          currencyType === 'COLTES-COP' ? DEFAULT_COP_NAME : DEFAULT_UVR_NAME;
 
-        const defIbr = allData.find(
-          (ibrSea) => ibrSea.displayname === filterValue
-        );
+        // Select highest-volume non-expired bond as default
+        const activeData = allData.filter((e) => !isExpired(e.displayname));
+        const pool = activeData.length > 0 ? activeData : allData;
+        const defEntry = [...pool].sort((a, b) => b.volume - a.volume)[0];
 
-        if (defIbr) {
-          changeSelection(defIbr.tes, defIbr.displayname);
+        if (defEntry) {
+          setSelectedEntry(defEntry);
+          changeSelection(defEntry.tes, defEntry.displayname);
         }
         setOptions(allData);
       } else {
-        setOptions([] as GridEntry[]);
+        setOptions([]);
       }
     } else {
       const { data, error } = await supabase
@@ -265,26 +229,20 @@ export default function FullTesViewer() {
         const allIbr = data as GridEntry[];
         const mapping = new Map<string, GridEntry>();
         if (allIbr.length > 0) {
-          allIbr.forEach((entry) => {
-            mapping.set(entry.tes, entry);
-          });
+          allIbr.forEach((entry) => mapping.set(entry.tes, entry));
 
-          const defIbr = allIbr.find(
-            (ibrSea) => ibrSea.displayname === DEFAULT_IBR_NAME
-          );
-
+          const defIbr = allIbr.find((e) => e.displayname === DEFAULT_IBR_NAME);
           if (defIbr) {
+            setSelectedEntry(defIbr);
             changeSelection(defIbr.tes, defIbr.displayname);
           }
         } else {
           setOptions([]);
         }
-
         ibrAllData.current = mapping;
-
         setOptions(allIbr);
       } else {
-        setOptions([] as GridEntry[]);
+        setOptions([]);
       }
     }
   }, [currencyType, supabase, changeSelection]);
@@ -307,88 +265,76 @@ export default function FullTesViewer() {
   }, [fetchTesNames]);
 
   const fetchIbrGrid = useCallback(async () => {
-    const { data, error } = await supabase
-      .schema('xerenity')
-      .rpc('get_ibr_grid_raw', {});
-    if (!error && data) {
-      setIbrGridData(data as GridEntry[]);
-    }
+    const { data, error } = await supabase.schema('xerenity').rpc('get_ibr_grid_raw', {});
+    if (!error && data) setIbrGridData(data as GridEntry[]);
   }, [supabase]);
 
   useEffect(() => {
-    if (viewMode === 'todas') {
-      fetchAllCurves();
-    }
-    if (viewMode === 'senda') {
-      fetchIbrGrid();
-    }
+    if (viewMode === 'todas') fetchAllCurves();
+    if (viewMode === 'senda') fetchIbrGrid();
   }, [viewMode, fetchAllCurves, fetchIbrGrid]);
 
   const copRatePathData = useMemo(() => {
     if (ibrGridData.length === 0) return { path: [], currentRate: 0, curveDate: '' };
-
-    // Curve date from the most recent operation_time
     const latestOp = ibrGridData.reduce(
       (max, e) => (e.operation_time > max ? e.operation_time : max),
       ibrGridData[0].operation_time
     );
     const curveDate = latestOp.split('T')[0];
-
-    // Filter out stale tenors: only keep entries traded within the last 5 days
-    const cutoffDate = new Date(curveDate);
-    cutoffDate.setDate(cutoffDate.getDate() - 5);
-    const cutoffStr = cutoffDate.toISOString().split('T')[0];
-
     const curve = ibrGridData
-      .filter((e) => e.close > 0 && e.tes_months > 0 && e.operation_time >= cutoffStr)
+      .filter((e) => {
+        if (e.close <= 0 || e.tes_months <= 0) return false;
+        if (filterSendaToday) return e.operation_time.split('T')[0] === curveDate;
+        const cutoff = new Date(curveDate);
+        cutoff.setDate(cutoff.getDate() - 5);
+        return e.operation_time >= cutoff.toISOString().split('T')[0];
+      })
       .map((e) => ({ tenor_months: e.tes_months, rate: e.close }))
       .sort((a, b) => a.tenor_months - b.tenor_months);
-
     if (curve.length < 2) return { path: [], currentRate: 0, curveDate: '' };
-
-    // Use 3M IBR swap rate as current rate
     const threeMonth = curve.find((c) => c.tenor_months === 3);
     const currentRate = threeMonth ? threeMonth.rate : curve[0].rate;
-
     const path = bootstrapRatePath(curve, currentRate, BANREP_MEETINGS, curveDate);
     return { path, currentRate, curveDate };
-  }, [ibrGridData]);
+  }, [ibrGridData, filterSendaToday]);
 
   const handleSelect = ({ selectedRows }: SelectableRows<GridEntry>) => {
     if (selectedRows.length > 0) {
       const entry: GridEntry = selectedRows[0];
+      setSelectedEntry(entry);
       changeSelection(entry.tes, entry.displayname);
     }
   };
 
   const handleCurrencyChange = (tabProp: string) => {
     setCurrencyType(tabProp);
+    setSelectedEntry(null);
     setTabsState((prevState) =>
-      prevState.map((tab) => ({
-        ...tab,
-        active: tab.property === tabProp,
-      }))
+      prevState.map((tab) => ({ ...tab, active: tab.property === tabProp }))
     );
   };
 
   const handleMonthChange = (month: number) => {
-    movingAvgDays.current = month;
-    if (serieId.current.includes('ibr')) {
-      return fetchTesMvingAvgIbr(serieId.current, month, displayName.current);
-    }
-    return fetchTesMvingAvg(serieId.current, month, displayName.current);
+    setMovingAvgDays(month);
+    setSmaEnabled(true);
   };
 
   const downloadGrid = () => {
     const allValues: string[][] = [];
     allValues.push(['open', 'high', 'low', 'close', 'volume', 'day']);
-    candleSerie.values.forEach((entry) => {
-      allValues.push(TesEntryToArray(entry));
-    });
-
+    candleSerie.values.forEach((entry) => allValues.push(TesEntryToArray(entry)));
     const csv = ExportToCsv(allValues);
     downloadBlob(csv, `xerenity_${displayName}.csv`, 'text/csv;charset=utf-8;');
   };
+
+  const bpsSign = kpis.avgBps > 0 ? '+' : '';
+  let bpsArrow = '—';
+  if (kpis.avgBps > 0) bpsArrow = '▲';
+  else if (kpis.avgBps < 0) bpsArrow = '▼';
+
+  let bpsClassName = styles.kpiValueNeutral;
+  if (kpis.avgBps > 0) bpsClassName = styles.kpiValueDanger;
+  else if (kpis.avgBps < 0) bpsClassName = styles.kpiValueSuccess;
 
   return (
     <CoreLayout>
@@ -417,31 +363,19 @@ export default function FullTesViewer() {
                 ))}
               </Tabs>
               <Tabs outlined>
-                <Tab
-                  active={viewMode === 'candle'}
-                  onClick={() => setViewMode('candle')}
-                >
+                <Tab active={viewMode === 'candle'} onClick={() => setViewMode('candle')}>
                   <Icon icon={faBarChart} />
                   Candlestick
                 </Tab>
-                <Tab
-                  active={viewMode === 'curve'}
-                  onClick={() => setViewMode('curve')}
-                >
+                <Tab active={viewMode === 'curve'} onClick={() => setViewMode('curve')}>
                   <Icon icon={faLineChart} />
                   Curva
                 </Tab>
-                <Tab
-                  active={viewMode === 'todas'}
-                  onClick={() => setViewMode('todas')}
-                >
+                <Tab active={viewMode === 'todas'} onClick={() => setViewMode('todas')}>
                   <Icon icon={faLineChart} />
                   Todas
                 </Tab>
-                <Tab
-                  active={viewMode === 'senda'}
-                  onClick={() => setViewMode('senda')}
-                >
+                <Tab active={viewMode === 'senda'} onClick={() => setViewMode('senda')}>
                   <Icon icon={faLineChart} />
                   Senda
                 </Tab>
@@ -459,10 +393,7 @@ export default function FullTesViewer() {
                   </Dropdown.Item>
                   <DropdownDivider />
                   {MONTH_OPTIONS.map((month) => (
-                    <Dropdown.Item
-                      key={month}
-                      onClick={() => handleMonthChange(month)}
-                    >
+                    <Dropdown.Item key={month} onClick={() => handleMonthChange(month)}>
                       <div className="d-flex gap-2 align-items-center">
                         <Icon icon={faCaretRight} />
                         <span>{`Promedio Movil ${month}`}</span>
@@ -474,27 +405,78 @@ export default function FullTesViewer() {
             </Toolbar>
           </div>
         </Row>
+
+        {/* KPI Summary Bar */}
+        <Row className="mb-3">
+          <Col>
+            <div className={styles.kpiBar}>
+              <div className={styles.kpiBox}>
+                <span className={styles.kpiLabel}>VOLUMEN TOTAL</span>
+                <span className={styles.kpiValueNeutral}>
+                  {formatKpiVolume(kpis.totalVolume)}
+                </span>
+                <span className={styles.kpiSub}>COP en el día</span>
+              </div>
+              <div className={styles.kpiBox}>
+                <span className={styles.kpiLabel}>CAMBIO PROM.</span>
+                <span className={bpsClassName}>
+                  {bpsArrow} {bpsSign}{kpis.avgBps.toFixed(1)} bps
+                </span>
+                <span className={styles.kpiSub}>pond. por volumen</span>
+              </div>
+              <div className={styles.kpiBox}>
+                <span className={styles.kpiLabel}>YIELD ACTIVO</span>
+                <span className={styles.kpiValuePurple}>
+                  {kpis.activeYield !== null ? `${kpis.activeYield.toFixed(2)}%` : '—'}
+                </span>
+                <span className={styles.kpiSub}>
+                  {kpis.activeName
+                    ? kpis.activeName.split(' ').slice(0, 3).join(' ')
+                    : 'selecciona un bono'}
+                </span>
+              </div>
+              <div className={styles.kpiBox}>
+                <span className={styles.kpiLabel}>TÍTULOS</span>
+                <span className={styles.kpiValueNeutral}>{kpis.count}</span>
+                <span className={styles.kpiSub}>en pantalla</span>
+              </div>
+            </div>
+          </Col>
+        </Row>
+
         <Row>
           <Col>
             {viewMode === 'candle' && (
-              <Chart chartHeight={600} showToolbar>
-                <Chart.Candle data={candleSerie.values} scaleId="right" />
-                <Chart.Volume
-                  data={volumenSerie}
-                  scaleId="left"
-                  title="Volumen"
-                  color={GRAY_COLOR_300}
-                />
-                {movingAvg ? (
-                  <Chart.Line
-                    data={movingAvg.serie}
-                    color={PURPLE_COLOR}
-                    scaleId="right"
-                    title={movingAvg.name}
+                <Chart
+                  chartHeight={500}
+                  showToolbar
+                  header={selectedEntry && (
+                    <div className={styles.chartTitle}>
+                      {selectedEntry.displayname}
+                      <span className={styles.chartTitleYield}>
+                        {selectedEntry.close.toFixed(2)}%
+                      </span>
+                    </div>
+                  )}
+                >
+                  <Chart.Candle data={candleSerie.values} scaleId="right" />
+                  <Chart.Volume
+                    data={volumenSerie}
+                    scaleId="left"
+                    title="Volumen"
+                    color={GRAY_COLOR_300}
                   />
-                ) : null}
-              </Chart>
+                  {movingAvgSerie ? (
+                    <Chart.Line
+                      data={movingAvgSerie}
+                      color={PURPLE_COLOR}
+                      scaleId="right"
+                      title={`SMA ${movingAvgDays}`}
+                    />
+                  ) : null}
+                </Chart>
             )}
+
             {viewMode === 'todas' && (
               <CombinedYieldCurveChart
                 copData={allCurvesData.cop}
@@ -503,23 +485,78 @@ export default function FullTesViewer() {
               />
             )}
             {viewMode === 'curve' && (
-              <YieldCurveChart data={options} curveType={currencyType} />
+              <YieldCurveChart data={options} curveType={currencyType} showTodayOnly={showCurveToday} />
             )}
             {viewMode === 'senda' && (
-              <RatePathChart
-                data={copRatePathData.path}
-                currentRate={copRatePathData.currentRate}
-                curveDate={copRatePathData.curveDate}
-                color="#6366F1"
-                title="Senda Implícita BanRep (IBR 3M OIS)"
-              />
+              <>
+                <div className={styles.filterRowSenda}>
+                  <label className={styles.filterLabel}>
+                    <input
+                      type="checkbox"
+                      className={styles.filterCheckbox}
+                      checked={filterSendaToday}
+                      onChange={(e) => setFilterSendaToday(e.target.checked)}
+                    />
+                    Solo hoy (curva OIS)
+                  </label>
+                </div>
+                <RatePathChart
+                  data={copRatePathData.path}
+                  currentRate={copRatePathData.currentRate}
+                  curveDate={copRatePathData.curveDate}
+                  color="#6366F1"
+                  title="Senda Implícita BanRep (IBR 3M OIS)"
+                />
+              </>
             )}
           </Col>
         </Row>
+
         {viewMode !== 'senda' && (
-          <Row>
+          <Row className="mt-2">
             <Col>
-              <CandleGridViewer onSelect={handleSelect} allTes={options} />
+              <div className={styles.filterRow}>
+                {currencyType !== 'COLTES-IBR' && (
+                  <label className={styles.filterLabel}>
+                    <input
+                      type="checkbox"
+                      className={styles.filterCheckbox}
+                      checked={filterExpired}
+                      onChange={(e) => setFilterExpired(e.target.checked)}
+                    />
+                    Solo vigentes
+                  </label>
+                )}
+                {currencyType === 'COLTES-IBR' && viewMode !== 'curve' && (
+                  <label className={styles.filterLabel}>
+                    <input
+                      type="checkbox"
+                      className={styles.filterCheckbox}
+                      checked={filterTradedToday}
+                      onChange={(e) => setFilterTradedToday(e.target.checked)}
+                    />
+                    Solo operados hoy
+                  </label>
+                )}
+                {currencyType === 'COLTES-IBR' && viewMode === 'curve' && (
+                  <label className={styles.filterLabel}>
+                    <input
+                      type="checkbox"
+                      className={styles.filterCheckbox}
+                      checked={showCurveToday}
+                      onChange={(e) => setShowCurveToday(e.target.checked)}
+                    />
+                    Solo hoy (curva)
+                  </label>
+                )}
+                {options.length > filteredOptions.length && (
+                  <span className={styles.filterHidden}>
+                    ({options.length - filteredOptions.length} oculto
+                    {options.length - filteredOptions.length !== 1 ? 's' : ''})
+                  </span>
+                )}
+              </div>
+              <CandleGridViewer onSelect={handleSelect} allTes={filteredOptions} />
             </Col>
           </Row>
         )}
@@ -527,3 +564,4 @@ export default function FullTesViewer() {
     </CoreLayout>
   );
 }
+

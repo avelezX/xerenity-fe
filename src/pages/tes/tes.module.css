@@ -1,0 +1,101 @@
+.kpiBar {
+  display: flex;
+  gap: 12px;
+}
+
+.kpiBox {
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 10px 18px;
+  min-width: 140px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.kpiLabel {
+  font-size: 11px;
+  color: #9ca3af;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.kpiValue {
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.kpiValueNeutral {
+  composes: kpiValue;
+  color: #111827;
+}
+
+.kpiValueDanger {
+  composes: kpiValue;
+  color: #b02a37;
+}
+
+.kpiValueSuccess {
+  composes: kpiValue;
+  color: #188754;
+}
+
+.kpiValuePurple {
+  composes: kpiValue;
+  color: #786cf7;
+}
+
+.kpiSub {
+  font-size: 11px;
+  color: #9ca3af;
+}
+
+.filterRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.filterLabel {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.filterCheckbox {
+  cursor: pointer;
+  accent-color: #786cf7;
+}
+
+.filterHidden {
+  color: #9ca3af;
+}
+
+.filterRowSenda {
+  composes: filterRow;
+  margin-bottom: 8px;
+}
+
+.chartTitle {
+  font-size: 15px;
+  font-weight: 600;
+  color: #374151;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.chartTitleYield {
+  font-size: 22px;
+  font-weight: 700;
+  color: #786cf7;
+  letter-spacing: -0.5px;
+}

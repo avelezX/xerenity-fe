@@ -2,7 +2,8 @@
 
 import { CoreLayout } from '@layout';
 import { Row, Col, Form } from 'react-bootstrap';
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
+import { useRouter } from 'next/router';
 import Container from 'react-bootstrap/Container';
 import { FontAwesomeIcon as Icon } from '@fortawesome/react-fontawesome';
 import {
@@ -30,19 +31,19 @@ import {
   ReferenceLine,
 } from 'recharts';
 import {
-  buildCurves,
   priceXccySwap,
+  getXccyCashflows,
   getXccyParBasisCurve,
-  getCurveStatus,
   type XccySwapRequest,
   type ParBasisCurveRequest,
 } from 'src/models/pricing/pricingApi';
 import type {
   XccySwapResult,
+  XccyCashflowResponse,
   ParBasisPoint,
-  CurveStatus,
 } from 'src/types/pricing';
 import { createXccyPosition } from 'src/models/trading';
+import useAppStore from 'src/store';
 
 const PAGE_TITLE = 'Cross-Currency Swap';
 
@@ -77,11 +78,13 @@ const parseInput = (s: string): number => {
 };
 
 function XccySwapPage() {
+  const router = useRouter();
+  const { curvesReady, curveLoading, curveStatus, checkCurveStatus, triggerBuildCurves } = useAppStore();
+  const prefillApplied = useRef(false);
+
   const [activeTab, setActiveTab] = useState('pricing');
   const [pageTabs, setPageTabs] = useState<TabItemType[]>(TAB_ITEMS);
   const [loading, setLoading] = useState(false);
-  const [curvesReady, setCurvesReady] = useState(false);
-  const [curveStatus, setCurveStatus] = useState<CurveStatus | null>(null);
 
   // Form state
   const [notionalUsd, setNotionalUsd] = useState(1_000_000);
@@ -93,6 +96,7 @@ function XccySwapPage() {
   const [customSchedule, setCustomSchedule] = useState('');
   const [usdSpreadBps, setUsdSpreadBps] = useState(0);
   const [copSpreadBps, setCopSpreadBps] = useState(0);
+  const [xccyBasisBps, setXccyBasisBps] = useState(0);
   const [payUsd, setPayUsd] = useState(true);
 
   // Operational fields (for saving to portfolio)
@@ -109,6 +113,7 @@ function XccySwapPage() {
 
   // Results
   const [result, setResult] = useState<XccySwapResult | null>(null);
+  const [cashflowResult, setCashflowResult] = useState<XccyCashflowResponse | null>(null);
   const [pricedAt, setPricedAt] = useState<string | null>(null);
   const [parBasisCurve, setParBasisCurve] = useState<ParBasisPoint[]>([]);
 
@@ -120,33 +125,36 @@ function XccySwapPage() {
   };
 
   const handleBuildCurves = useCallback(async () => {
-    setLoading(true);
     try {
-      const res = await buildCurves();
-      setCurvesReady(true);
-      setCurveStatus(res.full_status);
+      await triggerBuildCurves();
       toast.success('Curvas construidas correctamente');
     } catch (e) {
       toast.error(`Error: ${e instanceof Error ? e.message : String(e)}`);
-    } finally {
-      setLoading(false);
     }
-  }, []);
+  }, [triggerBuildCurves]);
 
-  const handleCheckStatus = useCallback(async () => {
-    try {
-      const status = await getCurveStatus();
-      setCurveStatus(status);
-      setCurvesReady(status.ibr.built && status.sofr.built);
-    } catch (e) {
-      toast.error(`Error: ${e instanceof Error ? e.message : String(e)}`);
-    }
-  }, []);
-
-  // On mount: check if curves are already built on the backend
+  // On mount: check curve status from global store
   useEffect(() => {
-    handleCheckStatus();
-  }, [handleCheckStatus]);
+    checkCurveStatus();
+  }, [checkCurveStatus]);
+
+  // Prefill form from URL params (when navigating from portfolio)
+  useEffect(() => {
+    if (!router.isReady || prefillApplied.current) return;
+    const q = router.query;
+    if (q.prefill !== '1') return;
+    prefillApplied.current = true;
+    if (q.notional_usd)      setNotionalUsd(Number(q.notional_usd));
+    if (q.start_date)        setStartDate(String(q.start_date));
+    if (q.maturity_date)     setMaturityDate(String(q.maturity_date));
+    if (q.usd_spread_bps)    setUsdSpreadBps(Number(q.usd_spread_bps));
+    if (q.cop_spread_bps)    setCopSpreadBps(Number(q.cop_spread_bps));
+    if (q.fx_initial)        setFxInitial(String(q.fx_initial));
+    if (q.pay_usd)           setPayUsd(q.pay_usd === 'true');
+    if (q.xccy_basis_bps)    setXccyBasisBps(Number(q.xccy_basis_bps));
+    if (q.payment_frequency) setPaymentFrequency(String(q.payment_frequency));
+    if (q.amortization_type) setAmortizationType(String(q.amortization_type));
+  }, [router.isReady, router.query]);
 
   // Validation: returns list of missing field names
   const getMissingFields = useCallback((): string[] => {
@@ -167,14 +175,16 @@ function XccySwapPage() {
     }
     setLoading(true);
     try {
+      const freqMap: Record<string, number> = { '1M': 1, '3M': 3, '6M': 6, '12M': 12 };
       const params: XccySwapRequest = {
         notional_usd: notionalUsd,
         start_date: startDate,
         maturity_date: maturityDate,
         usd_spread_bps: usdSpreadBps,
         cop_spread_bps: copSpreadBps,
+        xccy_basis_bps: xccyBasisBps,
         pay_usd: payUsd,
-        payment_frequency: paymentFrequency,
+        payment_frequency_months: freqMap[paymentFrequency] ?? 3,
         amortization_type: amortizationType,
       };
       if (fxInitial) params.fx_initial = parseFloat(fxInitial);
@@ -184,15 +194,19 @@ function XccySwapPage() {
           .map((s) => parseFloat(s.trim()))
           .filter((n) => !Number.isNaN(n));
       }
-      const res = await priceXccySwap(params);
+      const [res, cfRes] = await Promise.all([
+        priceXccySwap(params),
+        getXccyCashflows(params),
+      ]);
       setResult(res);
+      setCashflowResult(cfRes);
       setPricedAt(new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
     } catch (e) {
       toast.error(`Error: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
       setLoading(false);
     }
-  }, [notionalUsd, startDate, maturityDate, fxInitial, paymentFrequency, amortizationType, customSchedule, usdSpreadBps, copSpreadBps, payUsd]);
+  }, [notionalUsd, startDate, maturityDate, fxInitial, paymentFrequency, amortizationType, customSchedule, usdSpreadBps, copSpreadBps, xccyBasisBps, payUsd]);
 
   const handleFetchParBasis = useCallback(async () => {
     setLoading(true);
@@ -394,6 +408,18 @@ function XccySwapPage() {
                 </Form.Group>
               </Col>
             </Row>
+            <Form.Group className="mb-3">
+              <Form.Label style={{ fontSize: 13 }}>Basis Xccy COP (bps)</Form.Label>
+              <Form.Control
+                type="number"
+                step="1"
+                value={xccyBasisBps}
+                onChange={(e) => setXccyBasisBps(parseFloat(e.target.value) || 0)}
+              />
+              <Form.Text muted style={{ fontSize: 11 }}>
+                Cross-currency basis spread sobre la pata COP (IBR). Negativo = penalizacion COP. Distinto del spread USD.
+              </Form.Text>
+            </Form.Group>
             <Form.Group className="mb-3">
               <Form.Label style={{ fontSize: 13 }}>Direccion</Form.Label>
               <Form.Select
@@ -660,33 +686,22 @@ function XccySwapPage() {
                 </div>
                 <div style={{ fontSize: 10, color: '#888', marginTop: 4 }}>Mark-to-market en COP</div>
               </div>
-              {result.par_basis_bps != null && (
-                <div
-                  style={{
-                    flex: 1,
-                    background: '#cce5ff',
-                    borderRadius: 8,
-                    padding: '12px 16px',
-                    textAlign: 'center',
-                  }}
-                >
-                  <div style={{ fontSize: 12, color: '#555' }}>Par Basis</div>
-                  <div
-                    style={{
-                      fontSize: 20,
-                      fontWeight: 700,
-                      fontFamily: 'monospace',
-                      color: '#004085',
-                    }}
-                  >
-                    {fmt(result.par_basis_bps, 1)} bps
-                  </div>
-                  <div style={{ fontSize: 10, color: '#888', marginTop: 4 }}>Spread sobre SOFR que hace NPV = 0</div>
-                </div>
-              )}
+              <div
+                style={{
+                  flex: 1,
+                  background: '#cce5ff',
+                  borderRadius: 8,
+                  padding: '12px 16px',
+                  textAlign: 'center',
+                }}
+              >
+                <div style={{ fontSize: 12, color: '#555' }}>Par Basis</div>
+                <div style={{ fontSize: 13, color: '#555', marginTop: 4 }}>Ver pestaña</div>
+                <div style={{ fontSize: 10, color: '#888', marginTop: 4 }}>Spread sobre SOFR que hace NPV = 0</div>
+              </div>
             </div>
 
-            {/* P&L Decomposition */}
+            {/* Carry & Sensitivities */}
             <div
               style={{
                 display: 'flex',
@@ -702,28 +717,19 @@ function XccySwapPage() {
                   padding: '10px 14px',
                 }}
               >
-                <div style={{ fontSize: 11, color: '#888', marginBottom: 4 }}>P&L por Tasas</div>
+                <div style={{ fontSize: 11, color: '#888', marginBottom: 4 }}>Carry Diario</div>
                 <div
                   style={{
                     fontSize: 15,
                     fontWeight: 700,
                     fontFamily: 'monospace',
-                    color: result.pnl_rate_usd >= 0 ? '#155724' : '#721c24',
+                    color: result.carry_daily_cop >= 0 ? '#155724' : '#721c24',
                   }}
                 >
-                  {fmtMM(result.pnl_rate_usd)} USD
-                </div>
-                <div
-                  style={{
-                    fontSize: 12,
-                    fontFamily: 'monospace',
-                    color: '#666',
-                  }}
-                >
-                  {fmtMM(result.pnl_rate_cop)} COP
+                  {fmtMM(result.carry_daily_cop)} COP/día
                 </div>
                 <div style={{ fontSize: 10, color: '#aaa', marginTop: 4 }}>
-                  Diferencial de tasas (spread contractual vs mercado)
+                  IBR leg − SOFR leg × spot (período actual)
                 </div>
               </div>
               <div
@@ -734,28 +740,44 @@ function XccySwapPage() {
                   padding: '10px 14px',
                 }}
               >
-                <div style={{ fontSize: 11, color: '#888', marginBottom: 4 }}>P&L por FX</div>
+                <div style={{ fontSize: 11, color: '#888', marginBottom: 4 }}>
+                  Carry Acumulado{result.current_period ? ` (${result.current_period.days_elapsed}d)` : ''}
+                </div>
                 <div
                   style={{
                     fontSize: 15,
                     fontWeight: 700,
                     fontFamily: 'monospace',
-                    color: result.pnl_fx_usd >= 0 ? '#155724' : '#721c24',
+                    color: result.carry_accrued_cop >= 0 ? '#155724' : '#721c24',
                   }}
                 >
-                  {fmtMM(result.pnl_fx_usd)} USD
-                </div>
-                <div
-                  style={{
-                    fontSize: 12,
-                    fontFamily: 'monospace',
-                    color: '#666',
-                  }}
-                >
-                  {fmtMM(result.pnl_fx_cop)} COP
+                  {fmtMM(result.carry_accrued_cop)} COP
                 </div>
                 <div style={{ fontSize: 10, color: '#aaa', marginTop: 4 }}>
-                  Movimiento del tipo de cambio (spot vs pactacion)
+                  En el período de accrual actual
+                </div>
+              </div>
+              <div
+                style={{
+                  flex: 1,
+                  border: '1px solid #e0e0e0',
+                  borderRadius: 8,
+                  padding: '10px 14px',
+                }}
+              >
+                <div style={{ fontSize: 11, color: '#888', marginBottom: 4 }}>FX Delta</div>
+                <div
+                  style={{
+                    fontSize: 15,
+                    fontWeight: 700,
+                    fontFamily: 'monospace',
+                    color: '#004085',
+                  }}
+                >
+                  {fmtMM(result.fx_delta_cop)} COP
+                </div>
+                <div style={{ fontSize: 10, color: '#aaa', marginTop: 4 }}>
+                  Δ NPV por +1 COP/USD en spot
                 </div>
               </div>
             </div>
@@ -765,18 +787,22 @@ function XccySwapPage() {
                 {([
                   ['PV Intereses USD', fmtMM(result.usd_leg_pv), 'VP flujos de interes pata SOFR'],
                   ['PV Intereses COP', fmtMM(result.cop_leg_pv), 'VP flujos de interes pata IBR'],
-                  ['PV Principal USD', fmtMM(result.usd_principal_pv), 'VP amortizaciones de capital USD'],
-                  ['PV Principal COP', fmtMM(result.cop_principal_pv), 'VP amortizaciones de capital COP'],
+                  ['PV Principal USD', fmtMM(result.usd_notional_exchange_pv), 'VP intercambios de nocional USD'],
+                  ['PV Principal COP', fmtMM(result.cop_notional_exchange_pv), 'VP intercambios de nocional COP'],
                   ['', '', ''],
                   ['Nocional USD', fmt(result.notional_usd, 0), 'Monto inicial en dolares'],
                   ['Nocional COP', fmt(result.notional_cop, 0), 'Nocional USD x FX inicial'],
                   ['FX Inicial', fmt(result.fx_initial, 2), 'Tasa de cambio de pactacion'],
                   ['FX Spot', fmt(result.fx_spot, 2), 'Tasa de cambio actual del mercado'],
-                  ['Spread USD', `${result.usd_spread_bps} bps`, 'Xccy basis sobre SOFR'],
-                  ['Spread COP', `${result.cop_spread_bps} bps`, 'Spread adicional sobre IBR'],
+                  ['Xccy Basis', `${result.xccy_basis_bps} bps`, 'Basis sobre IBR pata COP'],
                   ['Amortizacion', result.amortization_type, 'Tipo de repago del principal'],
-                  ['Frecuencia', result.payment_frequency, 'Periodicidad de pagos'],
-                  ['Periodos', String(result.n_periods), 'Numero total de flujos'],
+                  ['Días en operación', String(result.days_open), 'Dias desde inicio del swap'],
+                  ['Períodos restantes', String(result.periods_remaining), 'Periodos de pago pendientes'],
+                  ...(result.current_period ? [
+                    ['IBR fwd (período)', `${result.current_period.ibr_fwd_pct.toFixed(2)}%`, 'Tasa IBR forward del período actual'],
+                    ['SOFR fwd (período)', `${result.current_period.sofr_fwd_pct.toFixed(2)}%`, 'Tasa SOFR forward del período actual'],
+                    ['Diferencial', `${result.current_period.differential_bps.toFixed(1)} bps`, 'IBR − SOFR (período actual)'],
+                  ] as [string, string, string][] : []),
                   ['Inicio', result.start_date, 'Fecha efectiva del swap'],
                   ['Vencimiento', result.maturity_date, 'Fecha de terminacion'],
                 ] as [string, string, string][]).map(([label, value, desc]) => {
@@ -842,7 +868,7 @@ function XccySwapPage() {
 
   // ── Tab 2: Cashflows ──
   const renderCashflowsTab = () => {
-    if (!result || !result.cashflows || result.cashflows.length === 0) {
+    if (!cashflowResult || cashflowResult.periods.length === 0) {
       return (
         <div
           style={{
@@ -855,44 +881,49 @@ function XccySwapPage() {
             borderRadius: 8,
           }}
         >
-          Primero valore un CCS en la pestana Pricing
+          Primero valore un CCS en la pestaña Pricing
         </div>
       );
     }
 
-    const cfs = result.cashflows;
+    const { periods } = cashflowResult;
+    // Chart: skip period 0 (inception notional exchange — dominates the scale)
+    const chartData = periods
+      .filter((p) => p.period_num > 0)
+      .map((p) => ({
+        label: p.date_end,
+        cop_net: p.cop_net,
+        status: p.status,
+      }));
 
-    // Chart data for net cashflows
-    const chartData = cfs.map((cf) => ({
-      period: cf.period,
-      label: cf.end,
-      net_cop: cf.net_cop,
-      usd_interest: cf.usd_interest,
-      cop_interest: cf.cop_interest,
-    }));
+    const statusColor = (s: string) => {
+      if (s === 'settled') return '#adb5bd';
+      if (s === 'current') return '#fd7e14';
+      return '#0d6efd';
+    };
 
     return (
       <>
-        {/* Net Cashflow Chart */}
+        {/* Net COP Cashflow Chart */}
         <Row className="mb-3">
           <Col>
             <div style={{ background: '#fff', borderRadius: 8, padding: 16, border: '1px solid #dee2e6' }}>
-              <h6 style={{ marginBottom: 12 }}>Flujos Netos Non-Delivery (COP)</h6>
-              <ResponsiveContainer width="100%" height={280}>
+              <h6 style={{ marginBottom: 12 }}>Flujo Neto COP por Período</h6>
+              <ResponsiveContainer width="100%" height={260}>
                 <BarChart data={chartData}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="label" tick={{ fontSize: 10 }} angle={-45} textAnchor="end" height={60} />
                   <YAxis tickFormatter={(v: number) => fmtMM(v)} tick={{ fontSize: 11 }} />
                   <Tooltip
-                    formatter={(v: number, name: string) => [fmtMM(v), name]}
+                    formatter={(v: number) => [fmtMM(v), 'Neto COP']}
                     labelFormatter={(l: string) => `Pago: ${l}`}
                   />
                   <ReferenceLine y={0} stroke="#666" />
                   <Bar
-                    dataKey="net_cop"
+                    dataKey="cop_net"
                     name="Neto COP"
-                    fill="#6c757d"
-                    radius={[4, 4, 0, 0]}
+                    radius={[3, 3, 0, 0]}
+                    fill="#0d6efd"
                   />
                 </BarChart>
               </ResponsiveContainer>
@@ -904,49 +935,84 @@ function XccySwapPage() {
         <Row>
           <Col>
             <div style={{ overflowX: 'auto', background: '#fff', borderRadius: 8, padding: 16, border: '1px solid #dee2e6' }}>
-              <h6 style={{ marginBottom: 12 }}>Detalle de Flujos</h6>
+              <h6 style={{ marginBottom: 12 }}>
+                Flujos de Intercambio — {cashflowResult.pay_usd ? 'Pay USD / Receive COP' : 'Receive USD / Pay COP'}
+              </h6>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
                 <thead>
                   <tr style={{ borderBottom: '2px solid #dee2e6', background: '#f8f9fa' }}>
-                    {['#', 'Inicio', 'Fin', 'Rem %', 'Noc USD', 'Noc COP', 'Tasa USD', 'Tasa COP', 'Int USD', 'Int COP', 'Princ USD', 'Princ COP', 'DF USD', 'DF COP', 'Neto COP'].map((h) => (
-                      <th key={h} style={{ padding: '6px 8px', textAlign: h === '#' || h === 'Inicio' || h === 'Fin' ? 'left' : 'right', whiteSpace: 'nowrap' }}>
+                    {['#', 'Fecha Pago', 'USD Neto', 'COP Neto', 'IBR fwd', 'SOFR fwd', 'Estado'].map((h) => (
+                      <th
+                        key={h}
+                        style={{
+                          padding: '6px 8px',
+                          textAlign: h === '#' || h === 'Fecha Pago' || h === 'Estado' ? 'left' : 'right',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
                         {h}
                       </th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {cfs.map((cf) => (
-                    <tr key={cf.period} style={{ borderBottom: '1px solid #eee' }}>
-                      <td style={{ padding: '4px 8px', fontWeight: 600 }}>{cf.period}</td>
-                      <td style={{ padding: '4px 8px', fontSize: 11 }}>{cf.start}</td>
-                      <td style={{ padding: '4px 8px', fontSize: 11 }}>{cf.end}</td>
-                      <td style={{ padding: '4px 8px', textAlign: 'right', fontFamily: 'monospace' }}>{cf.remaining_pct}%</td>
-                      <td style={{ padding: '4px 8px', textAlign: 'right', fontFamily: 'monospace' }}>{fmt(cf.notional_usd, 0)}</td>
-                      <td style={{ padding: '4px 8px', textAlign: 'right', fontFamily: 'monospace' }}>{fmtMM(cf.notional_cop)}</td>
-                      <td style={{ padding: '4px 8px', textAlign: 'right', fontFamily: 'monospace' }}>{cf.usd_rate.toFixed(2)}%</td>
-                      <td style={{ padding: '4px 8px', textAlign: 'right', fontFamily: 'monospace' }}>{cf.cop_rate.toFixed(2)}%</td>
-                      <td style={{ padding: '4px 8px', textAlign: 'right', fontFamily: 'monospace' }}>{fmt(cf.usd_interest, 0)}</td>
-                      <td style={{ padding: '4px 8px', textAlign: 'right', fontFamily: 'monospace' }}>{fmtMM(cf.cop_interest)}</td>
-                      <td style={{ padding: '4px 8px', textAlign: 'right', fontFamily: 'monospace' }}>{fmt(cf.usd_principal, 0)}</td>
-                      <td style={{ padding: '4px 8px', textAlign: 'right', fontFamily: 'monospace' }}>{fmtMM(cf.cop_principal)}</td>
-                      <td style={{ padding: '4px 8px', textAlign: 'right', fontFamily: 'monospace' }}>{cf.usd_df.toFixed(4)}</td>
-                      <td style={{ padding: '4px 8px', textAlign: 'right', fontFamily: 'monospace' }}>{cf.cop_df.toFixed(4)}</td>
+                  {periods.map((p) => (
+                    <tr
+                      key={p.period_num}
+                      style={{
+                        borderBottom: '1px solid #eee',
+                        background: p.status === 'current' ? '#fff3cd' : undefined,
+                      }}
+                    >
+                      <td style={{ padding: '4px 8px', fontWeight: 600, color: '#555' }}>{p.period_num}</td>
+                      <td style={{ padding: '4px 8px', fontSize: 11 }}>{p.date_end}</td>
                       <td
                         style={{
                           padding: '4px 8px',
                           textAlign: 'right',
                           fontFamily: 'monospace',
+                          color: p.usd_net >= 0 ? '#155724' : '#721c24',
                           fontWeight: 600,
-                          color: cf.net_cop >= 0 ? '#28a745' : '#dc3545',
                         }}
                       >
-                        {fmtMM(cf.net_cop)}
+                        {fmt(p.usd_net, 0)}
+                      </td>
+                      <td
+                        style={{
+                          padding: '4px 8px',
+                          textAlign: 'right',
+                          fontFamily: 'monospace',
+                          color: p.cop_net >= 0 ? '#155724' : '#721c24',
+                          fontWeight: 600,
+                        }}
+                      >
+                        {fmtMM(p.cop_net)}
+                      </td>
+                      <td style={{ padding: '4px 8px', textAlign: 'right', fontFamily: 'monospace' }}>
+                        {p.ibr_fwd_pct != null ? `${p.ibr_fwd_pct.toFixed(2)}%` : '—'}
+                      </td>
+                      <td style={{ padding: '4px 8px', textAlign: 'right', fontFamily: 'monospace' }}>
+                        {p.sofr_fwd_pct != null ? `${p.sofr_fwd_pct.toFixed(2)}%` : '—'}
+                      </td>
+                      <td style={{ padding: '4px 8px' }}>
+                        <span
+                          style={{
+                            fontSize: 10,
+                            fontWeight: 600,
+                            color: statusColor(p.status),
+                            textTransform: 'uppercase',
+                          }}
+                        >
+                          {p.status}
+                        </span>
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
+              <div style={{ fontSize: 10, color: '#aaa', marginTop: 8 }}>
+                Negativo = cliente paga · Positivo = cliente recibe · Tasas settled no disponibles (tasas realizadas históricas no almacenadas)
+              </div>
             </div>
           </Col>
         </Row>
@@ -1081,17 +1147,18 @@ function XccySwapPage() {
               <h4>{PAGE_TITLE}</h4>
             </PageTitle>
             <div className="d-flex align-items-center gap-2">
-              <Button
-                variant="outline-success"
-                onClick={handleBuildCurves}
-                disabled={loading}
-              >
-                <Icon icon={faSyncAlt} className="me-1" />
-                {curvesReady ? 'Rebuild Curvas' : 'Construir Curvas'}
-              </Button>
-              <Button variant="outline-secondary" onClick={handleCheckStatus} disabled={loading}>
-                Status
-              </Button>
+              {curvesReady ? (
+                <span style={{ fontSize: 12, color: '#28a745', fontWeight: 600 }}>● Curvas OK</span>
+              ) : (
+                <Button
+                  variant="outline-success"
+                  onClick={handleBuildCurves}
+                  disabled={curveLoading || loading}
+                >
+                  <Icon icon={faSyncAlt} className="me-1" />
+                  Construir Curvas
+                </Button>
+              )}
             </div>
           </div>
         </Row>

@@ -61,6 +61,7 @@ export default function CoreLayout({ children }: PropsWithChildren) {
       <Head>
         <title>Xerenity</title>
         <meta name="description" content="Xerenity Financial tools" />
+        <link rel="icon" href="/favicon.png" type="image/png" />
         <link rel="icon" href="/favicon.ico" />
       </Head>
       {mobileUI ? (

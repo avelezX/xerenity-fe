@@ -4,6 +4,7 @@
 import { CoreLayout } from '@layout';
 import { Row, Col, Form, Modal } from 'react-bootstrap';
 import React, { useState, useCallback, useEffect } from 'react';
+import { useRouter } from 'next/router';
 import Container from 'react-bootstrap/Container';
 import { FontAwesomeIcon as Icon } from '@fortawesome/react-fontawesome';
 import {
@@ -29,9 +30,9 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 import {
+  getNdfImpliedCurve,
   buildCurves,
   getCurveStatus,
-  getNdfImpliedCurve,
 } from 'src/models/pricing/pricingApi';
 import { fetchHistoricalMark } from 'src/models/trading/fetchHistoricalMark';
 import type { CurveStatus, NdfImpliedCurvePoint } from 'src/types/pricing';
@@ -1840,6 +1841,7 @@ function generateIbrCashflows(row: PricedIbrSwap) {
   return result;
 }
 
+
 function IbrSwapDetailModal({ row, show, onHide }: { row: PricedIbrSwap | null; show: boolean; onHide: () => void }) {
   if (!row) return null;
   const cashflows = row.cashflows ?? (row.error ? [] : generateIbrCashflows(row));
@@ -2165,9 +2167,10 @@ function ImpliedCurvePanel({ data, onLoad, loading, curvesReady }: { data: NdfIm
 // ── Main Page ──
 
 function PortfolioPage() {
-  const [curveStatus, setCurveStatus] = useState<CurveStatus | null>(null);
+  const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [markRepricing, setMarkRepricing] = useState(false);
+  const [curveStatus, setCurveStatus] = useState<CurveStatus | null>(null);
   const [addType, setAddType] = useState<string | null>(null); // 'xccy' | 'ndf' | 'ibr' | null
   const [selectedXccy, setSelectedXccy] = useState<PricedXccy | null>(null);
   const [selectedNdf, setSelectedNdf] = useState<PricedNdf | null>(null);
@@ -2216,6 +2219,7 @@ function PortfolioPage() {
     } finally {
       setLoading(false);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleFetchImplied = useCallback(async () => {
@@ -2232,7 +2236,7 @@ function PortfolioPage() {
 
   const handleReprice = useCallback(async () => {
     await repriceAll();
-    toast.success('Portafolio repriceado');
+    toast.success('Portafolio repriceado con curvas actuales');
   }, [repriceAll]);
 
   const handleRepriceWithMark = useCallback(async (fecha: string) => {
@@ -2272,6 +2276,7 @@ function PortfolioPage() {
   const curvesReady =
     curveStatus?.ibr.built && curveStatus?.sofr.built;
 
+  // Auto-reprice when curves become ready (using live curves, no date)
   useEffect(() => {
     if (curvesReady) {
       repriceAll();
@@ -2290,7 +2295,46 @@ function PortfolioPage() {
     [removeXccyPositions, removeNdfPositions, removeIbrSwapPositions]
   );
 
-  const isLoading = loading || tradingLoading;
+  const onSelectXccy = useCallback((pos: PricedXccy) => {
+    const p = new URLSearchParams({
+      prefill: '1',
+      notional_usd: String(pos.notional_usd),
+      start_date: pos.start_date ?? '',
+      maturity_date: pos.maturity_date,
+      usd_spread_bps: String(pos.usd_spread_bps ?? 0),
+      cop_spread_bps: String(pos.cop_spread_bps ?? 0),
+      fx_initial: String(pos.fx_initial ?? ''),
+      pay_usd: String(pos.pay_usd ?? true),
+      payment_frequency: pos.payment_frequency ?? '3M',
+      amortization_type: pos.amortization_type ?? 'bullet',
+    });
+    router.push(`/xccy-swap?${p}`);
+  }, [router]);
+
+  const onSelectNdf = useCallback((pos: PricedNdf) => {
+    const p = new URLSearchParams({
+      prefill: '1',
+      notional_usd: String(pos.notional_usd),
+      strike: String(pos.strike),
+      maturity_date: pos.maturity_date,
+      direction: pos.direction ?? 'buy',
+    });
+    router.push(`/ndf-pricer?${p}`);
+  }, [router]);
+
+  const onSelectIbr = useCallback((pos: PricedIbrSwap) => {
+    const p = new URLSearchParams({
+      prefill: '1',
+      notional: String(pos.notional),
+      fixed_rate: String(pos.fixed_rate),
+      maturity_date: pos.maturity_date,
+      pay_fixed: String(pos.pay_fixed ?? true),
+      payment_frequency: pos.payment_frequency ?? '3M',
+    });
+    router.push(`/ibr-swap?${p}`);
+  }, [router]);
+
+  const isLoading = tradingLoading || loading;
 
   // Build unified portfolio rows
   const xccyRows: PricedXccy[] = pricedXccy.length > 0
@@ -2457,9 +2501,9 @@ function PortfolioPage() {
             <PortfolioTable
               rows={portfolioRows}
               onDelete={handleDelete}
-              onSelectXccy={setSelectedXccy}
-              onSelectNdf={setSelectedNdf}
-              onSelectIbr={setSelectedIbrSwap}
+              onSelectXccy={onSelectXccy}
+              onSelectNdf={onSelectNdf}
+              onSelectIbr={onSelectIbr}
               canEdit={canEdit}
             />
           </div>

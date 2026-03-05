@@ -161,7 +161,7 @@ const createTradingSlice: StateCreator<TradingSlice> = (set, get) => ({
       const result = await repricePortfolio(
         xccyPositions,
         ndfPositions,
-        ibrSwapPositions
+        ibrSwapPositions,
       );
       set({
         pricedXccy: result.xccy_results,

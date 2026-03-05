@@ -59,16 +59,17 @@ export const FOMC_MEETINGS: string[] = [
 // BanRep 2025-2029 rate decision meetings (8 per year)
 // Rate decisions: Jan, Mar, Apr, Jun, Jul, Sep, Oct, Dec
 // Excludes Feb, May, Aug, Nov regular administrative meetings
-// 2025-2026: approximate from https://www.banrep.gov.co/es/calendario-junta-directiva
+// 2025: confirmed from BanRep press releases (decision date = publication date)
+// 2026: Jan confirmed, rest approximate from https://www.banrep.gov.co/es/calendario-junta-directiva
 // 2027-2029: projected (last Friday of the decision month)
 export const BANREP_MEETINGS: string[] = [
   // 2025
   '2025-01-31',
-  '2025-03-28',
+  '2025-03-31',
   '2025-04-30',
   '2025-06-27',
   '2025-07-31',
-  '2025-09-26',
+  '2025-09-30',
   '2025-10-31',
   '2025-12-19',
   // 2026
