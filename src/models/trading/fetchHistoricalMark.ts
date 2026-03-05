@@ -22,7 +22,7 @@ const supabase = createClientComponentClient();
 export const fetchHistoricalMark = async (
   fecha: string // 'YYYY-MM-DD'
 ): Promise<HistoricalMark> => {
-  const [ibrRes, sofrRes, ndfRes, tesRes] = await Promise.allSettled([
+  const [ibrRes, sofrRes, ndfRes, tesRes, marksRes] = await Promise.allSettled([
     supabase
       .schema('xerenity')
       .from('ibr_quotes_curve')
@@ -48,6 +48,14 @@ export const fetchHistoricalMark = async (
     supabase
       .schema('xerenity')
       .rpc('get_tes_yield_curve_for_date', { p_money: 'COLTES-COP', p_fecha: fecha }),
+
+    supabase
+      .schema('xerenity')
+      .from('market_marks')
+      .select('fx_spot, ndf')
+      .eq('fecha', fecha)
+      .limit(1)
+      .maybeSingle(),
   ]);
 
   const ibr =
@@ -70,15 +78,28 @@ export const fetchHistoricalMark = async (
       ? (tesRes.value.data as HistoricalTesPoint[])
       : [];
 
+  const marksRow =
+    marksRes.status === 'fulfilled' && !marksRes.value.error && marksRes.value.data
+      ? (marksRes.value.data as { fx_spot: number; ndf: Record<string, unknown> | null })
+      : null;
+
+  const fx_spot = marksRow?.fx_spot ?? null;
+
+  // NDF: prefer cop_fwd_points (live), fall back to market_marks.ndf (snapshot)
+  const hasNdfLive = ndf.length > 0;
+  const hasNdfSnapshot = marksRow?.ndf != null && Object.keys(marksRow.ndf).length > 0;
+
   return {
     fecha,
     ibr,
     sofr,
     ndf,
     tes,
+    fx_spot,
+    ndfSnapshot: marksRow?.ndf ?? null,
     hasIbr: ibr !== null,
     hasSofr: sofr.length > 0,
-    hasNdf: ndf.length > 0,
+    hasNdf: hasNdfLive || hasNdfSnapshot,
     hasTes: tes.length > 0,
   };
 };

@@ -82,11 +82,95 @@ function stepMarkDate(fecha: string, delta: number): string {
   return d.toISOString().slice(0, 10);
 }
 
+// ── Mark Chip with dropdown ──
+function MarkChip({ label, ok, rows }: { label: string; ok: boolean; rows: [string, string][] }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <span style={{ position: 'relative' }}>
+      <button
+        type="button"
+        onClick={() => ok && rows.length > 0 && setOpen((v) => !v)}
+        style={{
+          padding: '1px 6px', borderRadius: 4, fontSize: 11, fontWeight: 600,
+          background: ok ? '#d4edda' : '#f8d7da',
+          color: ok ? '#155724' : '#721c24',
+          border: 'none', cursor: ok && rows.length > 0 ? 'pointer' : 'default',
+        }}
+      >
+        {label} {ok ? '✓' : '✗'} {ok && rows.length > 0 ? '▾' : ''}
+      </button>
+      {open && (
+        <div
+          style={{
+            position: 'absolute', top: '100%', left: 0, zIndex: 999,
+            background: '#fff', border: '1px solid #dee2e6', borderRadius: 6,
+            boxShadow: '0 4px 12px rgba(0,0,0,0.15)', padding: '6px 0',
+            minWidth: 180, marginTop: 4,
+          }}
+          onMouseLeave={() => setOpen(false)}
+        >
+          <div style={{ padding: '2px 10px 4px', fontSize: 10, color: '#6c757d', fontWeight: 600, borderBottom: '1px solid #f0f0f0' }}>
+            {label}
+          </div>
+          {rows.map(([tenor, value]) => (
+            <div key={tenor} style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 10px', fontSize: 11 }}>
+              <span style={{ color: '#495057' }}>{tenor}</span>
+              <span style={{ fontFamily: 'monospace', fontWeight: 600 }}>{value}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </span>
+  );
+}
+
 // ── Mark Date Bar ──
 const markNavBtn: React.CSSProperties = {
   background: 'none', border: '1px solid #ced4da', borderRadius: 4,
   padding: '2px 8px', cursor: 'pointer', fontSize: 12, color: '#495057',
 };
+
+function ibrMarkRows(mark: HistoricalMark | null): [string, string][] {
+  if (!mark?.ibr) return [];
+  const tenors: [string, keyof NonNullable<HistoricalMark['ibr']>][] = [
+    ['1D', 'ibr_1d'], ['1M', 'ibr_1m'], ['3M', 'ibr_3m'], ['6M', 'ibr_6m'],
+    ['12M', 'ibr_12m'], ['2Y', 'ibr_2y'], ['5Y', 'ibr_5y'],
+    ['10Y', 'ibr_10y'], ['15Y', 'ibr_15y'], ['20Y', 'ibr_20y'],
+  ];
+  return tenors
+    .filter(([, k]) => mark.ibr![k] != null)
+    .map(([label, k]) => [label, `${(mark.ibr![k] as number).toFixed(3)}%`]);
+}
+
+function sofrMarkRows(mark: HistoricalMark | null): [string, string][] {
+  if (!mark?.sofr?.length) return [];
+  const tenorLabel = (m: number) => m < 12 ? `${m}M` : `${m / 12}Y`;
+  return mark.sofr.map((p) => [tenorLabel(p.tenor_months), `${p.swap_rate.toFixed(3)}%`]);
+}
+
+const NDF_TENOR_LABELS: Record<string, string> = {
+  '1': '1M', '2': '2M', '3': '3M', '6': '6M', '9': '9M', '12': '12M',
+};
+
+function ndfMarkRows(mark: HistoricalMark | null): [string, string][] {
+  // Prefer live cop_fwd_points data
+  if (mark?.ndf?.length) {
+    return mark.ndf.map((p) => [
+      p.tenor,
+      p.mid != null ? fmt(p.mid, 2) : p.fwd_points != null ? `${fmt(p.fwd_points, 2)} pts` : '—',
+    ]);
+  }
+  // Fallback: market_marks.ndf snapshot (JSONB keyed by tenor_months)
+  if (mark?.ndfSnapshot && typeof mark.ndfSnapshot === 'object') {
+    return Object.entries(mark.ndfSnapshot).map(([months, v]) => {
+      const label = NDF_TENOR_LABELS[months] ?? `${months}M`;
+      const obj = v as { F_market?: number; fwd_pts_cop?: number } | null;
+      const display = obj?.F_market != null ? fmt(obj.F_market, 2) : obj?.fwd_pts_cop != null ? `${fmt(obj.fwd_pts_cop, 2)} pts` : '—';
+      return [label, display];
+    });
+  }
+  return [];
+}
 
 function MarkDateBar({
   onReprice,
@@ -120,10 +204,10 @@ function MarkDateBar({
   );
   const hasData = mark && (mark.hasIbr || mark.hasSofr);
 
-  const markChips = [
-    { label: 'IBR', ok: mark?.hasIbr ?? false },
-    { label: 'SOFR', ok: mark?.hasSofr ?? false },
-    ...(mark?.hasNdf ? [{ label: 'NDF', ok: true }] : []),
+  const chips: { label: string; ok: boolean; rows: [string, string][] }[] = [
+    { label: 'IBR', ok: mark?.hasIbr ?? false, rows: ibrMarkRows(mark) },
+    { label: 'SOFR', ok: mark?.hasSofr ?? false, rows: sofrMarkRows(mark) },
+    { label: 'NDF', ok: mark?.hasNdf ?? false, rows: ndfMarkRows(mark) },
   ];
 
   const toggleChip = (label: string, ok: boolean) => {
@@ -132,87 +216,60 @@ function MarkDateBar({
   };
 
   return (
-    <div style={{ marginBottom: 12 }}>
-      <div style={{
-        display: 'flex', alignItems: 'center', gap: 8,
-        fontSize: 12, flexWrap: 'wrap', background: '#f8f9fa',
-        borderRadius: 6, padding: '6px 12px',
-      }}>
-        <span style={{ color: '#495057', fontWeight: 600 }}>Marca:</span>
-        <input
-          type="date"
-          value={fecha}
-          min="2026-01-01"
-          max={today}
-          onChange={(e) => e.target.value && setFecha(e.target.value)}
-          style={{ border: '1px solid #ced4da', borderRadius: 4, padding: '2px 6px', fontSize: 12, fontFamily: 'monospace' }}
-        />
-        <button type="button" onClick={() => setFecha((f) => stepMarkDate(f, -1))} disabled={loadingMark} style={markNavBtn}>◀</button>
-        <button type="button" onClick={() => { const next = stepMarkDate(fecha, 1); if (next <= today) setFecha(next); }} disabled={loadingMark} style={markNavBtn}>▶</button>
-        <button type="button" onClick={() => setFecha(defaultMarkFecha())} disabled={loadingMark} style={{ ...markNavBtn, padding: '2px 10px' }}>Ayer</button>
-        {loadingMark ? (
-          <span style={{ color: '#6c757d' }}>…</span>
-        ) : (
-          <>
-            <span style={{ display: 'flex', gap: 4 }}>
-              {markChips.map(({ label, ok }) => (
-                <button
-                  key={label}
-                  type="button"
-                  onClick={() => toggleChip(label, ok)}
-                  style={{
-                    padding: '1px 6px', borderRadius: 4, fontSize: 11, fontWeight: 600,
-                    border: expandedChip === label ? '2px solid #0d6efd' : '1px solid transparent',
-                    background: ok ? '#d4edda' : '#f8d7da',
-                    color: ok ? '#155724' : '#721c24',
-                    cursor: ok ? 'pointer' : 'default',
-                  }}
-                >
-                  {label} {ok ? (expandedChip === label ? '▾' : '▸') : '✗'}
-                </button>
-              ))}
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12,
+      fontSize: 12, flexWrap: 'wrap', background: '#f8f9fa',
+      borderRadius: 6, padding: '6px 12px',
+    }}>
+      <span style={{ color: '#495057', fontWeight: 600 }}>Marca:</span>
+      <input
+        type="date"
+        value={fecha}
+        min="2026-01-01"
+        max={today}
+        onChange={(e) => e.target.value && setFecha(e.target.value)}
+        style={{ border: '1px solid #ced4da', borderRadius: 4, padding: '2px 6px', fontSize: 12, fontFamily: 'monospace' }}
+      />
+      <button type="button" onClick={() => setFecha((f) => stepMarkDate(f, -1))} disabled={loadingMark} style={markNavBtn}>◀</button>
+      <button type="button" onClick={() => { const next = stepMarkDate(fecha, 1); if (next <= today) setFecha(next); }} disabled={loadingMark} style={markNavBtn}>▶</button>
+      <button type="button" onClick={() => setFecha(defaultMarkFecha())} disabled={loadingMark} style={{ ...markNavBtn, padding: '2px 10px' }}>Ayer</button>
+      {loadingMark ? (
+        <span style={{ color: '#6c757d' }}>…</span>
+      ) : (
+        <>
+          <span style={{ display: 'flex', gap: 4 }}>
+            {chips.map((c) => (
+              <MarkChip key={c.label} label={c.label} ok={c.ok} rows={c.rows} />
+            ))}
+          </span>
+          {mark?.fx_spot && (
+            <span style={{ color: '#004085', fontFamily: 'monospace', fontWeight: 600, fontSize: 11 }}>
+              Spot: {fmt(mark.fx_spot, 2)}
             </span>
-            {daysDiff > 0 && (
-              <span style={{
-                color: '#856404', background: '#fff3cd', padding: '2px 8px',
-                borderRadius: 4, fontSize: 11,
-              }}>
-                ⚠ último dato: {daysDiff === 1 ? 'ayer' : `hace ${daysDiff} días`}
-              </span>
-            )}
-            <button
-              type="button"
-              onClick={() => onReprice(fecha)}
-              disabled={repricing || loadingMark || !hasData}
-              style={{
-                padding: '3px 12px', borderRadius: 4, fontSize: 12, fontWeight: 600,
-                border: '1px solid #0d6efd',
-                background: hasData && !repricing ? '#0d6efd' : '#e9ecef',
-                color: hasData && !repricing ? '#fff' : '#6c757d',
-                cursor: hasData && !repricing ? 'pointer' : 'not-allowed',
-              }}
-            >
-              {repricing ? 'Repriceando…' : 'Repricear con esta marca'}
-            </button>
-          </>
-        )}
-      </div>
-      {/* Expanded curve panel */}
-      {expandedChip && mark && (
-        <div style={{
-          background: '#fff', border: '1px solid #dee2e6', borderRadius: 8,
-          padding: 16, marginTop: 8,
-        }}>
-          {expandedChip === 'IBR' && mark.ibr && (
-            <IbrMarkView ibr={mark.ibr} fecha={fecha} />
           )}
-          {expandedChip === 'SOFR' && mark.sofr && mark.sofr.length > 0 && (
-            <SofrMarkView sofr={mark.sofr} fecha={fecha} />
+          {daysDiff > 0 && (
+            <span style={{
+              color: '#856404', background: '#fff3cd', padding: '2px 8px',
+              borderRadius: 4, fontSize: 11,
+            }}>
+              ⚠ último dato: {daysDiff === 1 ? 'ayer' : `hace ${daysDiff} días`}
+            </span>
           )}
-          {expandedChip === 'NDF' && mark.ndf && mark.ndf.length > 0 && (
-            <NdfMarkView ndf={mark.ndf} fecha={fecha} />
-          )}
-        </div>
+          <button
+            type="button"
+            onClick={() => onReprice(fecha)}
+            disabled={repricing || loadingMark || !hasData}
+            style={{
+              padding: '3px 12px', borderRadius: 4, fontSize: 12, fontWeight: 600,
+              border: '1px solid #0d6efd',
+              background: hasData && !repricing ? '#0d6efd' : '#e9ecef',
+              color: hasData && !repricing ? '#fff' : '#6c757d',
+              cursor: hasData && !repricing ? 'pointer' : 'not-allowed',
+            }}
+          >
+            {repricing ? 'Repriceando…' : 'Repricear con esta marca'}
+          </button>
+        </>
       )}
     </div>
   );
@@ -298,6 +355,7 @@ function SummaryBar({ summary, pricedAt }: { summary: PortfolioSummary | null; p
     ['Carry COP', fmtMM(summary.total_carry_cop), npvColor(summary.total_carry_cop)],
     ['P&L Tasas', fmtMM(summary.total_pnl_rate_cop), npvColor(summary.total_pnl_rate_cop)],
     ['P&L FX', fmtMM(summary.total_pnl_fx_cop), npvColor(summary.total_pnl_fx_cop)],
+    ...(summary.fx_spot ? [['Spot USD/COP', fmt(summary.fx_spot, 2), '#212529'] as [string, string, string]] : []),
   ];
   return (
     <div
@@ -2367,8 +2425,7 @@ function PortfolioPage() {
           </div>
         </Row>
 
-        {/* Curve status */}
-        <CurveStatusBar status={curveStatus} onRefresh={() => handleBuild()} loading={isLoading} spotOverride={summary?.fx_spot} />
+        {/* Curve status — removed, MarkDateBar already shows IBR/SOFR/NDF chips + spot */}
         <MarkDateBar
           onReprice={handleRepriceWithMark}
           repricing={markRepricing}

@@ -315,6 +315,8 @@ export interface HistoricalMark {
   sofr: HistoricalSofrPoint[];
   ndf: HistoricalNdfPoint[];
   tes: HistoricalTesPoint[];
+  fx_spot: number | null;  // from market_marks
+  ndfSnapshot: Record<string, unknown> | null; // from market_marks.ndf (JSONB)
   hasIbr: boolean;
   hasSofr: boolean;
   hasNdf: boolean;
