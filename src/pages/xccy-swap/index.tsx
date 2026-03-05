@@ -886,7 +886,7 @@ function XccySwapPage() {
       );
     }
 
-    const periods = cashflowResult.periods;
+    const { periods } = cashflowResult;
     // Chart: skip period 0 (inception notional exchange — dominates the scale)
     const chartData = periods
       .filter((p) => p.period_num > 0)
@@ -896,8 +896,11 @@ function XccySwapPage() {
         status: p.status,
       }));
 
-    const statusColor = (s: string) =>
-      s === 'settled' ? '#adb5bd' : s === 'current' ? '#fd7e14' : '#0d6efd';
+    const statusColor = (s: string) => {
+      if (s === 'settled') return '#adb5bd';
+      if (s === 'current') return '#fd7e14';
+      return '#0d6efd';
+    };
 
     return (
       <>

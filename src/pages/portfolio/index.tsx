@@ -1181,6 +1181,7 @@ const npvBox = (label: string, value: number, suffix = '') => (
   </div>
 );
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function XccyDetailModal({ row, show, onHide }: { row: PricedXccy | null; show: boolean; onHide: () => void }) {
   if (!row) return null;
   return (
@@ -1497,6 +1498,7 @@ function XccyDetailModal({ row, show, onHide }: { row: PricedXccy | null; show: 
   );
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function NdfDetailModal({ row, show, onHide }: { row: PricedNdf | null; show: boolean; onHide: () => void }) {
   if (!row) return null;
   return (
@@ -1611,6 +1613,7 @@ function NdfDetailModal({ row, show, onHide }: { row: PricedNdf | null; show: bo
   );
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function IbrSwapDetailModal({ row, show, onHide }: { row: PricedIbrSwap | null; show: boolean; onHide: () => void }) {
   if (!row) return null;
   return (

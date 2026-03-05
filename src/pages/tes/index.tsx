@@ -173,7 +173,7 @@ export default function FullTesViewer() {
     if (!smaEnabled || candleSerie.values.length < movingAvgDays) return null;
     const vals = candleSerie.values;
     const result: LightSerieValue[] = [];
-    for (let i = movingAvgDays - 1; i < vals.length; i++) {
+    for (let i = movingAvgDays - 1; i < vals.length; i += 1) {
       const avg =
         vals.slice(i - movingAvgDays + 1, i + 1).reduce((s, v) => s + v.close, 0) /
         movingAvgDays;
@@ -447,7 +447,6 @@ export default function FullTesViewer() {
         <Row>
           <Col>
             {viewMode === 'candle' && (
-              <>
                 <Chart
                   chartHeight={500}
                   showToolbar
@@ -476,7 +475,6 @@ export default function FullTesViewer() {
                     />
                   ) : null}
                 </Chart>
-              </>
             )}
 
             {viewMode === 'todas' && (
