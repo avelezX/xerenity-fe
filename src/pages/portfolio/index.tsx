@@ -31,6 +31,8 @@ import {
 } from 'recharts';
 import {
   getNdfImpliedCurve,
+  buildCurves,
+  getCurveStatus,
 } from 'src/models/pricing/pricingApi';
 import { fetchHistoricalMark } from 'src/models/trading/fetchHistoricalMark';
 import type { CurveStatus, NdfImpliedCurvePoint } from 'src/types/pricing';
@@ -2168,6 +2170,7 @@ function PortfolioPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [markRepricing, setMarkRepricing] = useState(false);
+  const [curveStatus, setCurveStatus] = useState<CurveStatus | null>(null);
   const [addType, setAddType] = useState<string | null>(null); // 'xccy' | 'ndf' | 'ibr' | null
   const [selectedXccy, setSelectedXccy] = useState<PricedXccy | null>(null);
   const [selectedNdf, setSelectedNdf] = useState<PricedNdf | null>(null);
@@ -2302,7 +2305,6 @@ function PortfolioPage() {
       cop_spread_bps: String(pos.cop_spread_bps ?? 0),
       fx_initial: String(pos.fx_initial ?? ''),
       pay_usd: String(pos.pay_usd ?? true),
-      xccy_basis_bps: String(pos.xccy_basis_bps ?? 0),
       payment_frequency: pos.payment_frequency ?? '3M',
       amortization_type: pos.amortization_type ?? 'bullet',
     });
