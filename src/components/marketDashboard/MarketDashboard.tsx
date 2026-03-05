@@ -7,7 +7,8 @@ import Link from 'next/link';
 import { Step } from 'react-joyride';
 import PageTitle from '@components/PageTitle';
 import useAppStore from 'src/store';
-import { DashboardConfig, WatchlistEntry, WatchlistGroup } from 'src/types/watchlist';
+import { DashboardConfig, FicFundEntry, WatchlistEntry, WatchlistGroup } from 'src/types/watchlist';
+import { buildFicHierarchy } from 'src/store/marketDashboard';
 import WatchlistPanel from './WatchlistPanel';
 import PerformanceChart from './PerformanceChart';
 import MarketDashboardToolbar from './MarketDashboardToolbar';
@@ -78,11 +79,16 @@ export default function MarketDashboard({ config }: MarketDashboardProps) {
   const chartSelections = useAppStore((s) => s.chartSelections);
   const fetchWatchlistSnapshot = useAppStore((s) => s.fetchWatchlistSnapshot);
   const addToChart = useAppStore((s) => s.addToChart);
+  const addFundToChart = useAppStore((s) => s.addFundToChart);
   const removeFromChart = useAppStore((s) => s.removeFromChart);
   const resetWatchlistOnly = useAppStore((s) => s.resetWatchlistOnly);
   const searchText = useAppStore((s) => s.searchText);
   const entidadFilter = useAppStore((s) => s.entidadFilter);
   const activoFilter = useAppStore((s) => s.activoFilter);
+  const tipoFondoFilter = useAppStore((s) => s.tipoFondoFilter);
+  const claseActivoFilter = useAppStore((s) => s.claseActivoFilter);
+  const tamanoFondoFilter = useAppStore((s) => s.tamanoFondoFilter);
+  const tamanoInversionistasFilter = useAppStore((s) => s.tamanoInversionistasFilter);
   const [panelsVisible, setPanelsVisible] = useState(true);
 
   const tourSteps: Step[] = useMemo(
@@ -129,6 +135,35 @@ export default function MarketDashboard({ config }: MarketDashboardProps) {
     return Array.from(set).sort();
   }, [watchlistEntries]);
 
+  // Unique clases de activo for the filter dropdown (FIC only)
+  const uniqueClasesActivo = useMemo(() => {
+    const set = new Set<string>();
+    watchlistEntries.forEach((e) => {
+      if (e.clase_activo) set.add(e.clase_activo);
+    });
+    return Array.from(set).sort();
+  }, [watchlistEntries]);
+
+  // Unique tamanos de fondo for the filter dropdown (FIC only)
+  const uniqueTamanosFondo = useMemo(() => {
+    const order = ['Micro', 'Pequeño', 'Mediano', 'Grande'];
+    const set = new Set<string>();
+    watchlistEntries.forEach((e) => {
+      if (e.tamano_fondo) set.add(e.tamano_fondo);
+    });
+    return order.filter((t) => set.has(t));
+  }, [watchlistEntries]);
+
+  // Unique tamanos de inversionistas for the filter dropdown (FIC only)
+  const uniqueTamanosInversionistas = useMemo(() => {
+    const order = ['Institucional', 'Pequeño', 'Mediano', 'Masivo'];
+    const set = new Set<string>();
+    watchlistEntries.forEach((e) => {
+      if (e.tamano_inversionistas) set.add(e.tamano_inversionistas);
+    });
+    return order.filter((t) => set.has(t));
+  }, [watchlistEntries]);
+
   // Filter + group from raw entries (reactive to all filters)
   const filteredGroups = useMemo(() => {
     let entries = watchlistEntries;
@@ -145,9 +180,21 @@ export default function MarketDashboard({ config }: MarketDashboardProps) {
     if (activoFilter) {
       entries = entries.filter((e) => e.activo !== false);
     }
+    if (tipoFondoFilter) {
+      entries = entries.filter((e) => e.tipo_fondo === tipoFondoFilter);
+    }
+    if (claseActivoFilter) {
+      entries = entries.filter((e) => e.clase_activo === claseActivoFilter);
+    }
+    if (tamanoFondoFilter) {
+      entries = entries.filter((e) => e.tamano_fondo === tamanoFondoFilter);
+    }
+    if (tamanoInversionistasFilter) {
+      entries = entries.filter((e) => e.tamano_inversionistas === tamanoInversionistasFilter);
+    }
 
     return groupEntries(entries, config.groupByField);
-  }, [watchlistEntries, searchText, entidadFilter, activoFilter, config.groupByField]);
+  }, [watchlistEntries, searchText, entidadFilter, activoFilter, tipoFondoFilter, claseActivoFilter, tamanoFondoFilter, tamanoInversionistasFilter, config.groupByField]);
 
   const { left, right } = useMemo(
     () =>
@@ -169,6 +216,16 @@ export default function MarketDashboard({ config }: MarketDashboardProps) {
     [chartSelections]
   );
 
+  const filteredEntries = useMemo(
+    () => filteredGroups.flatMap((g) => g.entries),
+    [filteredGroups]
+  );
+
+  const ficFunds = useMemo(
+    () => config.ficHierarchical ? buildFicHierarchy(filteredEntries) : [],
+    [filteredEntries, config.ficHierarchical]
+  );
+
   const handleRowClick = useCallback(
     (entry: WatchlistEntry) => {
       if (selectedTickers.has(entry.ticker)) {
@@ -178,6 +235,13 @@ export default function MarketDashboard({ config }: MarketDashboardProps) {
       }
     },
     [selectedTickers, addToChart, removeFromChart]
+  );
+
+  const handleCompareFund = useCallback(
+    (fund: FicFundEntry) => {
+      addFundToChart(fund.compartimentos);
+    },
+    [addFundToChart]
   );
 
   return (
@@ -220,6 +284,10 @@ export default function MarketDashboard({ config }: MarketDashboardProps) {
             panelsVisible={panelsVisible}
             onTogglePanels={() => setPanelsVisible((v) => !v)}
             uniqueEntidades={uniqueEntidades}
+
+            uniqueClasesActivo={uniqueClasesActivo}
+            uniqueTamanosFondo={uniqueTamanosFondo}
+            uniqueTamanosInversionistas={uniqueTamanosInversionistas}
           />
         </Col>
       </Row>
@@ -231,6 +299,9 @@ export default function MarketDashboard({ config }: MarketDashboardProps) {
               selectedTickers={selectedTickers}
               chartColorMap={chartColorMap}
               onRowClick={handleRowClick}
+              ficHierarchical={config.ficHierarchical}
+              ficFunds={ficFunds}
+              onCompareFund={handleCompareFund}
             />
           </Col>
         )}
@@ -244,6 +315,9 @@ export default function MarketDashboard({ config }: MarketDashboardProps) {
               selectedTickers={selectedTickers}
               chartColorMap={chartColorMap}
               onRowClick={handleRowClick}
+              ficHierarchical={config.ficHierarchical}
+              ficFunds={ficFunds}
+              onCompareFund={handleCompareFund}
             />
           </Col>
         )}

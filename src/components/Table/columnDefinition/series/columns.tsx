@@ -26,11 +26,24 @@ const ViewSerie = ({ serie }: ViewSerieActionProps) => {
 const GroupBadge = ({ grupo }: { grupo: string }) => {
   const color = getGroupColor(grupo);
   return (
-    <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+    <span
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: '5px',
+        backgroundColor: `${color}18`,
+        border: `1px solid ${color}40`,
+        borderRadius: '100px',
+        padding: '2px 8px',
+        fontSize: '12px',
+        fontWeight: 500,
+        whiteSpace: 'nowrap',
+      }}
+    >
       <span
         style={{
-          width: 10,
-          height: 10,
+          width: 7,
+          height: 7,
           borderRadius: '50%',
           backgroundColor: color,
           display: 'inline-block',
@@ -51,6 +64,18 @@ const SerieListColumns = [
     grow: 3,
   },
   {
+    name: 'Ticker',
+    selector: (row: LightSerieEntry) => row.ticker,
+    sortable: true,
+    wrap: true,
+    grow: 1,
+    cell: (row: LightSerieEntry) => (
+      <span style={{ fontFamily: 'monospace', fontSize: '12px', color: '#666' }}>
+        {row.ticker}
+      </span>
+    ),
+  },
+  {
     name: 'Grupo',
     cell: (row: LightSerieEntry) => <GroupBadge grupo={row.grupo} />,
     selector: (row: LightSerieEntry) => row.grupo,
@@ -63,15 +88,16 @@ const SerieListColumns = [
     selector: (row: LightSerieEntry) => row.sub_group,
     sortable: true,
     wrap: true,
-    grow: 3,
+    grow: 2,
   },
   {
     name: 'Fuente',
     selector: (row: LightSerieEntry) => row.fuente,
     sortable: true,
+    grow: 1,
   },
   {
-    name: 'Acciones',
+    name: 'Info',
     cell: (row: LightSerieEntry) => <ViewSerie serie={row} />,
     compact: true,
     maxWidth: '5rem',

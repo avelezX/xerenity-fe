@@ -9,12 +9,12 @@ import Container from 'react-bootstrap/Container';
 import { FontAwesomeIcon as Icon } from '@fortawesome/react-fontawesome';
 import {
   faBriefcase,
-  faPlay,
   faSyncAlt,
   faPlus,
   faTrash,
   faLineChart,
   faTable,
+  faCog,
 } from '@fortawesome/free-solid-svg-icons';
 import { toast } from 'react-toastify';
 import PageTitle from '@components/PageTitle';
@@ -31,10 +31,11 @@ import {
 } from 'recharts';
 import {
   getNdfImpliedCurve,
-  getMarksDates,
 } from 'src/models/pricing/pricingApi';
+import { fetchHistoricalMark } from 'src/models/trading/fetchHistoricalMark';
 import type { CurveStatus, NdfImpliedCurvePoint } from 'src/types/pricing';
 import type {
+  HistoricalMark,
   NewXccyPosition,
   NewNdfPosition,
   NewIbrSwapPosition,
@@ -44,8 +45,158 @@ import type {
   PortfolioSummary,
 } from 'src/types/trading';
 import useAppStore from 'src/store';
+import MarketDataConfigModal from './_MarketDataConfigModal';
+import MarcasPanel from './_MarcasPanel';
 
 const PAGE_TITLE = 'Portafolio de Derivados';
+
+// ── Mark date helpers ──
+/** Parse pysdk valuation_date string ("February 27th, 2026") → "2026-02-27" */
+function parseValuationDate(valDate: string | undefined): string | undefined {
+  if (!valDate) return undefined;
+  const d = new Date(valDate);
+  if (!Number.isNaN(d.getTime())) return d.toISOString().slice(0, 10);
+  return undefined;
+}
+
+function lastBusinessDay(d: Date): Date {
+  const day = d.getDay();
+  if (day === 0) d.setDate(d.getDate() - 2);
+  else if (day === 6) d.setDate(d.getDate() - 1);
+  return d;
+}
+function defaultMarkFecha(): string {
+  const d = new Date();
+  d.setDate(d.getDate() - 1);
+  return lastBusinessDay(d).toISOString().slice(0, 10);
+}
+function stepMarkDate(fecha: string, delta: number): string {
+  const d = new Date(`${fecha}T12:00:00`);
+  const step = delta > 0 ? 1 : -1;
+  let remaining = Math.abs(delta);
+  while (remaining > 0) {
+    d.setDate(d.getDate() + step);
+    const day = d.getDay();
+    if (day !== 0 && day !== 6) remaining -= 1;
+  }
+  return d.toISOString().slice(0, 10);
+}
+
+// ── Mark Date Bar ──
+const markNavBtn: React.CSSProperties = {
+  background: 'none', border: '1px solid #ced4da', borderRadius: 4,
+  padding: '2px 8px', cursor: 'pointer', fontSize: 12, color: '#495057',
+};
+
+function MarkDateBar({
+  onReprice,
+  repricing,
+  initialFecha,
+}: {
+  onReprice: (fecha: string) => Promise<void>;
+  repricing: boolean;
+  initialFecha?: string;
+}) {
+  const today = new Date().toISOString().slice(0, 10);
+  const [fecha, setFecha] = useState(initialFecha ?? defaultMarkFecha());
+
+  // Sync to pysdk valuation_date once it loads (overrides the default)
+  useEffect(() => {
+    if (initialFecha) setFecha(initialFecha);
+  }, [initialFecha]);
+  const [mark, setMark] = useState<HistoricalMark | null>(null);
+  const [loadingMark, setLoadingMark] = useState(false);
+
+  useEffect(() => {
+    setLoadingMark(true);
+    setMark(null);
+    fetchHistoricalMark(fecha).then(setMark).finally(() => setLoadingMark(false));
+  }, [fecha]);
+
+  const daysDiff = Math.round(
+    (new Date(today).getTime() - new Date(`${fecha}T12:00:00`).getTime()) / 86400000
+  );
+  const hasData = mark && (mark.hasIbr || mark.hasSofr);
+
+  const markChips = [
+    { label: 'IBR', ok: mark?.hasIbr ?? false },
+    { label: 'SOFR', ok: mark?.hasSofr ?? false },
+    { label: 'NDF', ok: mark?.hasNdf ?? false },
+    { label: 'TES', ok: mark?.hasTes ?? false },
+  ];
+
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12,
+      fontSize: 12, flexWrap: 'wrap', background: '#f8f9fa',
+      borderRadius: 6, padding: '6px 12px',
+    }}>
+      <span style={{ color: '#495057', fontWeight: 600 }}>Marca:</span>
+      <input
+        type="date"
+        value={fecha}
+        min="2026-01-01"
+        max={today}
+        onChange={(e) => e.target.value && setFecha(e.target.value)}
+        style={{ border: '1px solid #ced4da', borderRadius: 4, padding: '2px 6px', fontSize: 12, fontFamily: 'monospace' }}
+      />
+      <button type="button" onClick={() => setFecha((f) => stepMarkDate(f, -1))} disabled={loadingMark} style={markNavBtn}>◀</button>
+      <button type="button" onClick={() => { const next = stepMarkDate(fecha, 1); if (next <= today) setFecha(next); }} disabled={loadingMark} style={markNavBtn}>▶</button>
+      <button type="button" onClick={() => setFecha(defaultMarkFecha())} disabled={loadingMark} style={{ ...markNavBtn, padding: '2px 10px' }}>Ayer</button>
+      {loadingMark ? (
+        <span style={{ color: '#6c757d' }}>…</span>
+      ) : (
+        <>
+          <span style={{ display: 'flex', gap: 4 }}>
+            {markChips.map(({ label, ok }) => (
+              <span key={label} style={{
+                padding: '1px 6px', borderRadius: 4, fontSize: 11, fontWeight: 600,
+                background: ok ? '#d4edda' : '#f8d7da',
+                color: ok ? '#155724' : '#721c24',
+              }}>
+                {label} {ok ? '✓' : '✗'}
+              </span>
+            ))}
+          </span>
+          {daysDiff > 0 && (
+            <span style={{
+              color: '#856404', background: '#fff3cd', padding: '2px 8px',
+              borderRadius: 4, fontSize: 11,
+            }}>
+              ⚠ último dato: {daysDiff === 1 ? 'ayer' : `hace ${daysDiff} días`}
+            </span>
+          )}
+          <button
+            type="button"
+            onClick={() => onReprice(fecha)}
+            disabled={repricing || loadingMark || !hasData}
+            style={{
+              padding: '3px 12px', borderRadius: 4, fontSize: 12, fontWeight: 600,
+              border: '1px solid #0d6efd',
+              background: hasData && !repricing ? '#0d6efd' : '#e9ecef',
+              color: hasData && !repricing ? '#fff' : '#6c757d',
+              cursor: hasData && !repricing ? 'pointer' : 'not-allowed',
+            }}
+          >
+            {repricing ? 'Repriceando…' : 'Repricear con esta marca'}
+          </button>
+        </>
+      )}
+    </div>
+  );
+}
+
+const SOURCE_LABELS: Record<string, string> = {
+  set_fx: 'SET FX',
+  fxempire: 'FXEmpire',
+  fxempire_fwd_pts: 'FXEmpire',
+  dtcc: 'DTCC',
+  implied: 'Implied',
+  banrep: 'Banrep',
+  set: 'SET',
+  fed: 'Fed',
+  manual: 'Manual',
+};
 
 const ADD_TYPE_OPTIONS = [
   { value: 'xccy', label: 'XCCY Swap' },
@@ -80,20 +231,28 @@ const parseInput = (s: string): number => {
 
 const npvColor = (v: number) => (v >= 0 ? '#28a745' : '#dc3545');
 
-// Compute accrued carry from XCCY cashflows
+// Compute accrued carry from XCCY cashflows.
+// Handles mid-life swaps: backend schedule starts at valuation_date+2d,
+// so the first cashflow may start slightly after today. In that case we
+// treat period 0 as current and count days from the trade's start_date.
 const computeAccruedCarry = (row: PricedXccy): number => {
   const today = new Date();
-  return (row.cashflows ?? []).reduce((sum, cf) => {
+  const tradeStart = new Date(`${row.start_date}T12:00:00`);
+  return (row.cashflows ?? []).reduce((sum, cf, i) => {
     const cfEnd = new Date(cf.end);
     const cfStart = new Date(cf.start);
     const daysInPeriod = Math.max(1, Math.floor((cfEnd.getTime() - cfStart.getTime()) / 86400000));
     const carryCop = cf.cop_interest - cf.usd_interest * row.fx_spot;
     const dailyCarry = carryCop / daysInPeriod;
     const isPast = cfEnd <= today;
-    const isCurrent = cfStart <= today && cfEnd > today;
-    const daysElapsed = isCurrent
-      ? Math.floor((today.getTime() - cfStart.getTime()) / 86400000)
-      : isPast ? daysInPeriod : 0;
+    // Stub: first period starts after today (settlement offset) but trade is active
+    const isStub = i === 0 && today < cfStart && today >= tradeStart;
+    const isCurrent = isStub || (!isPast && cfStart <= today && cfEnd > today);
+    const daysElapsed = isStub
+      ? Math.floor((today.getTime() - tradeStart.getTime()) / 86400000)
+      : isCurrent
+        ? Math.floor((today.getTime() - cfStart.getTime()) / 86400000)
+        : isPast ? daysInPeriod : 0;
     return sum + dailyCarry * daysElapsed;
   }, 0);
 };
@@ -140,12 +299,22 @@ function SummaryBar({ summary, pricedAt }: { summary: PortfolioSummary | null; p
 }
 
 // ── Curve Status Bar ──
-function CurveStatusBar({ status }: { status: CurveStatus | null }) {
+function CurveStatusBar({
+  status,
+  onRefresh,
+  loading,
+  spotOverride,
+}: {
+  status: CurveStatus | null;
+  onRefresh: () => void;
+  loading: boolean;
+  spotOverride?: number;
+}) {
   if (!status) return null;
   const curves = [
     { name: 'IBR', built: status.ibr.built },
     { name: 'SOFR', built: status.sofr.built },
-    { name: 'NDF', built: status.ndf.built },
+    { name: 'TES', built: status.tes?.built ?? false },
   ];
   return (
     <div
@@ -172,12 +341,69 @@ function CurveStatusBar({ status }: { status: CurveStatus | null }) {
           {c.name} {c.built ? '\u2713' : '\u2717'}
         </span>
       ))}
-      {status.fx_spot && (
+      {(spotOverride ?? status.fx_spot) && (
         <span style={{ color: '#004085', fontFamily: 'monospace', fontWeight: 600 }}>
-          Spot: {fmt(status.fx_spot, 2)}
+          Spot: {fmt((spotOverride ?? status.fx_spot)!, 2)}
         </span>
       )}
+      {status.valuation_date && (
+        <span style={{ color: '#6c757d', fontSize: 11 }}>
+          {status.valuation_date}
+        </span>
+      )}
+      <button
+        type="button"
+        onClick={onRefresh}
+        disabled={loading}
+        title="Refrescar curvas con las marcas más recientes"
+        style={{
+          background: 'none',
+          border: 'none',
+          cursor: loading ? 'not-allowed' : 'pointer',
+          color: '#6c757d',
+          padding: '0 4px',
+          fontSize: 12,
+          opacity: loading ? 0.5 : 1,
+        }}
+      >
+        ↻
+      </button>
     </div>
+  );
+}
+
+// ── Column header with instant hover tooltip ──
+function ColTip({ label, tip }: { label: string; tip: string }) {
+  const [show, setShow] = useState(false);
+  if (!tip) return <span>{label}</span>;
+  return (
+    <span style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+      {label}
+      <span
+        onMouseEnter={() => setShow(true)}
+        onMouseLeave={() => setShow(false)}
+        style={{
+          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+          width: 13, height: 13, borderRadius: '50%',
+          background: '#adb5bd', color: '#fff',
+          fontSize: 9, fontWeight: 700, cursor: 'help', userSelect: 'none', flexShrink: 0,
+        }}
+      >
+        ?
+      </span>
+      {show && (
+        <div style={{
+          position: 'absolute', bottom: 'calc(100% + 6px)', left: '50%',
+          transform: 'translateX(-50%)',
+          zIndex: 9999, background: '#212529', color: '#fff',
+          padding: '6px 10px', borderRadius: 5, fontSize: 11, lineHeight: 1.5,
+          width: 220, whiteSpace: 'normal', pointerEvents: 'none',
+          boxShadow: '0 3px 10px rgba(0,0,0,0.35)',
+        }}>
+          {tip}
+        </div>
+      )}
+    </span>
   );
 }
 
@@ -192,6 +418,7 @@ type PortfolioRow = {
   detail: string;          // type-specific summary
   npv_cop: number;
   npv_usd: number;
+  pnl_cop: number;         // P&L from inception in COP
   carry_cop: number;       // accrued carry or daily carry
   carry_label: string;     // "Acum" / "Diario" / "Periodo"
   dv01: number;
@@ -232,6 +459,7 @@ function buildPortfolioRows(
       notional_usd: r.notional_usd, maturity_date: r.maturity_date,
       detail: `${r.pay_usd ? 'Pay SOFR' : 'Pay IBR'} | ${fmt(r.usd_spread_bps, 0)}bps | ${r.amortization_type} ${r.payment_frequency}`,
       npv_cop: r.npv_cop, npv_usd: r.npv_usd,
+      pnl_cop: r.error ? 0 : (r.pnl_rate_cop ?? 0) + (r.pnl_fx_cop ?? 0),
       carry_cop: accrued, carry_label: 'Acum',
       dv01: r.dv01_ibr, dv01_label: 'IBR',
       dv01_2: r.dv01_sofr, dv01_2_label: 'SOFR',
@@ -247,6 +475,7 @@ function buildPortfolioRows(
       notional_usd: r.notional_usd, maturity_date: r.maturity_date,
       detail: `${r.direction === 'buy' ? 'Compra' : 'Venta'} | Strike ${fmt(r.strike, 2)} | Fwd ${r.error ? '-' : fmt(r.forward, 2)} | ${r.days_to_maturity ?? '?'}d`,
       npv_cop: r.npv_cop, npv_usd: r.npv_usd,
+      pnl_cop: r.error ? 0 : r.npv_cop,
       carry_cop: r.carry_cop_daily, carry_label: '/dia',
       dv01: r.dv01_cop, dv01_label: 'COP',
       dv01_2: r.dv01_usd, dv01_2_label: 'USD',
@@ -264,6 +493,7 @@ function buildPortfolioRows(
       maturity_date: r.maturity_date,
       detail: `${r.pay_fixed ? 'Pay Fija' : 'Pay IBR'} | Fija ${fmt(r.fixed_rate * 100, 2)}% | Fair ${r.error ? '-' : fmt(r.fair_rate * 100, 2)}% | IBR O/N ${r.error ? '-' : fmt(r.ibr_overnight_pct, 2)}% | Diff ${r.error ? '-' : fmt(r.carry_daily_diff_bps, 0)}bps`,
       npv_cop: r.npv, npv_usd: r.npv / 4200,
+      pnl_cop: r.error ? 0 : r.npv,
       carry_cop: r.carry_daily_cop, carry_label: '/dia',
       dv01: r.dv01, dv01_label: 'IBR',
       error: r.error,
@@ -306,21 +536,22 @@ function PortfolioTable({
   };
 
   const COLS: [string, string][] = [
-    ['Tipo', 'Tipo de instrumento: XCCY, NDF, IBR'],
-    ['ID Op', 'ID Operacion Interno'],
-    ['Contraparte', ''],
-    ['Sociedad', 'Codigo sociedad (BP01, BP02, etc.)'],
-    ['Nocional', 'Nocional USD (XCCY/NDF) o COP (IBR Swap)'],
-    ['Tasa/Strike', 'NDF: Tasa FW. XCCY: Spread USD. IBR: Tasa Fija'],
-    ['F. Celebr.', 'Fecha de celebracion de la operacion'],
-    ['Vencimiento', 'Fecha de vencimiento o fixing'],
-    ['Estado', 'Estado de la operacion: Activo, Vencido, Cancelado'],
-    ['NPV COP', 'Valor presente neto en COP. Positivo = a favor'],
-    ['NPV USD', 'Valor presente neto en USD. Positivo = a favor'],
-    ['Carry COP', 'XCCY: carry acumulado. NDF: theta diario. IBR: carry periodo'],
-    ['DV01', 'Sensibilidad en USD a +1bp. XCCY: IBR. NDF: COP curve. IBR: IBR'],
-    ['DV01 (2)', 'Sensibilidad en USD a +1bp. XCCY: SOFR. NDF: USD curve'],
-    ['FX Delta', 'Cambio en NPV COP por +$1 en USDCOP'],
+    ['Tipo', 'Clase de derivado: XCCY = Cross-Currency Swap USD/COP, NDF = Forward de tasa de cambio sin entrega, IBR = Swap de tasa fija vs IBR overnight.'],
+    ['ID Op', 'ID de operación interno o código SAP. Haz clic para abrir el detalle completo.'],
+    ['Contraparte', 'Banco o entidad financiera contraparte del derivado.'],
+    ['Sociedad', 'Código interno de la sociedad que contrata el instrumento (ej. BP01, BP02).'],
+    ['Nocional', 'Monto nocional del contrato. XCCY y NDF en USD; IBR Swap en COP.'],
+    ['Tasa/Strike', 'NDF: tasa de cambio pactada (strike). XCCY: spread sobre SOFR en bps. IBR: tasa fija del swap.'],
+    ['F. Celebr.', 'Fecha de celebración o contratación del derivado.'],
+    ['Vencimiento', 'Fecha de vencimiento, maduración o fixing del instrumento.'],
+    ['Estado', 'Estado administrativo del derivado: Activo, Vencido, o Cancelado.'],
+    ['NPV COP', 'Valor Presente Neto en COP con curvas actuales (IBR + SOFR). Positivo = posición a favor de la empresa.'],
+    ['NPV USD', 'NPV convertido a USD al tipo de cambio spot actual. Positivo = a favor.'],
+    ['PyG', 'P&L desde inicio en COP. XCCY: descomposición en tasas + FX desde inception. NDF e IBR: equivalente al NPV (mark-to-market).'],
+    ['Carry COP', 'Ingreso neto por tasas. XCCY: carry acumulado (días transcurridos × diferenciales). NDF: theta diario. IBR: carry diario.'],
+    ['DV01', 'Sensibilidad del NPV a un movimiento de +1bp. XCCY: curva IBR. NDF: curva COP. IBR: curva IBR. Positivo = gana si la tasa sube.'],
+    ['DV01 (2)', 'Segundo DV01. XCCY: sensibilidad a +1bp en SOFR. NDF: sensibilidad a +1bp en curva USD. Vacío para IBR (solo una curva).'],
+    ['FX Delta', 'Cambio en NPV COP por cada +$1 en el tipo de cambio USDCOP. Mide la exposición cambiaria lineal de la posición.'],
     ['', ''],
   ];
 
@@ -330,7 +561,9 @@ function PortfolioTable({
         <thead>
           <tr style={{ background: '#f8f9fa', borderBottom: '2px solid #dee2e6' }}>
             {COLS.map(([h, tip]) => (
-              <th key={h} style={{ padding: '8px 6px', fontWeight: 600, whiteSpace: 'nowrap', cursor: tip ? 'help' : 'default' }} title={tip || undefined}>{h}</th>
+              <th key={h} style={{ padding: '8px 6px', fontWeight: 600, whiteSpace: 'nowrap', position: 'relative' }}>
+                <ColTip label={h} tip={tip} />
+              </th>
             ))}
           </tr>
         </thead>
@@ -388,6 +621,10 @@ function PortfolioTable({
                 <td style={{ padding: '6px', fontFamily: 'monospace', fontSize: 11, color: npvColor(r.npv_usd) }}>
                   {r.error ? 'Err' : fmtMM(r.npv_usd)}
                 </td>
+                {/* PyG */}
+                <td style={{ padding: '6px', fontFamily: 'monospace', fontSize: 11, fontWeight: 700, color: r.error ? '#6c757d' : npvColor(r.pnl_cop) }}>
+                  {r.error ? '\u2014' : fmtMM(r.pnl_cop)}
+                </td>
                 {/* Carry COP */}
                 <td style={{ padding: '6px', fontFamily: 'monospace', fontSize: 11, color: npvColor(r.carry_cop) }}>
                   {r.error ? '\u2014' : <>{fmtMM(r.carry_cop)} <span style={{ fontSize: 9, color: '#6c757d' }}>{r.carry_label}</span></>}
@@ -420,6 +657,7 @@ function PortfolioTable({
           const valid = rows.filter((r) => !r.error);
           const sumNpvCop = valid.reduce((s, r) => s + r.npv_cop, 0);
           const sumNpvUsd = valid.reduce((s, r) => s + r.npv_usd, 0);
+          const sumPnl = valid.reduce((s, r) => s + r.pnl_cop, 0);
           const sumCarry = valid.reduce((s, r) => s + r.carry_cop, 0);
           const sumDv01 = valid.reduce((s, r) => s + r.dv01, 0);
           const sumDv012 = valid.reduce((s, r) => s + (r.dv01_2 ?? 0), 0);
@@ -431,6 +669,7 @@ function PortfolioTable({
                 <td style={tStyle} colSpan={9}>TOTAL ({valid.length} posiciones)</td>
                 <td style={{ ...tStyle, color: npvColor(sumNpvCop) }}>{fmtMM(sumNpvCop)}</td>
                 <td style={{ ...tStyle, color: npvColor(sumNpvUsd) }}>{fmtMM(sumNpvUsd)}</td>
+                <td style={{ ...tStyle, color: npvColor(sumPnl) }}>{fmtMM(sumPnl)}</td>
                 <td style={{ ...tStyle, color: npvColor(sumCarry) }}>{fmtMM(sumCarry)}</td>
                 <td style={{ ...tStyle, color: npvColor(sumDv01) }}>{fmtMM(sumDv01)}</td>
                 <td style={{ ...tStyle, color: npvColor(sumDv012) }}>{fmtMM(sumDv012)}</td>
@@ -879,6 +1118,14 @@ function AddNdfModal({
   );
 }
 
+// Compute default dates
+const getTodayStr = () => new Date().toISOString().slice(0, 10);
+const getT2Str = () => {
+  const d = new Date();
+  d.setDate(d.getDate() + 2);
+  return d.toISOString().slice(0, 10);
+};
+
 function AddIbrSwapModal({
   show,
   onHide,
@@ -891,7 +1138,7 @@ function AddIbrSwapModal({
   const [label, setLabel] = useState('');
   const [counterparty, setCounterparty] = useState('');
   const [notional, setNotional] = useState(0);
-  const [startDate, setStartDate] = useState('');
+  const [startDate, setStartDate] = useState(getT2Str);
   const [maturityDate, setMaturityDate] = useState('');
   const [fixedRate, setFixedRate] = useState(0);
   const [payFixed, setPayFixed] = useState(true);
@@ -923,18 +1170,34 @@ function AddIbrSwapModal({
 
   // Operational
   const [idOperacion, setIdOperacion] = useState('');
-  const [tradeDate, setTradeDate] = useState('');
+  const [tradeDate, setTradeDate] = useState(getTodayStr);
   const [sociedad, setSociedad] = useState('BP01');
   const [idBanco, setIdBanco] = useState('');
-  const [modalidad, setModalidad] = useState('');
-  const [settlementDate, setSettlementDate] = useState('');
+  const [modalidad, setModalidad] = useState('OIS');
+  const [settlementDate, setSettlementDate] = useState(getT2Str);
   const [tipoDivisa, setTipoDivisa] = useState('COP');
   const [estado, setEstado] = useState('Activo');
   const [docSap, setDocSap] = useState('');
 
   const handleSave = () => {
-    if (!notional || !startDate || !maturityDate || !fixedRate) {
-      toast.warn('Completa nocional, fechas y tasa fija');
+    if (!notional || notional <= 0) {
+      toast.warn('El nocional debe ser mayor a cero');
+      return;
+    }
+    if (!fixedRate || fixedRate <= 0) {
+      toast.warn('Ingrese una tasa fija válida');
+      return;
+    }
+    if (!startDate) {
+      toast.warn('Ingrese la fecha de inicio');
+      return;
+    }
+    if (!maturityDate) {
+      toast.warn('Ingrese la fecha de vencimiento (o seleccione un tenor)');
+      return;
+    }
+    if (new Date(maturityDate) <= new Date(startDate)) {
+      toast.warn('La fecha de vencimiento debe ser posterior a la fecha de inicio');
       return;
     }
     onSave({
@@ -1181,7 +1444,6 @@ const npvBox = (label: string, value: number, suffix = '') => (
   </div>
 );
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function XccyDetailModal({ row, show, onHide }: { row: PricedXccy | null; show: boolean; onHide: () => void }) {
   if (!row) return null;
   return (
@@ -1194,14 +1456,14 @@ function XccyDetailModal({ row, show, onHide }: { row: PricedXccy | null; show: 
         <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
           {npvBox('NPV USD', row.npv_usd)}
           {npvBox('NPV COP', row.npv_cop)}
-          {row.par_basis_bps != null && (
-            <div style={{ flex: 1, padding: '12px 16px', borderRadius: 8, textAlign: 'center', background: '#cce5ff' }}>
-              <div style={{ fontSize: 10, textTransform: 'uppercase', color: '#004085' }}>Par Basis</div>
-              <div style={{ fontSize: 20, fontWeight: 700, fontFamily: 'monospace', color: '#004085' }}>
-                {fmt(row.par_basis_bps, 1)} bps
-              </div>
+          <div style={{ flex: 1, padding: '12px 16px', borderRadius: 8, textAlign: 'center', background: row.par_basis_bps != null ? '#cce5ff' : '#f8f9fa', border: '1px solid #dee2e6' }}>
+            <div style={{ fontSize: 10, textTransform: 'uppercase', color: row.par_basis_bps != null ? '#004085' : '#6c757d' }}>
+              <ColTip label="Par Basis" tip="Spread justo de basis XCCY para una nueva operación hoy. No disponible para swaps mid-life ya que el cálculo de estructura FX fija no es comparable al basis de mercado." />
             </div>
-          )}
+            <div style={{ fontSize: 20, fontWeight: 700, fontFamily: 'monospace', color: row.par_basis_bps != null ? '#004085' : '#adb5bd' }}>
+              {row.par_basis_bps != null ? `${fmt(row.par_basis_bps, 1)} bps` : 'N/A'}
+            </div>
+          </div>
         </div>
 
         {/* P&L decomposition */}
@@ -1288,143 +1550,42 @@ function XccyDetailModal({ row, show, onHide }: { row: PricedXccy | null; show: 
           </div>
         </div>
 
-        {/* Carry breakdown */}
-        {(() => {
-          const today = new Date();
-          const startD = new Date(row.start_date);
-          const daysOpen = Math.max(0, Math.floor((today.getTime() - startD.getTime()) / 86400000));
-
-          // Compute per-period carry from cashflows
-          const cfCarry = (row.cashflows ?? []).map((cf) => {
-            const cfEnd = new Date(cf.end);
-            const cfStart = new Date(cf.start);
-            const daysInPeriod = Math.max(1, Math.floor((cfEnd.getTime() - cfStart.getTime()) / 86400000));
-            const carryCop = cf.cop_interest - cf.usd_interest * row.fx_spot;
-            const isPast = cfEnd <= today;
-            const isCurrent = cfStart <= today && cfEnd > today;
-            const daysElapsed = isCurrent
-              ? Math.floor((today.getTime() - cfStart.getTime()) / 86400000)
-              : isPast ? daysInPeriod : 0;
-            const dailyCarry = carryCop / daysInPeriod;
-            const accruedCarry = dailyCarry * daysElapsed;
-            return {
-              ...cf,
-              daysInPeriod,
-              carryCop,
-              dailyCarry,
-              daysElapsed,
-              accruedCarry,
-              isPast,
-              isCurrent,
-              diffBps: (cf.cop_rate - cf.usd_rate) * 10000,
-            };
-          });
-
-          const totalAccrued = cfCarry.reduce((s, c) => s + c.accruedCarry, 0);
-          const currentPeriod = cfCarry.find((c) => c.isCurrent);
-          const dailyCarryNow = currentPeriod?.dailyCarry ?? 0;
-
-          return (
-            <div style={{ padding: 12, border: '2px solid #17a2b8', borderRadius: 8, marginBottom: 16, background: '#e8f8fb' }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: '#17a2b8', marginBottom: 8 }}>Carry &amp; Devengado</div>
-
-              {/* Summary metrics */}
-              <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', marginBottom: 12 }}>
-                <div>
-                  <div style={{ fontSize: 10, color: '#6c757d' }}>Dias Abierto</div>
-                  <div style={{ fontFamily: 'monospace', fontSize: 16, fontWeight: 700 }}>{daysOpen}</div>
-                </div>
-                <div>
-                  <div style={{ fontSize: 10, color: '#6c757d' }}>Carry Diario COP</div>
-                  <div style={{ fontFamily: 'monospace', fontSize: 16, fontWeight: 700, color: npvColor(dailyCarryNow) }}>
-                    {fmtMM(dailyCarryNow)}
-                  </div>
-                </div>
-                <div>
-                  <div style={{ fontSize: 10, color: '#6c757d' }}>Devengado Acumulado</div>
-                  <div style={{ fontFamily: 'monospace', fontSize: 16, fontWeight: 700, color: npvColor(totalAccrued) }}>
-                    {fmtMM(totalAccrued)}
-                  </div>
-                </div>
-                <div>
-                  <div style={{ fontSize: 10, color: '#6c757d' }}>Carry Periodo Actual</div>
-                  <div style={{ fontFamily: 'monospace', fontSize: 14, fontWeight: 600, color: npvColor(row.carry_cop) }}>
-                    {fmtMM(row.carry_cop)}
-                  </div>
-                </div>
-                <div>
-                  <div style={{ fontSize: 10, color: '#6c757d' }}>Tasa IBR</div>
-                  <div style={{ fontFamily: 'monospace', fontSize: 14, fontWeight: 600 }}>{fmt(row.carry_rate_cop_pct, 4)}%</div>
-                </div>
-                <div>
-                  <div style={{ fontSize: 10, color: '#6c757d' }}>Tasa SOFR+Sprd</div>
-                  <div style={{ fontFamily: 'monospace', fontSize: 14, fontWeight: 600 }}>{fmt(row.carry_rate_usd_pct, 4)}%</div>
-                </div>
-                <div>
-                  <div style={{ fontSize: 10, color: '#6c757d' }}>Diferencial</div>
-                  <div style={{ fontFamily: 'monospace', fontSize: 14, fontWeight: 700, color: npvColor(row.carry_differential_bps) }}>
-                    {fmt(row.carry_differential_bps, 1)} bps
-                  </div>
-                </div>
-              </div>
-
-              {/* Per-period carry table */}
-              {cfCarry.length > 0 && (
-                <div style={{ overflowX: 'auto' }}>
-                  <table style={{ width: '100%', fontSize: 11, borderCollapse: 'collapse' }}>
-                    <thead>
-                      <tr style={{ borderBottom: '2px solid #17a2b8' }}>
-                        {['#', 'Inicio', 'Fin', 'Dias', 'IBR %', 'SOFR %', 'Diff bps', 'Carry COP', 'Diario COP', 'Dias Devengo', 'Devengado COP', ''].map((h) => (
-                          <th key={h} style={{ padding: '4px 4px', fontWeight: 600, whiteSpace: 'nowrap', textAlign: 'right', fontSize: 10, color: '#17a2b8' }}>{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {cfCarry.map((c) => (
-                        <tr
-                          key={c.period}
-                          style={{
-                            borderBottom: '1px solid #bee5eb',
-                            background: c.isCurrent ? '#d1ecf1' : c.isPast ? '#f0fafb' : 'transparent',
-                          }}
-                        >
-                          <td style={{ padding: '3px 4px', textAlign: 'right' }}>{c.period}</td>
-                          <td style={{ padding: '3px 4px' }}>{c.start}</td>
-                          <td style={{ padding: '3px 4px' }}>{c.end}</td>
-                          <td style={{ padding: '3px 4px', textAlign: 'right', fontFamily: 'monospace' }}>{c.daysInPeriod}</td>
-                          <td style={{ padding: '3px 4px', textAlign: 'right', fontFamily: 'monospace' }}>{fmt(c.cop_rate, 4)}</td>
-                          <td style={{ padding: '3px 4px', textAlign: 'right', fontFamily: 'monospace' }}>{fmt(c.usd_rate, 4)}</td>
-                          <td style={{ padding: '3px 4px', textAlign: 'right', fontFamily: 'monospace', fontWeight: 600, color: npvColor(c.diffBps) }}>
-                            {fmt(c.diffBps, 1)}
-                          </td>
-                          <td style={{ padding: '3px 4px', textAlign: 'right', fontFamily: 'monospace', color: npvColor(c.carryCop) }}>
-                            {fmtMM(c.carryCop)}
-                          </td>
-                          <td style={{ padding: '3px 4px', textAlign: 'right', fontFamily: 'monospace', color: npvColor(c.dailyCarry) }}>
-                            {fmtMM(c.dailyCarry)}
-                          </td>
-                          <td style={{ padding: '3px 4px', textAlign: 'right', fontFamily: 'monospace' }}>
-                            {c.daysElapsed > 0 ? c.daysElapsed : '\u2014'}
-                          </td>
-                          <td style={{ padding: '3px 4px', textAlign: 'right', fontFamily: 'monospace', fontWeight: 600, color: npvColor(c.accruedCarry) }}>
-                            {c.daysElapsed > 0 ? fmtMM(c.accruedCarry) : '\u2014'}
-                          </td>
-                          <td style={{ padding: '3px 4px', textAlign: 'center', fontSize: 10 }}>
-                            {c.isCurrent ? 'HOY' : c.isPast ? 'OK' : ''}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-
-              <div style={{ fontSize: 10, color: '#6c757d', marginTop: 6 }}>
-                Carry = interes COP recibido - interes USD pagado (en COP al spot). Devengado = carry diario x dias transcurridos del periodo.
+        {/* Carry & Devengado — backend-computed */}
+        <div style={{ padding: 12, border: '2px solid #17a2b8', borderRadius: 8, marginBottom: 16, background: '#e8f8fb' }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: '#17a2b8', marginBottom: 8 }}>Carry &amp; Devengado</div>
+          <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
+            <div>
+              <div style={{ fontSize: 10, color: '#6c757d' }}>Dias Abierto</div>
+              <div style={{ fontFamily: 'monospace', fontSize: 16, fontWeight: 700 }}>{row.days_open ?? 0}</div>
+            </div>
+            <div>
+              <div style={{ fontSize: 10, color: '#6c757d' }}>Carry Diario COP</div>
+              <div style={{ fontFamily: 'monospace', fontSize: 16, fontWeight: 700, color: npvColor(row.carry_cop) }}>
+                {fmtMM(row.carry_cop)}
               </div>
             </div>
-          );
-        })()}
+            <div>
+              <div style={{ fontSize: 10, color: '#6c757d' }}>Devengado Acumulado</div>
+              <div style={{ fontFamily: 'monospace', fontSize: 16, fontWeight: 700, color: npvColor(row.carry_accrued_cop ?? 0) }}>
+                {fmtMM(row.carry_accrued_cop ?? 0)}
+              </div>
+            </div>
+            <div>
+              <div style={{ fontSize: 10, color: '#6c757d' }}>Tasa IBR</div>
+              <div style={{ fontFamily: 'monospace', fontSize: 14, fontWeight: 600 }}>{fmt(row.carry_rate_cop_pct, 4)}%</div>
+            </div>
+            <div>
+              <div style={{ fontSize: 10, color: '#6c757d' }}>Tasa SOFR+Sprd</div>
+              <div style={{ fontFamily: 'monospace', fontSize: 14, fontWeight: 600 }}>{fmt(row.carry_rate_usd_pct, 4)}%</div>
+            </div>
+            <div>
+              <div style={{ fontSize: 10, color: '#6c757d' }}>Diferencial</div>
+              <div style={{ fontFamily: 'monospace', fontSize: 14, fontWeight: 700, color: npvColor(row.carry_differential_bps) }}>
+                {fmt(row.carry_differential_bps, 1)} bps
+              </div>
+            </div>
+          </div>
+        </div>
 
         {/* Trade details */}
         <Row>
@@ -1456,35 +1617,52 @@ function XccyDetailModal({ row, show, onHide }: { row: PricedXccy | null; show: 
           </Col>
         </Row>
 
-        {/* Cashflows */}
+        {/* Flujos de Caja & Carry — unified table, all fields from backend */}
         {row.cashflows && row.cashflows.length > 0 && (
           <div style={{ marginTop: 16 }}>
-            <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>Flujos de Caja</div>
+            <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>Flujos de Caja &amp; Carry</div>
             <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', fontSize: 11, borderCollapse: 'collapse' }}>
                 <thead>
                   <tr style={{ background: '#f8f9fa', borderBottom: '2px solid #dee2e6' }}>
-                    {['#', 'Inicio', 'Fin', 'Rem%', 'Not USD', 'Rate USD', 'Rate COP', 'Int USD', 'Int COP', 'Princ USD', 'DF USD', 'DF COP', 'Neto COP'].map((h) => (
+                    {['#', 'Inicio', 'Fin', 'Dias', 'Rem%', 'Not USD', 'Rate USD %', 'Rate COP %', 'Diff bps', 'Int USD', 'Int COP', 'Neto COP', 'Diario COP', 'D.Dev', 'Devengado', ''].map((h) => (
                       <th key={h} style={{ padding: '4px 4px', fontWeight: 600, whiteSpace: 'nowrap', textAlign: 'right' }}>{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
                   {row.cashflows.map((cf) => (
-                    <tr key={cf.period} style={{ borderBottom: '1px solid #eee' }}>
+                    <tr
+                      key={cf.period}
+                      style={{
+                        borderBottom: '1px solid #eee',
+                        background: cf.status === 'current' ? '#d1ecf1' : cf.status === 'settled' ? '#f0fafb' : 'transparent',
+                      }}
+                    >
                       <td style={{ padding: '3px 4px', textAlign: 'right' }}>{cf.period}</td>
                       <td style={{ padding: '3px 4px' }}>{cf.start}</td>
                       <td style={{ padding: '3px 4px' }}>{cf.end}</td>
+                      <td style={{ padding: '3px 4px', textAlign: 'right', fontFamily: 'monospace' }}>{cf.days_in_period}</td>
                       <td style={{ padding: '3px 4px', textAlign: 'right', fontFamily: 'monospace' }}>{fmt(cf.remaining_pct, 1)}%</td>
-                      <td style={{ padding: '3px 4px', textAlign: 'right', fontFamily: 'monospace' }}>{fmtMM(cf.notional_usd)}</td>
-                      <td style={{ padding: '3px 4px', textAlign: 'right', fontFamily: 'monospace' }}>{fmt(cf.usd_rate, 4)}%</td>
-                      <td style={{ padding: '3px 4px', textAlign: 'right', fontFamily: 'monospace' }}>{fmt(cf.cop_rate, 4)}%</td>
-                      <td style={{ padding: '3px 4px', textAlign: 'right', fontFamily: 'monospace' }}>{fmtMM(cf.usd_interest)}</td>
-                      <td style={{ padding: '3px 4px', textAlign: 'right', fontFamily: 'monospace' }}>{fmtMM(cf.cop_interest)}</td>
-                      <td style={{ padding: '3px 4px', textAlign: 'right', fontFamily: 'monospace' }}>{fmtMM(cf.usd_principal)}</td>
-                      <td style={{ padding: '3px 4px', textAlign: 'right', fontFamily: 'monospace' }}>{fmt(cf.usd_df, 6)}</td>
-                      <td style={{ padding: '3px 4px', textAlign: 'right', fontFamily: 'monospace' }}>{fmt(cf.cop_df, 6)}</td>
+                      <td style={{ padding: '3px 4px', textAlign: 'right', fontFamily: 'monospace', color: '#6c757d' }}>{fmtMM(cf.notional_usd)}</td>
+                      <td style={{ padding: '3px 4px', textAlign: 'right', fontFamily: 'monospace' }}>{fmt(cf.usd_rate * 100, 4)}</td>
+                      <td style={{ padding: '3px 4px', textAlign: 'right', fontFamily: 'monospace' }}>{fmt(cf.cop_rate * 100, 4)}</td>
+                      <td style={{ padding: '3px 4px', textAlign: 'right', fontFamily: 'monospace', fontWeight: 600, color: npvColor(cf.diff_bps) }}>
+                        {fmt(cf.diff_bps, 1)}
+                      </td>
+                      <td style={{ padding: '3px 4px', textAlign: 'right', fontFamily: 'monospace', color: '#6c757d' }}>{fmtMM(cf.usd_interest)}</td>
+                      <td style={{ padding: '3px 4px', textAlign: 'right', fontFamily: 'monospace', color: '#6c757d' }}>{fmtMM(cf.cop_interest)}</td>
                       <td style={{ padding: '3px 4px', textAlign: 'right', fontFamily: 'monospace', color: npvColor(cf.net_cop) }}>{fmtMM(cf.net_cop)}</td>
+                      <td style={{ padding: '3px 4px', textAlign: 'right', fontFamily: 'monospace', color: npvColor(cf.daily_carry_cop) }}>{fmtMM(cf.daily_carry_cop)}</td>
+                      <td style={{ padding: '3px 4px', textAlign: 'right', fontFamily: 'monospace' }}>
+                        {cf.days_elapsed > 0 ? cf.days_elapsed : '\u2014'}
+                      </td>
+                      <td style={{ padding: '3px 4px', textAlign: 'right', fontFamily: 'monospace', fontWeight: 600, color: npvColor(cf.accrued_carry_cop) }}>
+                        {cf.days_elapsed > 0 ? fmtMM(cf.accrued_carry_cop) : '\u2014'}
+                      </td>
+                      <td style={{ padding: '3px 4px', textAlign: 'center', fontSize: 10, color: cf.status === 'current' ? '#0c5460' : '#6c757d' }}>
+                        {cf.status === 'current' ? 'HOY' : cf.status === 'settled' ? 'OK' : ''}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -1498,7 +1676,6 @@ function XccyDetailModal({ row, show, onHide }: { row: PricedXccy | null; show: 
   );
 }
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function NdfDetailModal({ row, show, onHide }: { row: PricedNdf | null; show: boolean; onHide: () => void }) {
   if (!row) return null;
   return (
@@ -1613,11 +1790,64 @@ function NdfDetailModal({ row, show, onHide }: { row: PricedNdf | null; show: bo
   );
 }
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
+// Generate projected cashflows for IBR swap detail
+function generateIbrCashflows(row: PricedIbrSwap) {
+  const freqMonths: Record<string, number> = { '1M': 1, '3M': 3, '6M': 6, '12M': 12 };
+  const floatingRate = row.fair_rate; // proxy for floating leg
+  const maturity = new Date(row.maturity_date + 'T00:00:00');
+  const result = [];
+
+  if (row.payment_frequency === 'Bullet') {
+    const start = new Date(row.start_date + 'T00:00:00');
+    const days = Math.round((maturity.getTime() - start.getTime()) / 86400000);
+    const fixedAmt = row.notional * row.fixed_rate * days / 365;
+    const floatAmt = row.notional * floatingRate * days / 365;
+    const net = row.pay_fixed ? floatAmt - fixedAmt : fixedAmt - floatAmt;
+    result.push({
+      period: 1, start: row.start_date, end: row.maturity_date,
+      payment_date: row.maturity_date, days, fixed_rate: row.fixed_rate,
+      floating_rate: floatingRate, fixed_amount: fixedAmt,
+      floating_amount: floatAmt, net_amount: net, df: 1.0, pv: net,
+    });
+    return result;
+  }
+
+  const months = freqMonths[row.payment_frequency] || 3;
+  let periodStart = new Date(row.start_date + 'T00:00:00');
+  let period = 1;
+
+  while (periodStart < maturity && period <= 120) {
+    const rawEnd = new Date(periodStart);
+    rawEnd.setMonth(rawEnd.getMonth() + months);
+    const periodEnd = rawEnd > maturity ? maturity : rawEnd;
+    const days = Math.round((periodEnd.getTime() - periodStart.getTime()) / 86400000);
+    const fixedAmt = row.notional * row.fixed_rate * days / 365;
+    const floatAmt = row.notional * floatingRate * days / 365;
+    const net = row.pay_fixed ? floatAmt - fixedAmt : fixedAmt - floatAmt;
+    result.push({
+      period,
+      start: periodStart.toISOString().slice(0, 10),
+      end: periodEnd.toISOString().slice(0, 10),
+      payment_date: periodEnd.toISOString().slice(0, 10),
+      days, fixed_rate: row.fixed_rate, floating_rate: floatingRate,
+      fixed_amount: fixedAmt, floating_amount: floatAmt,
+      net_amount: net, df: 1.0, pv: net,
+    });
+    periodStart = new Date(periodEnd);
+    period += 1;
+  }
+  return result;
+}
+
+
 function IbrSwapDetailModal({ row, show, onHide }: { row: PricedIbrSwap | null; show: boolean; onHide: () => void }) {
   if (!row) return null;
+  const cashflows = row.cashflows ?? (row.error ? [] : generateIbrCashflows(row));
+  const totalNet = cashflows.reduce((s, c) => s + c.net_amount, 0);
+  const today = new Date();
+
   return (
-    <Modal show={show} onHide={onHide} size="lg">
+    <Modal show={show} onHide={onHide} size="xl">
       <Modal.Header closeButton>
         <Modal.Title style={{ fontSize: 16 }}>{row.label} — {row.counterparty}</Modal.Title>
       </Modal.Header>
@@ -1704,6 +1934,70 @@ function IbrSwapDetailModal({ row, show, onHide }: { row: PricedIbrSwap | null; 
             </div>
           </div>
         </div>
+
+        {/* Cashflows por periodo */}
+        {cashflows.length > 0 && (
+          <div style={{ marginTop: 16 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#495057' }}>Cashflows por Periodo</div>
+              <span style={{ fontSize: 12, color: '#6c757d' }}>
+                Total neto: <strong style={{ fontFamily: 'monospace', color: npvColor(totalNet) }}>{fmtMM(totalNet)} COP</strong>
+                {!row.cashflows && <span style={{ fontSize: 10, color: '#ffc107', marginLeft: 6 }}>* estimado</span>}
+              </span>
+            </div>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                <thead>
+                  <tr style={{ borderBottom: '2px solid #dee2e6', background: '#f8f9fa' }}>
+                    {['#', 'Inicio', 'Fin', 'Días', 'Tasa Fija', 'IBR Fwd', 'Pago Fijo', 'Pago Flotante', 'Neto COP'].map((h) => (
+                      <th key={h} style={{ padding: '5px 8px', textAlign: h === '#' || h === 'Días' ? 'center' : 'right', whiteSpace: 'nowrap' }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {cashflows.map((cf) => {
+                    const isPast = new Date(cf.end) < today;
+                    const isCurrent = new Date(cf.start) <= today && new Date(cf.end) >= today;
+                    return (
+                      <tr
+                        key={cf.period}
+                        style={{
+                          borderBottom: '1px solid #f0f0f0',
+                          background: isCurrent ? '#fffde7' : isPast ? '#fafafa' : 'transparent',
+                        }}
+                      >
+                        <td style={{ padding: '3px 8px', textAlign: 'center', color: '#6c757d' }}>{cf.period}</td>
+                        <td style={{ padding: '3px 8px', textAlign: 'right', fontFamily: 'monospace' }}>{cf.start}</td>
+                        <td style={{ padding: '3px 8px', textAlign: 'right', fontFamily: 'monospace' }}>{cf.end}</td>
+                        <td style={{ padding: '3px 8px', textAlign: 'center', color: '#6c757d' }}>{cf.days}</td>
+                        <td style={{ padding: '3px 8px', textAlign: 'right', fontFamily: 'monospace' }}>{(cf.fixed_rate * 100).toFixed(4)}%</td>
+                        <td style={{ padding: '3px 8px', textAlign: 'right', fontFamily: 'monospace' }}>{(cf.floating_rate * 100).toFixed(4)}%</td>
+                        <td style={{ padding: '3px 8px', textAlign: 'right', fontFamily: 'monospace', color: '#dc3545' }}>
+                          ({fmtMM(cf.fixed_amount)})
+                        </td>
+                        <td style={{ padding: '3px 8px', textAlign: 'right', fontFamily: 'monospace', color: '#28a745' }}>
+                          {fmtMM(cf.floating_amount)}
+                        </td>
+                        <td style={{ padding: '3px 8px', textAlign: 'right', fontFamily: 'monospace', fontWeight: 600, color: npvColor(cf.net_amount) }}>
+                          {fmtMM(cf.net_amount)}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+                <tfoot>
+                  <tr style={{ borderTop: '2px solid #dee2e6', background: '#f8f9fa' }}>
+                    <td colSpan={8} style={{ padding: '5px 8px', fontWeight: 600, textAlign: 'right', fontSize: 12 }}>Total</td>
+                    <td style={{ padding: '5px 8px', textAlign: 'right', fontFamily: 'monospace', fontWeight: 700, color: npvColor(totalNet) }}>
+                      {fmtMM(totalNet)}
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+        )}
+
         <OperationalSection row={row} />
       </Modal.Body>
     </Modal>
@@ -1873,11 +2167,15 @@ function ImpliedCurvePanel({ data, onLoad, loading, curvesReady }: { data: NdfIm
 function PortfolioPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [markRepricing, setMarkRepricing] = useState(false);
   const [addType, setAddType] = useState<string | null>(null); // 'xccy' | 'ndf' | 'ibr' | null
-  const [viewTab, setViewTab] = useState<'portfolio' | 'curves' | 'implied'>('portfolio');
+  const [selectedXccy, setSelectedXccy] = useState<PricedXccy | null>(null);
+  const [selectedNdf, setSelectedNdf] = useState<PricedNdf | null>(null);
+  const [selectedIbrSwap, setSelectedIbrSwap] = useState<PricedIbrSwap | null>(null);
+  const [viewTab, setViewTab] = useState<'portfolio' | 'curves'>('portfolio');
+  const [curvesSubTab, setCurvesSubTab] = useState<'ibr_sofr' | 'marcas' | 'implied'>('ibr_sofr');
   const [impliedCurve, setImpliedCurve] = useState<NdfImpliedCurvePoint[]>([]);
-  const [marksDates, setMarksDates] = useState<string[]>([]);
-  const [selectedMarkDate, setSelectedMarkDate] = useState<string>('');
+  const [showConfigModal, setShowConfigModal] = useState(false);
 
   const {
     xccyPositions,
@@ -1892,6 +2190,7 @@ function PortfolioPage() {
     tradingError,
     loadPositions,
     repriceAll,
+    repriceAllWithMark,
     addXccyPosition,
     addNdfPosition,
     addIbrSwapPosition,
@@ -1901,21 +2200,24 @@ function PortfolioPage() {
     canEdit,
     loadUserRole,
     userRole,
-    curveStatus,
-    curveLoading,
-    curvesReady,
-    checkCurveStatus,
-    triggerBuildCurves,
+    marketDataConfig,
+    loadMarketDataConfig,
+    updateMarketDataConfig,
   } = useAppStore();
 
-  const handleBuild = useCallback(async () => {
+  const handleBuild = useCallback(async (silent = false) => {
+    setLoading(true);
     try {
-      await triggerBuildCurves();
-      toast.success('Curvas construidas');
+      const result = await buildCurves();
+      setCurveStatus(result.full_status);
+      if (!silent) toast.success('Curvas actualizadas');
     } catch (e) {
-      toast.error(`Error: ${e instanceof Error ? e.message : String(e)}`);
+      if (!silent) toast.error(`Error: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setLoading(false);
     }
-  }, [triggerBuildCurves]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleFetchImplied = useCallback(async () => {
     setLoading(true);
@@ -1930,18 +2232,46 @@ function PortfolioPage() {
   }, []);
 
   const handleReprice = useCallback(async () => {
-    await repriceAll(selectedMarkDate || undefined);
-    const label = selectedMarkDate ? `al ${selectedMarkDate}` : 'con curvas actuales';
-    toast.success(`Portafolio repriceado ${label}`);
-  }, [repriceAll, selectedMarkDate]);
+    await repriceAll();
+    toast.success('Portafolio repriceado con curvas actuales');
+  }, [repriceAll]);
 
-  // Auto-load on mount: check curves + load positions + role + marks dates
+  const handleRepriceWithMark = useCallback(async (fecha: string) => {
+    setMarkRepricing(true);
+    try {
+      await repriceAllWithMark(fecha);
+      toast.success(`Portafolio valorado con marca ${fecha}`);
+    } catch (e) {
+      toast.error(`Error al valorar: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setMarkRepricing(false);
+    }
+  }, [repriceAllWithMark]);
+
+  // Auto-load on mount: init curves + load positions + role + market data config
   useEffect(() => {
-    checkCurveStatus();
+    const initCurves = async () => {
+      try {
+        const status = await getCurveStatus();
+        if (status.ibr.built && status.sofr.built) {
+          setCurveStatus(status);
+        } else {
+          await handleBuild(true); // auto-build silently
+        }
+      } catch {
+        await handleBuild(true);
+      }
+    };
+    initCurves();
     loadPositions();
     loadUserRole();
-    getMarksDates().then((res) => setMarksDates(res.dates)).catch(() => {});
-  }, [checkCurveStatus, loadPositions, loadUserRole]);
+    loadMarketDataConfig();
+  }, [handleBuild, loadPositions, loadUserRole, loadMarketDataConfig]);
+
+
+  // Auto-reprice when positions loaded and curves are ready
+  const curvesReady =
+    curveStatus?.ibr.built && curveStatus?.sofr.built;
 
   // Auto-reprice when curves become ready (using live curves, no date)
   useEffect(() => {
@@ -2002,7 +2332,7 @@ function PortfolioPage() {
     router.push(`/ibr-swap?${p}`);
   }, [router]);
 
-  const isLoading = curveLoading || tradingLoading || loading;
+  const isLoading = tradingLoading || loading;
 
   // Build unified portfolio rows
   const xccyRows: PricedXccy[] = pricedXccy.length > 0
@@ -2041,39 +2371,12 @@ function PortfolioPage() {
             </PageTitle>
             <div className="d-flex align-items-center gap-2">
               <Button
-                variant="outline-success"
-                onClick={handleBuild}
-                disabled={isLoading}
-              >
-                <Icon icon={faPlay} className="me-1" />
-                {curvesReady ? 'Rebuild Curvas' : 'Construir Curvas'}
-              </Button>
-              {/* Marks date selector */}
-              {marksDates.length > 0 && (
-                <div className="d-flex align-items-center gap-1">
-                  <select
-                    value={selectedMarkDate}
-                    onChange={(e) => setSelectedMarkDate(e.target.value)}
-                    style={{
-                      fontSize: 12, padding: '4px 8px', borderRadius: 6,
-                      border: '1px solid #dee2e6', background: selectedMarkDate ? '#fff3cd' : '#fff',
-                      color: '#212529', cursor: 'pointer',
-                    }}
-                  >
-                    <option value="">Hoy (curvas actuales)</option>
-                    {marksDates.map((d) => (
-                      <option key={d} value={d}>{d}</option>
-                    ))}
-                  </select>
-                </div>
-              )}
-              <Button
-                variant={selectedMarkDate ? 'warning' : 'outline-primary'}
+                variant="outline-primary"
                 onClick={handleReprice}
                 disabled={isLoading || !curvesReady}
               >
                 <Icon icon={faSyncAlt} className="me-1" />
-                {selectedMarkDate ? `Marcar ${selectedMarkDate}` : 'Repricear'}
+                Repricear
               </Button>
               {canEdit && (
                 <div className="d-flex align-items-center gap-1">
@@ -2090,12 +2393,52 @@ function PortfolioPage() {
                   ))}
                 </div>
               )}
+              <Button
+                variant="outline-secondary"
+                size="sm"
+                onClick={() => setShowConfigModal(true)}
+                title="Configurar fuentes de market data"
+              >
+                <Icon icon={faCog} className="me-1" />
+                Fuentes
+              </Button>
             </div>
           </div>
         </Row>
 
         {/* Curve status */}
-        <CurveStatusBar status={curveStatus} />
+        <CurveStatusBar status={curveStatus} onRefresh={() => handleBuild()} loading={isLoading} spotOverride={summary?.fx_spot} />
+        <MarkDateBar
+          onReprice={handleRepriceWithMark}
+          repricing={markRepricing}
+          initialFecha={parseValuationDate(curveStatus?.valuation_date)}
+        />
+
+        {/* Active market data sources */}
+        <div style={{ display: 'flex', gap: 6, marginBottom: 12, flexWrap: 'wrap' }}>
+          {(
+            [
+              ['FX', SOURCE_LABELS[marketDataConfig.spot_fx]],
+              ['NDF', SOURCE_LABELS[marketDataConfig.ndf_curve]],
+              ['IBR', SOURCE_LABELS[marketDataConfig.ibr]],
+              ['SOFR', SOURCE_LABELS[marketDataConfig.sofr]],
+            ] as [string, string][]
+          ).map(([variable, source]) => (
+            <span
+              key={variable}
+              style={{
+                fontSize: 11,
+                padding: '2px 7px',
+                borderRadius: 4,
+                background: '#e9ecef',
+                color: '#495057',
+                fontFamily: 'monospace',
+              }}
+            >
+              {variable}: <strong>{source}</strong>
+            </span>
+          ))}
+        </div>
 
         {/* Error */}
         {tradingError && (
@@ -2118,7 +2461,10 @@ function PortfolioPage() {
 
         {/* View Toggle */}
         <div style={{ display: 'flex', gap: 4, marginBottom: 12 }}>
-          {([['portfolio', 'Portafolio', faTable], ['curves', 'Curvas', faLineChart], ['implied', 'Curva Implicita', faLineChart]] as const).map(([key, label, icon]) => (
+          {([
+            ['portfolio', 'Portafolio', faTable],
+            ['curves', 'Curvas', faLineChart],
+          ] as const).map(([key, label, icon]) => (
             <button
               key={key}
               type="button"
@@ -2160,14 +2506,46 @@ function PortfolioPage() {
             />
           </div>
         )}
-        {viewTab === 'curves' && <CurvesPanel status={curveStatus} />}
-        {viewTab === 'implied' && (
-          <ImpliedCurvePanel
-            data={impliedCurve}
-            onLoad={handleFetchImplied}
-            loading={isLoading}
-            curvesReady={!!curvesReady}
-          />
+        {viewTab === 'curves' && (
+          <>
+            {/* Curves sub-tabs */}
+            <div style={{ display: 'flex', gap: 4, marginBottom: 12, borderBottom: '1px solid #dee2e6', paddingBottom: 8 }}>
+              {([
+                ['ibr_sofr', 'IBR / SOFR'],
+                ['marcas', 'Marcas'],
+                ['implied', 'Curva Implícita'],
+              ] as const).map(([key, label]) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setCurvesSubTab(key)}
+                  style={{
+                    padding: '4px 12px',
+                    fontSize: 12,
+                    fontWeight: 600,
+                    border: 'none',
+                    borderBottom: curvesSubTab === key ? '2px solid #0d6efd' : '2px solid transparent',
+                    borderRadius: 0,
+                    cursor: 'pointer',
+                    background: 'none',
+                    color: curvesSubTab === key ? '#0d6efd' : '#6c757d',
+                  }}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            {curvesSubTab === 'ibr_sofr' && <CurvesPanel status={curveStatus} />}
+            {curvesSubTab === 'marcas' && <MarcasPanel />}
+            {curvesSubTab === 'implied' && (
+              <ImpliedCurvePanel
+                data={impliedCurve}
+                onLoad={handleFetchImplied}
+                loading={isLoading}
+                curvesReady={!!curvesReady}
+              />
+            )}
+          </>
         )}
 
         {/* Add Modals */}
@@ -2198,7 +2576,18 @@ function PortfolioPage() {
             if (curvesReady) await repriceAll();
           }}
         />
-        {/* Row clicks navigate to individual pricers — see onSelectXccy/Ndf/Ibr handlers */}
+        {/* Detail Modals */}
+        <XccyDetailModal row={selectedXccy} show={!!selectedXccy} onHide={() => setSelectedXccy(null)} />
+        <NdfDetailModal row={selectedNdf} show={!!selectedNdf} onHide={() => setSelectedNdf(null)} />
+        <IbrSwapDetailModal row={selectedIbrSwap} show={!!selectedIbrSwap} onHide={() => setSelectedIbrSwap(null)} />
+
+        {/* Market Data Config Modal */}
+        <MarketDataConfigModal
+          show={showConfigModal}
+          onHide={() => setShowConfigModal(false)}
+          config={marketDataConfig}
+          onSave={updateMarketDataConfig}
+        />
       </Container>
     </CoreLayout>
   );

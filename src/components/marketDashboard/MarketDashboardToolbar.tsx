@@ -13,6 +13,9 @@ type MarketDashboardToolbarProps = {
   panelsVisible: boolean;
   onTogglePanels: () => void;
   uniqueEntidades?: string[];
+  uniqueClasesActivo?: string[];
+  uniqueTamanosFondo?: string[];
+  uniqueTamanosInversionistas?: string[];
 };
 
 export default function MarketDashboardToolbar({
@@ -20,6 +23,9 @@ export default function MarketDashboardToolbar({
   panelsVisible,
   onTogglePanels,
   uniqueEntidades,
+  uniqueClasesActivo,
+  uniqueTamanosFondo,
+  uniqueTamanosInversionistas,
 }: MarketDashboardToolbarProps) {
   const chartPeriod = useAppStore((s) => s.chartPeriod);
   const setChartPeriod = useAppStore((s) => s.setChartPeriod);
@@ -33,6 +39,16 @@ export default function MarketDashboardToolbar({
   const setEntidadFilter = useAppStore((s) => s.setEntidadFilter);
   const activoFilter = useAppStore((s) => s.activoFilter);
   const setActivoFilter = useAppStore((s) => s.setActivoFilter);
+  const tipoFondoFilter = useAppStore((s) => s.tipoFondoFilter);
+  const setTipoFondoFilter = useAppStore((s) => s.setTipoFondoFilter);
+  const claseActivoFilter = useAppStore((s) => s.claseActivoFilter);
+  const setClaseActivoFilter = useAppStore((s) => s.setClaseActivoFilter);
+  const tamanoFondoFilter = useAppStore((s) => s.tamanoFondoFilter);
+  const setTamanoFondoFilter = useAppStore((s) => s.setTamanoFondoFilter);
+  const tamanoInversionistasFilter = useAppStore((s) => s.tamanoInversionistasFilter);
+  const setTamanoInversionistasFilter = useAppStore((s) => s.setTamanoInversionistasFilter);
+  const aperturaFilter = useAppStore((s) => s.aperturaFilter);
+  const setAperturaFilter = useAppStore((s) => s.setAperturaFilter);
 
   const [showCurrencyModal, setShowCurrencyModal] = useState(false);
 
@@ -102,6 +118,88 @@ export default function MarketDashboardToolbar({
                 {ent}
               </option>
             ))}
+          </Form.Select>
+        )}
+        {config.showTipoFondoFilter && (
+          <InputGroup style={{ width: 'auto' }}>
+            <InputGroup.Checkbox
+              checked={tipoFondoFilter === 'Cerrado'}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                setTipoFondoFilter(e.target.checked ? 'Cerrado' : undefined)
+              }
+            />
+            <InputGroup.Text style={{ fontSize: 12 }}>Solo cerrado</InputGroup.Text>
+          </InputGroup>
+        )}
+        {config.showClaseActivoFilter && uniqueClasesActivo && uniqueClasesActivo.length > 0 && (
+          <Form.Select
+            size="sm"
+            aria-label="Filtrar por clase de activo"
+            value={claseActivoFilter || ''}
+            onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
+              setClaseActivoFilter(e.target.value || undefined)
+            }
+            style={{ maxWidth: 160, fontSize: 12 }}
+          >
+            <option value="">Todas las clases</option>
+            {uniqueClasesActivo.map((clase) => (
+              <option key={clase} value={clase}>
+                {clase}
+              </option>
+            ))}
+          </Form.Select>
+        )}
+        {config.showTamanoFondoFilter && uniqueTamanosFondo && uniqueTamanosFondo.length > 0 && (
+          <Form.Select
+            size="sm"
+            aria-label="Filtrar por tamaño de fondo"
+            value={tamanoFondoFilter || ''}
+            onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
+              setTamanoFondoFilter(e.target.value || undefined)
+            }
+            style={{ maxWidth: 160, fontSize: 12 }}
+          >
+            <option value="">Todos los tamaños</option>
+            {uniqueTamanosFondo.map((t) => (
+              <option key={t} value={t}>
+                {t}
+              </option>
+            ))}
+          </Form.Select>
+        )}
+        {config.showTamanoInversionistasFilter && uniqueTamanosInversionistas && uniqueTamanosInversionistas.length > 0 && (
+          <Form.Select
+            size="sm"
+            aria-label="Filtrar por tamaño por inversionistas"
+            value={tamanoInversionistasFilter || ''}
+            onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
+              setTamanoInversionistasFilter(e.target.value || undefined)
+            }
+            style={{ maxWidth: 180, fontSize: 12 }}
+          >
+            <option value="">Todos los inversores</option>
+            {uniqueTamanosInversionistas.map((t) => (
+              <option key={t} value={t}>
+                {t}
+              </option>
+            ))}
+          </Form.Select>
+        )}
+        {config.showAperturaFilter && (
+          <Form.Select
+            size="sm"
+            aria-label="Filtrar por apertura"
+            value={aperturaFilter || ''}
+            onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
+              setAperturaFilter(e.target.value || undefined)
+            }
+            style={{ maxWidth: 160, fontSize: 12 }}
+          >
+            <option value="">Todos los fondos</option>
+            <option value="Abierto">Abierto</option>
+            <option value="Abierto con pacto">Abierto con pacto</option>
+            <option value="Abierto sin pacto">Abierto sin pacto</option>
+            <option value="Cerrado">Cerrado</option>
           </Form.Select>
         )}
         {config.showActivoFilter && (

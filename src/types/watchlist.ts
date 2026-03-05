@@ -3,16 +3,31 @@ import { LightSerieValue } from './lightserie';
 
 export interface WatchlistEntry {
   ticker: string;
+  source_name: string;
   display_name: string;
   grupo: string;
   sub_group: string;
   fuente: string;
   entidad: string | null;
   activo: boolean | null;
+  tipo_fondo: string | null;
+  clase_activo: string | null;
+  tamano_fondo: string | null;
+  tamano_inversionistas: string | null;
+  apertura: string | null;
   latest_value: number | null;
   latest_date: string | null;
   change: number | null;
   pct_change: number | null;
+}
+
+export interface FicFundEntry {
+  codigoNegocio: string;
+  fondoName: string;
+  entidad: string | null;
+  subGroup: string;
+  compartimentos: WatchlistEntry[];
+  latestDate: string | null;
 }
 
 export interface WatchlistGroup {
@@ -53,7 +68,7 @@ export interface DashboardConfig {
     fuentes?: string[];
     subGroups?: string[];
   };
-  groupByField: 'grupo' | 'sub_group' | 'fuente' | 'entidad';
+  groupByField: 'grupo' | 'sub_group' | 'fuente' | 'entidad' | 'clase_activo';
   leftPanelGroups?: string[];
   rightPanelGroups?: string[];
   defaultChartTickers?: string[];
@@ -61,8 +76,14 @@ export interface DashboardConfig {
   showNormalize?: boolean;
   showEntidadFilter?: boolean;
   showActivoFilter?: boolean;
+  showTipoFondoFilter?: boolean;
+  showClaseActivoFilter?: boolean;
+  showTamanoFondoFilter?: boolean;
+  showTamanoInversionistasFilter?: boolean;
+  showAperturaFilter?: boolean;
   showCurrencyPairSelector?: boolean;
   infoPath?: string;
+  ficHierarchical?: boolean;
 }
 
 export interface ChartSelection {

@@ -3,28 +3,39 @@ import {
   XccyPosition,
   NdfPosition,
   IbrSwapPosition,
+  TesPosition,
   PricedXccy,
   PricedNdf,
   PricedIbrSwap,
+  PricedTesBond,
   PortfolioSummary,
   NewXccyPosition,
   NewNdfPosition,
   NewIbrSwapPosition,
+  NewTesPosition,
   UserTradingRole,
+  MarketDataConfig,
+  DEFAULT_MARKET_DATA_CONFIG,
 } from 'src/types/trading';
 import {
   fetchXccyPositions,
   fetchNdfPositions,
   fetchIbrSwapPositions,
+  fetchTesPositions,
   fetchUserTradingRole,
   createXccyPosition,
   createNdfPosition,
   createIbrSwapPosition,
+  createTesPosition,
   deleteXccyPositions,
   deleteNdfPositions,
   deleteIbrSwapPositions,
+  deleteTesPositions,
   repricePortfolio,
+  fetchMarketDataConfig,
+  saveMarketDataConfig,
 } from 'src/models/trading';
+import { priceTesBond } from 'src/models/pricing/pricingApi';
 
 const genId = () => crypto.randomUUID();
 
@@ -33,11 +44,13 @@ export interface TradingSlice {
   xccyPositions: XccyPosition[];
   ndfPositions: NdfPosition[];
   ibrSwapPositions: IbrSwapPosition[];
+  tesPositions: TesPosition[];
 
   // Priced results
   pricedXccy: PricedXccy[];
   pricedNdf: PricedNdf[];
   pricedIbrSwap: PricedIbrSwap[];
+  pricedTesBonds: PricedTesBond[];
   summary: PortfolioSummary | null;
 
   // Company / Role
@@ -49,27 +62,42 @@ export interface TradingSlice {
   tradingError: string | undefined;
   tradingSuccess: string | undefined;
   pricedAt: string | undefined;
+  tesLoading: boolean;
+  tesError: string | undefined;
+
+  // Market data config
+  marketDataConfig: MarketDataConfig;
 
   // Actions
   loadUserRole: () => Promise<void>;
   loadPositions: () => Promise<void>;
-  repriceAll: (valuationDate?: string) => Promise<void>;
+  repriceAll: () => Promise<void>;
+  repriceAllWithMark: (fecha: string) => Promise<void>;
   addXccyPosition: (values: NewXccyPosition) => Promise<void>;
   addNdfPosition: (values: NewNdfPosition) => Promise<void>;
   addIbrSwapPosition: (values: NewIbrSwapPosition) => Promise<void>;
   removeXccyPositions: (ids: string[]) => Promise<void>;
   removeNdfPositions: (ids: string[]) => Promise<void>;
   removeIbrSwapPositions: (ids: string[]) => Promise<void>;
+  loadMarketDataConfig: () => Promise<void>;
+  updateMarketDataConfig: (config: MarketDataConfig) => Promise<void>;
   resetTradingStore: () => void;
+  // TES actions
+  loadTesPositions: () => Promise<void>;
+  repriceTes: () => Promise<void>;
+  addTesPosition: (values: NewTesPosition) => Promise<void>;
+  removeTesPositions: (ids: string[]) => Promise<void>;
 }
 
 const initialTradingState = {
   xccyPositions: [],
   ndfPositions: [],
   ibrSwapPositions: [],
+  tesPositions: [],
   pricedXccy: [],
   pricedNdf: [],
   pricedIbrSwap: [],
+  pricedTesBonds: [],
   summary: null,
   userRole: { role: null, company_id: null, company_name: null } as UserTradingRole,
   canEdit: false,
@@ -77,6 +105,9 @@ const initialTradingState = {
   tradingError: undefined,
   tradingSuccess: undefined,
   pricedAt: undefined,
+  tesLoading: false,
+  tesError: undefined,
+  marketDataConfig: { ...DEFAULT_MARKET_DATA_CONFIG },
 };
 
 const createTradingSlice: StateCreator<TradingSlice> = (set, get) => ({
@@ -119,7 +150,7 @@ const createTradingSlice: StateCreator<TradingSlice> = (set, get) => ({
     }
   },
 
-  repriceAll: async (valuationDate?: string) => {
+  repriceAll: async () => {
     const { xccyPositions, ndfPositions, ibrSwapPositions } = get();
     const total =
       xccyPositions.length + ndfPositions.length + ibrSwapPositions.length;
@@ -131,7 +162,6 @@ const createTradingSlice: StateCreator<TradingSlice> = (set, get) => ({
         xccyPositions,
         ndfPositions,
         ibrSwapPositions,
-        valuationDate
       );
       set({
         pricedXccy: result.xccy_results,
@@ -150,6 +180,87 @@ const createTradingSlice: StateCreator<TradingSlice> = (set, get) => ({
         tradingLoading: false,
         tradingError: e instanceof Error ? e.message : 'Reprice failed',
       });
+    }
+  },
+
+  repriceAllWithMark: async (fecha: string) => {
+    const { xccyPositions, ndfPositions, ibrSwapPositions, tesPositions } = get();
+    set({ tradingLoading: true, tesLoading: true, tradingError: undefined });
+    try {
+      // Reprice derivatives with historical mark date
+      const [portfolioResult, tesResults] = await Promise.allSettled([
+        repricePortfolio(xccyPositions, ndfPositions, ibrSwapPositions, {
+          valuation_date: fecha,
+        }),
+        Promise.allSettled(
+          tesPositions.map((pos) =>
+            priceTesBond({
+              bond_name: pos.bond_name,
+              issue_date: pos.issue_date,
+              maturity_date: pos.maturity_date,
+              coupon_rate: pos.coupon_rate * 100,
+              face_value: pos.face_value,
+              include_cashflows: true,
+              valuation_date: fecha,
+            }).then((r) => ({ pos, result: r }))
+          )
+        ),
+      ]);
+
+      if (portfolioResult.status === 'fulfilled') {
+        const result = portfolioResult.value;
+        set({
+          pricedXccy: result.xccy_results,
+          pricedNdf: result.ndf_results,
+          pricedIbrSwap: result.ibr_swap_results,
+          summary: result.summary,
+          pricedAt: `${fecha} (marca histórica)`,
+        });
+      } else {
+        set({ tradingError: portfolioResult.reason instanceof Error ? portfolioResult.reason.message : 'Reprice failed' });
+      }
+
+      if (tesResults.status === 'fulfilled') {
+        const priced: PricedTesBond[] = tesResults.value.map((outcome, i) => {
+          const pos = tesPositions[i];
+          if (outcome.status === 'fulfilled') {
+            const r = outcome.value.result;
+            const npv = (r.dirty_price / pos.face_value) * pos.notional;
+            const pnlMtm = pos.purchase_price != null
+              ? ((r.clean_price - pos.purchase_price) / pos.face_value) * pos.notional
+              : 0;
+            return {
+              ...pos,
+              clean_price: r.clean_price,
+              dirty_price: r.dirty_price,
+              accrued_interest: r.accrued_interest,
+              ytm: r.ytm,
+              macaulay_duration: r.macaulay_duration,
+              modified_duration: r.modified_duration,
+              convexity: r.convexity,
+              dv01: r.dv01,
+              bpv: r.bpv,
+              npv,
+              pnl_mtm: pnlMtm,
+              z_spread_bps: r.z_spread_bps,
+              carry: r.carry,
+              cashflows: r.cashflows,
+            };
+          }
+          return {
+            ...pos,
+            clean_price: 0, dirty_price: 0, accrued_interest: 0,
+            ytm: 0, macaulay_duration: 0, modified_duration: 0,
+            convexity: 0, dv01: 0, bpv: 0, npv: 0, pnl_mtm: 0,
+            error: outcome.reason instanceof Error ? outcome.reason.message : 'Error',
+          };
+        });
+        set({ pricedTesBonds: priced });
+      }
+    } catch (e) {
+      set({ tradingError: e instanceof Error ? e.message : 'Reprice failed' });
+    } finally {
+      set({ tradingLoading: false, tesLoading: false });
     }
   },
 
@@ -250,7 +361,117 @@ const createTradingSlice: StateCreator<TradingSlice> = (set, get) => ({
     }));
   },
 
+  loadMarketDataConfig: async () => {
+    const config = await fetchMarketDataConfig();
+    set({ marketDataConfig: config });
+  },
+
+  updateMarketDataConfig: async (config: MarketDataConfig) => {
+    set({ marketDataConfig: config });
+    await saveMarketDataConfig(config);
+  },
+
   resetTradingStore: () => set(initialTradingState),
+
+  loadTesPositions: async () => {
+    set({ tesLoading: true, tesError: undefined });
+    try {
+      const res = await fetchTesPositions();
+      if (res.error) {
+        set({ tesLoading: false, tesError: res.error });
+        return;
+      }
+      set({ tesPositions: res.data, tesLoading: false });
+    } catch {
+      set({ tesLoading: false });
+    }
+  },
+
+  repriceTes: async () => {
+    const { tesPositions } = get();
+    if (tesPositions.length === 0) return;
+
+    set({ tesLoading: true, tesError: undefined });
+
+    const results = await Promise.allSettled(
+      tesPositions.map((pos) =>
+        priceTesBond({
+          bond_name: pos.bond_name,
+          issue_date: pos.issue_date,
+          maturity_date: pos.maturity_date,
+          coupon_rate: pos.coupon_rate * 100, // pysdk expects pct
+          face_value: pos.face_value,
+          include_cashflows: true,
+        }).then((r) => ({ pos, result: r }))
+      )
+    );
+
+    const priced: PricedTesBond[] = results.map((outcome, i) => {
+      const pos = tesPositions[i];
+      if (outcome.status === 'fulfilled') {
+        const r = outcome.value.result;
+        const npv = (r.dirty_price / pos.face_value) * pos.notional;
+        const pnlMtm = pos.purchase_price != null
+          ? ((r.clean_price - pos.purchase_price) / pos.face_value) * pos.notional
+          : 0;
+        return {
+          ...pos,
+          clean_price: r.clean_price,
+          dirty_price: r.dirty_price,
+          accrued_interest: r.accrued_interest,
+          ytm: r.ytm,
+          macaulay_duration: r.macaulay_duration,
+          modified_duration: r.modified_duration,
+          convexity: r.convexity,
+          dv01: r.dv01,
+          bpv: r.bpv,
+          npv,
+          pnl_mtm: pnlMtm,
+          z_spread_bps: r.z_spread_bps,
+          carry: r.carry,
+          cashflows: r.cashflows,
+        };
+      }
+      return {
+        ...pos,
+        clean_price: 0, dirty_price: 0, accrued_interest: 0,
+        ytm: 0, macaulay_duration: 0, modified_duration: 0,
+        convexity: 0, dv01: 0, bpv: 0, npv: 0, pnl_mtm: 0,
+        error: outcome.reason instanceof Error ? outcome.reason.message : 'Error',
+      };
+    });
+
+    set({ pricedTesBonds: priced, tesLoading: false });
+  },
+
+  addTesPosition: async (values: NewTesPosition) => {
+    set({ tesLoading: true, tesError: undefined });
+    const res = await createTesPosition(values);
+    const localPos: TesPosition = {
+      id: res.error ? genId() : (res.data as { id?: string })?.id || genId(),
+      owner: '',
+      created_at: new Date().toISOString(),
+      ...values,
+    };
+    set((state) => ({
+      tesLoading: false,
+      tesPositions: [...state.tesPositions, localPos],
+    }));
+    if (!res.error) {
+      await get().loadTesPositions();
+    }
+    await get().repriceTes();
+  },
+
+  removeTesPositions: async (ids: string[]) => {
+    set({ tesLoading: true, tesError: undefined });
+    await deleteTesPositions(ids);
+    set((state) => ({
+      tesLoading: false,
+      tesPositions: state.tesPositions.filter((p) => !ids.includes(p.id)),
+      pricedTesBonds: state.pricedTesBonds.filter((p) => !ids.includes(p.id)),
+    }));
+  },
 });
 
 export default createTradingSlice;

@@ -11,12 +11,18 @@ const FIC_CONFIG: DashboardConfig = {
   filters: {
     grupos: ['FIC'],
   },
-  groupByField: 'sub_group',
+  groupByField: 'clase_activo',
   defaultPeriod: '1Y',
   showNormalize: true,
   showEntidadFilter: true,
   showActivoFilter: true,
+  showTipoFondoFilter: true,
+  showClaseActivoFilter: true,
+  showTamanoFondoFilter: true,
+  showTamanoInversionistasFilter: true,
+  showAperturaFilter: true,
   infoPath: '/fic/info',
+  ficHierarchical: true,
 };
 
 export default function FICPage() {

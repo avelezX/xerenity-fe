@@ -5,6 +5,7 @@ import {
   ChartSelection,
   TimePeriod,
   DashboardConfig,
+  FicFundEntry,
 } from 'src/types/watchlist';
 import { LightSerieValue } from 'src/types/lightserie';
 import {
@@ -15,6 +16,41 @@ import { fetchSeriesData } from 'src/models/series/fetchSerieData';
 import { fetchCurrencyPairData } from 'src/models/series/fetchCurrencyPairData';
 import { fetchCryptoData, isCryptoPair } from 'src/models/series/fetchCryptoData';
 import { getHexColor } from 'src/utils/getHexColors';
+
+export const buildFicHierarchy = (entries: WatchlistEntry[]): FicFundEntry[] => {
+  const map = new Map<string, FicFundEntry>();
+
+  entries.forEach((entry) => {
+    const codigoNegocio = entry.source_name.split('_')[0];
+    const fondoName = entry.display_name.split(' Tipo de participacion:')[0].trim();
+
+    if (!map.has(codigoNegocio)) {
+      map.set(codigoNegocio, {
+        codigoNegocio,
+        fondoName,
+        entidad: entry.entidad,
+        subGroup: entry.sub_group,
+        compartimentos: [],
+        latestDate: null,
+      });
+    }
+    map.get(codigoNegocio)!.compartimentos.push(entry);
+  });
+
+  Array.from(map.values()).forEach((fund) => {
+    fund.compartimentos.sort(
+      (a, b) =>
+        Number(a.source_name.split('_').at(-1)) -
+        Number(b.source_name.split('_').at(-1))
+    );
+    // eslint-disable-next-line no-param-reassign
+    fund.latestDate = fund.compartimentos[0]?.latest_date ?? null;
+  });
+
+  return Array.from(map.values()).sort((a, b) =>
+    a.fondoName.localeCompare(b.fondoName)
+  );
+};
 
 export interface MarketDashboardSlice {
   watchlistEntries: WatchlistEntry[];
@@ -29,9 +65,15 @@ export interface MarketDashboardSlice {
   searchText: string;
   entidadFilter: string | undefined;
   activoFilter: boolean;
+  tipoFondoFilter: string | undefined;
+  claseActivoFilter: string | undefined;
+  tamanoFondoFilter: string | undefined;
+  tamanoInversionistasFilter: string | undefined;
+  aperturaFilter: string | undefined;
 
   fetchWatchlistSnapshot: (config: DashboardConfig) => Promise<void>;
   addToChart: (entry: WatchlistEntry) => Promise<void>;
+  addFundToChart: (compartimentos: WatchlistEntry[]) => Promise<void>;
   addCurrencyPairToChart: (pair: string) => Promise<void>;
   removeFromChart: (ticker: string) => void;
   clearChart: () => void;
@@ -41,6 +83,11 @@ export interface MarketDashboardSlice {
   setMarketSearchText: (text: string) => void;
   setEntidadFilter: (entidad: string | undefined) => void;
   setActivoFilter: (activo: boolean) => void;
+  setTipoFondoFilter: (tipoFondo: string | undefined) => void;
+  setClaseActivoFilter: (clase: string | undefined) => void;
+  setTamanoFondoFilter: (tamano: string | undefined) => void;
+  setTamanoInversionistasFilter: (tamano: string | undefined) => void;
+  setAperturaFilter: (apertura: string | undefined) => void;
   resetWatchlistOnly: () => void;
   resetMarketDashboard: () => void;
 }
@@ -73,7 +120,12 @@ function filterEntries(
   entries: WatchlistEntry[],
   searchText: string,
   entidadFilter: string | undefined,
-  activoFilter: boolean
+  activoFilter: boolean,
+  tipoFondoFilter: string | undefined,
+  claseActivoFilter: string | undefined,
+  tamanoFondoFilter: string | undefined,
+  tamanoInversionistasFilter: string | undefined,
+  aperturaFilter: string | undefined
 ): WatchlistEntry[] {
   let result = entries;
 
@@ -88,6 +140,21 @@ function filterEntries(
   }
   if (activoFilter) {
     result = result.filter((e) => e.activo !== false);
+  }
+  if (tipoFondoFilter) {
+    result = result.filter((e) => e.tipo_fondo === tipoFondoFilter);
+  }
+  if (claseActivoFilter) {
+    result = result.filter((e) => e.clase_activo === claseActivoFilter);
+  }
+  if (tamanoFondoFilter) {
+    result = result.filter((e) => e.tamano_fondo === tamanoFondoFilter);
+  }
+  if (tamanoInversionistasFilter) {
+    result = result.filter((e) => e.tamano_inversionistas === tamanoInversionistasFilter);
+  }
+  if (aperturaFilter) {
+    result = result.filter((e) => e.apertura === aperturaFilter);
   }
 
   return result;
@@ -106,6 +173,11 @@ const initialMarketState = {
   searchText: '',
   entidadFilter: undefined as string | undefined,
   activoFilter: true,
+  tipoFondoFilter: undefined as string | undefined,
+  claseActivoFilter: undefined as string | undefined,
+  tamanoFondoFilter: undefined as string | undefined,
+  tamanoInversionistasFilter: undefined as string | undefined,
+  aperturaFilter: undefined as string | undefined,
 };
 
 function getPeriodCutoff(period: TimePeriod): string | null {
@@ -195,7 +267,12 @@ const createMarketDashboardSlice: StateCreator<MarketDashboardSlice> = (
         updated,
         state.searchText,
         state.entidadFilter,
-        state.activoFilter
+        state.activoFilter,
+        state.tipoFondoFilter,
+        state.claseActivoFilter,
+        state.tamanoFondoFilter,
+        state.tamanoInversionistasFilter,
+        state.aperturaFilter
       );
 
       return {
@@ -246,6 +323,16 @@ const createMarketDashboardSlice: StateCreator<MarketDashboardSlice> = (
       set({ chartLoading: false });
     }
   },
+
+  addFundToChart: (compartimentos: WatchlistEntry[]): Promise<void> =>
+    compartimentos
+      .reduce(
+        (promise, entry) => promise.then(() => get().addToChart(entry)),
+        Promise.resolve() as Promise<void>
+      )
+      .then(() => {
+        get().setNormalizeChart(true);
+      }),
 
   addCurrencyPairToChart: async (pair: string) => {
     const state = get();
@@ -335,6 +422,26 @@ const createMarketDashboardSlice: StateCreator<MarketDashboardSlice> = (
     set({ activoFilter: activo });
   },
 
+  setTipoFondoFilter: (tipoFondo: string | undefined) => {
+    set({ tipoFondoFilter: tipoFondo });
+  },
+
+  setClaseActivoFilter: (clase: string | undefined) => {
+    set({ claseActivoFilter: clase });
+  },
+
+  setTamanoFondoFilter: (tamano: string | undefined) => {
+    set({ tamanoFondoFilter: tamano });
+  },
+
+  setTamanoInversionistasFilter: (tamano: string | undefined) => {
+    set({ tamanoInversionistasFilter: tamano });
+  },
+
+  setAperturaFilter: (apertura: string | undefined) => {
+    set({ aperturaFilter: apertura });
+  },
+
   resetWatchlistOnly: () =>
     set({
       watchlistEntries: [],
@@ -343,6 +450,11 @@ const createMarketDashboardSlice: StateCreator<MarketDashboardSlice> = (
       valuesLoading: false,
       searchText: '',
       entidadFilter: undefined,
+      tipoFondoFilter: undefined,
+      claseActivoFilter: undefined,
+      tamanoFondoFilter: undefined,
+      tamanoInversionistasFilter: undefined,
+      aperturaFilter: undefined,
     }),
 
   resetMarketDashboard: () => set(initialMarketState),

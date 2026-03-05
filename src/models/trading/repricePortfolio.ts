@@ -23,14 +23,14 @@ export const repricePortfolio = async (
   xccyPositions: XccyPosition[],
   ndfPositions: NdfPosition[],
   ibrSwapPositions: IbrSwapPosition[],
-  valuationDate?: string
+  options?: { valuation_date?: string }
 ): Promise<PortfolioRepriceResponse> => {
   const url = `${BASE_URL}/pricing/portfolio/reprice`;
   const res = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      ...(valuationDate ? { valuation_date: valuationDate } : {}),
+      ...(options?.valuation_date ? { valuation_date: options.valuation_date } : {}),
       xccy_positions: xccyPositions.map((p) => ({
         id: p.id,
         label: p.label,
@@ -52,6 +52,7 @@ export const repricePortfolio = async (
         strike: p.strike,
         maturity_date: p.maturity_date,
         direction: p.direction,
+        ...(p.trade_date ? { trade_date: p.trade_date } : {}),
       })),
       ibr_swap_positions: ibrSwapPositions.map((p) => ({
         id: p.id,
@@ -82,8 +83,8 @@ export const repricePortfolio = async (
 
   const n = (v: unknown, fallback = 0) => (v as number) ?? fallback;
 
-  const xccyResults: PricedXccy[] = raw.xccy_results.map((r) => {
-    const pos = xccyById[r.position_id as string];
+  const xccyResults: PricedXccy[] = (raw.xccy_results ?? []).map((r) => {
+    const pos = xccyById[r.id as string];
     return {
       ...pos,
       npv_cop: n(r.npv_cop), npv_usd: n(r.npv_usd),
@@ -94,6 +95,8 @@ export const repricePortfolio = async (
       carry_cop: n(r.carry_cop), carry_usd: n(r.carry_usd),
       carry_rate_cop_pct: n(r.carry_rate_cop_pct), carry_rate_usd_pct: n(r.carry_rate_usd_pct),
       carry_differential_bps: n(r.carry_differential_bps),
+      carry_accrued_cop: n(r.carry_accrued_cop),
+      days_open: n(r.days_open),
       dv01_ibr: n(r.dv01_ibr), dv01_sofr: n(r.dv01_sofr), dv01_total: n(r.dv01_total),
       fx_delta: n(r.fx_delta), fx_exposure_usd: n(r.fx_exposure_usd),
       par_basis_bps: r.par_basis_bps != null ? n(r.par_basis_bps) : null,
@@ -103,8 +106,8 @@ export const repricePortfolio = async (
     };
   });
 
-  const ndfResults: PricedNdf[] = raw.ndf_results.map((r) => {
-    const pos = ndfById[r.position_id as string];
+  const ndfResults: PricedNdf[] = (raw.ndf_results ?? []).map((r) => {
+    const pos = ndfById[r.id as string];
     return {
       ...pos,
       npv_usd: n(r.npv_usd), npv_cop: n(r.npv_cop),
@@ -116,12 +119,14 @@ export const repricePortfolio = async (
       dv01_cop: n(r.dv01_cop), dv01_usd: n(r.dv01_usd), dv01_total: n(r.dv01_total),
       fx_delta: n(r.fx_delta), fx_exposure_usd: n(r.fx_exposure_usd),
       spot: n(r.spot),
+      days_open: n(r.days_open),
+      accrued_cop: n(r.accrued_cop),
       error: r.error as string | undefined,
     };
   });
 
-  const ibrSwapResults: PricedIbrSwap[] = raw.ibr_swap_results.map((r) => {
-    const pos = ibrById[r.position_id as string];
+  const ibrSwapResults: PricedIbrSwap[] = (raw.ibr_swap_results ?? []).map((r) => {
+    const pos = ibrById[r.id as string];
     return {
       ...pos,
       npv: n(r.npv), fair_rate: n(r.fair_rate), dv01: n(r.dv01),
@@ -129,6 +134,8 @@ export const repricePortfolio = async (
       ibr_overnight_pct: n(r.ibr_overnight_pct),
       carry_daily_cop: n(r.carry_daily_cop),
       carry_daily_diff_bps: n(r.carry_daily_diff_bps),
+      days_open: n(r.days_open),
+      accrued_carry_cop: n(r.accrued_carry_cop),
       ibr_fwd_period_pct: n(r.ibr_fwd_period_pct),
       carry_period_cop: n(r.carry_period_cop),
       carry_period_diff_bps: n(r.carry_period_diff_bps),
@@ -140,6 +147,10 @@ export const repricePortfolio = async (
     xccy_results: xccyResults,
     ndf_results: ndfResults,
     ibr_swap_results: ibrSwapResults,
-    summary: raw.summary,
+    summary: raw.summary ?? {
+      total_npv_cop: 0, total_npv_usd: 0,
+      total_carry_cop: 0, total_carry_usd: 0,
+      total_pnl_rate_cop: 0, total_pnl_fx_cop: 0,
+    },
   };
 };

@@ -89,6 +89,12 @@ export interface XccyCashflow {
   usd_df: number;
   cop_df: number;
   net_cop: number;
+  status: 'settled' | 'current' | 'future';
+  days_in_period: number;
+  days_elapsed: number;
+  daily_carry_cop: number;
+  accrued_carry_cop: number;
+  diff_bps: number;
 }
 
 export interface PricedXccy extends XccyPosition {
@@ -116,6 +122,8 @@ export interface PricedXccy extends XccyPosition {
   notional_cop: number;
   fx_spot: number;
   n_periods: number;
+  carry_accrued_cop?: number;
+  days_open?: number;
   cashflows: XccyCashflow[];
   error?: string;
 }
@@ -137,7 +145,24 @@ export interface PricedNdf extends NdfPosition {
   fx_delta: number;
   fx_exposure_usd: number;
   spot: number;
+  days_open?: number;
+  accrued_cop?: number;
   error?: string;
+}
+
+export interface IbrSwapCashflow {
+  period: number;
+  start: string;
+  end: string;
+  payment_date: string;
+  days: number;
+  fixed_rate: number;
+  floating_rate: number;
+  fixed_amount: number;
+  floating_amount: number;
+  net_amount: number;
+  df: number;
+  pv: number;
 }
 
 export interface PricedIbrSwap extends IbrSwapPosition {
@@ -152,6 +177,9 @@ export interface PricedIbrSwap extends IbrSwapPosition {
   ibr_fwd_period_pct: number;
   carry_period_cop: number;
   carry_period_diff_bps: number;
+  days_open?: number;
+  accrued_carry_cop?: number;
+  cashflows?: IbrSwapCashflow[];
   error?: string;
 }
 
@@ -164,6 +192,7 @@ export interface PortfolioSummary {
   total_carry_usd: number;
   total_pnl_rate_cop: number;
   total_pnl_fx_cop: number;
+  fx_spot?: number;
 }
 
 // ── Portfolio reprice response ──
@@ -180,3 +209,114 @@ export interface PortfolioRepriceResponse {
 export type NewXccyPosition = Omit<XccyPosition, 'id' | 'owner' | 'company_id' | 'created_at'>;
 export type NewNdfPosition = Omit<NdfPosition, 'id' | 'owner' | 'company_id' | 'created_at'>;
 export type NewIbrSwapPosition = Omit<IbrSwapPosition, 'id' | 'owner' | 'company_id' | 'created_at'>;
+
+// ── TES Bond Portfolio ──
+
+// Re-exported from pricing.ts for use in trading context
+export type { TesBondCashflow, TesBondCarry } from 'src/types/pricing';
+
+export interface TesPosition extends OperationalFields {
+  id: string;
+  owner: string;
+  company_id?: string;
+  bond_name: string;           // e.g. "COLTES 2030"
+  issue_date: string;
+  maturity_date: string;
+  coupon_rate: number;         // decimal (0.07 = 7%)
+  face_value: number;          // nominal, typically 100
+  notional: number;            // COP total (units × face_value)
+  purchase_price?: number;     // clean price at entry (optional)
+  purchase_ytm?: number;       // YTM at entry, decimal (optional)
+  label?: string;
+  counterparty?: string;       // custodian / broker
+  created_at: string;
+}
+
+export interface PricedTesBond extends TesPosition {
+  // Live results from pysdk TesBondPricer
+  clean_price: number;
+  dirty_price: number;
+  accrued_interest: number;
+  ytm: number;                 // current market YTM (decimal)
+  macaulay_duration: number;
+  modified_duration: number;
+  convexity: number;
+  dv01: number;
+  bpv: number;
+  npv: number;                 // dirty_price * notional / face_value (COP)
+  pnl_mtm: number;             // (clean_price - purchase_price) * notional / face_value
+  z_spread_bps?: number | null;
+  carry?: import('src/types/pricing').TesBondCarry;
+  cashflows?: import('src/types/pricing').TesBondCashflow[];
+  error?: string;
+}
+
+export type NewTesPosition = Omit<TesPosition, 'id' | 'owner' | 'company_id' | 'created_at'>;
+
+// ── Market Data Config ──
+
+export type SpotFxSource = 'set_fx' | 'fxempire' | 'manual';
+export type NdfCurveSource = 'fxempire_fwd_pts' | 'dtcc' | 'implied' | 'manual';
+export type IbrSource = 'banrep' | 'set' | 'manual';
+export type SofrSource = 'fed' | 'dtcc' | 'manual';
+
+export interface MarketDataConfig {
+  spot_fx: SpotFxSource;
+  ndf_curve: NdfCurveSource;
+  ibr: IbrSource;
+  sofr: SofrSource;
+}
+
+export const DEFAULT_MARKET_DATA_CONFIG: MarketDataConfig = {
+  spot_fx: 'set_fx',
+  ndf_curve: 'fxempire_fwd_pts',
+  ibr: 'banrep',
+  sofr: 'fed',
+};
+
+// ── Historical Marks (Marcas panel) ──
+
+export interface IbrQuotesCurveRow {
+  fecha: string;           // ISO text: '2026-02-28T00:00:00'
+  ibr_1d: number | null;
+  ibr_1m: number | null;
+  ibr_3m: number | null;
+  ibr_6m: number | null;
+  ibr_12m: number | null;
+  ibr_2y: number | null;
+  ibr_5y: number | null;
+  ibr_10y: number | null;
+  ibr_15y: number | null;
+  ibr_20y: number | null;
+}
+
+export interface HistoricalSofrPoint {
+  tenor_months: number;
+  swap_rate: number;
+}
+
+export interface HistoricalNdfPoint {
+  tenor: string;
+  tenor_months: number;
+  fwd_points: number | null;
+  mid: number | null;
+}
+
+export interface HistoricalTesPoint {
+  name: string;            // bond name e.g. 'COLTES 2030'
+  maturity_date: string;
+  ytm: number;             // decimal (e.g. 0.095 = 9.5%)
+  tenor_years?: number;
+}
+
+export interface HistoricalMark {
+  fecha: string;           // 'YYYY-MM-DD'
+  ibr: IbrQuotesCurveRow | null;
+  sofr: HistoricalSofrPoint[];
+  ndf: HistoricalNdfPoint[];
+  tes: HistoricalTesPoint[];
+  hasIbr: boolean;
+  hasSofr: boolean;
+  hasNdf: boolean;
+  hasTes: boolean;
+}
