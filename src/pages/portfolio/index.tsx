@@ -33,7 +33,6 @@ import {
   getCurveStatus,
 } from 'src/models/pricing/pricingApi';
 import { fetchHistoricalMark } from 'src/models/trading/fetchHistoricalMark';
-import { IbrMarkView, SofrMarkView, NdfMarkView } from './_MarcasPanel';
 import type { CurveStatus } from 'src/types/pricing';
 import type {
   HistoricalMark,
@@ -124,6 +123,14 @@ function MarkChip({ label, ok, rows }: { label: string; ok: boolean; rows: [stri
   );
 }
 
+const fmt = (v: number | null | undefined, decimals = 2) =>
+  v != null
+    ? v.toLocaleString('en-US', {
+        minimumFractionDigits: decimals,
+        maximumFractionDigits: decimals,
+      })
+    : '\u2014';
+
 // ── Mark Date Bar ──
 const markNavBtn: React.CSSProperties = {
   background: 'none', border: '1px solid #ced4da', borderRadius: 4,
@@ -183,7 +190,6 @@ function MarkDateBar({
 }) {
   const today = new Date().toISOString().slice(0, 10);
   const [fecha, setFecha] = useState(initialFecha ?? defaultMarkFecha());
-  const [expandedChip, setExpandedChip] = useState<string | null>(null);
 
   // Sync to pysdk valuation_date once it loads (overrides the default)
   useEffect(() => {
@@ -195,7 +201,6 @@ function MarkDateBar({
   useEffect(() => {
     setLoadingMark(true);
     setMark(null);
-    setExpandedChip(null);
     fetchHistoricalMark(fecha).then(setMark).finally(() => setLoadingMark(false));
   }, [fecha]);
 
@@ -209,11 +214,6 @@ function MarkDateBar({
     { label: 'SOFR', ok: mark?.hasSofr ?? false, rows: sofrMarkRows(mark) },
     { label: 'NDF', ok: mark?.hasNdf ?? false, rows: ndfMarkRows(mark) },
   ];
-
-  const toggleChip = (label: string, ok: boolean) => {
-    if (!ok) return;
-    setExpandedChip((prev) => (prev === label ? null : label));
-  };
 
   return (
     <div style={{
@@ -292,14 +292,6 @@ const ADD_TYPE_OPTIONS = [
   { value: 'ndf', label: 'NDF' },
   { value: 'ibr', label: 'IBR Swap' },
 ];
-
-const fmt = (v: number | null | undefined, decimals = 2) =>
-  v != null
-    ? v.toLocaleString('en-US', {
-        minimumFractionDigits: decimals,
-        maximumFractionDigits: decimals,
-      })
-    : '\u2014';
 
 const fmtMM = (v: number | null | undefined) => {
   if (v == null) return '\u2014';
@@ -388,81 +380,6 @@ function SummaryBar({ summary, pricedAt }: { summary: PortfolioSummary | null; p
   );
 }
 
-// ── Curve Status Bar ──
-function CurveStatusBar({
-  status,
-  onRefresh,
-  loading,
-  spotOverride,
-}: {
-  status: CurveStatus | null;
-  onRefresh: () => void;
-  loading: boolean;
-  spotOverride?: number;
-}) {
-  if (!status) return null;
-  const curves: { name: string; built: boolean }[] = [
-    { name: 'IBR', built: status.ibr.built },
-    { name: 'SOFR', built: status.sofr.built },
-  ];
-  // Only show NDF/TES when they are actually built (avoid confusing red X for optional curves)
-  if (status.ndf?.built) curves.push({ name: 'NDF', built: true });
-  if (status.tes?.built) curves.push({ name: 'TES', built: true });
-  return (
-    <div
-      style={{
-        display: 'flex',
-        gap: 12,
-        marginBottom: 12,
-        fontSize: 12,
-        alignItems: 'center',
-      }}
-    >
-      <span style={{ color: '#6c757d' }}>Curvas:</span>
-      {curves.map((c) => (
-        <span
-          key={c.name}
-          style={{
-            padding: '2px 8px',
-            borderRadius: 4,
-            background: c.built ? '#d4edda' : '#f8d7da',
-            color: c.built ? '#155724' : '#721c24',
-            fontWeight: 600,
-          }}
-        >
-          {c.name} {c.built ? '\u2713' : '\u2717'}
-        </span>
-      ))}
-      {(spotOverride ?? status.fx_spot) && (
-        <span style={{ color: '#004085', fontFamily: 'monospace', fontWeight: 600 }}>
-          Spot: {fmt((spotOverride ?? status.fx_spot)!, 2)}
-        </span>
-      )}
-      {status.valuation_date && (
-        <span style={{ color: '#6c757d', fontSize: 11 }}>
-          {status.valuation_date}
-        </span>
-      )}
-      <button
-        type="button"
-        onClick={onRefresh}
-        disabled={loading}
-        title="Refrescar curvas con las marcas más recientes"
-        style={{
-          background: 'none',
-          border: 'none',
-          cursor: loading ? 'not-allowed' : 'pointer',
-          color: '#6c757d',
-          padding: '0 4px',
-          fontSize: 12,
-          opacity: loading ? 0.5 : 1,
-        }}
-      >
-        ↻
-      </button>
-    </div>
-  );
-}
 
 // ── Column header with instant hover tooltip ──
 function ColTip({ label, tip }: { label: string; tip: string }) {

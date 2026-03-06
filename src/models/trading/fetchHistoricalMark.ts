@@ -83,7 +83,7 @@ export const fetchHistoricalMark = async (
       ? (marksRes.value.data as { fx_spot: number; ndf: Record<string, unknown> | null })
       : null;
 
-  const fx_spot = marksRow?.fx_spot ?? null;
+  const fxSpot = marksRow?.fx_spot ?? null;
 
   // NDF: prefer cop_fwd_points (live), fall back to market_marks.ndf (snapshot)
   const hasNdfLive = ndf.length > 0;
@@ -95,7 +95,7 @@ export const fetchHistoricalMark = async (
     sofr,
     ndf,
     tes,
-    fx_spot,
+    fx_spot: fxSpot,
     ndfSnapshot: marksRow?.ndf ?? null,
     hasIbr: ibr !== null,
     hasSofr: sofr.length > 0,
