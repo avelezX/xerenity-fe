@@ -138,46 +138,33 @@ const markNavBtn: React.CSSProperties = {
   padding: '2px 8px', cursor: 'pointer', fontSize: 12, color: '#495057',
 };
 
+const IBR_TENOR_KEYS: [string, string][] = [
+  ['O/N', 'ibr_1d'], ['1M', 'ibr_1m'], ['3M', 'ibr_3m'], ['6M', 'ibr_6m'],
+  ['1Y', 'ibr_12m'], ['2Y', 'ibr_2y'], ['5Y', 'ibr_5y'], ['10Y', 'ibr_10y'],
+];
+
 function ibrMarkRows(mark: HistoricalMark | null): [string, string][] {
   if (!mark?.ibr) return [];
-  const tenors: [string, keyof NonNullable<HistoricalMark['ibr']>][] = [
-    ['1D', 'ibr_1d'], ['1M', 'ibr_1m'], ['3M', 'ibr_3m'], ['6M', 'ibr_6m'],
-    ['12M', 'ibr_12m'], ['2Y', 'ibr_2y'], ['5Y', 'ibr_5y'],
-    ['10Y', 'ibr_10y'], ['15Y', 'ibr_15y'], ['20Y', 'ibr_20y'],
-  ];
-  return tenors
+  return IBR_TENOR_KEYS
     .filter(([, k]) => mark.ibr![k] != null)
     .map(([label, k]) => [label, `${(mark.ibr![k] as number).toFixed(3)}%`]);
 }
 
 function sofrMarkRows(mark: HistoricalMark | null): [string, string][] {
-  if (!mark?.sofr?.length) return [];
+  if (!mark?.sofr) return [];
   const tenorLabel = (m: number) => m < 12 ? `${m}M` : `${m / 12}Y`;
-  return mark.sofr.map((p) => [tenorLabel(p.tenor_months), `${p.swap_rate.toFixed(3)}%`]);
+  return Object.entries(mark.sofr)
+    .filter(([, v]) => v != null)
+    .map(([months, v]) => [tenorLabel(Number(months)), `${(v as number).toFixed(3)}%`]);
 }
 
-const NDF_TENOR_LABELS: Record<string, string> = {
-  '1': '1M', '2': '2M', '3': '3M', '6': '6M', '9': '9M', '12': '12M',
-};
-
 function ndfMarkRows(mark: HistoricalMark | null): [string, string][] {
-  // Prefer live cop_fwd_points data
-  if (mark?.ndf?.length) {
-    return mark.ndf.map((p) => [
-      p.tenor,
-      p.mid != null ? fmt(p.mid, 2) : p.fwd_points != null ? `${fmt(p.fwd_points, 2)} pts` : '—',
-    ]);
-  }
-  // Fallback: market_marks.ndf snapshot (JSONB keyed by tenor_months)
-  if (mark?.ndfSnapshot && typeof mark.ndfSnapshot === 'object') {
-    return Object.entries(mark.ndfSnapshot).map(([months, v]) => {
-      const label = NDF_TENOR_LABELS[months] ?? `${months}M`;
-      const obj = v as { F_market?: number; fwd_pts_cop?: number } | null;
-      const display = obj?.F_market != null ? fmt(obj.F_market, 2) : obj?.fwd_pts_cop != null ? `${fmt(obj.fwd_pts_cop, 2)} pts` : '—';
-      return [label, display];
-    });
-  }
-  return [];
+  if (!mark?.ndf) return [];
+  const label = (months: string) => Number(months) < 12 ? `${months}M` : `${Number(months) / 12}Y`;
+  return Object.entries(mark.ndf).map(([months, v]) => [
+    label(months),
+    v?.F_market != null ? fmt(v.F_market, 2) : '—',
+  ]);
 }
 
 function MarkDateBar({

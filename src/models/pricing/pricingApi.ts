@@ -182,8 +182,11 @@ export interface MarketMarkRow {
   sofr_on: number | null;
   ibr: Record<string, number | null> | null;
   sofr: Record<string, number | null> | null;
-  ndf: Record<string, { F_market?: number; fwd_pts?: number } | null> | null;
+  ndf: Record<string, { F_market?: number; fwd_pts_cop?: number; deval_ea?: number } | null> | null;
 }
 
 export const getMarks = () =>
   pricingFetch<{ marks: MarketMarkRow[]; count: number }>('pricing/marks');
+
+export const getMarkByDate = (fecha: string) =>
+  pricingFetch<{ mark: MarketMarkRow | null }>(`pricing/marks?fecha=${fecha}`);

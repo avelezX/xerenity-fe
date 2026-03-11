@@ -311,14 +311,13 @@ export interface HistoricalTesPoint {
 
 export interface HistoricalMark {
   fecha: string;           // 'YYYY-MM-DD'
-  ibr: IbrQuotesCurveRow | null;
-  sofr: HistoricalSofrPoint[];
-  ndf: HistoricalNdfPoint[];
-  tes: HistoricalTesPoint[];
-  fx_spot: number | null;  // from market_marks
-  ndfSnapshot: Record<string, unknown> | null; // from market_marks.ndf (JSONB)
+  status: 'complete' | 'partial' | 'missing';
+  fx_spot: number | null;
+  sofr_on: number | null;
+  ibr: Record<string, number | null> | null;  // e.g. { ibr_1d, ibr_1m, ... }
+  sofr: Record<string, number | null> | null; // keyed by tenor_months string ("1","3",...)
+  ndf: Record<string, { F_market?: number; fwd_pts_cop?: number; deval_ea?: number } | null> | null;
   hasIbr: boolean;
   hasSofr: boolean;
   hasNdf: boolean;
-  hasTes: boolean;
 }
