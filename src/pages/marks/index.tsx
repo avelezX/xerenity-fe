@@ -142,11 +142,23 @@ function buildNdfData(row: MarketMarkRow, fxSpot: number | null) {
 
 // ── Component ───────────────────────────────────────────────
 
-export function MarksContent() {
+export function MarksContent({
+  selectedDate,
+  onSelectDate,
+}: {
+  selectedDate?: string | null;
+  onSelectDate?: (fecha: string) => void;
+} = {}) {
   const [rows, setRows]       = useState<MarketMarkRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState<string | null>(null);
-  const [selected, setSelected] = useState<string | null>(null);
+  const [internalSelected, setInternalSelected] = useState<string | null>(null);
+
+  const selected = selectedDate !== undefined ? selectedDate : internalSelected;
+  const setSelected = (ymd: string) => {
+    setInternalSelected(ymd);
+    onSelectDate?.(ymd);
+  };
 
   useEffect(() => {
     getMarks()

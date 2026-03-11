@@ -170,19 +170,16 @@ function ndfMarkRows(mark: HistoricalMark | null): [string, string][] {
 function MarkDateBar({
   onReprice,
   repricing,
-  initialFecha,
+  fecha,
+  onFechaChange,
 }: {
   onReprice: (fecha: string) => Promise<void>;
   repricing: boolean;
-  initialFecha?: string;
+  fecha: string;
+  onFechaChange: (f: string) => void;
 }) {
   const today = new Date().toISOString().slice(0, 10);
-  const [fecha, setFecha] = useState(initialFecha ?? defaultMarkFecha());
-
-  // Sync to pysdk valuation_date once it loads (overrides the default)
-  useEffect(() => {
-    if (initialFecha) setFecha(initialFecha);
-  }, [initialFecha]);
+  const setFecha = onFechaChange;
   const [mark, setMark] = useState<HistoricalMark | null>(null);
   const [loadingMark, setLoadingMark] = useState(false);
 
@@ -2106,6 +2103,7 @@ function PortfolioPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [markRepricing, setMarkRepricing] = useState(false);
+  const [markFecha, setMarkFecha] = useState<string>(defaultMarkFecha());
   const [curveStatus, setCurveStatus] = useState<CurveStatus | null>(null);
   const [addType, setAddType] = useState<string | null>(null); // 'xccy' | 'ndf' | 'ibr' | null
   const [selectedXccy, setSelectedXccy] = useState<PricedXccy | null>(null);
@@ -2193,6 +2191,12 @@ function PortfolioPage() {
     loadMarketDataConfig();
   }, [handleBuild, loadPositions, loadUserRole, loadMarketDataConfig]);
 
+
+  // Sync markFecha to curveStatus valuation_date once it loads
+  useEffect(() => {
+    const parsed = parseValuationDate(curveStatus?.valuation_date);
+    if (parsed) setMarkFecha(parsed);
+  }, [curveStatus?.valuation_date]);
 
   // Auto-reprice when positions loaded and curves are ready
   const curvesReady =
@@ -2334,7 +2338,8 @@ function PortfolioPage() {
         <MarkDateBar
           onReprice={handleRepriceWithMark}
           repricing={markRepricing}
-          initialFecha={parseValuationDate(curveStatus?.valuation_date)}
+          fecha={markFecha}
+          onFechaChange={setMarkFecha}
         />
 
         {/* Active market data sources */}
@@ -2430,7 +2435,7 @@ function PortfolioPage() {
           </div>
         )}
         {viewTab === 'marcas' && (
-          <MarksContent />
+          <MarksContent selectedDate={markFecha} onSelectDate={setMarkFecha} />
         )}
 
         {/* Add Modals */}
