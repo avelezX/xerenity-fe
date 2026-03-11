@@ -1,0 +1,284 @@
+/* ── Main layout ─────────────────────────────────────────────── */
+
+.mainArea {
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  gap: 16px;
+  align-items: start;
+}
+
+@media (max-width: 800px) {
+  .mainArea { grid-template-columns: 1fr; }
+}
+
+/* ── Section title ───────────────────────────────────────────── */
+
+.sectionTitle {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: #6b7280;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: 'Consolas', monospace;
+  border-bottom: 1px solid #e8eaf0;
+  padding-bottom: 8px;
+}
+
+/* ── Calendar ────────────────────────────────────────────────── */
+
+.calendarSection {
+  background: #fff;
+  border: 1px solid #e8eaf0;
+  border-radius: 8px;
+  padding: 14px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+
+.legendRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 10px;
+  color: #6b7280;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+
+.legendDot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  margin-right: 3px;
+  vertical-align: middle;
+}
+
+.monthsGrid {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.monthBlock { }
+
+.monthLabel {
+  font-size: 10px;
+  font-weight: 700;
+  color: #374151;
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  font-family: 'Consolas', monospace;
+}
+
+.calGrid {
+  display: grid;
+  grid-template-columns: repeat(5, 22px);
+  gap: 2px;
+}
+
+.calDayLabel {
+  font-size: 8px;
+  color: #9ca3af;
+  text-align: center;
+  padding-bottom: 3px;
+  font-family: 'Consolas', monospace;
+  font-weight: 700;
+}
+
+.calDay {
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  font-size: 9px;
+  font-family: 'Consolas', monospace;
+  font-weight: 700;
+  border: 1.5px solid transparent;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.1s, border-color 0.1s;
+}
+
+.calDay:hover {
+  border-color: #6366f1;
+  transform: scale(1.12);
+  z-index: 1;
+  position: relative;
+}
+
+/* ── Day status colors ───────────────────────────────────────── */
+
+.dotComplete { background: #d1fae5; color: #065f46; }
+.dotPartial  { background: #fef3c7; color: #92400e; }
+.dotMissing  { background: #fee2e2; color: #991b1b; }
+.dotFuture   { background: #f3f4f6; color: #d1d5db; cursor: default; }
+.dotSelected { border-color: #6366f1 !important; transform: scale(1.12); }
+
+/* ── Detail panel ────────────────────────────────────────────── */
+
+.detailSection {
+  background: #fff;
+  border: 1px solid #e8eaf0;
+  border-radius: 8px;
+  padding: 16px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  position: sticky;
+  top: 80px;
+}
+
+.statusBadge {
+  font-size: 9px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-weight: 700;
+}
+.badge_complete { background: #d1fae5; color: #065f46; }
+.badge_partial  { background: #fef3c7; color: #92400e; }
+.badge_missing  { background: #fee2e2; color: #991b1b; }
+
+/* ── Detail: groups and rows ─────────────────────────────────── */
+
+.detailColumns {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 16px;
+}
+
+@media (max-width: 1100px) {
+  .detailColumns { grid-template-columns: 1fr 1fr; }
+}
+
+.detailStack {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.detailGroup {
+  background: #f9fafb;
+  border: 1px solid #e8eaf0;
+  border-radius: 6px;
+  padding: 10px 12px;
+}
+
+.detailGroupTitle {
+  font-size: 9px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: #6366f1;
+  font-weight: 700;
+  margin-bottom: 8px;
+  font-family: 'Consolas', monospace;
+}
+
+.detailRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 5px 0;
+  border-bottom: 1px solid #e8eaf0;
+}
+
+.detailRow:last-child {
+  border-bottom: none;
+}
+
+.detailLabel {
+  font-size: 11px;
+  color: #6b7280;
+  font-family: 'Consolas', monospace;
+  font-weight: 600;
+}
+
+.detailValue {
+  font-size: 12px;
+  font-weight: 700;
+  color: #111827;
+  font-family: 'Consolas', monospace;
+}
+
+.detailMissing {
+  font-size: 12px;
+  font-weight: 700;
+  color: #ef4444;
+  font-family: 'Consolas', monospace;
+}
+
+/* ── Missing day message ─────────────────────────────────────── */
+
+.missingDay {
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  border-radius: 6px;
+  padding: 20px;
+  text-align: center;
+  color: #c2410c;
+  margin-top: 8px;
+}
+
+.missingDay p { margin: 4px 0; font-size: 13px; }
+
+.missingIcon {
+  font-size: 28px;
+  display: block;
+  margin-bottom: 8px;
+}
+
+/* ── Curve charts ────────────────────────────────────────────── */
+
+.chartsRow {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-top: 16px;
+}
+
+@media (max-width: 900px) {
+  .chartsRow { grid-template-columns: 1fr; }
+}
+
+.chartCard {
+  background: #fff;
+  border: 1px solid #e8eaf0;
+  border-radius: 8px;
+  padding: 14px 16px 10px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+
+.chartTitle {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: #6b7280;
+  margin-bottom: 10px;
+  font-family: 'Consolas', monospace;
+}
+
+/* ── Utilities ───────────────────────────────────────────────── */
+
+.muted   { color: #9ca3af; font-size: 13px; }
+.danger  { color: #ef4444; font-size: 13px; }
+
+.legendComplete { background: #d1fae5; }
+.legendPartial  { background: #fef3c7; }
+.legendMissing  { background: #fee2e2; }
+.statusComplete { background: #d1fae5; color: #065f46; }
+.statusPartial  { background: #fef3c7; color: #92400e; }
+.statusMissing  { background: #fee2e2; color: #991b1b; }
+.statusUnknown  { background: #f3f4f6; color: #9ca3af; }
+
+/* Calendar column positioning (Mon=1 … Fri=5) */
+.col1 { grid-column: 1; }
+.col2 { grid-column: 2; }
+.col3 { grid-column: 3; }
+.col4 { grid-column: 4; }
+.col5 { grid-column: 5; }

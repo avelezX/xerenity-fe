@@ -12,9 +12,9 @@ import {
   faSyncAlt,
   faPlus,
   faTrash,
-  faLineChart,
   faTable,
   faCog,
+  faCalendarAlt,
 } from '@fortawesome/free-solid-svg-icons';
 import { toast } from 'react-toastify';
 import PageTitle from '@components/PageTitle';
@@ -46,6 +46,7 @@ import type {
 } from 'src/types/trading';
 import useAppStore from 'src/store';
 import MarketDataConfigModal from './_MarketDataConfigModal';
+import { MarksContent } from '../marks';
 
 const PAGE_TITLE = 'Portafolio de Derivados';
 
@@ -2123,7 +2124,7 @@ function PortfolioPage() {
   const [selectedXccy, setSelectedXccy] = useState<PricedXccy | null>(null);
   const [selectedNdf, setSelectedNdf] = useState<PricedNdf | null>(null);
   const [selectedIbrSwap, setSelectedIbrSwap] = useState<PricedIbrSwap | null>(null);
-  const [viewTab, setViewTab] = useState<'portfolio' | 'curves'>('portfolio');
+  const [viewTab, setViewTab] = useState<'portfolio' | 'marcas'>('portfolio');
   const [showConfigModal, setShowConfigModal] = useState(false);
 
   const {
@@ -2398,7 +2399,7 @@ function PortfolioPage() {
         <div style={{ display: 'flex', gap: 4, marginBottom: 12 }}>
           {([
             ['portfolio', 'Portafolio', faTable],
-            ['curves', 'Curva-Marcas', faLineChart],
+            ['marcas', 'Marcas', faCalendarAlt],
           ] as const).map(([key, label, icon]) => (
             <button
               key={key}
@@ -2441,8 +2442,8 @@ function PortfolioPage() {
             />
           </div>
         )}
-        {viewTab === 'curves' && (
-          <CurvesPanel status={curveStatus} />
+        {viewTab === 'marcas' && (
+          <MarksContent />
         )}
 
         {/* Add Modals */}

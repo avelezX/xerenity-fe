@@ -174,3 +174,16 @@ export const getXccyParBasisCurve = (params?: ParBasisCurveRequest) =>
 
 export const getMarksDates = () =>
   pricingFetch<{ dates: string[] }>('pricing/marks/dates');
+
+export interface MarketMarkRow {
+  fecha: string;
+  status: 'complete' | 'partial' | 'missing';
+  fx_spot: number | null;
+  sofr_on: number | null;
+  ibr: Record<string, number | null> | null;
+  sofr: Record<string, number | null> | null;
+  ndf: Record<string, { F_market?: number; fwd_pts?: number } | null> | null;
+}
+
+export const getMarks = () =>
+  pricingFetch<{ marks: MarketMarkRow[]; count: number }>('pricing/marks');
