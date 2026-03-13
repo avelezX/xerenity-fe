@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -175,7 +176,7 @@ export function MarksContent({
   const todayYMD = toYMD(today);
   const months: { year: number; month: number }[] = [];
   if (rows.length > 0) {
-    const earliest = new Date(rows[rows.length - 1].fecha + 'T12:00:00');
+    const earliest = new Date(`${rows[rows.length - 1].fecha}T12:00:00`);
     const cur = new Date(earliest.getFullYear(), earliest.getMonth(), 1);
     const end = new Date(today.getFullYear(), today.getMonth(), 1);
     while (cur <= end) {

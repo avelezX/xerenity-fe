@@ -519,7 +519,7 @@ function PortfolioTable({
 
   const visibleRows = estadoFilter === 'Todos' ? rows : rows.filter(r => r.estado === estadoFilter);
   const counts = { Activo: 0, Vencido: 0, Cancelado: 0 };
-  rows.forEach(r => { if (r.estado && r.estado in counts) counts[r.estado as keyof typeof counts]++; });
+  rows.forEach(r => { if (r.estado && r.estado in counts) counts[r.estado as keyof typeof counts] += 1; });
 
   const ESTADO_STYLES: Record<string, { bg: string; color: string }> = {
     Activo:    { bg: '#d4edda', color: '#155724' },
@@ -562,7 +562,7 @@ function PortfolioTable({
           const active = estadoFilter === opt;
           const s = opt !== 'Todos' ? ESTADO_STYLES[opt] : null;
           return (
-            <button key={opt} onClick={() => setEstadoFilter(opt)} style={{
+            <button type="button" key={opt} onClick={() => setEstadoFilter(opt)} style={{
               padding: '2px 10px', borderRadius: 12, fontSize: 11, fontWeight: 600, cursor: 'pointer',
               border: active ? '2px solid #495057' : '1px solid #dee2e6',
               background: active && s ? s.bg : active ? '#495057' : '#f8f9fa',
@@ -2022,6 +2022,7 @@ const TENOR_TO_MONTHS: Record<string, number> = {
   '2y': 24, '3y': 36, '5y': 60, '7y': 84, '10y': 120, '15y': 180, '20y': 240,
 };
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function CurvesPanel({ status }: { status: CurveStatus | null }) {
   if (!status || (!status.ibr.built && !status.sofr.built)) {
     return (
