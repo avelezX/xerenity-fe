@@ -2112,7 +2112,6 @@ function PortfolioPage() {
     tradingLoading,
     tradingError,
     loadPositions,
-    repriceAll,
     repriceAllWithMark,
     addXccyPosition,
     addNdfPosition,
