@@ -190,3 +190,29 @@ export const getMarks = () =>
 
 export const getMarkByDate = (fecha: string) =>
   pricingFetch<{ mark: MarketMarkRow | null }>(`pricing/marks?fecha=${fecha}`);
+
+// ── NDF Settlement ──
+
+export interface NdfSettlementRequest {
+  notional_usd: number;
+  strike: number;
+  maturity_date: string;
+  direction?: 'buy' | 'sell';
+}
+
+export interface NdfSettlementResult {
+  trm_fixing: number;
+  trm_date: string;
+  pyl_cop: number;
+  pyl_usd: number;
+  strike: number;
+  notional_usd: number;
+  direction: string;
+  maturity_date: string;
+}
+
+export const getNdfSettlement = (params: NdfSettlementRequest) =>
+  pricingFetch<NdfSettlementResult>('pricing/ndf/settlement', {
+    method: 'POST',
+    body: JSON.stringify(params),
+  });

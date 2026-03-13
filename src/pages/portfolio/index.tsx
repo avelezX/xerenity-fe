@@ -4,7 +4,6 @@
 import { CoreLayout } from '@layout';
 import { Row, Col, Form, Modal } from 'react-bootstrap';
 import React, { useState, useCallback, useEffect } from 'react';
-import { useRouter } from 'next/router';
 import Container from 'react-bootstrap/Container';
 import { FontAwesomeIcon as Icon } from '@fortawesome/react-fontawesome';
 import {
@@ -31,7 +30,9 @@ import {
 import {
   buildCurves,
   getCurveStatus,
+  getNdfSettlement,
 } from 'src/models/pricing/pricingApi';
+import type { NdfSettlementResult } from 'src/models/pricing/pricingApi';
 import { fetchHistoricalMark } from 'src/models/trading/fetchHistoricalMark';
 import type { CurveStatus } from 'src/types/pricing';
 import type {
@@ -387,8 +388,7 @@ function ColTip({ label, tip }: { label: string; tip: string }) {
       </span>
       {show && (
         <div style={{
-          position: 'absolute', bottom: 'calc(100% + 6px)', left: '50%',
-          transform: 'translateX(-50%)',
+          position: 'absolute', top: 'calc(100% + 4px)', left: 0,
           zIndex: 9999, background: '#212529', color: '#fff',
           padding: '6px 10px', borderRadius: 5, fontSize: 11, lineHeight: 1.5,
           width: 220, whiteSpace: 'normal', pointerEvents: 'none',
@@ -439,10 +439,17 @@ const TYPE_COLORS: Record<string, { bg: string; fg: string }> = {
   IBR: { bg: '#fff3cd', fg: '#856404' },
 };
 
+function resolveEstado(maturityDate: string, stored?: string): string {
+  if (stored && stored !== 'Activo') return stored; // Cancelado u otro valor explícito
+  const today = new Date().toISOString().slice(0, 10);
+  return maturityDate < today ? 'Vencido' : 'Activo';
+}
+
 function buildPortfolioRows(
   xccy: PricedXccy[],
   ndf: PricedNdf[],
   ibr: PricedIbrSwap[],
+  settlementMap: Record<string, NdfSettlementResult> = {},
 ): PortfolioRow[] {
   const rows: PortfolioRow[] = [];
 
@@ -458,24 +465,30 @@ function buildPortfolioRows(
       dv01: r.dv01_ibr, dv01_label: 'IBR',
       dv01_2: r.dv01_sofr, dv01_2_label: 'SOFR',
       fx_delta: r.fx_delta, error: r.error,
-      id_operacion: r.id_operacion, trade_date: r.trade_date, sociedad: r.sociedad, id_banco: r.id_banco, estado: r.estado,
+      id_operacion: r.id_operacion, trade_date: r.trade_date, sociedad: r.sociedad, id_banco: r.id_banco, estado: resolveEstado(r.maturity_date, r.estado),
       _xccy: r,
     });
   }
 
   for (const r of ndf) {
+    const estado = resolveEstado(r.maturity_date, r.estado);
+    const settlement = settlementMap[r.id];
+    const isSettled = estado === 'Vencido' && settlement != null;
     rows.push({
       id: r.id, type: 'NDF', label: r.label, counterparty: r.counterparty,
       notional_usd: r.notional_usd, maturity_date: r.maturity_date,
-      detail: `${r.direction === 'buy' ? 'Compra' : 'Venta'} | Strike ${fmt(r.strike, 2)} | Fwd ${r.error ? '-' : fmt(r.forward, 2)} | ${r.days_to_maturity ?? '?'}d`,
-      npv_cop: r.npv_cop, npv_usd: r.npv_usd,
-      pnl_cop: r.error ? 0 : r.npv_cop,
-      carry_cop: r.carry_cop_daily, carry_label: '/dia',
-      dv01: r.dv01_cop, dv01_label: 'COP',
-      dv01_2: r.dv01_usd, dv01_2_label: 'USD',
-      fx_delta: r.fx_delta,
+      detail: isSettled
+        ? `${r.direction === 'buy' ? 'Compra' : 'Venta'} | Strike ${fmt(r.strike, 2)} | TRM ${fmt(settlement.trm_fixing, 2)} (${settlement.trm_date})`
+        : `${r.direction === 'buy' ? 'Compra' : 'Venta'} | Strike ${fmt(r.strike, 2)} | Fwd ${r.error ? '-' : fmt(r.forward, 2)} | ${r.days_to_maturity ?? '?'}d`,
+      npv_cop: isSettled ? settlement.pyl_cop : r.npv_cop,
+      npv_usd: isSettled ? settlement.pyl_usd : r.npv_usd,
+      pnl_cop: isSettled ? settlement.pyl_cop : (r.error ? 0 : r.npv_cop),
+      carry_cop: isSettled ? 0 : r.carry_cop_daily, carry_label: isSettled ? 'Liq.' : '/dia',
+      dv01: isSettled ? 0 : r.dv01_cop, dv01_label: 'COP',
+      dv01_2: isSettled ? 0 : r.dv01_usd, dv01_2_label: 'USD',
+      fx_delta: isSettled ? 0 : r.fx_delta,
       error: r.error,
-      id_operacion: r.id_operacion, trade_date: r.trade_date, sociedad: r.sociedad, id_banco: r.id_banco, estado: r.estado,
+      id_operacion: r.id_operacion, trade_date: r.trade_date, sociedad: r.sociedad, id_banco: r.id_banco, estado,
       _ndf: r,
     });
   }
@@ -491,7 +504,7 @@ function buildPortfolioRows(
       carry_cop: r.carry_daily_cop, carry_label: '/dia',
       dv01: r.dv01, dv01_label: 'IBR',
       error: r.error,
-      id_operacion: r.id_operacion, trade_date: r.trade_date, sociedad: r.sociedad, id_banco: r.id_banco, estado: r.estado,
+      id_operacion: r.id_operacion, trade_date: r.trade_date, sociedad: r.sociedad, id_banco: r.id_banco, estado: resolveEstado(r.maturity_date, r.estado),
       _ibr: r,
     });
   }
@@ -515,6 +528,8 @@ function PortfolioTable({
   onSelectIbr: (r: PricedIbrSwap) => void;
   canEdit?: boolean;
 }) {
+  const [estadoFilter, setEstadoFilter] = useState<'Todos' | 'Activo' | 'Vencido' | 'Cancelado'>('Todos');
+
   if (rows.length === 0) {
     return (
       <div style={{ padding: 40, textAlign: 'center', color: '#6c757d', border: '2px dashed #dee2e6', borderRadius: 8 }}>
@@ -522,6 +537,16 @@ function PortfolioTable({
       </div>
     );
   }
+
+  const visibleRows = estadoFilter === 'Todos' ? rows : rows.filter(r => r.estado === estadoFilter);
+  const counts = { Activo: 0, Vencido: 0, Cancelado: 0 };
+  rows.forEach(r => { if (r.estado && r.estado in counts) counts[r.estado as keyof typeof counts]++; });
+
+  const ESTADO_STYLES: Record<string, { bg: string; color: string }> = {
+    Activo:    { bg: '#d4edda', color: '#155724' },
+    Vencido:   { bg: '#f8d7da', color: '#721c24' },
+    Cancelado: { bg: '#e2e3e5', color: '#383d41' },
+  };
 
   const handleSelect = (r: PortfolioRow) => {
     if (r._xccy) onSelectXccy(r._xccy);
@@ -550,19 +575,39 @@ function PortfolioTable({
   ];
 
   return (
+    <div>
+      {/* Filtro por estado */}
+      <div style={{ display: 'flex', gap: 6, marginBottom: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+        <span style={{ fontSize: 11, color: '#6c757d', fontWeight: 600 }}>Estado:</span>
+        {(['Todos', 'Activo', 'Vencido', 'Cancelado'] as const).map(opt => {
+          const count = opt === 'Todos' ? rows.length : counts[opt];
+          const active = estadoFilter === opt;
+          const s = opt !== 'Todos' ? ESTADO_STYLES[opt] : null;
+          return (
+            <button key={opt} onClick={() => setEstadoFilter(opt)} style={{
+              padding: '2px 10px', borderRadius: 12, fontSize: 11, fontWeight: 600, cursor: 'pointer',
+              border: active ? '2px solid #495057' : '1px solid #dee2e6',
+              background: active && s ? s.bg : active ? '#495057' : '#f8f9fa',
+              color: active && s ? s.color : active ? '#fff' : '#6c757d',
+            }}>
+              {opt} {count > 0 && <span style={{ opacity: 0.7 }}>({count})</span>}
+            </button>
+          );
+        })}
+      </div>
     <div style={{ overflowX: 'auto' }}>
       <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
         <thead>
           <tr style={{ background: '#f8f9fa', borderBottom: '2px solid #dee2e6' }}>
             {COLS.map(([h, tip]) => (
-              <th key={h} style={{ padding: '8px 6px', fontWeight: 600, whiteSpace: 'nowrap', position: 'relative' }}>
+              <th key={h} style={{ padding: '8px 6px', fontWeight: 600, whiteSpace: 'nowrap', position: 'relative', overflow: 'visible' }}>
                 <ColTip label={h} tip={tip} />
               </th>
             ))}
           </tr>
         </thead>
         <tbody>
-          {rows.map((r) => {
+          {visibleRows.map((r) => {
             const tc = TYPE_COLORS[r.type];
             return (
               <tr key={`${r.type}-${r.id}`} style={{ borderBottom: '1px solid #eee' }}>
@@ -674,6 +719,7 @@ function PortfolioTable({
           );
         })()}
       </table>
+    </div>
     </div>
   );
 }
@@ -2100,7 +2146,6 @@ function CurvesPanel({ status }: { status: CurveStatus | null }) {
 // ── Main Page ──
 
 function PortfolioPage() {
-  const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [markRepricing, setMarkRepricing] = useState(false);
   const [markFecha, setMarkFecha] = useState<string>(defaultMarkFecha());
@@ -2111,6 +2156,7 @@ function PortfolioPage() {
   const [selectedIbrSwap, setSelectedIbrSwap] = useState<PricedIbrSwap | null>(null);
   const [viewTab, setViewTab] = useState<'portfolio' | 'marcas'>('portfolio');
   const [showConfigModal, setShowConfigModal] = useState(false);
+  const [settlementMap, setSettlementMap] = useState<Record<string, NdfSettlementResult>>({});
 
   const {
     xccyPositions,
@@ -2222,45 +2268,42 @@ function PortfolioPage() {
   );
 
   const onSelectXccy = useCallback((pos: PricedXccy) => {
-    const p = new URLSearchParams({
-      prefill: '1',
-      notional_usd: String(pos.notional_usd),
-      start_date: pos.start_date ?? '',
-      maturity_date: pos.maturity_date,
-      usd_spread_bps: String(pos.usd_spread_bps ?? 0),
-      cop_spread_bps: String(pos.cop_spread_bps ?? 0),
-      fx_initial: String(pos.fx_initial ?? ''),
-      pay_usd: String(pos.pay_usd ?? true),
-      payment_frequency: pos.payment_frequency ?? '3M',
-      amortization_type: pos.amortization_type ?? 'bullet',
-    });
-    router.push(`/xccy-swap?${p}`);
-  }, [router]);
+    setSelectedXccy(pos);
+  }, []);
 
   const onSelectNdf = useCallback((pos: PricedNdf) => {
-    const p = new URLSearchParams({
-      prefill: '1',
-      notional_usd: String(pos.notional_usd),
-      strike: String(pos.strike),
-      maturity_date: pos.maturity_date,
-      direction: pos.direction ?? 'buy',
-    });
-    router.push(`/ndf-pricer?${p}`);
-  }, [router]);
+    setSelectedNdf(pos);
+  }, []);
 
   const onSelectIbr = useCallback((pos: PricedIbrSwap) => {
-    const p = new URLSearchParams({
-      prefill: '1',
-      notional: String(pos.notional),
-      fixed_rate: String(pos.fixed_rate),
-      maturity_date: pos.maturity_date,
-      pay_fixed: String(pos.pay_fixed ?? true),
-      payment_frequency: pos.payment_frequency ?? '3M',
-    });
-    router.push(`/ibr-swap?${p}`);
-  }, [router]);
+    setSelectedIbrSwap(pos);
+  }, []);
 
   const isLoading = tradingLoading || loading;
+
+  // Fetch settlement P&L for expired NDFs
+  useEffect(() => {
+    const today = new Date().toISOString().slice(0, 10);
+    const expiredNdfs = ndfPositions.filter((p) => p.maturity_date < today);
+    if (expiredNdfs.length === 0) return;
+
+    expiredNdfs.forEach((p) => {
+      if (settlementMap[p.id] !== undefined) return; // already fetched
+      getNdfSettlement({
+        notional_usd: p.notional_usd,
+        strike: p.strike,
+        maturity_date: p.maturity_date,
+        direction: p.direction,
+      })
+        .then((result) => {
+          setSettlementMap((prev) => ({ ...prev, [p.id]: result }));
+        })
+        .catch(() => {
+          // silently skip if TRM not yet available (future maturity dates, etc.)
+        });
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ndfPositions]);
 
   // Build unified portfolio rows
   const xccyRows: PricedXccy[] = pricedXccy.length > 0
@@ -2273,7 +2316,7 @@ function PortfolioPage() {
     ? pricedIbrSwap
     : ibrSwapPositions.map((p) => ({ ...p, npv: 0, fair_rate: 0, dv01: 0, fixed_leg_npv: 0, floating_leg_npv: 0, ibr_overnight_pct: 0, carry_daily_cop: 0, carry_daily_diff_bps: 0, ibr_fwd_period_pct: 0, carry_period_cop: 0, carry_period_diff_bps: 0, error: 'Sin pricear' } as PricedIbrSwap));
 
-  const portfolioRows = buildPortfolioRows(xccyRows, ndfRows, ibrRows);
+  const portfolioRows = buildPortfolioRows(xccyRows, ndfRows, ibrRows, settlementMap);
 
   return (
     <CoreLayout>
