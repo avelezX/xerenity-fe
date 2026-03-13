@@ -8,6 +8,7 @@ import {
   faHome,
   faCalculator,
   faBriefcase,
+  faShieldAlt,
 } from '@fortawesome/free-solid-svg-icons';
 import SubNavItem from './SubNavItem';
 import NavigationItem, { NavItemProps } from './NavigationItem';
@@ -173,6 +174,18 @@ const SidebarNavList = ({ currentPath }: SidebarNavProps) => {
             key={`${name}${path}`}
           />
         ))}
+      </SubNavItem>
+      <SubNavItem
+        name="Riesgos"
+        icon={faShieldAlt}
+        active={currentPath.includes('/risk-management')}
+      >
+        <NavigationItem
+          active={currentPath.includes('/risk-management')}
+          name="Gestión de Riesgos"
+          path="/risk-management"
+          icon={faShieldAlt}
+        />
       </SubNavItem>
       <NavigationItem
         name="Series"
