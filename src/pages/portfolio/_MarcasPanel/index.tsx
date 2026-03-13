@@ -607,7 +607,6 @@ export default function MarcasPanel() {
           <StatusChip label="IBR" ok={mark?.hasIbr ?? false} loading={loading} />
           <StatusChip label="SOFR" ok={mark?.hasSofr ?? false} loading={loading} />
           <StatusChip label="NDF" ok={mark?.hasNdf ?? false} loading={loading} />
-          <StatusChip label="TES" ok={mark?.hasTes ?? false} loading={loading} />
         </div>
       </div>
 
