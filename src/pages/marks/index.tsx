@@ -1,6 +1,6 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 'use client';
 
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import React, { useState, useEffect } from 'react';
 import { CoreLayout } from '@layout';
 import Container from 'react-bootstrap/Container';
