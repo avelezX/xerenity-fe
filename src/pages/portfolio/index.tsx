@@ -169,12 +169,10 @@ function ndfMarkRows(mark: HistoricalMark | null): [string, string][] {
 }
 
 function MarkDateBar({
-  onReprice,
   repricing,
   fecha,
   onFechaChange,
 }: {
-  onReprice: (fecha: string) => Promise<void>;
   repricing: boolean;
   fecha: string;
   onFechaChange: (f: string) => void;
@@ -189,11 +187,6 @@ function MarkDateBar({
     setMark(null);
     fetchHistoricalMark(fecha).then(setMark).finally(() => setLoadingMark(false));
   }, [fecha]);
-
-  const daysDiff = Math.round(
-    (new Date(today).getTime() - new Date(`${fecha}T12:00:00`).getTime()) / 86400000
-  );
-  const hasData = mark && (mark.hasIbr || mark.hasSofr);
 
   const chips: { label: string; ok: boolean; rows: [string, string][] }[] = [
     { label: 'IBR', ok: mark?.hasIbr ?? false, rows: ibrMarkRows(mark) },
@@ -228,33 +221,9 @@ function MarkDateBar({
               <MarkChip key={c.label} label={c.label} ok={c.ok} rows={c.rows} />
             ))}
           </span>
-          {mark?.fx_spot && (
-            <span style={{ color: '#004085', fontFamily: 'monospace', fontWeight: 600, fontSize: 11 }}>
-              Spot: {fmt(mark.fx_spot, 2)}
-            </span>
+          {repricing && (
+            <span style={{ color: '#6c757d', fontSize: 11 }}>Repriceando…</span>
           )}
-          {daysDiff > 0 && (
-            <span style={{
-              color: '#856404', background: '#fff3cd', padding: '2px 8px',
-              borderRadius: 4, fontSize: 11,
-            }}>
-              ⚠ último dato: {daysDiff === 1 ? 'ayer' : `hace ${daysDiff} días`}
-            </span>
-          )}
-          <button
-            type="button"
-            onClick={() => onReprice(fecha)}
-            disabled={repricing || loadingMark || !hasData}
-            style={{
-              padding: '3px 12px', borderRadius: 4, fontSize: 12, fontWeight: 600,
-              border: '1px solid #0d6efd',
-              background: hasData && !repricing ? '#0d6efd' : '#e9ecef',
-              color: hasData && !repricing ? '#fff' : '#6c757d',
-              cursor: hasData && !repricing ? 'pointer' : 'not-allowed',
-            }}
-          >
-            {repricing ? 'Repriceando…' : 'Repricear con esta marca'}
-          </button>
         </>
       )}
     </div>
@@ -338,7 +307,7 @@ function SummaryBar({ summary, pricedAt }: { summary: PortfolioSummary | null; p
       ))}
       {pricedAt && (
         <div style={{ marginLeft: 'auto', fontSize: 11, color: '#6c757d' }}>
-          Valorado a las {pricedAt}
+          Valorado al {pricedAt}
         </div>
       )}
     </div>
@@ -2173,11 +2142,6 @@ function PortfolioPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleReprice = useCallback(async () => {
-    await repriceAll();
-    toast.success('Portafolio repriceado con curvas actuales');
-  }, [repriceAll]);
-
   const handleRepriceWithMark = useCallback(async (fecha: string) => {
     setMarkRepricing(true);
     try {
@@ -2189,6 +2153,10 @@ function PortfolioPage() {
       setMarkRepricing(false);
     }
   }, [repriceAllWithMark]);
+
+  const handleReprice = useCallback(async () => {
+    await handleRepriceWithMark(markFecha);
+  }, [handleRepriceWithMark, markFecha]);
 
   // Auto-load on mount: init curves + load positions + role + market data config
   useEffect(() => {
@@ -2221,14 +2189,12 @@ function PortfolioPage() {
   const curvesReady =
     curveStatus?.ibr.built && curveStatus?.sofr.built;
 
-  // Auto-reprice when curves become ready (using live curves, no date)
+  // Auto-reprice whenever the mark date changes (or curves become ready)
   useEffect(() => {
-    if (curvesReady) {
-      repriceAll();
-    }
-    // Only reprice when curves become ready, not on every render
+    if (!curvesReady) return;
+    handleRepriceWithMark(markFecha);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [curvesReady]);
+  }, [curvesReady, markFecha]);
 
   const handleDelete = useCallback(
     (id: string, type: string) => {
@@ -2354,7 +2320,6 @@ function PortfolioPage() {
 
         {/* Curve status — removed, MarkDateBar already shows IBR/SOFR/NDF chips + spot */}
         <MarkDateBar
-          onReprice={handleRepriceWithMark}
           repricing={markRepricing}
           fecha={markFecha}
           onFechaChange={setMarkFecha}
@@ -2463,7 +2428,7 @@ function PortfolioPage() {
           onSave={async (v) => {
             await addXccyPosition(v);
             toast.success('Posicion XCCY creada');
-            if (curvesReady) await repriceAll();
+            if (curvesReady) await repriceAllWithMark(markFecha);
           }}
         />
         <AddNdfModal
@@ -2472,7 +2437,7 @@ function PortfolioPage() {
           onSave={async (v) => {
             await addNdfPosition(v);
             toast.success('Posicion NDF creada');
-            if (curvesReady) await repriceAll();
+            if (curvesReady) await repriceAllWithMark(markFecha);
           }}
         />
         <AddIbrSwapModal
@@ -2481,7 +2446,7 @@ function PortfolioPage() {
           onSave={async (v) => {
             await addIbrSwapPosition(v);
             toast.success('Posicion IBR Swap creada');
-            if (curvesReady) await repriceAll();
+            if (curvesReady) await repriceAllWithMark(markFecha);
           }}
         />
         {/* Detail Modals */}

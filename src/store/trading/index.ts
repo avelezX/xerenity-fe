@@ -214,7 +214,7 @@ const createTradingSlice: StateCreator<TradingSlice> = (set, get) => ({
           pricedNdf: result.ndf_results,
           pricedIbrSwap: result.ibr_swap_results,
           summary: result.summary,
-          pricedAt: `${fecha} (marca histórica)`,
+          pricedAt: fecha,
         });
       } else {
         set({ tradingError: portfolioResult.reason instanceof Error ? portfolioResult.reason.message : 'Reprice failed' });
