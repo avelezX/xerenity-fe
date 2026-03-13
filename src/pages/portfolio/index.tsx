@@ -449,7 +449,7 @@ function buildPortfolioRows(
   xccy: PricedXccy[],
   ndf: PricedNdf[],
   ibr: PricedIbrSwap[],
-  settlementMap: Record<string, NdfSettlementResult> = {},
+  settlementMap: Record<string, NdfSettlementResult | 'error'> = {},
 ): PortfolioRow[] {
   const rows: PortfolioRow[] = [];
 
@@ -472,7 +472,8 @@ function buildPortfolioRows(
 
   for (const r of ndf) {
     const estado = resolveEstado(r.maturity_date, r.estado);
-    const settlement = settlementMap[r.id];
+    const settlementEntry = settlementMap[r.id];
+    const settlement = settlementEntry != null && settlementEntry !== 'error' ? settlementEntry : null;
     const isSettled = estado === 'Vencido' && settlement != null;
     rows.push({
       id: r.id, type: 'NDF', label: r.label, counterparty: r.counterparty,
@@ -487,7 +488,7 @@ function buildPortfolioRows(
       dv01: isSettled ? 0 : r.dv01_cop, dv01_label: 'COP',
       dv01_2: isSettled ? 0 : r.dv01_usd, dv01_2_label: 'USD',
       fx_delta: isSettled ? 0 : r.fx_delta,
-      error: r.error,
+      error: isSettled ? undefined : r.error,
       id_operacion: r.id_operacion, trade_date: r.trade_date, sociedad: r.sociedad, id_banco: r.id_banco, estado,
       _ndf: r,
     });
@@ -2156,7 +2157,7 @@ function PortfolioPage() {
   const [selectedIbrSwap, setSelectedIbrSwap] = useState<PricedIbrSwap | null>(null);
   const [viewTab, setViewTab] = useState<'portfolio' | 'marcas'>('portfolio');
   const [showConfigModal, setShowConfigModal] = useState(false);
-  const [settlementMap, setSettlementMap] = useState<Record<string, NdfSettlementResult>>({});
+  const [settlementMap, setSettlementMap] = useState<Record<string, NdfSettlementResult | 'error'>>({});
 
   const {
     xccyPositions,
@@ -2298,8 +2299,10 @@ function PortfolioPage() {
         .then((result) => {
           setSettlementMap((prev) => ({ ...prev, [p.id]: result }));
         })
-        .catch(() => {
-          // silently skip if TRM not yet available (future maturity dates, etc.)
+        .catch((err) => {
+          // eslint-disable-next-line no-console
+          console.warn(`[settlement] NDF ${p.id} (${p.maturity_date}):`, err?.message ?? err);
+          setSettlementMap((prev) => ({ ...prev, [p.id]: 'error' }));
         });
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
