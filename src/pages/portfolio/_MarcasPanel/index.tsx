@@ -126,13 +126,12 @@ const navBtnStyle: React.CSSProperties = {
 
 // ── Sub-tab ───────────────────────────────────────────────────────────────────
 
-type SubTab = 'ibr' | 'sofr' | 'ndf' | 'tes';
+type SubTab = 'ibr' | 'sofr' | 'ndf';
 
 const SUB_TABS: { key: SubTab; label: string }[] = [
   { key: 'ibr', label: 'IBR' },
   { key: 'sofr', label: 'SOFR' },
   { key: 'ndf', label: 'NDF Fwd Pts' },
-  { key: 'tes', label: 'TES' },
 ];
 
 // ── Status chip ───────────────────────────────────────────────────────────────
@@ -556,6 +555,29 @@ export default function MarcasPanel() {
     }
   };
 
+  // Transform Record-based fields from HistoricalMark into arrays for chart components
+  const sofrArray: HistoricalSofrPoint[] = mark?.sofr
+    ? Object.entries(mark.sofr)
+        .filter(([, v]) => v != null)
+        .map(([k, v]) => ({ tenor_months: Number(k), swap_rate: v as number }))
+        .sort((a, b) => a.tenor_months - b.tenor_months)
+    : [];
+
+  const ndfArray: HistoricalNdfPoint[] = mark?.ndf
+    ? Object.entries(mark.ndf)
+        .filter(([, v]) => v != null)
+        .map(([k, v]) => {
+          const months = Number(k);
+          return {
+            tenor: months < 12 ? `${months}M` : `${months / 12}Y`,
+            tenor_months: months,
+            fwd_points: v?.fwd_pts_cop ?? null,
+            mid: v?.F_market ?? null,
+          };
+        })
+        .sort((a, b) => a.tenor_months - b.tenor_months)
+    : [];
+
   const noData = mark && !mark.hasIbr && !mark.hasSofr && !mark.hasNdf;
   const hasAnyData = mark && (mark.hasIbr || mark.hasSofr || mark.hasNdf);
 
@@ -565,6 +587,7 @@ export default function MarcasPanel() {
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
         <span style={{ fontSize: 12, color: '#6c757d', fontWeight: 600 }}>Fecha:</span>
         <input
+          aria-label="Fecha de marca"
           type="date"
           value={fecha}
           min="2026-01-01"
@@ -651,8 +674,8 @@ export default function MarcasPanel() {
                 <div style={{ marginBottom: 4, fontSize: 11, color: '#6c757d' }}>
                   Fuente: Banrep (1d–12m) + DTCC swaps (2y–20y) — {fecha}
                 </div>
-                <IbrCurveChart ibr={mark.ibr} />
-                <IbrNodeTable ibr={mark.ibr} />
+                <IbrCurveChart ibr={mark.ibr as unknown as IbrQuotesCurveRow} />
+                <IbrNodeTable ibr={mark.ibr as unknown as IbrQuotesCurveRow} />
               </>
             ) : (
               <div style={emptyStyle}>Sin datos IBR para {fecha}</div>
@@ -663,23 +686,23 @@ export default function MarcasPanel() {
           {subTab === 'sofr' && (
             loading ? (
               <div style={emptyStyle}>Cargando curva SOFR…</div>
-            ) : mark?.sofr && mark.sofr.length > 0 ? (
+            ) : sofrArray.length > 0 ? (
               <>
                 <div style={{ marginBottom: 4, fontSize: 11, color: '#6c757d' }}>
                   Fuente: Fed (sofr_swap_curve) — {fecha}
                 </div>
-                <SofrCurveChart sofr={mark.sofr} />
+                <SofrCurveChart sofr={sofrArray} />
                 <table style={{ fontSize: 11, fontFamily: 'monospace', borderCollapse: 'collapse', marginTop: 8 }}>
                   <tbody>
                     <tr>
-                      {mark.sofr.map((p) => (
+                      {sofrArray.map((p) => (
                         <th key={p.tenor_months} style={thStyle}>
                           {SOFR_TENOR_LABEL[p.tenor_months] ?? `${p.tenor_months}M`}
                         </th>
                       ))}
                     </tr>
                     <tr>
-                      {mark.sofr.map((p) => (
+                      {sofrArray.map((p) => (
                         <td key={p.tenor_months} style={tdStyle}>{fmtPct(p.swap_rate)}</td>
                       ))}
                     </tr>
@@ -695,12 +718,12 @@ export default function MarcasPanel() {
           {subTab === 'ndf' && (
             loading ? (
               <div style={emptyStyle}>Cargando NDF forward points…</div>
-            ) : mark?.ndf && mark.ndf.length > 0 ? (
+            ) : ndfArray.length > 0 ? (
               <>
                 <div style={{ marginBottom: 4, fontSize: 11, color: '#6c757d' }}>
                   Fuente: FXEmpire (cop_fwd_points) — {fecha}
                 </div>
-                <NdfFwdPtsChart ndf={mark.ndf} />
+                <NdfFwdPtsChart ndf={ndfArray} />
                 <table style={{ fontSize: 11, fontFamily: 'monospace', borderCollapse: 'collapse', marginTop: 8 }}>
                   <thead>
                     <tr>
@@ -710,7 +733,7 @@ export default function MarcasPanel() {
                     </tr>
                   </thead>
                   <tbody>
-                    {mark.ndf.map((p) => (
+                    {ndfArray.map((p) => (
                       <tr key={p.tenor}>
                         <td style={{ ...tdStyle, fontWeight: 600 }}>{p.tenor}</td>
                         <td style={tdStyle}>{fmt2(p.fwd_points)}</td>
@@ -722,42 +745,6 @@ export default function MarcasPanel() {
               </>
             ) : (
               <div style={emptyStyle}>Sin datos NDF para {fecha}</div>
-            )
-          )}
-
-          {/* TES tab */}
-          {subTab === 'tes' && (
-            loading ? (
-              <div style={emptyStyle}>Cargando curva TES…</div>
-            ) : mark?.tes && mark.tes.length > 0 ? (
-              <>
-                <div style={{ marginBottom: 4, fontSize: 11, color: '#6c757d' }}>
-                  Fuente: Banco de la República / SEN — {fecha}
-                </div>
-                <TesCurveChart tes={mark.tes} />
-                <table style={{ fontSize: 11, fontFamily: 'monospace', borderCollapse: 'collapse', marginTop: 8, width: '100%' }}>
-                  <thead>
-                    <tr>
-                      <th style={thStyle}>Bono</th>
-                      <th style={thStyle}>Vencimiento</th>
-                      <th style={thStyle}>YTM</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {[...mark.tes]
-                      .sort((a, b) => a.maturity_date.localeCompare(b.maturity_date))
-                      .map((p) => (
-                        <tr key={p.name}>
-                          <td style={{ ...tdStyle, fontWeight: 600, textAlign: 'left' }}>{p.name}</td>
-                          <td style={tdStyle}>{p.maturity_date.slice(0, 10)}</td>
-                          <td style={tdStyle}>{fmtPct3(p.ytm)}</td>
-                        </tr>
-                      ))}
-                  </tbody>
-                </table>
-              </>
-            ) : (
-              <div style={emptyStyle}>Sin datos TES para {fecha}</div>
             )
           )}
 
