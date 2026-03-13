@@ -556,8 +556,8 @@ export default function MarcasPanel() {
     }
   };
 
-  const noData = mark && !mark.hasIbr && !mark.hasSofr && !mark.hasNdf && !mark.hasTes;
-  const hasAnyData = mark && (mark.hasIbr || mark.hasSofr || mark.hasNdf || mark.hasTes);
+  const noData = mark && !mark.hasIbr && !mark.hasSofr && !mark.hasNdf;
+  const hasAnyData = mark && (mark.hasIbr || mark.hasSofr || mark.hasNdf);
 
   return (
     <div style={{ background: '#fff', border: '1px solid #dee2e6', borderRadius: 8, padding: 20 }}>
