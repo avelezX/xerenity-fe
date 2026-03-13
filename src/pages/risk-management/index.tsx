@@ -268,8 +268,8 @@ function RiskManagement() {
       setRows(data.risk_table);
       setConfig(data.config);
       toast.success('Cálculo completado');
-    } catch (e: any) {
-      const msg = e?.message || 'Error calculando riesgos';
+    } catch (e: unknown) {
+      const msg = (e as Error)?.message || 'Error calculando riesgos';
       setError(msg);
       toast.error(msg);
     } finally {
@@ -282,8 +282,8 @@ function RiskManagement() {
     try {
       const data = await fetchRollingVar(filterDate);
       setRollingData(data);
-    } catch (e: any) {
-      toast.error(e?.message || 'Error obteniendo rolling VaR');
+    } catch (e: unknown) {
+      toast.error((e as Error)?.message || 'Error obteniendo rolling VaR');
     } finally {
       setRollingLoading(false);
     }
@@ -311,8 +311,8 @@ function RiskManagement() {
       });
 
       toast.success(`Factores cargados (${data.period.start} → ${data.period.end})`);
-    } catch (e: any) {
-      toast.error(e?.message || 'Error obteniendo factores');
+    } catch (e: unknown) {
+      toast.error((e as Error)?.message || 'Error obteniendo factores');
     } finally {
       setBenchmarkLoading(false);
     }
@@ -320,6 +320,7 @@ function RiskManagement() {
 
   useEffect(() => {
     handleCalculate();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -329,6 +330,7 @@ function RiskManagement() {
     if (activeTab === 'benchmark' && !benchmarkFactors) {
       handleFetchBenchmarkFactors();
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
 
   const handleBenchmarkChange = (rowIdx: number, colKey: string, rawValue: string) => {
@@ -534,15 +536,15 @@ function RiskManagement() {
                     <th>Info Ratio</th>
                   </tr>
                   <tr>
-                    <th></th>
-                    <th></th>
+                    <th aria-label="Activo" />
+                    <th aria-label="Exposición" />
                     <th>Super USD</th><th>Portafolio GR</th><th>Total</th>
                     <th>VaR Super</th><th>VaR GR</th><th>VaR Total</th>
                     <th>Diario %</th><th>Unidad</th>
-                    <th></th>
+                    <th aria-label="Portafolio" />
                     <th>Inicio</th><th>Fin</th>
                     <th>P&G Super</th><th>P&G GR</th><th>Total</th>
-                    <th></th>
+                    <th aria-label="Info Ratio valor" />
                   </tr>
                 </thead>
                 <tbody>
@@ -765,7 +767,7 @@ function RiskManagement() {
                       <ResponsiveContainer width="100%" height={300}>
                         <LineChart
                           data={rollingData.dates.map((date, i) => {
-                            const point: Record<string, any> = { date };
+                            const point: Record<string, number | string | null> = { date };
                             ASSETS.forEach((a) => {
                               const vals = rollingData.rolling_var[a];
                               point[a] = vals ? vals[i] : null;
