@@ -216,7 +216,7 @@ function MarkDateBar({
         onChange={(e) => e.target.value && setFecha(e.target.value)}
         style={{ border: '1px solid #ced4da', borderRadius: 4, padding: '2px 6px', fontSize: 12, fontFamily: 'monospace' }}
       />
-      <button type="button" onClick={() => setFecha((f) => stepMarkDate(f, -1))} disabled={loadingMark} style={markNavBtn}>◀</button>
+      <button type="button" onClick={() => setFecha(stepMarkDate(fecha, -1))} disabled={loadingMark} style={markNavBtn}>◀</button>
       <button type="button" onClick={() => { const next = stepMarkDate(fecha, 1); if (next <= today) setFecha(next); }} disabled={loadingMark} style={markNavBtn}>▶</button>
       <button type="button" onClick={() => setFecha(defaultMarkFecha())} disabled={loadingMark} style={{ ...markNavBtn, padding: '2px 10px' }}>Ayer</button>
       {loadingMark ? (
