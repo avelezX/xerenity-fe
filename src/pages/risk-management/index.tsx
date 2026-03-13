@@ -269,7 +269,7 @@ function RiskManagement() {
       setConfig(data.config);
       toast.success('Cálculo completado');
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : 'Error calculando riesgos';
+      const msg = (e as Error)?.message || 'Error calculando riesgos';
       setError(msg);
       toast.error(msg);
     } finally {
@@ -283,7 +283,7 @@ function RiskManagement() {
       const data = await fetchRollingVar(filterDate);
       setRollingData(data);
     } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : 'Error obteniendo rolling VaR');
+      toast.error((e as Error)?.message || 'Error obteniendo rolling VaR');
     } finally {
       setRollingLoading(false);
     }
@@ -312,7 +312,7 @@ function RiskManagement() {
 
       toast.success(`Factores cargados (${data.period.start} → ${data.period.end})`);
     } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : 'Error obteniendo factores');
+      toast.error((e as Error)?.message || 'Error obteniendo factores');
     } finally {
       setBenchmarkLoading(false);
     }
@@ -536,15 +536,15 @@ function RiskManagement() {
                     <th>Info Ratio</th>
                   </tr>
                   <tr>
-                    <th>{' '}</th>
-                    <th>{' '}</th>
+                    <th aria-label="Activo" />
+                    <th aria-label="Exposición" />
                     <th>Super USD</th><th>Portafolio GR</th><th>Total</th>
                     <th>VaR Super</th><th>VaR GR</th><th>VaR Total</th>
                     <th>Diario %</th><th>Unidad</th>
-                    <th>{' '}</th>
+                    <th aria-label="Portafolio" />
                     <th>Inicio</th><th>Fin</th>
                     <th>P&G Super</th><th>P&G GR</th><th>Total</th>
-                    <th>{' '}</th>
+                    <th aria-label="Info Ratio valor" />
                   </tr>
                 </thead>
                 <tbody>
@@ -767,7 +767,7 @@ function RiskManagement() {
                       <ResponsiveContainer width="100%" height={300}>
                         <LineChart
                           data={rollingData.dates.map((date, i) => {
-                            const point: Record<string, string | number | null> = { date };
+                            const point: Record<string, number | string | null> = { date };
                             ASSETS.forEach((a) => {
                               const vals = rollingData.rolling_var[a];
                               point[a] = vals ? vals[i] : null;
