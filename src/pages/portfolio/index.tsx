@@ -2265,7 +2265,7 @@ function PortfolioPage() {
         notional_usd: p.notional_usd,
         strike: p.strike,
         maturity_date: p.maturity_date,
-        direction: p.direction,
+        direction: p.direction as 'buy' | 'sell',
       })
         .then((result) => {
           setSettlementMap((prev) => ({ ...prev, [p.id]: result }));
