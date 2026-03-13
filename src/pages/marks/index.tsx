@@ -364,7 +364,7 @@ export default function MarksPage() {
 
 interface CurveChartProps {
   title: string;
-  data: Record<string, number | null | undefined>[];
+  data: Record<string, number | string | null | undefined>[];
   xKey: string;
   yKey: string;
   color: string;
