@@ -302,27 +302,6 @@ const npvColor = (v: number) => (v >= 0 ? '#28a745' : '#dc3545');
 // Handles mid-life swaps: backend schedule starts at valuation_date+2d,
 // so the first cashflow may start slightly after today. In that case we
 // treat period 0 as current and count days from the trade's start_date.
-const computeAccruedCarry = (row: PricedXccy): number => {
-  const today = new Date();
-  const tradeStart = new Date(`${row.start_date}T12:00:00`);
-  return (row.cashflows ?? []).reduce((sum, cf, i) => {
-    const cfEnd = new Date(cf.end);
-    const cfStart = new Date(cf.start);
-    const daysInPeriod = Math.max(1, Math.floor((cfEnd.getTime() - cfStart.getTime()) / 86400000));
-    const carryCop = cf.cop_interest - cf.usd_interest * row.fx_spot;
-    const dailyCarry = carryCop / daysInPeriod;
-    const isPast = cfEnd <= today;
-    // Stub: first period starts after today (settlement offset) but trade is active
-    const isStub = i === 0 && today < cfStart && today >= tradeStart;
-    const isCurrent = isStub || (!isPast && cfStart <= today && cfEnd > today);
-    const daysElapsed = isStub
-      ? Math.floor((today.getTime() - tradeStart.getTime()) / 86400000)
-      : isCurrent
-        ? Math.floor((today.getTime() - cfStart.getTime()) / 86400000)
-        : isPast ? daysInPeriod : 0;
-    return sum + dailyCarry * daysElapsed;
-  }, 0);
-};
 
 // ── Summary Card ──
 function SummaryBar({ summary, pricedAt }: { summary: PortfolioSummary | null; pricedAt: string | undefined }) {
@@ -454,14 +433,13 @@ function buildPortfolioRows(
   const rows: PortfolioRow[] = [];
 
   for (const r of xccy) {
-    const accrued = r.error ? 0 : computeAccruedCarry(r);
     rows.push({
       id: r.id, type: 'XCCY', label: r.label, counterparty: r.counterparty,
       notional_usd: r.notional_usd, maturity_date: r.maturity_date,
       detail: `${r.pay_usd ? 'Pay SOFR' : 'Pay IBR'} | ${fmt(r.usd_spread_bps, 0)}bps | ${r.amortization_type} ${r.payment_frequency}`,
       npv_cop: r.npv_cop, npv_usd: r.npv_usd,
       pnl_cop: r.error ? 0 : (r.pnl_rate_cop ?? 0) + (r.pnl_fx_cop ?? 0),
-      carry_cop: accrued, carry_label: 'Acum',
+      carry_cop: r.carry_cop, carry_label: '/dia',
       dv01: r.dv01_ibr, dv01_label: 'IBR',
       dv01_2: r.dv01_sofr, dv01_2_label: 'SOFR',
       fx_delta: r.fx_delta, error: r.error,
@@ -567,7 +545,6 @@ function PortfolioTable({
     ['Estado', 'Estado administrativo del derivado: Activo, Vencido, o Cancelado.'],
     ['NPV COP', 'Valor Presente Neto en COP con curvas actuales (IBR + SOFR). Positivo = posición a favor de la empresa.'],
     ['NPV USD', 'NPV convertido a USD al tipo de cambio spot actual. Positivo = a favor.'],
-    ['PyG', 'P&L desde inicio en COP. XCCY: descomposición en tasas + FX desde inception. NDF e IBR: equivalente al NPV (mark-to-market).'],
     ['Carry COP', 'Ingreso neto por tasas. XCCY: carry acumulado (días transcurridos × diferenciales). NDF: theta diario. IBR: carry diario.'],
     ['DV01', 'Sensibilidad del NPV a un movimiento de +1bp. XCCY: curva IBR. NDF: curva COP. IBR: curva IBR. Positivo = gana si la tasa sube.'],
     ['DV01 (2)', 'Segundo DV01. XCCY: sensibilidad a +1bp en SOFR. NDF: sensibilidad a +1bp en curva USD. Vacío para IBR (solo una curva).'],
@@ -661,10 +638,6 @@ function PortfolioTable({
                 <td style={{ padding: '6px', fontFamily: 'monospace', fontSize: 11, color: npvColor(r.npv_usd) }}>
                   {r.error ? 'Err' : fmtMM(r.npv_usd)}
                 </td>
-                {/* PyG */}
-                <td style={{ padding: '6px', fontFamily: 'monospace', fontSize: 11, fontWeight: 700, color: r.error ? '#6c757d' : npvColor(r.pnl_cop) }}>
-                  {r.error ? '\u2014' : fmtMM(r.pnl_cop)}
-                </td>
                 {/* Carry COP */}
                 <td style={{ padding: '6px', fontFamily: 'monospace', fontSize: 11, color: npvColor(r.carry_cop) }}>
                   {r.error ? '\u2014' : <>{fmtMM(r.carry_cop)} <span style={{ fontSize: 9, color: '#6c757d' }}>{r.carry_label}</span></>}
@@ -697,7 +670,6 @@ function PortfolioTable({
           const valid = rows.filter((r) => !r.error);
           const sumNpvCop = valid.reduce((s, r) => s + r.npv_cop, 0);
           const sumNpvUsd = valid.reduce((s, r) => s + r.npv_usd, 0);
-          const sumPnl = valid.reduce((s, r) => s + r.pnl_cop, 0);
           const sumCarry = valid.reduce((s, r) => s + r.carry_cop, 0);
           const sumDv01 = valid.reduce((s, r) => s + r.dv01, 0);
           const sumDv012 = valid.reduce((s, r) => s + (r.dv01_2 ?? 0), 0);
@@ -709,7 +681,6 @@ function PortfolioTable({
                 <td style={tStyle} colSpan={9}>TOTAL ({valid.length} posiciones)</td>
                 <td style={{ ...tStyle, color: npvColor(sumNpvCop) }}>{fmtMM(sumNpvCop)}</td>
                 <td style={{ ...tStyle, color: npvColor(sumNpvUsd) }}>{fmtMM(sumNpvUsd)}</td>
-                <td style={{ ...tStyle, color: npvColor(sumPnl) }}>{fmtMM(sumPnl)}</td>
                 <td style={{ ...tStyle, color: npvColor(sumCarry) }}>{fmtMM(sumCarry)}</td>
                 <td style={{ ...tStyle, color: npvColor(sumDv01) }}>{fmtMM(sumDv01)}</td>
                 <td style={{ ...tStyle, color: npvColor(sumDv012) }}>{fmtMM(sumDv012)}</td>
