@@ -353,7 +353,7 @@ export default function MarksPage() {
   return (
     <CoreLayout>
       <Container fluid className="p-4">
-        <PageTitle name={PAGE_TITLE} />
+        <PageTitle>{PAGE_TITLE}</PageTitle>
         <MarksContent />
       </Container>
     </CoreLayout>
