@@ -1,5 +1,4 @@
 export interface RiskRow {
-  weight: number | null;
   asset: string;
   position_super: number | null;
   position_gr: number | null;
@@ -35,6 +34,7 @@ export interface RollingVarResponse {
   dates: string[];
   prices: Record<string, (number | null)[]>;
   rolling_var: Record<string, (number | null)[]>;
+  contracts?: Record<string, string>;
 }
 
 export interface BenchmarkAssetFactors {
@@ -43,6 +43,7 @@ export interface BenchmarkAssetFactors {
   price_start: number | null;
   price_end: number | null;
   factor_unit: string;
+  contract?: string;
 }
 
 export interface BenchmarkFactorsResponse {
@@ -50,5 +51,63 @@ export interface BenchmarkFactorsResponse {
   covariance_matrix: Record<string, Record<string, number | null>>;
   correlation_matrix: Record<string, Record<string, number | null>>;
   assets: string[];
+  contracts?: Record<string, string>;
   period: { start: string; end: string };
+  covariance_period?: { start: string | null; end: string | null; observations: Record<string, number> };
+  confidence_level?: number;
+  z_score?: number;
+}
+
+export interface ExposureParams {
+  proyeccion_azucar: number[];
+  precio_azucar_cent_lb: number;
+  factor_crudo_refinado?: number;
+  proyeccion_glucosa: number[];
+  precio_maiz_cent_bu: number;
+  base_maiz_cent_bu: number;
+  flete_usd_ton: number;
+  processing_fee_usd: number;
+  proc_fee_cop_kg: number;
+  trm: number;
+  factor_maiz_glucosa?: number;
+  proyeccion_cocoa_polvo: number[];
+  factor_cocoa_polvo?: number;
+  proyeccion_manteca: number[];
+  factor_manteca?: number;
+  proyeccion_licor: number[];
+  factor_licor?: number;
+  precio_cocoa_usd_ton: number;
+  proyeccion_bolsa: number[];
+  proyeccion_envoltura: number[];
+  precio_empaque_fijo: number;
+  ventas_intl_usd?: number;
+  ventas_co_usd?: number;
+  ventas_pe_usd?: number;
+}
+
+export interface CommodityExposure {
+  nombre: string;
+  exchange: string;
+  unidad_cotizacion: string;
+  exposicion_usd: number;
+  ton_total?: number;
+  precio_por_ton?: number;
+  precio_futuro?: number;
+  [key: string]: unknown;
+}
+
+export interface MarketPrice {
+  value: number;
+  date: string;
+  source: string;
+  contract?: string;
+}
+
+export interface ExposureResponse {
+  commodities: CommodityExposure[];
+  total_commodities_usd: number;
+  exposicion_ventas_intl: number;
+  exposicion_real_usd: number;
+  exposicion_pen: number;
+  market_prices?: Record<string, MarketPrice>;
 }
