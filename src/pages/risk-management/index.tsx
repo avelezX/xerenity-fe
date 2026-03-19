@@ -243,7 +243,7 @@ function recalcBenchmark(rows: BenchmarkRow[], varianceMap?: Record<string, numb
 
     // Information Ratio = pnl_gr / tracking_error
     // tracking_error = |sqrt(252/12) * sqrt(daily_variance) * position_gr|
-    const asset = row.asset;
+    const { asset } = row;
     const dailyVar = varianceMap?.[asset] ?? null;
     if (dailyVar != null && dailyVar > 0 && grPos !== 0 && pnlGr !== 0) {
       const volDaily = Math.sqrt(dailyVar);
@@ -267,12 +267,11 @@ function recalcBenchmark(rows: BenchmarkRow[], varianceMap?: Record<string, numb
 
   // Total info ratio = total pnl_gr / total tracking_error (weighted)
   const totalPnlGr = parseDisplayValue(next[totalIdx].pnl_gr);
-  const totalGrPos = parseDisplayValue(next[totalIdx].position_gr);
   // For total, use portfolio-level tracking error if variance available
   // Simplified: sum of individual tracking errors
   let totalTrackingError = 0;
   assetRows.forEach((row) => {
-    const asset = row.asset;
+    const { asset } = row;
     const grP = parseDisplayValue(row.position_gr);
     const dv = varianceMap?.[asset] ?? null;
     if (dv != null && dv > 0 && grP !== 0) {
@@ -295,6 +294,7 @@ const methFormula = { background: '#f8fafc', border: '1px solid #e2e8f0', border
 function MethodologyButton({ onClick }: { onClick: () => void }) {
   return (
     <button
+      type="button"
       className="btn btn-sm btn-outline-secondary ms-2"
       onClick={onClick}
       style={{ fontSize: '0.78rem' }}
@@ -1632,7 +1632,7 @@ function RiskManagement() {
                   <table className="table table-sm table-bordered mb-0" style={{ maxWidth: assetList.length * 160 + 140 }}>
                     <thead>
                       <tr>
-                        <th style={matHeader}></th>
+                        <th style={matHeader} aria-label="Asset">{' '}</th>
                         {assetList.map((a) => (
                           <th key={a} style={{ ...matHeader, textAlign: 'center' }}>{contractLabel(a)}</th>
                         ))}
@@ -1741,8 +1741,8 @@ function RiskManagement() {
                                 <td style={{ ...matCell, textAlign: 'center', color: '#7c3aed', fontWeight: 600 }}>{contract}</td>
                                 <td style={{ ...matCell, textAlign: 'center' }}>{obs ?? '—'}</td>
                                 <td style={matCell}>{dv != null ? dv.toFixed(10) : '—'}</td>
-                                <td style={matCell}>{vol != null ? (vol * 100).toFixed(4) + '%' : '—'}</td>
-                                <td style={matCell}>{volAnnual != null ? (volAnnual * 100).toFixed(2) + '%' : '—'}</td>
+                                <td style={matCell}>{vol != null ? `${(vol * 100).toFixed(4)}%` : '—'}</td>
+                                <td style={matCell}>{volAnnual != null ? `${(volAnnual * 100).toFixed(2)}%` : '—'}</td>
                               </tr>
                             );
                           })}
