@@ -5,6 +5,7 @@ import { NextPage } from 'next';
 import { Image } from 'react-bootstrap';
 import LoginForm from './_LoginForm';
 import SignUpForm from './_SignUpForm';
+import SocialAuth from './_SocialAuth';
 import LoginChart from './_LoginChart';
 import PoweredBy from './_PoweredBy';
 import LoginContainer from './_LoginContainer.styled';
@@ -53,6 +54,7 @@ const LoginPage: NextPage = () => {
           </div>
           <div className="login-forms">
             {activeTab === 'login' ? <LoginForm /> : <SignUpForm />}
+            <SocialAuth />
           </div>
         </div>
         <PoweredBy />
