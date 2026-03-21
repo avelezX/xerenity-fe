@@ -9,6 +9,7 @@ import {
   PricedIbrSwap,
   PricedTesBond,
   PortfolioSummary,
+  PortfolioRepriceResponse,
   NewXccyPosition,
   NewNdfPosition,
   NewIbrSwapPosition,
@@ -17,6 +18,7 @@ import {
   MarketDataConfig,
   DEFAULT_MARKET_DATA_CONFIG,
 } from 'src/types/trading';
+import { computePnlRefDates } from 'src/utils/pnlDates';
 import {
   fetchXccyPositions,
   fetchNdfPositions,
@@ -68,6 +70,15 @@ export interface TradingSlice {
   // Market data config
   marketDataConfig: MarketDataConfig;
 
+  // Reference prices for P&L (1D, MTD, YTD)
+  refPrices: {
+    daily: PortfolioRepriceResponse | null;
+    mtd: PortfolioRepriceResponse | null;
+    ytd: PortfolioRepriceResponse | null;
+  };
+  refPricesForDate: string | undefined;
+  refPricesLoading: boolean;
+
   // Actions
   loadUserRole: () => Promise<void>;
   loadPositions: () => Promise<void>;
@@ -81,6 +92,7 @@ export interface TradingSlice {
   removeIbrSwapPositions: (ids: string[]) => Promise<void>;
   loadMarketDataConfig: () => Promise<void>;
   updateMarketDataConfig: (config: MarketDataConfig) => Promise<void>;
+  loadReferencePrices: (fechaMarca: string) => Promise<void>;
   resetTradingStore: () => void;
   // TES actions
   loadTesPositions: () => Promise<void>;
@@ -108,6 +120,9 @@ const initialTradingState = {
   tesLoading: false,
   tesError: undefined,
   marketDataConfig: { ...DEFAULT_MARKET_DATA_CONFIG },
+  refPrices: { daily: null, mtd: null, ytd: null },
+  refPricesForDate: undefined,
+  refPricesLoading: false,
 };
 
 const createTradingSlice: StateCreator<TradingSlice> = (set, get) => ({
@@ -374,6 +389,66 @@ const createTradingSlice: StateCreator<TradingSlice> = (set, get) => ({
   updateMarketDataConfig: async (config: MarketDataConfig) => {
     set({ marketDataConfig: config });
     await saveMarketDataConfig(config);
+  },
+
+  loadReferencePrices: async (fechaMarca: string) => {
+    const { refPricesForDate, xccyPositions, ndfPositions, ibrSwapPositions } = get();
+
+    // Caché: no recargar si la fecha de marca no cambió
+    if (refPricesForDate === fechaMarca) return;
+
+    set({ refPricesLoading: true });
+    try {
+      const refDates = await computePnlRefDates(fechaMarca);
+
+      // Filtrar posiciones por fecha (excluir las que no existían en la fecha de referencia)
+      const filterXccy = (fecha: string) =>
+        xccyPositions.filter((p) => p.start_date <= fecha);
+      const filterNdf = (fecha: string) =>
+        ndfPositions.filter((p) => !p.trade_date || p.trade_date <= fecha);
+      const filterIbr = (fecha: string) =>
+        ibrSwapPositions.filter((p) => p.start_date <= fecha);
+
+      // Repricear las 3 fechas de referencia en paralelo
+      const [dailyResult, mtdResult, ytdResult] = await Promise.allSettled([
+        refDates.daily
+          ? repricePortfolio(
+              filterXccy(refDates.daily),
+              filterNdf(refDates.daily),
+              filterIbr(refDates.daily),
+              { valuation_date: refDates.daily }
+            )
+          : Promise.resolve(null),
+        refDates.mtd
+          ? repricePortfolio(
+              filterXccy(refDates.mtd),
+              filterNdf(refDates.mtd),
+              filterIbr(refDates.mtd),
+              { valuation_date: refDates.mtd }
+            )
+          : Promise.resolve(null),
+        refDates.ytd
+          ? repricePortfolio(
+              filterXccy(refDates.ytd),
+              filterNdf(refDates.ytd),
+              filterIbr(refDates.ytd),
+              { valuation_date: refDates.ytd }
+            )
+          : Promise.resolve(null),
+      ]);
+
+      set({
+        refPrices: {
+          daily: dailyResult.status === 'fulfilled' ? dailyResult.value : null,
+          mtd: mtdResult.status === 'fulfilled' ? mtdResult.value : null,
+          ytd: ytdResult.status === 'fulfilled' ? ytdResult.value : null,
+        },
+        refPricesForDate: fechaMarca,
+        refPricesLoading: false,
+      });
+    } catch {
+      set({ refPricesLoading: false });
+    }
   },
 
   resetTradingStore: () => set(initialTradingState),

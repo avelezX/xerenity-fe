@@ -27,6 +27,9 @@ export const DEFAULT_BLOTTER_PREFERENCES: BlotterPreferences = {
     forward: false, forward_points: false, days_to_maturity: false,
     par_basis_bps: false, fair_rate: false, direction: false, strike: false,
     pnl_rate_cop: false, pnl_fx_cop: false, carry_daily_diff_bps: false,
+    // P&L comparativo (ocultas por defecto)
+    pnl_1d_cop: false, pnl_mtd_cop: false, pnl_ytd_cop: false,
+    pnl_1d_usd: false, pnl_mtd_usd: false, pnl_ytd_usd: false,
   },
   columnSizing: {},
   sorting: [],

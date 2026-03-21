@@ -65,6 +65,13 @@ export type PortfolioRow = {
   _xccy?: PricedXccy;
   _ndf?: PricedNdf;
   _ibr?: PricedIbrSwap;
+  // P&L comparativo (null = marca no disponible / N/A)
+  pnl_1d_cop?: number | null;
+  pnl_mtd_cop?: number | null;
+  pnl_ytd_cop?: number | null;
+  pnl_1d_usd?: number | null;
+  pnl_mtd_usd?: number | null;
+  pnl_ytd_usd?: number | null;
 };
 
 export type BlotterTableProps = {
@@ -384,6 +391,85 @@ const buildColumns = (
       const r = info.row.original;
       if (r._ibr && !r._ibr.error) return <span style={{ fontFamily: 'monospace', fontSize: 11, color: npvColor(r._ibr.carry_daily_diff_bps) }}>{fmt(r._ibr.carry_daily_diff_bps, 1)}bps</span>;
       return <span>—</span>;
+    },
+  }),
+  // ── Columnas P&L comparativo (ocultas por defecto) ──
+  columnHelper.accessor('pnl_1d_cop', {
+    id: 'pnl_1d_cop',
+    header: 'P&L 1D COP',
+    size: 95,
+    cell: (info) => {
+      const r = info.row.original;
+      const v = info.getValue();
+      if (r.error) return <span>—</span>;
+      return v != null
+        ? <span style={{ fontFamily: 'monospace', fontSize: 11, color: npvColor(v) }}>{fmtMM(v)}</span>
+        : <span style={{ color: '#adb5bd', fontSize: 10 }}>N/A</span>;
+    },
+  }),
+  columnHelper.accessor('pnl_mtd_cop', {
+    id: 'pnl_mtd_cop',
+    header: 'P&L MTD COP',
+    size: 100,
+    cell: (info) => {
+      const r = info.row.original;
+      const v = info.getValue();
+      if (r.error) return <span>—</span>;
+      return v != null
+        ? <span style={{ fontFamily: 'monospace', fontSize: 11, color: npvColor(v) }}>{fmtMM(v)}</span>
+        : <span style={{ color: '#adb5bd', fontSize: 10 }}>N/A</span>;
+    },
+  }),
+  columnHelper.accessor('pnl_ytd_cop', {
+    id: 'pnl_ytd_cop',
+    header: 'P&L YTD COP',
+    size: 100,
+    cell: (info) => {
+      const r = info.row.original;
+      const v = info.getValue();
+      if (r.error) return <span>—</span>;
+      return v != null
+        ? <span style={{ fontFamily: 'monospace', fontSize: 11, color: npvColor(v) }}>{fmtMM(v)}</span>
+        : <span style={{ color: '#adb5bd', fontSize: 10 }}>N/A</span>;
+    },
+  }),
+  columnHelper.accessor('pnl_1d_usd', {
+    id: 'pnl_1d_usd',
+    header: 'P&L 1D USD',
+    size: 90,
+    cell: (info) => {
+      const r = info.row.original;
+      const v = info.getValue();
+      if (r.error) return <span>—</span>;
+      return v != null
+        ? <span style={{ fontFamily: 'monospace', fontSize: 11, color: npvColor(v) }}>{fmtMM(v)}</span>
+        : <span style={{ color: '#adb5bd', fontSize: 10 }}>N/A</span>;
+    },
+  }),
+  columnHelper.accessor('pnl_mtd_usd', {
+    id: 'pnl_mtd_usd',
+    header: 'P&L MTD USD',
+    size: 100,
+    cell: (info) => {
+      const r = info.row.original;
+      const v = info.getValue();
+      if (r.error) return <span>—</span>;
+      return v != null
+        ? <span style={{ fontFamily: 'monospace', fontSize: 11, color: npvColor(v) }}>{fmtMM(v)}</span>
+        : <span style={{ color: '#adb5bd', fontSize: 10 }}>N/A</span>;
+    },
+  }),
+  columnHelper.accessor('pnl_ytd_usd', {
+    id: 'pnl_ytd_usd',
+    header: 'P&L YTD USD',
+    size: 100,
+    cell: (info) => {
+      const r = info.row.original;
+      const v = info.getValue();
+      if (r.error) return <span>—</span>;
+      return v != null
+        ? <span style={{ fontFamily: 'monospace', fontSize: 11, color: npvColor(v) }}>{fmtMM(v)}</span>
+        : <span style={{ color: '#adb5bd', fontSize: 10 }}>N/A</span>;
     },
   }),
   // ── Columna de acciones ──
