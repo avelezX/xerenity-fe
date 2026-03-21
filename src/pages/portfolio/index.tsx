@@ -10,7 +10,6 @@ import {
   faBriefcase,
   faSyncAlt,
   faPlus,
-  faTrash,
   faTable,
   faCog,
   faCalendarAlt,
@@ -46,6 +45,8 @@ import type {
   PortfolioSummary,
 } from 'src/types/trading';
 import useAppStore from 'src/store';
+import BlotterTable, { type PortfolioRow } from '@components/portfolio/BlotterTable';
+import { useBlotterPreferences } from 'src/models/user/blotter-preferences';
 import MarketDataConfigModal from './_MarketDataConfigModal';
 import { MarksContent } from '../marks';
 
@@ -349,43 +350,8 @@ function ColTip({ label, tip }: { label: string; tip: string }) {
   );
 }
 
-// ── Unified Portfolio Row ──
-type PortfolioRow = {
-  id: string;
-  type: 'XCCY' | 'NDF' | 'IBR';
-  label: string;
-  counterparty: string;
-  notional_usd: number;
-  maturity_date: string;
-  detail: string;          // type-specific summary
-  npv_cop: number;
-  npv_usd: number;
-  pnl_cop: number;         // P&L from inception in COP
-  carry_cop: number;       // accrued carry or daily carry
-  carry_label: string;     // "Acum" / "Diario" / "Periodo"
-  dv01: number;
-  dv01_label: string;      // "IBR" / "SOFR" / "IBR" etc
-  dv01_2?: number;         // second DV01 for XCCY
-  dv01_2_label?: string;
-  fx_delta?: number;
-  error?: string;
-  // Operational fields
-  id_operacion?: string;
-  trade_date?: string;
-  sociedad?: string;
-  id_banco?: string;
-  estado?: string;
-  // Original priced objects for click-through
-  _xccy?: PricedXccy;
-  _ndf?: PricedNdf;
-  _ibr?: PricedIbrSwap;
-};
+// PortfolioRow is imported from BlotterTable component
 
-const TYPE_COLORS: Record<string, { bg: string; fg: string }> = {
-  XCCY: { bg: '#cce5ff', fg: '#004085' },
-  NDF: { bg: '#d4edda', fg: '#155724' },
-  IBR: { bg: '#fff3cd', fg: '#856404' },
-};
 
 function resolveEstado(maturityDate: string, stored?: string): string {
   if (stored && stored !== 'Activo') return stored; // Cancelado u otro valor explícito
@@ -460,210 +426,7 @@ function buildPortfolioRows(
   return rows;
 }
 
-// ── Unified Portfolio Table ──
-function PortfolioTable({
-  rows,
-  onDelete,
-  onSelectXccy,
-  onSelectNdf,
-  onSelectIbr,
-  canEdit = true,
-}: {
-  rows: PortfolioRow[];
-  onDelete: (id: string, type: string) => void;
-  onSelectXccy: (r: PricedXccy) => void;
-  onSelectNdf: (r: PricedNdf) => void;
-  onSelectIbr: (r: PricedIbrSwap) => void;
-  canEdit?: boolean;
-}) {
-  const [estadoFilter, setEstadoFilter] = useState<'Todos' | 'Activo' | 'Vencido' | 'Cancelado'>('Todos');
-
-  if (rows.length === 0) {
-    return (
-      <div style={{ padding: 40, textAlign: 'center', color: '#6c757d', border: '2px dashed #dee2e6', borderRadius: 8 }}>
-        No hay posiciones. Agrega una desde el boton o desde los pricers individuales.
-      </div>
-    );
-  }
-
-  const visibleRows = estadoFilter === 'Todos' ? rows : rows.filter(r => r.estado === estadoFilter);
-  const counts = { Activo: 0, Vencido: 0, Cancelado: 0 };
-  rows.forEach(r => { if (r.estado && r.estado in counts) counts[r.estado as keyof typeof counts] += 1; });
-
-  const ESTADO_STYLES: Record<string, { bg: string; color: string }> = {
-    Activo:    { bg: '#d4edda', color: '#155724' },
-    Vencido:   { bg: '#f8d7da', color: '#721c24' },
-    Cancelado: { bg: '#e2e3e5', color: '#383d41' },
-  };
-
-  const handleSelect = (r: PortfolioRow) => {
-    if (r._xccy) onSelectXccy(r._xccy);
-    else if (r._ndf) onSelectNdf(r._ndf);
-    else if (r._ibr) onSelectIbr(r._ibr);
-  };
-
-  const COLS: [string, string][] = [
-    ['Tipo', 'Clase de derivado: XCCY = Cross-Currency Swap USD/COP, NDF = Forward de tasa de cambio sin entrega, IBR = Swap de tasa fija vs IBR overnight.'],
-    ['ID Op', 'ID de operación interno o código SAP. Haz clic para abrir el detalle completo.'],
-    ['Contraparte', 'Banco o entidad financiera contraparte del derivado.'],
-    ['Sociedad', 'Código interno de la sociedad que contrata el instrumento (ej. BP01, BP02).'],
-    ['Nocional', 'Monto nocional del contrato. XCCY y NDF en USD; IBR Swap en COP.'],
-    ['Tasa/Strike', 'NDF: tasa de cambio pactada (strike). XCCY: spread sobre SOFR en bps. IBR: tasa fija del swap.'],
-    ['F. Celebr.', 'Fecha de celebración o contratación del derivado.'],
-    ['Vencimiento', 'Fecha de vencimiento, maduración o fixing del instrumento.'],
-    ['Estado', 'Estado administrativo del derivado: Activo, Vencido, o Cancelado.'],
-    ['NPV COP', 'Valor Presente Neto en COP con curvas actuales (IBR + SOFR). Positivo = posición a favor de la empresa.'],
-    ['NPV USD', 'NPV convertido a USD al tipo de cambio spot actual. Positivo = a favor.'],
-    ['Carry COP', 'Ingreso neto por tasas. XCCY: carry acumulado (días transcurridos × diferenciales). NDF: theta diario. IBR: carry diario.'],
-    ['DV01', 'Sensibilidad del NPV a un movimiento de +1bp. XCCY: curva IBR. NDF: curva COP. IBR: curva IBR. Positivo = gana si la tasa sube.'],
-    ['DV01 (2)', 'Segundo DV01. XCCY: sensibilidad a +1bp en SOFR. NDF: sensibilidad a +1bp en curva USD. Vacío para IBR (solo una curva).'],
-    ['FX Delta', 'Cambio en NPV COP por cada +$1 en el tipo de cambio USDCOP. Mide la exposición cambiaria lineal de la posición.'],
-    ['', ''],
-  ];
-
-  return (
-    <div>
-      {/* Filtro por estado */}
-      <div style={{ display: 'flex', gap: 6, marginBottom: 10, flexWrap: 'wrap', alignItems: 'center' }}>
-        <span style={{ fontSize: 11, color: '#6c757d', fontWeight: 600 }}>Estado:</span>
-        {(['Todos', 'Activo', 'Vencido', 'Cancelado'] as const).map(opt => {
-          const count = opt === 'Todos' ? rows.length : counts[opt];
-          const active = estadoFilter === opt;
-          const s = opt !== 'Todos' ? ESTADO_STYLES[opt] : null;
-          return (
-            <button type="button" key={opt} onClick={() => setEstadoFilter(opt)} style={{
-              padding: '2px 10px', borderRadius: 12, fontSize: 11, fontWeight: 600, cursor: 'pointer',
-              border: active ? '2px solid #495057' : '1px solid #dee2e6',
-              background: active && s ? s.bg : active ? '#495057' : '#f8f9fa',
-              color: active && s ? s.color : active ? '#fff' : '#6c757d',
-            }}>
-              {opt} {count > 0 && <span style={{ opacity: 0.7 }}>({count})</span>}
-            </button>
-          );
-        })}
-      </div>
-    <div style={{ overflowX: 'auto' }}>
-      <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
-        <thead>
-          <tr style={{ background: '#f8f9fa', borderBottom: '2px solid #dee2e6' }}>
-            {COLS.map(([h, tip]) => (
-              <th key={h} style={{ padding: '8px 6px', fontWeight: 600, whiteSpace: 'nowrap', position: 'relative', overflow: 'visible' }}>
-                <ColTip label={h} tip={tip} />
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {visibleRows.map((r) => {
-            const tc = TYPE_COLORS[r.type];
-            return (
-              <tr key={`${r.type}-${r.id}`} style={{ borderBottom: '1px solid #eee' }}>
-                {/* Tipo */}
-                <td style={{ padding: '6px' }}>
-                  <span style={{ padding: '2px 6px', borderRadius: 4, fontSize: 10, fontWeight: 700, background: tc.bg, color: tc.fg }}>{r.type}</span>
-                </td>
-                {/* ID Op */}
-                <td style={{ padding: '6px', fontSize: 11 }}>
-                  {r.id_operacion ? (
-                    <button type="button" onClick={() => handleSelect(r)} style={{ background: 'none', border: 'none', color: '#0d6efd', cursor: 'pointer', textDecoration: 'underline', padding: 0, fontSize: 11 }}>
-                      {r.id_operacion}
-                    </button>
-                  ) : (
-                    <button type="button" onClick={() => handleSelect(r)} style={{ background: 'none', border: 'none', color: '#0d6efd', cursor: 'pointer', textDecoration: 'underline', padding: 0, fontSize: 11 }}>
-                      {r.label || '\u2014'}
-                    </button>
-                  )}
-                </td>
-                {/* Contraparte */}
-                <td style={{ padding: '6px', fontSize: 11 }}>{r.counterparty || '\u2014'}</td>
-                {/* Sociedad */}
-                <td style={{ padding: '6px', fontSize: 11 }}>{r.sociedad || '\u2014'}</td>
-                {/* Nocional */}
-                <td style={{ padding: '6px', fontFamily: 'monospace', fontSize: 11 }}>
-                  {r.type === 'IBR' ? fmtMM((r._ibr?.notional ?? 0)) : fmtMM(r.notional_usd)}
-                  <span style={{ fontSize: 9, color: '#6c757d', marginLeft: 2 }}>{r.type === 'IBR' ? 'COP' : 'USD'}</span>
-                </td>
-                {/* Tasa/Strike */}
-                <td style={{ padding: '6px', fontFamily: 'monospace', fontSize: 11 }}>
-                  {r._ndf ? fmt(r._ndf.strike, 2) : r._xccy ? `${fmt(r._xccy.usd_spread_bps, 0)}bps` : r._ibr ? `${fmt(r._ibr.fixed_rate * 100, 2)}%` : '\u2014'}
-                </td>
-                {/* F. Celebr. */}
-                <td style={{ padding: '6px', fontSize: 11 }}>{r.trade_date || '\u2014'}</td>
-                {/* Vencimiento */}
-                <td style={{ padding: '6px', fontSize: 11 }}>{r.maturity_date}</td>
-                {/* Estado */}
-                <td style={{ padding: '6px', fontSize: 11 }}>
-                  {r.estado ? (
-                    <span style={{ padding: '1px 6px', borderRadius: 4, fontSize: 10, fontWeight: 600, background: r.estado === 'Activo' ? '#d4edda' : '#f8d7da', color: r.estado === 'Activo' ? '#155724' : '#721c24' }}>
-                      {r.estado}
-                    </span>
-                  ) : '\u2014'}
-                </td>
-                {/* NPV COP */}
-                <td style={{ padding: '6px', fontFamily: 'monospace', fontSize: 11, color: npvColor(r.npv_cop) }}>
-                  {r.error ? 'Err' : fmtMM(r.npv_cop)}
-                </td>
-                {/* NPV USD */}
-                <td style={{ padding: '6px', fontFamily: 'monospace', fontSize: 11, color: npvColor(r.npv_usd) }}>
-                  {r.error ? 'Err' : fmtMM(r.npv_usd)}
-                </td>
-                {/* Carry COP */}
-                <td style={{ padding: '6px', fontFamily: 'monospace', fontSize: 11, color: npvColor(r.carry_cop) }}>
-                  {r.error ? '\u2014' : <>{fmtMM(r.carry_cop)} <span style={{ fontSize: 9, color: '#6c757d' }}>{r.carry_label}</span></>}
-                </td>
-                {/* DV01 */}
-                <td style={{ padding: '6px', fontFamily: 'monospace', fontSize: 11, color: npvColor(r.dv01) }}>
-                  {r.error ? '\u2014' : <>{fmtMM(r.dv01)} <span style={{ fontSize: 9, color: '#6c757d' }}>{r.dv01_label}</span></>}
-                </td>
-                {/* DV01 (2) */}
-                <td style={{ padding: '6px', fontFamily: 'monospace', fontSize: 11, color: r.dv01_2 != null ? npvColor(r.dv01_2) : '#6c757d' }}>
-                  {r.dv01_2 != null ? <>{fmtMM(r.dv01_2)} <span style={{ fontSize: 9, color: '#6c757d' }}>{r.dv01_2_label}</span></> : '\u2014'}
-                </td>
-                {/* FX Delta */}
-                <td style={{ padding: '6px', fontFamily: 'monospace', fontSize: 11, color: r.fx_delta != null ? npvColor(r.fx_delta) : '#6c757d' }}>
-                  {r.fx_delta != null ? fmtMM(r.fx_delta) : '\u2014'}
-                </td>
-                {/* Delete */}
-                <td style={{ padding: '6px' }}>
-                  {canEdit && (
-                    <button type="button" title="Eliminar" onClick={() => onDelete(r.id, r.type)} style={{ background: 'none', border: 'none', color: '#dc3545', cursor: 'pointer', fontSize: 12 }}>
-                      <Icon icon={faTrash} />
-                    </button>
-                  )}
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-        {(() => {
-          const valid = rows.filter((r) => !r.error);
-          const sumNpvCop = valid.reduce((s, r) => s + r.npv_cop, 0);
-          const sumNpvUsd = valid.reduce((s, r) => s + r.npv_usd, 0);
-          const sumCarry = valid.reduce((s, r) => s + r.carry_cop, 0);
-          const sumDv01 = valid.reduce((s, r) => s + r.dv01, 0);
-          const sumDv012 = valid.reduce((s, r) => s + (r.dv01_2 ?? 0), 0);
-          const sumFx = valid.reduce((s, r) => s + (r.fx_delta ?? 0), 0);
-          const tStyle = { padding: '8px 6px', fontFamily: 'monospace' as const, fontSize: 11, fontWeight: 700 as const };
-          return (
-            <tfoot>
-              <tr style={{ borderTop: '2px solid #343a40', background: '#f1f3f5' }}>
-                <td style={tStyle} colSpan={9}>TOTAL ({valid.length} posiciones)</td>
-                <td style={{ ...tStyle, color: npvColor(sumNpvCop) }}>{fmtMM(sumNpvCop)}</td>
-                <td style={{ ...tStyle, color: npvColor(sumNpvUsd) }}>{fmtMM(sumNpvUsd)}</td>
-                <td style={{ ...tStyle, color: npvColor(sumCarry) }}>{fmtMM(sumCarry)}</td>
-                <td style={{ ...tStyle, color: npvColor(sumDv01) }}>{fmtMM(sumDv01)}</td>
-                <td style={{ ...tStyle, color: npvColor(sumDv012) }}>{fmtMM(sumDv012)}</td>
-                <td style={{ ...tStyle, color: npvColor(sumFx) }}>{fmtMM(sumFx)}</td>
-                <td />
-              </tr>
-            </tfoot>
-          );
-        })()}
-      </table>
-    </div>
-    </div>
-  );
-}
+// PortfolioTable has been replaced by BlotterTable component
 
 // ── Add Position Modals ──
 
@@ -2093,6 +1856,7 @@ function PortfolioPage() {
   const [markFecha, setMarkFecha] = useState<string>(defaultMarkFecha());
   const [curveStatus, setCurveStatus] = useState<CurveStatus | null>(null);
   const [addType, setAddType] = useState<string | null>(null); // 'xccy' | 'ndf' | 'ibr' | null
+  const { prefs: blotterPrefs, setPrefs: setBlotterPrefs } = useBlotterPreferences();
   const [selectedXccy, setSelectedXccy] = useState<PricedXccy | null>(null);
   const [selectedNdf, setSelectedNdf] = useState<PricedNdf | null>(null);
   const [selectedIbrSwap, setSelectedIbrSwap] = useState<PricedIbrSwap | null>(null);
@@ -2406,13 +2170,15 @@ function PortfolioPage() {
               padding: 20,
             }}
           >
-            <PortfolioTable
+            <BlotterTable
               rows={portfolioRows}
               onDelete={handleDelete}
               onSelectXccy={onSelectXccy}
               onSelectNdf={onSelectNdf}
               onSelectIbr={onSelectIbr}
               canEdit={canEdit}
+              prefs={blotterPrefs}
+              onPrefsChange={setBlotterPrefs}
             />
           </div>
         )}
