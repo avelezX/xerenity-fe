@@ -187,9 +187,14 @@ const createTradingSlice: StateCreator<TradingSlice> = (set, get) => ({
     const { xccyPositions, ndfPositions, ibrSwapPositions, tesPositions } = get();
     set({ tradingLoading: true, tesLoading: true, tradingError: undefined });
     try {
+      // Excluir instrumentos cuya fecha de celebración es posterior a la fecha de marca
+      const filteredNdf  = ndfPositions.filter((p) => !p.trade_date || p.trade_date <= fecha);
+      const filteredXccy = xccyPositions.filter((p) => p.start_date <= fecha);
+      const filteredIbr  = ibrSwapPositions.filter((p) => p.start_date <= fecha);
+
       // Reprice derivatives with historical mark date
       const [portfolioResult, tesResults] = await Promise.allSettled([
-        repricePortfolio(xccyPositions, ndfPositions, ibrSwapPositions, {
+        repricePortfolio(filteredXccy, filteredNdf, filteredIbr, {
           valuation_date: fecha,
         }),
         Promise.allSettled(
