@@ -44,6 +44,7 @@ import type {
   PricedNdf,
   PricedIbrSwap,
   PortfolioSummary,
+  PortfolioRepriceResponse,
 } from 'src/types/trading';
 import useAppStore from 'src/store';
 import MarketDataConfigModal from './_MarketDataConfigModal';
@@ -273,7 +274,15 @@ const npvColor = (v: number) => (v >= 0 ? '#28a745' : '#dc3545');
 // treat period 0 as current and count days from the trade's start_date.
 
 // ── Summary Card ──
-function SummaryBar({ summary, pricedAt }: { summary: PortfolioSummary | null; pricedAt: string | undefined }) {
+function SummaryBar({
+  summary,
+  pricedAt,
+  pnlTotals,
+}: {
+  summary: PortfolioSummary | null;
+  pricedAt: string | undefined;
+  pnlTotals?: { daily: number | null; mtd: number | null; ytd: number | null };
+}) {
   if (!summary) return null;
   const items: [string, string, string][] = [
     ['NPV COP', fmtMM(summary.total_npv_cop), npvColor(summary.total_npv_cop)],
@@ -282,6 +291,9 @@ function SummaryBar({ summary, pricedAt }: { summary: PortfolioSummary | null; p
     ['P&L Tasas', fmtMM(summary.total_pnl_rate_cop), npvColor(summary.total_pnl_rate_cop)],
     ['P&L FX', fmtMM(summary.total_pnl_fx_cop), npvColor(summary.total_pnl_fx_cop)],
     ...(summary.fx_spot ? [['Spot USD/COP', fmt(summary.fx_spot, 2), '#212529'] as [string, string, string]] : []),
+    ...(pnlTotals?.daily != null ? [['P&L 1D', fmtMM(pnlTotals.daily), npvColor(pnlTotals.daily)] as [string, string, string]] : []),
+    ...(pnlTotals?.mtd != null ? [['P&L MTD', fmtMM(pnlTotals.mtd), npvColor(pnlTotals.mtd)] as [string, string, string]] : []),
+    ...(pnlTotals?.ytd != null ? [['P&L YTD', fmtMM(pnlTotals.ytd), npvColor(pnlTotals.ytd)] as [string, string, string]] : []),
   ];
   return (
     <div
@@ -379,6 +391,13 @@ type PortfolioRow = {
   _xccy?: PricedXccy;
   _ndf?: PricedNdf;
   _ibr?: PricedIbrSwap;
+  // P&L comparativo (null = marca no disponible / N/A)
+  pnl_1d_cop: number | null;
+  pnl_mtd_cop: number | null;
+  pnl_ytd_cop: number | null;
+  pnl_1d_usd: number | null;
+  pnl_mtd_usd: number | null;
+  pnl_ytd_usd: number | null;
 };
 
 const TYPE_COLORS: Record<string, { bg: string; fg: string }> = {
@@ -398,7 +417,43 @@ function buildPortfolioRows(
   ndf: PricedNdf[],
   ibr: PricedIbrSwap[],
   settlementMap: Record<string, NdfSettlementResult | 'error'> = {},
+  refPrices?: {
+    daily: PortfolioRepriceResponse | null;
+    mtd: PortfolioRepriceResponse | null;
+    ytd: PortfolioRepriceResponse | null;
+  }
 ): PortfolioRow[] {
+  // Mapas de lookup por id para cada periodo de referencia
+  const toMap = <T extends { id: string }>(arr: T[]): Record<string, T> =>
+    Object.fromEntries(arr.map((r) => [r.id, r]));
+
+  const dailyXccy = refPrices?.daily ? toMap(refPrices.daily.xccy_results) : null;
+  const mtdXccy   = refPrices?.mtd   ? toMap(refPrices.mtd.xccy_results)   : null;
+  const ytdXccy   = refPrices?.ytd   ? toMap(refPrices.ytd.xccy_results)   : null;
+
+  const dailyNdf  = refPrices?.daily ? toMap(refPrices.daily.ndf_results) : null;
+  const mtdNdf    = refPrices?.mtd   ? toMap(refPrices.mtd.ndf_results)   : null;
+  const ytdNdf    = refPrices?.ytd   ? toMap(refPrices.ytd.ndf_results)   : null;
+
+  const dailyIbr  = refPrices?.daily ? toMap(refPrices.daily.ibr_swap_results) : null;
+  const mtdIbr    = refPrices?.mtd   ? toMap(refPrices.mtd.ibr_swap_results)   : null;
+  const ytdIbr    = refPrices?.ytd   ? toMap(refPrices.ytd.ibr_swap_results)   : null;
+
+  // Helper genérico: calcula P&L comparando NPV de hoy vs referencia
+  // null = marca no disponible; si la posición no existía en referencia → todo el NPV es P&L
+  const pnlFrom = <T extends { error?: string }>(
+    todayNpv: number,
+    map: Record<string, T> | null,
+    id: string,
+    getNpv: (r: T) => number
+  ): number | null => {
+    if (map === null) return null;          // sin marca para este periodo
+    const ref = map[id];
+    if (!ref) return todayNpv;             // posición nueva → P&L desde inception
+    if (ref.error) return null;            // referencia con error → N/A
+    return todayNpv - getNpv(ref);
+  };
+
   const rows: PortfolioRow[] = [];
 
   for (const r of xccy) {
@@ -414,6 +469,12 @@ function buildPortfolioRows(
       fx_delta: r.fx_delta, error: r.error,
       id_operacion: r.id_operacion, trade_date: r.trade_date, sociedad: r.sociedad, id_banco: r.id_banco, estado: resolveEstado(r.maturity_date, r.estado),
       _xccy: r,
+      pnl_1d_cop:  pnlFrom(r.npv_cop, dailyXccy, r.id, (x) => x.npv_cop),
+      pnl_mtd_cop: pnlFrom(r.npv_cop, mtdXccy,   r.id, (x) => x.npv_cop),
+      pnl_ytd_cop: pnlFrom(r.npv_cop, ytdXccy,   r.id, (x) => x.npv_cop),
+      pnl_1d_usd:  pnlFrom(r.npv_usd, dailyXccy, r.id, (x) => x.npv_usd),
+      pnl_mtd_usd: pnlFrom(r.npv_usd, mtdXccy,   r.id, (x) => x.npv_usd),
+      pnl_ytd_usd: pnlFrom(r.npv_usd, ytdXccy,   r.id, (x) => x.npv_usd),
     });
   }
 
@@ -422,14 +483,16 @@ function buildPortfolioRows(
     const settlementEntry = settlementMap[r.id];
     const settlement = settlementEntry != null && settlementEntry !== 'error' ? settlementEntry : null;
     const isSettled = estado === 'Vencido' && settlement != null;
+    const todayNpvCop = isSettled ? settlement.pyl_cop : r.npv_cop;
+    const todayNpvUsd = isSettled ? settlement.pyl_usd : r.npv_usd;
     rows.push({
       id: r.id, type: 'NDF', label: r.label, counterparty: r.counterparty,
       notional_usd: r.notional_usd, maturity_date: r.maturity_date,
       detail: isSettled
         ? `${r.direction === 'buy' ? 'Compra' : 'Venta'} | Strike ${fmt(r.strike, 2)} | TRM ${fmt(settlement.trm_fixing, 2)} (${settlement.trm_date})`
         : `${r.direction === 'buy' ? 'Compra' : 'Venta'} | Strike ${fmt(r.strike, 2)} | Fwd ${r.error ? '-' : fmt(r.forward, 2)} | ${r.days_to_maturity ?? '?'}d`,
-      npv_cop: isSettled ? settlement.pyl_cop : r.npv_cop,
-      npv_usd: isSettled ? settlement.pyl_usd : r.npv_usd,
+      npv_cop: todayNpvCop,
+      npv_usd: todayNpvUsd,
       pnl_cop: isSettled ? settlement.pyl_cop : (r.error ? 0 : r.npv_cop),
       carry_cop: isSettled ? 0 : r.carry_cop_daily, carry_label: isSettled ? 'Liq.' : '/dia',
       dv01: isSettled ? 0 : r.dv01_cop, dv01_label: 'COP',
@@ -438,27 +501,51 @@ function buildPortfolioRows(
       error: isSettled ? undefined : r.error,
       id_operacion: r.id_operacion, trade_date: r.trade_date, sociedad: r.sociedad, id_banco: r.id_banco, estado,
       _ndf: r,
+      pnl_1d_cop:  pnlFrom(todayNpvCop, dailyNdf, r.id, (x) => x.npv_cop),
+      pnl_mtd_cop: pnlFrom(todayNpvCop, mtdNdf,   r.id, (x) => x.npv_cop),
+      pnl_ytd_cop: pnlFrom(todayNpvCop, ytdNdf,   r.id, (x) => x.npv_cop),
+      pnl_1d_usd:  pnlFrom(todayNpvUsd, dailyNdf, r.id, (x) => x.npv_usd),
+      pnl_mtd_usd: pnlFrom(todayNpvUsd, mtdNdf,   r.id, (x) => x.npv_usd),
+      pnl_ytd_usd: pnlFrom(todayNpvUsd, ytdNdf,   r.id, (x) => x.npv_usd),
     });
   }
 
   for (const r of ibr) {
+    const todayNpvCop = r.npv;
+    const todayNpvUsd = r.npv / 4200;
     rows.push({
       id: r.id, type: 'IBR', label: r.label, counterparty: r.counterparty,
       notional_usd: r.notional / 4200, // approx USD for sorting
       maturity_date: r.maturity_date,
       detail: `${r.pay_fixed ? 'Pay Fija' : 'Pay IBR'} | Fija ${fmt(r.fixed_rate * 100, 2)}% | Fair ${r.error ? '-' : fmt(r.fair_rate * 100, 2)}% | IBR O/N ${r.error ? '-' : fmt(r.ibr_overnight_pct, 2)}% | Diff ${r.error ? '-' : fmt(r.carry_daily_diff_bps, 0)}bps`,
-      npv_cop: r.npv, npv_usd: r.npv / 4200,
+      npv_cop: todayNpvCop, npv_usd: todayNpvUsd,
       pnl_cop: r.error ? 0 : r.npv,
       carry_cop: r.carry_daily_cop, carry_label: '/dia',
       dv01: r.dv01, dv01_label: 'IBR',
       error: r.error,
       id_operacion: r.id_operacion, trade_date: r.trade_date, sociedad: r.sociedad, id_banco: r.id_banco, estado: resolveEstado(r.maturity_date, r.estado),
       _ibr: r,
+      pnl_1d_cop:  pnlFrom(todayNpvCop, dailyIbr, r.id, (x) => x.npv),
+      pnl_mtd_cop: pnlFrom(todayNpvCop, mtdIbr,   r.id, (x) => x.npv),
+      pnl_ytd_cop: pnlFrom(todayNpvCop, ytdIbr,   r.id, (x) => x.npv),
+      pnl_1d_usd:  pnlFrom(todayNpvUsd, dailyIbr, r.id, (x) => x.npv / 4200),
+      pnl_mtd_usd: pnlFrom(todayNpvUsd, mtdIbr,   r.id, (x) => x.npv / 4200),
+      pnl_ytd_usd: pnlFrom(todayNpvUsd, ytdIbr,   r.id, (x) => x.npv / 4200),
     });
   }
 
   return rows;
 }
+
+// ── Columnas P&L opcionales ──
+const PNL_COL_DEFS: { key: string; label: string; tip: string; usd?: boolean }[] = [
+  { key: 'pnl_1d_cop',  label: 'P&L 1D COP',  tip: 'Cambio en NPV COP vs el día hábil anterior.' },
+  { key: 'pnl_mtd_cop', label: 'P&L MTD COP', tip: 'Cambio en NPV COP desde el último día hábil del mes anterior.' },
+  { key: 'pnl_ytd_cop', label: 'P&L YTD COP', tip: 'Cambio en NPV COP desde el último día hábil de dic. del año anterior.' },
+  { key: 'pnl_1d_usd',  label: 'P&L 1D USD',  tip: 'Cambio en NPV USD vs el día hábil anterior.', usd: true },
+  { key: 'pnl_mtd_usd', label: 'P&L MTD USD', tip: 'Cambio en NPV USD desde el último día hábil del mes anterior.', usd: true },
+  { key: 'pnl_ytd_usd', label: 'P&L YTD USD', tip: 'Cambio en NPV USD desde el último día hábil de dic. del año anterior.', usd: true },
+];
 
 // ── Unified Portfolio Table ──
 function PortfolioTable({
@@ -477,6 +564,17 @@ function PortfolioTable({
   canEdit?: boolean;
 }) {
   const [estadoFilter, setEstadoFilter] = useState<'Todos' | 'Activo' | 'Vencido' | 'Cancelado'>('Todos');
+  const [visiblePnlCols, setVisiblePnlCols] = useState<Set<string>>(new Set());
+  const [showColPicker, setShowColPicker] = useState(false);
+
+  const togglePnlCol = (key: string) => {
+    setVisiblePnlCols((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
 
   if (rows.length === 0) {
     return (
@@ -523,7 +621,7 @@ function PortfolioTable({
 
   return (
     <div>
-      {/* Filtro por estado */}
+      {/* Filtro por estado + selector de columnas P&L */}
       <div style={{ display: 'flex', gap: 6, marginBottom: 10, flexWrap: 'wrap', alignItems: 'center' }}>
         <span style={{ fontSize: 11, color: '#6c757d', fontWeight: 600 }}>Estado:</span>
         {(['Todos', 'Activo', 'Vencido', 'Cancelado'] as const).map(opt => {
@@ -541,6 +639,34 @@ function PortfolioTable({
             </button>
           );
         })}
+        {/* Selector de columnas P&L */}
+        <div style={{ position: 'relative', marginLeft: 'auto' }}>
+          <button
+            type="button"
+            onClick={() => setShowColPicker((v) => !v)}
+            style={{
+              padding: '2px 10px', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer',
+              border: '1px solid #dee2e6', background: visiblePnlCols.size > 0 ? '#e7f3ff' : '#f8f9fa',
+              color: visiblePnlCols.size > 0 ? '#0d6efd' : '#6c757d',
+            }}
+          >
+            Columnas P&L {visiblePnlCols.size > 0 && `(${visiblePnlCols.size})`} ▾
+          </button>
+          {showColPicker && (
+            <div style={{
+              position: 'absolute', top: 'calc(100% + 4px)', right: 0, zIndex: 999,
+              background: '#fff', border: '1px solid #dee2e6', borderRadius: 6,
+              padding: '8px 12px', boxShadow: '0 4px 12px rgba(0,0,0,0.12)', minWidth: 190,
+            }}>
+              {PNL_COL_DEFS.map((col) => (
+                <label key={col.key} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, cursor: 'pointer', padding: '3px 0', whiteSpace: 'nowrap' }}>
+                  <input type="checkbox" checked={visiblePnlCols.has(col.key)} onChange={() => togglePnlCol(col.key)} />
+                  {col.label}
+                </label>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     <div style={{ overflowX: 'auto' }}>
       <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
@@ -549,6 +675,11 @@ function PortfolioTable({
             {COLS.map(([h, tip]) => (
               <th key={h} style={{ padding: '8px 6px', fontWeight: 600, whiteSpace: 'nowrap', position: 'relative', overflow: 'visible' }}>
                 <ColTip label={h} tip={tip} />
+              </th>
+            ))}
+            {PNL_COL_DEFS.filter((c) => visiblePnlCols.has(c.key)).map((col) => (
+              <th key={col.key} style={{ padding: '8px 6px', fontWeight: 600, whiteSpace: 'nowrap', position: 'relative', overflow: 'visible', background: '#f0f4ff' }}>
+                <ColTip label={col.label} tip={col.tip} />
               </th>
             ))}
           </tr>
@@ -623,6 +754,15 @@ function PortfolioTable({
                 <td style={{ padding: '6px', fontFamily: 'monospace', fontSize: 11, color: r.fx_delta != null ? npvColor(r.fx_delta) : '#6c757d' }}>
                   {r.fx_delta != null ? fmtMM(r.fx_delta) : '\u2014'}
                 </td>
+                {/* Columnas P&L opcionales */}
+                {PNL_COL_DEFS.filter((c) => visiblePnlCols.has(c.key)).map((col) => {
+                  const val = r[col.key as keyof PortfolioRow] as number | null | undefined;
+                  return (
+                    <td key={col.key} style={{ padding: '6px', fontFamily: 'monospace', fontSize: 11, background: '#fafbff', color: val != null ? npvColor(val) : '#adb5bd' }}>
+                      {r.error ? '—' : val != null ? fmtMM(val) : <span style={{ color: '#adb5bd', fontSize: 10 }}>N/A</span>}
+                    </td>
+                  );
+                })}
                 {/* Delete */}
                 <td style={{ padding: '6px' }}>
                   {canEdit && (
@@ -643,6 +783,12 @@ function PortfolioTable({
           const sumDv01 = valid.reduce((s, r) => s + r.dv01, 0);
           const sumDv012 = valid.reduce((s, r) => s + (r.dv01_2 ?? 0), 0);
           const sumFx = valid.reduce((s, r) => s + (r.fx_delta ?? 0), 0);
+          const sumPnlCol = (key: string): number | null => {
+            const vals = valid
+              .map((r) => r[key as keyof PortfolioRow] as number | null)
+              .filter((v): v is number => v !== null);
+            return vals.length > 0 ? vals.reduce((a, b) => a + b, 0) : null;
+          };
           const tStyle = { padding: '8px 6px', fontFamily: 'monospace' as const, fontSize: 11, fontWeight: 700 as const };
           return (
             <tfoot>
@@ -654,6 +800,14 @@ function PortfolioTable({
                 <td style={{ ...tStyle, color: npvColor(sumDv01) }}>{fmtMM(sumDv01)}</td>
                 <td style={{ ...tStyle, color: npvColor(sumDv012) }}>{fmtMM(sumDv012)}</td>
                 <td style={{ ...tStyle, color: npvColor(sumFx) }}>{fmtMM(sumFx)}</td>
+                {PNL_COL_DEFS.filter((c) => visiblePnlCols.has(c.key)).map((col) => {
+                  const tot = sumPnlCol(col.key);
+                  return (
+                    <td key={col.key} style={{ ...tStyle, background: '#f0f4ff', color: tot != null ? npvColor(tot) : '#adb5bd' }}>
+                      {tot != null ? fmtMM(tot) : 'N/A'}
+                    </td>
+                  );
+                })}
                 <td />
               </tr>
             </tfoot>
@@ -2125,6 +2279,8 @@ function PortfolioPage() {
     marketDataConfig,
     loadMarketDataConfig,
     updateMarketDataConfig,
+    refPrices,
+    loadReferencePrices,
   } = useAppStore();
 
   const handleBuild = useCallback(async (silent = false) => {
@@ -2146,12 +2302,14 @@ function PortfolioPage() {
     try {
       await repriceAllWithMark(fecha);
       toast.success(`Portafolio valorado con marca ${fecha}`);
+      // Cargar precios de referencia en segundo plano (no bloquea la UI)
+      loadReferencePrices(fecha).catch(() => {});
     } catch (e) {
       toast.error(`Error al valorar: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
       setMarkRepricing(false);
     }
-  }, [repriceAllWithMark]);
+  }, [repriceAllWithMark, loadReferencePrices]);
 
   const handleReprice = useCallback(async () => {
     await handleRepriceWithMark(markFecha);
@@ -2256,7 +2414,23 @@ function PortfolioPage() {
     ? pricedIbrSwap
     : ibrSwapPositions.map((p) => ({ ...p, npv: 0, fair_rate: 0, dv01: 0, fixed_leg_npv: 0, floating_leg_npv: 0, ibr_overnight_pct: 0, carry_daily_cop: 0, carry_daily_diff_bps: 0, ibr_fwd_period_pct: 0, carry_period_cop: 0, carry_period_diff_bps: 0, error: 'Sin pricear' } as PricedIbrSwap));
 
-  const portfolioRows = buildPortfolioRows(xccyRows, ndfRows, ibrRows, settlementMap);
+  const portfolioRows = buildPortfolioRows(xccyRows, ndfRows, ibrRows, settlementMap, refPrices);
+
+  // Totales de P&L para la SummaryBar
+  const pnlTotals = (() => {
+    const valid = portfolioRows.filter((r) => !r.error);
+    const sumCol = (key: keyof typeof portfolioRows[0]): number | null => {
+      const vals = valid
+        .map((r) => r[key] as number | null)
+        .filter((v): v is number => v !== null);
+      return vals.length > 0 ? vals.reduce((a, b) => a + b, 0) : null;
+    };
+    return {
+      daily: sumCol('pnl_1d_cop'),
+      mtd:   sumCol('pnl_mtd_cop'),
+      ytd:   sumCol('pnl_ytd_cop'),
+    };
+  })();
 
   return (
     <CoreLayout>
@@ -2367,7 +2541,7 @@ function PortfolioPage() {
         )}
 
         {/* Summary */}
-        <SummaryBar summary={summary} pricedAt={pricedAt} />
+        <SummaryBar summary={summary} pricedAt={pricedAt} pnlTotals={pnlTotals} />
 
         {/* View Toggle */}
         <div style={{ display: 'flex', gap: 4, marginBottom: 12 }}>
