@@ -16,7 +16,10 @@ export const DEFAULT_BLOTTER_PREFERENCES: BlotterPreferences = {
   columnOrder: [
     'type', 'id_operacion', 'counterparty', 'sociedad', 'notional',
     'tasa_strike', 'trade_date', 'maturity_date', 'estado',
-    'npv_cop', 'npv_usd', 'carry_cop', 'dv01', 'dv01_2', 'fx_delta', 'actions',
+    'npv_cop', 'npv_usd', 'carry_cop', 'dv01', 'dv01_2', 'fx_delta',
+    'pnl_1d_cop', 'pnl_mtd_cop', 'pnl_ytd_cop',
+    'pnl_1d_usd', 'pnl_mtd_usd', 'pnl_ytd_usd',
+    'actions',
   ],
   columnVisibility: {
     type: true, id_operacion: true, counterparty: true, sociedad: true,

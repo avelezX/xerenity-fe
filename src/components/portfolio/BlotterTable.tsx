@@ -567,6 +567,8 @@ const COLUMN_LABELS: Record<string, string> = {
   direction: 'Dirección', strike: 'Strike', forward: 'Forward', forward_points: 'Fwd Points',
   days_to_maturity: 'Días Mat.', par_basis_bps: 'Par Basis', fair_rate: 'Fair Rate',
   pnl_rate_cop: 'P&L Tasas', pnl_fx_cop: 'P&L FX', carry_daily_diff_bps: 'Carry Diff',
+  pnl_1d_cop: 'P&L 1D COP', pnl_mtd_cop: 'P&L MTD COP', pnl_ytd_cop: 'P&L YTD COP',
+  pnl_1d_usd: 'P&L 1D USD', pnl_mtd_usd: 'P&L MTD USD', pnl_ytd_usd: 'P&L YTD USD',
 };
 
 function ColumnVisibilityDropdown({
