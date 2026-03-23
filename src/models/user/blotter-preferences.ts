@@ -60,6 +60,17 @@ function saveToLocalStorage(prefs: BlotterPreferences, userId?: string) {
   }
 }
 
+async function syncToSupabase(prefs: BlotterPreferences, userId: string) {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!supabaseUrl || !supabaseKey) return;
+
+  const supabase = createClient(supabaseUrl, supabaseKey);
+  await supabase
+    .from('user_preferences')
+    .upsert({ user_id: userId, blotter_prefs: prefs, updated_at: new Date().toISOString() }, { onConflict: 'user_id' });
+}
+
 export function useBlotterPreferences(userId?: string) {
   const [prefs, setPrefsState] = useState<BlotterPreferences>(DEFAULT_BLOTTER_PREFERENCES);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -92,15 +103,4 @@ export function useBlotterPreferences(userId?: string) {
   }, [userId]);
 
   return { prefs, setPrefs };
-}
-
-async function syncToSupabase(prefs: BlotterPreferences, userId: string) {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!supabaseUrl || !supabaseKey) return;
-
-  const supabase = createClient(supabaseUrl, supabaseKey);
-  await supabase
-    .from('user_preferences')
-    .upsert({ user_id: userId, blotter_prefs: prefs, updated_at: new Date().toISOString() }, { onConflict: 'user_id' });
 }

@@ -1,4 +1,4 @@
-/* eslint-disable no-underscore-dangle, no-nested-ternary */
+/* eslint-disable no-underscore-dangle, no-nested-ternary, lines-around-directive, react/jsx-props-no-spreading, jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions, jsx-a11y/control-has-associated-label */
 'use client';
 
 import React, { useState, useCallback, useMemo, useRef, useEffect, CSSProperties } from 'react';
@@ -9,12 +9,7 @@ import {
   getFilteredRowModel,
   flexRender,
   createColumnHelper,
-  type SortingState,
   type VisibilityState,
-  type ColumnSizingState,
-  type ColumnOrderState,
-  type ColumnFiltersState,
-  type Row,
 } from '@tanstack/react-table';
 import {
   DndContext,
@@ -587,7 +582,7 @@ function ColumnVisibilityDropdown({
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) return undefined;
     const handler = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
     };
@@ -655,12 +650,14 @@ export default function BlotterTable({
   onPrefsChange,
 }: BlotterTableProps) {
   // Derived state from prefs
-  const sorting: SortingState = prefs.sorting;
-  const columnVisibility: VisibilityState = prefs.columnVisibility;
-  const columnSizing: ColumnSizingState = prefs.columnSizing;
-  const columnOrder: ColumnOrderState = prefs.columnOrder;
-  const estadoFilter = prefs.estadoFilter;
-  const globalFilter = prefs.globalFilter;
+  const {
+    sorting,
+    columnVisibility,
+    columnSizing,
+    columnOrder,
+    estadoFilter,
+    globalFilter,
+  } = prefs;
 
   const handleSelect = useCallback((r: PortfolioRow) => {
     if (r._xccy) onSelectXccy(r._xccy);

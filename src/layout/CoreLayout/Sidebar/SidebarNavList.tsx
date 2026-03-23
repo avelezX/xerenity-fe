@@ -12,9 +12,9 @@ import {
   faCog,
   faUsers,
 } from '@fortawesome/free-solid-svg-icons';
+import useAppStore from 'src/store';
 import SubNavItem from './SubNavItem';
 import NavigationItem, { NavItemProps } from './NavigationItem';
-import useAppStore from 'src/store';
 
 type SidebarNavProps = {
   currentPath: string;

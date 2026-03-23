@@ -17,15 +17,18 @@ interface RoleGuardProps {
 const RoleGuard: React.FC<RoleGuardProps> = ({ requiredRole, children, fallback = null }) => {
   const userProfile = useAppStore((s) => s.userProfile);
 
+  // eslint-disable-next-line react/jsx-no-useless-fragment
   if (!userProfile) return <>{fallback}</>;
 
   const currentIdx = ROLE_HIERARCHY.indexOf(userProfile.role);
   const requiredIdx = ROLE_HIERARCHY.indexOf(requiredRole);
 
   if (currentIdx >= requiredIdx) {
+    // eslint-disable-next-line react/jsx-no-useless-fragment
     return <>{children}</>;
   }
 
+  // eslint-disable-next-line react/jsx-no-useless-fragment
   return <>{fallback}</>;
 };
 
