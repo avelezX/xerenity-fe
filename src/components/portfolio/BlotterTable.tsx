@@ -746,6 +746,12 @@ export default function BlotterTable({
       dv01: valid.reduce((s, r) => s + r.dv01, 0),
       dv01_2: valid.reduce((s, r) => s + (r.dv01_2 ?? 0), 0),
       fx_delta: valid.reduce((s, r) => s + (r.fx_delta ?? 0), 0),
+      pnl_1d_cop: valid.reduce((s, r) => s + (r.pnl_1d_cop ?? 0), 0),
+      pnl_mtd_cop: valid.reduce((s, r) => s + (r.pnl_mtd_cop ?? 0), 0),
+      pnl_ytd_cop: valid.reduce((s, r) => s + (r.pnl_ytd_cop ?? 0), 0),
+      pnl_1d_usd: valid.reduce((s, r) => s + (r.pnl_1d_usd ?? 0), 0),
+      pnl_mtd_usd: valid.reduce((s, r) => s + (r.pnl_mtd_usd ?? 0), 0),
+      pnl_ytd_usd: valid.reduce((s, r) => s + (r.pnl_ytd_usd ?? 0), 0),
       count: valid.length,
     };
   }, [filteredByEstado]);
@@ -865,6 +871,12 @@ export default function BlotterTable({
                   if (colId === 'dv01') return <td key={colId} style={{ ...tStyle, color: npvColor(totals.dv01) }}>{fmtMM(totals.dv01)}</td>;
                   if (colId === 'dv01_2') return <td key={colId} style={{ ...tStyle, color: npvColor(totals.dv01_2) }}>{fmtMM(totals.dv01_2)}</td>;
                   if (colId === 'fx_delta') return <td key={colId} style={{ ...tStyle, color: npvColor(totals.fx_delta) }}>{fmtMM(totals.fx_delta)}</td>;
+                  if (colId === 'pnl_1d_cop') return <td key={colId} style={{ ...tStyle, color: npvColor(totals.pnl_1d_cop) }}>{fmtMM(totals.pnl_1d_cop)}</td>;
+                  if (colId === 'pnl_mtd_cop') return <td key={colId} style={{ ...tStyle, color: npvColor(totals.pnl_mtd_cop) }}>{fmtMM(totals.pnl_mtd_cop)}</td>;
+                  if (colId === 'pnl_ytd_cop') return <td key={colId} style={{ ...tStyle, color: npvColor(totals.pnl_ytd_cop) }}>{fmtMM(totals.pnl_ytd_cop)}</td>;
+                  if (colId === 'pnl_1d_usd') return <td key={colId} style={{ ...tStyle, color: npvColor(totals.pnl_1d_usd) }}>{fmtMM(totals.pnl_1d_usd)}</td>;
+                  if (colId === 'pnl_mtd_usd') return <td key={colId} style={{ ...tStyle, color: npvColor(totals.pnl_mtd_usd) }}>{fmtMM(totals.pnl_mtd_usd)}</td>;
+                  if (colId === 'pnl_ytd_usd') return <td key={colId} style={{ ...tStyle, color: npvColor(totals.pnl_ytd_usd) }}>{fmtMM(totals.pnl_ytd_usd)}</td>;
                   return <td key={colId} />;
                 })}
               </tr>
