@@ -387,58 +387,62 @@ export default function LoansPage() {
           />
         </div>
 
-        {/* ─── Charts (inline, below table) ─── */}
-        {!cashflowsEmpty && (
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
-            {/* Cashflow + Rate chart */}
-            <div style={{ background: '#fff', border: '1px solid #dee2e6', borderRadius: 8, padding: 16 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8, color: '#212529' }}>Flujo de Caja &amp; Tasa Implícita</div>
+        {/* ─── Charts (always visible) ─── */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
+          {/* Cashflow + Rate chart */}
+          <div style={{ background: '#fff', border: '1px solid #dee2e6', borderRadius: 8, padding: 16 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8, color: '#212529' }}>Flujo de Caja &amp; Tasa Implícita</div>
+            {!cashflowsEmpty ? (
               <Chart showToolbar loading={loading}>
                 <Chart.Bar data={paymentChartData} color={INTEREST_COLOR} scaleId="right" title="Interés" />
                 <Chart.Bar data={principalChartData} color={PRINCIPAL_COLOR} scaleId="right" title="Capital" />
                 <Chart.Line data={rateChartData} color={designSystem['green-400'].value} scaleId="left" title="Tasa % (Izq)" />
               </Chart>
-            </div>
-
-            {/* Yield curve chart with tabs */}
-            <div style={{ background: '#fff', border: '1px solid #dee2e6', borderRadius: 8, padding: 16 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                <span style={{ fontSize: 13, fontWeight: 700, color: '#212529' }}>Curva de Tasa vs Duración</span>
-                <div style={{ display: 'flex', gap: 4, marginLeft: 'auto' }}>
-                  {CHART_TABS.map(({ key, label }) => (
-                    <button
-                      type="button"
-                      key={key}
-                      onClick={() => setChartTab(key)}
-                      style={{
-                        padding: '2px 8px', fontSize: 10, fontWeight: 600, borderRadius: 4, cursor: 'pointer',
-                        border: chartTab === key ? '2px solid #495057' : '1px solid #dee2e6',
-                        background: chartTab === key ? (TYPE_PILL_COLORS[key]?.bg ?? '#495057') : '#f8f9fa',
-                        color: chartTab === key ? (TYPE_PILL_COLORS[key]?.color ?? '#fff') : '#6c757d',
-                      }}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
+            ) : (
+              <div style={{ padding: 40, textAlign: 'center', color: '#adb5bd', fontSize: 12, border: '2px dashed #dee2e6', borderRadius: 8 }}>
+                Selecciona créditos para ver el flujo de caja consolidado.
               </div>
-              {yieldCurveData[chartTab].length > 0 ? (
-                <Chart showToolbar loading={loading}>
-                  <Chart.Line
-                    data={yieldCurveData[chartTab]}
-                    color={TYPE_PILL_COLORS[chartTab]?.color ?? '#495057'}
-                    scaleId="left"
-                    title={`Tasa (${chartTab.toUpperCase()})`}
-                  />
-                </Chart>
-              ) : (
-                <div style={{ padding: 40, textAlign: 'center', color: '#adb5bd', fontSize: 12 }}>
-                  Sin datos para {chartTab.toUpperCase()}. Selecciona créditos de este tipo.
-                </div>
-              )}
-            </div>
+            )}
           </div>
-        )}
+
+          {/* Yield curve chart with tabs */}
+          <div style={{ background: '#fff', border: '1px solid #dee2e6', borderRadius: 8, padding: 16 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: '#212529' }}>Curva de Tasa vs Duración</span>
+              <div style={{ display: 'flex', gap: 4, marginLeft: 'auto' }}>
+                {CHART_TABS.map(({ key, label }) => (
+                  <button
+                    type="button"
+                    key={key}
+                    onClick={() => setChartTab(key)}
+                    style={{
+                      padding: '2px 8px', fontSize: 10, fontWeight: 600, borderRadius: 4, cursor: 'pointer',
+                      border: chartTab === key ? '2px solid #495057' : '1px solid #dee2e6',
+                      background: chartTab === key ? (TYPE_PILL_COLORS[key]?.bg ?? '#495057') : '#f8f9fa',
+                      color: chartTab === key ? (TYPE_PILL_COLORS[key]?.color ?? '#fff') : '#6c757d',
+                    }}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {yieldCurveData[chartTab].length > 0 ? (
+              <Chart showToolbar loading={loading}>
+                <Chart.Line
+                  data={yieldCurveData[chartTab]}
+                  color={TYPE_PILL_COLORS[chartTab]?.color ?? '#495057'}
+                  scaleId="left"
+                  title={`Tasa (${chartTab.toUpperCase()})`}
+                />
+              </Chart>
+            ) : (
+              <div style={{ padding: 40, textAlign: 'center', color: '#adb5bd', fontSize: 12, border: '2px dashed #dee2e6', borderRadius: 8 }}>
+                Selecciona créditos {chartTab.toUpperCase()} para ver la curva.
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* ─── Modals ─── */}
@@ -462,40 +466,75 @@ export default function LoansPage() {
             </span>
           </Modal.Title>
         </Modal.Header>
-        <Modal.Body style={{ maxHeight: '70vh', overflowY: 'auto' }}>
+        <Modal.Body style={{ maxHeight: '80vh', overflowY: 'auto' }}>
           {cashflowModalLoading ? (
             <div style={{ textAlign: 'center', padding: 40, color: '#6c757d' }}>Cargando flujos…</div>
           ) : cashflowModalData.length === 0 ? (
             <div style={{ textAlign: 'center', padding: 40, color: '#6c757d' }}>Sin datos de flujo de caja.</div>
           ) : (
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', fontSize: 11, borderCollapse: 'collapse', fontFamily: 'monospace' }}>
-                <thead>
-                  <tr style={{ background: '#f8f9fa', borderBottom: '2px solid #dee2e6' }}>
-                    <th style={thStyle}>Fecha</th>
-                    <th style={thStyle}>Tasa %</th>
-                    <th style={thStyle}>Balance Inicial</th>
-                    <th style={thStyle}>Pago Cuota</th>
-                    <th style={thStyle}>Intereses</th>
-                    <th style={thStyle}>Principal</th>
-                    <th style={thStyle}>Balance Final</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {cashflowModalData.map((row) => (
-                    <tr key={`${row.date}-${row.beginning_balance}`} style={{ borderBottom: '1px solid #eee' }}>
-                      <td style={tdStyle}>{row.date?.split(' ')[0]}</td>
-                      <td style={tdStyle}>{((row.rate_tot ?? row.rate ?? 0) * 100).toFixed(2)}%</td>
-                      <td style={tdStyle}>{currencyFormat(row.beginning_balance, 0)}</td>
-                      <td style={tdStyle}>{currencyFormat(row.payment, 0)}</td>
-                      <td style={tdStyle}>{currencyFormat(row.interest, 0)}</td>
-                      <td style={tdStyle}>{currencyFormat(row.principal, 0)}</td>
-                      <td style={tdStyle}>{currencyFormat(row.ending_balance, 0)}</td>
+            <>
+              {/* Charts in modal */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 4, color: '#212529' }}>Flujo de Caja</div>
+                  <Chart showToolbar loading={false}>
+                    <Chart.Bar
+                      data={cashflowModalData.map((f) => ({ time: f.date.split(' ')[0], value: f.interest }))}
+                      color={INTEREST_COLOR}
+                      scaleId="right"
+                      title="Interés"
+                    />
+                    <Chart.Bar
+                      data={cashflowModalData.map((f) => ({ time: f.date.split(' ')[0], value: f.principal }))}
+                      color={PRINCIPAL_COLOR}
+                      scaleId="right"
+                      title="Capital"
+                    />
+                  </Chart>
+                </div>
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 4, color: '#212529' }}>Tasa Implícita</div>
+                  <Chart showToolbar loading={false}>
+                    <Chart.Line
+                      data={cashflowModalData.map((f) => ({ time: f.date.split(' ')[0], value: (f.rate_tot ?? f.rate ?? 0) * 100 }))}
+                      color={designSystem['green-400'].value}
+                      scaleId="left"
+                      title="Tasa %"
+                    />
+                  </Chart>
+                </div>
+              </div>
+
+              {/* Table */}
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', fontSize: 11, borderCollapse: 'collapse', fontFamily: 'monospace' }}>
+                  <thead>
+                    <tr style={{ background: '#f8f9fa', borderBottom: '2px solid #dee2e6' }}>
+                      <th style={thStyle}>Fecha</th>
+                      <th style={thStyle}>Tasa %</th>
+                      <th style={thStyle}>Balance Inicial</th>
+                      <th style={thStyle}>Pago Cuota</th>
+                      <th style={thStyle}>Intereses</th>
+                      <th style={thStyle}>Principal</th>
+                      <th style={thStyle}>Balance Final</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {cashflowModalData.map((row) => (
+                      <tr key={`${row.date}-${row.beginning_balance}`} style={{ borderBottom: '1px solid #eee' }}>
+                        <td style={tdStyle}>{row.date?.split(' ')[0]}</td>
+                        <td style={tdStyle}>{((row.rate_tot ?? row.rate ?? 0) * 100).toFixed(2)}%</td>
+                        <td style={tdStyle}>{currencyFormat(row.beginning_balance, 0)}</td>
+                        <td style={tdStyle}>{currencyFormat(row.payment, 0)}</td>
+                        <td style={tdStyle}>{currencyFormat(row.interest, 0)}</td>
+                        <td style={tdStyle}>{currencyFormat(row.principal, 0)}</td>
+                        <td style={tdStyle}>{currencyFormat(row.ending_balance, 0)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
           )}
         </Modal.Body>
       </Modal>
