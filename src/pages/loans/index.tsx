@@ -560,14 +560,14 @@ const tdStyle: React.CSSProperties = { padding: '4px 8px', textAlign: 'right' };
  * Needed because ChartContainer sets chart.current in useEffect (ref, no re-render),
  * so children miss the context on first render. This extra render lets them pick it up.
  */
-function DelayedChart({ children, ...props }: React.ComponentProps<typeof Chart>) {
+function DelayedChart({ children, showToolbar, loading }: { children: React.ReactNode; showToolbar?: boolean; loading?: boolean }) {
   const [ready, setReady] = useState(false);
   useEffect(() => {
     const id = requestAnimationFrame(() => setReady(true));
     return () => cancelAnimationFrame(id);
   }, []);
   return (
-    <Chart {...props}>
+    <Chart showToolbar={showToolbar} loading={loading}>
       {ready ? children : null}
     </Chart>
   );
