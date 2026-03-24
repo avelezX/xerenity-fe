@@ -483,7 +483,7 @@ export default function LoansPage() {
                 </thead>
                 <tbody>
                   {cashflowModalData.map((row, i) => (
-                    <tr key={`${row.date}-${i}`} style={{ borderBottom: '1px solid #eee' }}>
+                    <tr key={`${row.date}-${row.beginning_balance}`} style={{ borderBottom: '1px solid #eee' }}>
                       <td style={tdStyle}>{row.date?.split(' ')[0]}</td>
                       <td style={tdStyle}>{((row.rate_tot ?? row.rate ?? 0) * 100).toFixed(2)}%</td>
                       <td style={tdStyle}>{currencyFormat(row.beginning_balance, 0)}</td>
