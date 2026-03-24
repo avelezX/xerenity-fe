@@ -391,17 +391,18 @@ export default function LoansPage() {
           />
         </div>
 
-        {/* ─── Charts (always mounted — lightweight-charts needs stable mount) ─── */}
+        {/* ─── Charts ─── */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
           <div style={{ background: '#fff', border: '1px solid #dee2e6', borderRadius: 8, padding: 16 }}>
             <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8, color: '#212529' }}>Flujo de Caja &amp; Tasa Implícita</div>
-            <Chart showToolbar loading={loading}>
-              <Chart.Bar data={paymentChartData} color={INTEREST_COLOR} scaleId="right" title="Interés" />
-              <Chart.Bar data={principalChartData} color={PRINCIPAL_COLOR} scaleId="right" title="Capital" />
-              <Chart.Line data={rateChartData} color={designSystem['green-400'].value} scaleId="left" title="Tasa % (Izq)" />
-            </Chart>
-            {cashflowsEmpty && (
-              <div style={{ textAlign: 'center', color: '#adb5bd', fontSize: 11, marginTop: 4 }}>
+            {paymentChartData.length > 0 ? (
+              <DelayedChart key={`cf-${paymentChartData.length}`} showToolbar loading={loading}>
+                <Chart.Bar data={paymentChartData} color={INTEREST_COLOR} scaleId="right" title="Interés" />
+                <Chart.Bar data={principalChartData} color={PRINCIPAL_COLOR} scaleId="right" title="Capital" />
+                <Chart.Line data={rateChartData} color={designSystem['green-400'].value} scaleId="left" title="Tasa % (Izq)" />
+              </DelayedChart>
+            ) : (
+              <div style={{ padding: 40, textAlign: 'center', color: '#adb5bd', fontSize: 12, border: '2px dashed #dee2e6', borderRadius: 8 }}>
                 Selecciona créditos para ver el flujo de caja consolidado.
               </div>
             )}
@@ -428,16 +429,17 @@ export default function LoansPage() {
                 ))}
               </div>
             </div>
-            <Chart showToolbar loading={loading}>
-              <Chart.Line
-                data={yieldCurveData[chartTab]}
-                color={TYPE_PILL_COLORS[chartTab]?.color ?? '#495057'}
-                scaleId="left"
-                title={`Tasa (${chartTab.toUpperCase()})`}
-              />
-            </Chart>
-            {yieldCurveData[chartTab].length === 0 && (
-              <div style={{ textAlign: 'center', color: '#adb5bd', fontSize: 11, marginTop: 4 }}>
+            {yieldCurveData[chartTab].length > 0 ? (
+              <DelayedChart key={`yc-${chartTab}-${yieldCurveData[chartTab].length}`} showToolbar loading={loading}>
+                <Chart.Line
+                  data={yieldCurveData[chartTab]}
+                  color={TYPE_PILL_COLORS[chartTab]?.color ?? '#495057'}
+                  scaleId="left"
+                  title={`Tasa (${chartTab.toUpperCase()})`}
+                />
+              </DelayedChart>
+            ) : (
+              <div style={{ padding: 40, textAlign: 'center', color: '#adb5bd', fontSize: 12, border: '2px dashed #dee2e6', borderRadius: 8 }}>
                 Selecciona créditos {chartTab.toUpperCase()} para ver la curva.
               </div>
             )}
