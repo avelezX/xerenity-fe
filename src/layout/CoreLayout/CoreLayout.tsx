@@ -1,6 +1,5 @@
 import React, {
   PropsWithChildren,
-  useCallback,
   useEffect,
   useState,
 } from 'react';
@@ -38,23 +37,36 @@ export default function CoreLayout({ children }: PropsWithChildren) {
     }
   };
 
-  const checkUserLogedIn = useCallback(async () => {
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-
-    if (!session) {
-      router.push(getRedirect());
-      setMobileUI(false);
-    } else if (session && isMobile) {
-      // If user is logged and it's using a mobile device notify us
-      setMobileUI(true);
-    }
-  }, [supabase, router]);
-
   useEffect(() => {
-    checkUserLogedIn();
-  }, [checkUserLogedIn]);
+    const checkSession = async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session) {
+        router.push(getRedirect());
+        setMobileUI(false);
+      } else if (session && isMobile) {
+        setMobileUI(true);
+      }
+    };
+
+    checkSession();
+
+    // Listen for auth state changes (handles OAuth redirects)
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!session) {
+        router.push(LOGIN_PATH);
+        setMobileUI(false);
+      } else if (session && isMobile) {
+        setMobileUI(true);
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, [supabase, router]);
 
   return (
     <>

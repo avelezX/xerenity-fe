@@ -9,7 +9,10 @@ import {
   faCalculator,
   faBriefcase,
   faShieldAlt,
+  faCog,
+  faUsers,
 } from '@fortawesome/free-solid-svg-icons';
+import useAppStore from 'src/store';
 import SubNavItem from './SubNavItem';
 import NavigationItem, { NavItemProps } from './NavigationItem';
 
@@ -124,6 +127,8 @@ const MONEDAS_PREFIX = '/currency';
 
 const SidebarNavList = ({ currentPath }: SidebarNavProps) => {
   const [navLinks, setNavLinks] = useState<NavItemProps[]>([]);
+  const userProfile = useAppStore((s) => s.userProfile);
+  const userRole = userProfile?.role;
 
   useEffect(() => {
     const links = NAV_ITEMS.map((item) => ({
@@ -193,6 +198,22 @@ const SidebarNavList = ({ currentPath }: SidebarNavProps) => {
         icon={faChartSimple}
         active={SERIES_DASHBOARDS_PREFIX.some((p) => currentPath.includes(p))}
       />
+      {(userRole === 'super_admin' || userRole === 'corp_admin') && (
+        <NavigationItem
+          name="Usuarios"
+          path="/settings/users"
+          icon={faUsers}
+          active={currentPath.includes('/settings/users')}
+        />
+      )}
+      {userRole === 'super_admin' && (
+        <NavigationItem
+          name="Admin"
+          path="/admin"
+          icon={faCog}
+          active={currentPath.includes('/admin')}
+        />
+      )}
     </ul>
   );
 };
