@@ -2,7 +2,9 @@
 
 import { useState } from 'react';
 import { NextPage } from 'next';
+import { useRouter } from 'next/router';
 import { Image } from 'react-bootstrap';
+import Alert from '@components/UI/Alert';
 import LoginForm from './_LoginForm';
 import SignUpForm from './_SignUpForm';
 import SocialAuth from './_SocialAuth';
@@ -22,12 +24,17 @@ const LOGO_SETTINGS = {
 type AuthTab = 'login' | 'signup';
 
 const LoginPage: NextPage = () => {
+  const router = useRouter();
+  const oauthError = router.query.error as string | undefined;
   const [activeTab, setActiveTab] = useState<AuthTab>('login');
 
   return (
     <LoginContainer>
       <aside className="form-wrapper">
         <div className="container">
+          {oauthError && (
+            <Alert>Error de autenticación: {decodeURIComponent(oauthError)}</Alert>
+          )}
           <Image
             src={LOGO_SETTINGS.url}
             fluid

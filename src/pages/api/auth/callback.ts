@@ -9,8 +9,19 @@ export default async function handler(
 
   if (typeof code === 'string') {
     const supabase = createPagesServerClient({ req, res });
-    await supabase.auth.exchangeCodeForSession(code);
+    const { error } = await supabase.auth.exchangeCodeForSession(code);
+
+    if (error) {
+      // eslint-disable-next-line no-console
+      console.error('OAuth callback error:', error.message);
+      const msg = encodeURIComponent(error.message);
+      res.redirect(`/login?error=${msg}`);
+      return;
+    }
+  } else {
+    res.redirect('/login?error=missing_code');
+    return;
   }
 
-  res.redirect('/dashboard');
+  res.redirect('/suameca');
 }
