@@ -391,25 +391,22 @@ export default function LoansPage() {
           />
         </div>
 
-        {/* ─── Charts (always visible) ─── */}
+        {/* ─── Charts (always mounted — lightweight-charts needs stable mount) ─── */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
-          {/* Cashflow + Rate chart */}
           <div style={{ background: '#fff', border: '1px solid #dee2e6', borderRadius: 8, padding: 16 }}>
             <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8, color: '#212529' }}>Flujo de Caja &amp; Tasa Implícita</div>
-            {!cashflowsEmpty ? (
-              <Chart showToolbar loading={loading}>
-                <Chart.Bar data={paymentChartData} color={INTEREST_COLOR} scaleId="right" title="Interés" />
-                <Chart.Bar data={principalChartData} color={PRINCIPAL_COLOR} scaleId="right" title="Capital" />
-                <Chart.Line data={rateChartData} color={designSystem['green-400'].value} scaleId="left" title="Tasa % (Izq)" />
-              </Chart>
-            ) : (
-              <div style={{ padding: 40, textAlign: 'center', color: '#adb5bd', fontSize: 12, border: '2px dashed #dee2e6', borderRadius: 8 }}>
+            <Chart showToolbar loading={loading}>
+              <Chart.Bar data={paymentChartData} color={INTEREST_COLOR} scaleId="right" title="Interés" />
+              <Chart.Bar data={principalChartData} color={PRINCIPAL_COLOR} scaleId="right" title="Capital" />
+              <Chart.Line data={rateChartData} color={designSystem['green-400'].value} scaleId="left" title="Tasa % (Izq)" />
+            </Chart>
+            {cashflowsEmpty && (
+              <div style={{ textAlign: 'center', color: '#adb5bd', fontSize: 11, marginTop: 4 }}>
                 Selecciona créditos para ver el flujo de caja consolidado.
               </div>
             )}
           </div>
 
-          {/* Yield curve chart with tabs */}
           <div style={{ background: '#fff', border: '1px solid #dee2e6', borderRadius: 8, padding: 16 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
               <span style={{ fontSize: 13, fontWeight: 700, color: '#212529' }}>Curva de Tasa vs Duración</span>
@@ -431,17 +428,16 @@ export default function LoansPage() {
                 ))}
               </div>
             </div>
-            {yieldCurveData[chartTab].length > 0 ? (
-              <Chart showToolbar loading={loading}>
-                <Chart.Line
-                  data={yieldCurveData[chartTab]}
-                  color={TYPE_PILL_COLORS[chartTab]?.color ?? '#495057'}
-                  scaleId="left"
-                  title={`Tasa (${chartTab.toUpperCase()})`}
-                />
-              </Chart>
-            ) : (
-              <div style={{ padding: 40, textAlign: 'center', color: '#adb5bd', fontSize: 12, border: '2px dashed #dee2e6', borderRadius: 8 }}>
+            <Chart showToolbar loading={loading}>
+              <Chart.Line
+                data={yieldCurveData[chartTab]}
+                color={TYPE_PILL_COLORS[chartTab]?.color ?? '#495057'}
+                scaleId="left"
+                title={`Tasa (${chartTab.toUpperCase()})`}
+              />
+            </Chart>
+            {yieldCurveData[chartTab].length === 0 && (
+              <div style={{ textAlign: 'center', color: '#adb5bd', fontSize: 11, marginTop: 4 }}>
                 Selecciona créditos {chartTab.toUpperCase()} para ver la curva.
               </div>
             )}
@@ -482,7 +478,7 @@ export default function LoansPage() {
                 <div key={`modal-charts-${cashflowModalLoan?.id}`} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
                   <div>
                     <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 4, color: '#212529' }}>Flujo de Caja</div>
-                    <Chart showToolbar loading={false}>
+                    <DelayedChart showToolbar loading={false}>
                       <Chart.Bar
                         data={cashflowModalData.filter((f) => f.date).map((f) => ({ time: safeDate(f.date), value: f.interest ?? 0 }))}
                         color={INTEREST_COLOR}
@@ -495,18 +491,18 @@ export default function LoansPage() {
                         scaleId="right"
                         title="Capital"
                       />
-                    </Chart>
+                    </DelayedChart>
                   </div>
                   <div>
                     <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 4, color: '#212529' }}>Tasa Implícita</div>
-                    <Chart showToolbar loading={false}>
+                    <DelayedChart showToolbar loading={false}>
                       <Chart.Line
                         data={cashflowModalData.filter((f) => f.date).map((f) => ({ time: safeDate(f.date), value: (f.rate_tot ?? f.rate ?? 0) * 100 }))}
                         color={designSystem['green-400'].value}
                         scaleId="left"
                         title="Tasa %"
                       />
-                    </Chart>
+                    </DelayedChart>
                   </div>
                 </div>
               )}
@@ -556,6 +552,24 @@ const thStyle: React.CSSProperties = { padding: '6px 8px', fontWeight: 700, text
 const tdStyle: React.CSSProperties = { padding: '4px 8px', textAlign: 'right' };
 
 // ─── Sub-components ─────────────────────────────────────────────────────────
+
+/**
+ * Wrapper that forces a re-render shortly after mount.
+ * Needed because ChartContainer sets chart.current in useEffect (ref, no re-render),
+ * so children miss the context on first render. This extra render lets them pick it up.
+ */
+function DelayedChart({ children, ...props }: React.ComponentProps<typeof Chart>) {
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    const id = requestAnimationFrame(() => setReady(true));
+    return () => cancelAnimationFrame(id);
+  }, []);
+  return (
+    <Chart {...props}>
+      {ready ? children : null}
+    </Chart>
+  );
+}
 
 function SummaryItem({ label, value, color }: { label: string; value: string; color?: string }) {
   return (
