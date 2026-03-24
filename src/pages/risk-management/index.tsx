@@ -8,7 +8,6 @@ import { FontAwesomeIcon as Icon } from '@fortawesome/react-fontawesome';
 import {
   faShieldAlt,
   faSyncAlt,
-  faTable,
   faChartLine,
   faEdit,
   faChevronLeft,
@@ -29,7 +28,6 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
-  Legend,
   ResponsiveContainer,
 } from 'recharts';
 import { fetchRiskManagement, fetchRollingVar, fetchBenchmarkFactors, fetchExposure } from 'src/models/risk/riskApi';
@@ -163,20 +161,6 @@ function currentMonth(): { year: number; month: number } {
   return { year: now.getFullYear(), month: now.getMonth() };
 }
 
-const fmt = (v: number | null, decimals = 2): string => {
-  if (v == null) return '—';
-  return v.toLocaleString('en-US', {
-    minimumFractionDigits: decimals,
-    maximumFractionDigits: decimals,
-  });
-};
-
-const pnlClass = (v: number | null): string => {
-  if (v == null) return '';
-  if (v > 0) return 'text-success';
-  if (v < 0) return 'text-danger';
-  return '';
-};
 
 type BenchmarkRow = Record<string, string>;
 
@@ -303,9 +287,10 @@ async function exportTabToPdf(elementId: string, fileName: string) {
   // Hide buttons (Actualizar, Metodología, PDF, selectors) during capture
   const buttons = element.querySelectorAll('button, .btn, select, input[type="date"]');
   const origDisplay: string[] = [];
-  buttons.forEach((btn, i) => {
-    origDisplay[i] = (btn as HTMLElement).style.display;
-    (btn as HTMLElement).style.display = 'none';
+  buttons.forEach((el, i) => {
+    const htmlEl = el as HTMLElement;
+    origDisplay[i] = htmlEl.style.display;
+    htmlEl.style.display = 'none';
   });
 
   const canvas = await html2canvas(element, {
@@ -315,14 +300,16 @@ async function exportTabToPdf(elementId: string, fileName: string) {
   });
 
   // Restore buttons
-  buttons.forEach((btn, i) => {
-    (btn as HTMLElement).style.display = origDisplay[i];
+  buttons.forEach((node, i) => {
+    const htmlEl = node as HTMLElement;
+    htmlEl.style.display = origDisplay[i];
   });
 
   const imgData = canvas.toDataURL('image/png');
 
   // Landscape A4
   const margin = 10; // mm margins
+  // eslint-disable-next-line new-cap
   const pdf = new jsPDF('l', 'mm', 'a4');
   const pdfWidth = pdf.internal.pageSize.getWidth();
   const pdfHeight = pdf.internal.pageSize.getHeight();
@@ -344,7 +331,7 @@ async function exportTabToPdf(elementId: string, fileName: string) {
       if (page > 0) pdf.addPage();
       pdf.addImage(imgData, 'PNG', margin, margin - yOffset, contentWidth, scaledHeight);
       yOffset += contentHeight;
-      page++;
+      page += 1;
     }
   }
 
@@ -581,10 +568,10 @@ function RiskManagement() {
   const [activeTab, setActiveTab] = useState('benchmark');
   const [pageTabs, setPageTabs] = useState<TabItemType[]>(TAB_ITEMS);
   const [filterDate, setFilterDate] = useState(defaultDate());
-  const [loading, setLoading] = useState(false);
-  const [rows, setRows] = useState<RiskRow[]>([]);
-  const [config, setConfig] = useState<RiskConfig | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [, setLoading] = useState(false);
+  const [, setRows] = useState<RiskRow[]>([]);
+  const [, setConfig] = useState<RiskConfig | null>(null);
+  const [, setError] = useState<string | null>(null);
 
   // Methodology modal
   const [methModal, setMethModal] = useState<string | null>(null);
