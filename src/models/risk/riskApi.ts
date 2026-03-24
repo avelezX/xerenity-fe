@@ -3,7 +3,7 @@
  */
 import type { RiskManagementResponse, RollingVarResponse, BenchmarkFactorsResponse, ExposureResponse, ExposureParams } from 'src/types/risk';
 
-const BASE_URL = process.env.NEXT_PUBLIC_PYSDK_URL || 'https://xerenity-pysdk.fly.dev';
+const BASE_URL = process.env.NEXT_PUBLIC_PYSDK_URL || 'https://pysdk.fly.dev';
 
 async function postJson<T>(url: string, body: Record<string, unknown>): Promise<T> {
   const res = await fetch(url, {

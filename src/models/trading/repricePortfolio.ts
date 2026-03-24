@@ -9,7 +9,7 @@ import type {
 } from 'src/types/trading';
 
 const BASE_URL =
-  process.env.NEXT_PUBLIC_PYSDK_URL || 'https://xerenity-pysdk.fly.dev';
+  process.env.NEXT_PUBLIC_PYSDK_URL || 'https://pysdk.fly.dev';
 
 interface RawRepriceResponse {
   xccy_results: Record<string, unknown>[];
