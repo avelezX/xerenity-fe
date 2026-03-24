@@ -25,6 +25,7 @@ import useAppStore from '@store';
 import { Loan, LoanCashFlowIbr } from 'src/types/loans';
 import currencyFormat from 'src/utils/currencyFormat';
 import LoansBlotterTable from 'src/components/loans/LoansBlotterTable';
+import { fetchCashFlows } from 'src/models/loans/fetchCashFlows';
 import NewCreditModal from './_NewCreditModal';
 import CashFlowOverlay from './_cashFlowOverLay/cashFlowOverlay';
 
@@ -125,18 +126,16 @@ export default function LoansPage() {
   );
 
   // ─── Chart data (from merged cashflows of selected loans) ───
-  const paymentChartData = mergedCashFlows.map((flow) => ({
-    time: flow.date.split(' ')[0],
-    value: flow.payment,
-  }));
-  const principalChartData = mergedCashFlows.map((flow) => ({
-    time: flow.date.split(' ')[0],
-    value: flow.principal,
-  }));
-  const rateChartData = mergedCashFlows.map((flow) => ({
-    time: flow.date.split(' ')[0],
-    value: flow.rate_tot,
-  }));
+  const safeDate = (d: string | undefined) => (d ? d.split(' ')[0] : '');
+  const paymentChartData = mergedCashFlows
+    .filter((f) => f.date)
+    .map((flow) => ({ time: safeDate(flow.date), value: flow.payment ?? 0 }));
+  const principalChartData = mergedCashFlows
+    .filter((f) => f.date)
+    .map((flow) => ({ time: safeDate(flow.date), value: flow.principal ?? 0 }));
+  const rateChartData = mergedCashFlows
+    .filter((f) => f.date)
+    .map((flow) => ({ time: safeDate(flow.date), value: flow.rate_tot ?? 0 }));
 
   // ─── Yield curve data: rate vs duration by type ───
   const yieldCurveData = useMemo(() => {
@@ -151,11 +150,13 @@ export default function LoansPage() {
       if (!(type in byType)) return;
       // average rate_tot across flows for this loan
       const avgRate = cf.flows.reduce((s, f) => s + (f.rate_tot ?? 0), 0) / cf.flows.length;
+      if (!Number.isFinite(avgRate)) return;
       // tenor in years — number_of_payments * period
       const periodYears: Record<string, number> = {
         Mensual: 1 / 12, Trimestral: 0.25, Semestral: 0.5, Anual: 1,
       };
       const tenor = loan.number_of_payments * (periodYears[loan.periodicity] ?? 0.25);
+      if (tenor <= 0) return;
       byType[type].push({ time: tenor.toFixed(1), value: avgRate });
     });
     // Sort by tenor
@@ -205,6 +206,7 @@ export default function LoansPage() {
     setCashflowModalLoan(loan);
     setCashflowModalLoading(true);
     setCashflowModalData([]);
+    setModalChartsReady(false);
     // Check if we already have it in cashFlows store
     const existing = cashFlows.find((cf) => cf.loanId === loan.id);
     if (existing) {
@@ -214,11 +216,12 @@ export default function LoansPage() {
     }
     // Fetch from API
     try {
-      const { fetchCashFlows } = await import('src/models/loans/fetchCashFlows');
       const response = await fetchCashFlows(loan.id, loan.type, filterDate);
       if (!response.error && response.data) {
         setCashflowModalData(response.data);
       }
+    } catch {
+      // silently fail — modal will show "Sin datos"
     } finally {
       setCashflowModalLoading(false);
     }
@@ -481,13 +484,13 @@ export default function LoansPage() {
                     <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 4, color: '#212529' }}>Flujo de Caja</div>
                     <Chart showToolbar loading={false}>
                       <Chart.Bar
-                        data={cashflowModalData.map((f) => ({ time: f.date.split(' ')[0], value: f.interest }))}
+                        data={cashflowModalData.filter((f) => f.date).map((f) => ({ time: safeDate(f.date), value: f.interest ?? 0 }))}
                         color={INTEREST_COLOR}
                         scaleId="right"
                         title="Interés"
                       />
                       <Chart.Bar
-                        data={cashflowModalData.map((f) => ({ time: f.date.split(' ')[0], value: f.principal }))}
+                        data={cashflowModalData.filter((f) => f.date).map((f) => ({ time: safeDate(f.date), value: f.principal ?? 0 }))}
                         color={PRINCIPAL_COLOR}
                         scaleId="right"
                         title="Capital"
@@ -498,7 +501,7 @@ export default function LoansPage() {
                     <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 4, color: '#212529' }}>Tasa Implícita</div>
                     <Chart showToolbar loading={false}>
                       <Chart.Line
-                        data={cashflowModalData.map((f) => ({ time: f.date.split(' ')[0], value: (f.rate_tot ?? f.rate ?? 0) * 100 }))}
+                        data={cashflowModalData.filter((f) => f.date).map((f) => ({ time: safeDate(f.date), value: (f.rate_tot ?? f.rate ?? 0) * 100 }))}
                         color={designSystem['green-400'].value}
                         scaleId="left"
                         title="Tasa %"
