@@ -16,6 +16,7 @@ import {
   faDollarSign,
   faBorderAll,
   faBookOpen,
+  faFilePdf,
 } from '@fortawesome/free-solid-svg-icons';
 import { toast } from 'react-toastify';
 import PageTitle from '@components/PageTitle';
@@ -37,8 +38,7 @@ import type { RiskRow, RiskConfig, RollingVarResponse, BenchmarkFactorsResponse,
 const PAGE_TITLE = 'Gestión de Riesgos';
 
 const TAB_ITEMS: TabItemType[] = [
-  { name: 'Resumen', property: 'resumen', icon: faTable, active: true },
-  { name: 'Benchmark', property: 'benchmark', icon: faEdit, active: false },
+  { name: 'Benchmark', property: 'benchmark', icon: faEdit, active: true },
   { name: 'Rolling VaR', property: 'rolling', icon: faChartLine, active: false },
   { name: 'Exposición', property: 'exposure', icon: faDollarSign, active: false },
   { name: 'Matrices', property: 'matrices', icon: faBorderAll, active: false },
@@ -59,6 +59,9 @@ const SUM_COLUMNS = new Set([
   'var_super', 'var_gr', 'var_total', 'var_portfolio',
   'pnl_super', 'pnl_gr', 'pnl_total',
 ]);
+
+// VaR columns must be summed as absolute values (VaR is always a positive risk measure)
+const ABS_SUM_COLUMNS = new Set(['var_super', 'var_gr', 'var_total', 'var_portfolio']);
 
 // Columns the user can manually type into (per asset row)
 const MANUAL_COLUMNS = new Set(['position_gr', 'pnl_gr']);
@@ -104,17 +107,19 @@ const parseDisplayValue = (s: string): number => {
   return Number.isNaN(num) ? 0 : num;
 };
 
-/** Format a number as USD with thousands: $1,000,000 or $12,585.46 */
+/** Format a number as USD with thousands, no decimals: $1,000,000 */
 const fmtUsd = (v: number): string => {
   if (v === 0) return '';
   const prefix = v < 0 ? '-$' : '$';
   const abs = Math.abs(v);
-  // Use up to 2 decimals, no forced trailing zeros
   return prefix + abs.toLocaleString('en-US', {
     minimumFractionDigits: 0,
-    maximumFractionDigits: 2,
+    maximumFractionDigits: 0,
   });
 };
+
+// Columns that should keep decimals in benchmark table
+const DECIMAL_COLUMNS = new Set(['factor_var_diario', 'price_start', 'price_end']);
 
 const CHART_COLORS: Record<string, string> = {
   MAIZ: '#f59e0b',
@@ -260,7 +265,8 @@ function recalcBenchmark(rows: BenchmarkRow[], varianceMap?: Record<string, numb
   SUM_COLUMNS.forEach((col) => {
     let sum = 0;
     assetRows.forEach((_, i) => {
-      sum += parseDisplayValue(next[i][col]);
+      const val = parseDisplayValue(next[i][col]);
+      sum += ABS_SUM_COLUMNS.has(col) ? Math.abs(val) : val;
     });
     next[totalIdx][col] = sum !== 0 ? String(Math.round(sum * 1000) / 1000) : '';
   });
@@ -283,6 +289,80 @@ function recalcBenchmark(rows: BenchmarkRow[], varianceMap?: Record<string, numb
     : '';
 
   return next;
+}
+
+/* ─── PDF EXPORT ─── */
+
+async function exportTabToPdf(elementId: string, fileName: string) {
+  const { default: html2canvas } = await import('html2canvas');
+  const { default: jsPDF } = await import('jspdf');
+
+  const element = document.getElementById(elementId);
+  if (!element) return;
+
+  // Hide buttons (Actualizar, Metodología, PDF, selectors) during capture
+  const buttons = element.querySelectorAll('button, .btn, select, input[type="date"]');
+  const origDisplay: string[] = [];
+  buttons.forEach((btn, i) => {
+    origDisplay[i] = (btn as HTMLElement).style.display;
+    (btn as HTMLElement).style.display = 'none';
+  });
+
+  const canvas = await html2canvas(element, {
+    scale: 2,
+    useCORS: true,
+    backgroundColor: '#ffffff',
+  });
+
+  // Restore buttons
+  buttons.forEach((btn, i) => {
+    (btn as HTMLElement).style.display = origDisplay[i];
+  });
+
+  const imgData = canvas.toDataURL('image/png');
+
+  // Landscape A4
+  const margin = 10; // mm margins
+  const pdf = new jsPDF('l', 'mm', 'a4');
+  const pdfWidth = pdf.internal.pageSize.getWidth();
+  const pdfHeight = pdf.internal.pageSize.getHeight();
+  const contentWidth = pdfWidth - margin * 2;
+  const contentHeight = pdfHeight - margin * 2;
+
+  // Scale image to fit width with margins
+  const imgAspect = canvas.height / canvas.width;
+  const scaledHeight = contentWidth * imgAspect;
+
+  if (scaledHeight <= contentHeight) {
+    // Fits on one page
+    pdf.addImage(imgData, 'PNG', margin, margin, contentWidth, scaledHeight);
+  } else {
+    // Multi-page: split vertically
+    let yOffset = 0;
+    let page = 0;
+    while (yOffset < scaledHeight) {
+      if (page > 0) pdf.addPage();
+      pdf.addImage(imgData, 'PNG', margin, margin - yOffset, contentWidth, scaledHeight);
+      yOffset += contentHeight;
+      page++;
+    }
+  }
+
+  pdf.save(fileName);
+}
+
+function PdfButton({ elementId, fileName }: { elementId: string; fileName: string }) {
+  return (
+    <button
+      type="button"
+      className="btn btn-sm btn-outline-danger ms-2"
+      onClick={() => exportTabToPdf(elementId, fileName)}
+      title="Exportar a PDF"
+    >
+      <Icon icon={faFilePdf} className="me-1" />
+      PDF
+    </button>
+  );
 }
 
 /* ─── METODOLOGÍA CONTENT ─── */
@@ -498,7 +578,7 @@ const METHODOLOGY: Record<string, { title: string; content: React.ReactNode }> =
 };
 
 function RiskManagement() {
-  const [activeTab, setActiveTab] = useState('resumen');
+  const [activeTab, setActiveTab] = useState('benchmark');
   const [pageTabs, setPageTabs] = useState<TabItemType[]>(TAB_ITEMS);
   const [filterDate, setFilterDate] = useState(defaultDate());
   const [loading, setLoading] = useState(false);
@@ -781,111 +861,9 @@ function RiskManagement() {
           ))}
         </Tabs>
 
-        {/* ─── RESUMEN TAB ─── */}
-        {activeTab === 'resumen' && (
-          <>
-            <Row className="mb-3 align-items-end">
-              <Col xs="auto">
-                <Form.Group>
-                  <Form.Label className="small text-muted">Fecha filtro</Form.Label>
-                  <Form.Control
-                    type="date"
-                    size="sm"
-                    value={filterDate}
-                    onChange={(e) => setFilterDate(e.target.value)}
-                  />
-                </Form.Group>
-              </Col>
-              <Col xs="auto">
-                <Button
-                  variant="primary"
-                  size="sm"
-                  onClick={handleCalculate}
-                  disabled={loading}
-                >
-                  <Icon icon={faSyncAlt} spin={loading} className="me-1" />
-                  {loading ? 'Calculando...' : 'Calcular'}
-                </Button>
-              </Col>
-              {config && (
-                <Col className="d-flex align-items-center gap-3 small text-muted">
-                  <span>
-                    Precios: <strong>{config.price_date_start}</strong> → <strong>{config.price_date_end}</strong>
-                  </span>
-                  <span>Ventana: <strong>{config.rolling_window}d</strong></span>
-                  <span>Confianza: <strong>{Math.round(config.confidence_level * 100)}%</strong></span>
-                </Col>
-              )}
-            </Row>
-
-            {error && <div className="alert alert-danger py-2 small">{error}</div>}
-
-            {rows.length > 0 && (
-              <div className="table-responsive">
-                <table className="table table-sm table-bordered table-hover align-middle" style={{ fontSize: '0.82rem' }}>
-                  <thead className="table-dark text-center">
-                    <tr>
-                      <th rowSpan={2}>Activo</th>
-                      <th colSpan={3}>Posiciones</th>
-                      <th colSpan={3}>VaR Diario</th>
-                      <th colSpan={2}>Factor VaR</th>
-                      <th rowSpan={2}>VaR Port.</th>
-                      <th colSpan={2}>Precios</th>
-                      <th colSpan={3}>P&G</th>
-                      <th rowSpan={2}>Info Ratio</th>
-                    </tr>
-                    <tr>
-                      <th>Super</th><th>GR</th><th>Total</th>
-                      <th>Super</th><th>GR</th><th>Total</th>
-                      <th>Diario</th><th>Unidad</th>
-                      <th>Inicio</th><th>Fin</th>
-                      <th>Super</th><th>GR</th><th>Total</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {rows.map((r) => {
-                      const isTotal = r.asset === 'Total';
-                      return (
-                        <tr
-                          key={r.asset}
-                          className={isTotal ? 'fw-bold table-light' : ''}
-                          style={isTotal ? { borderTop: '2px solid #7c3aed' } : {}}
-                        >
-                          <td style={{ color: '#7c3aed', fontWeight: 600 }}>{r.asset}</td>
-                          <td className="text-end">{fmt(r.position_super, 3)}</td>
-                          <td className="text-end">{fmt(r.position_gr, 3)}</td>
-                          <td className="text-end fw-bold">{fmt(r.position_total, 3)}</td>
-                          <td className="text-end">{fmt(r.var_super, 3)}</td>
-                          <td className="text-end">{fmt(r.var_gr, 3)}</td>
-                          <td className="text-end fw-bold">{fmt(r.var_total, 3)}</td>
-                          <td className="text-end">
-                            {r.factor_var_diario != null ? `${fmt(r.factor_var_diario)}%` : '—'}
-                          </td>
-                          <td className="text-center">{r.factor_unit ?? '—'}</td>
-                          <td className="text-end">{fmt(r.var_portfolio, 3)}</td>
-                          <td className="text-end">{fmt(r.price_start, 4)}</td>
-                          <td className="text-end">{fmt(r.price_end, 4)}</td>
-                          <td className={`text-end ${pnlClass(r.pnl_super)}`}>{fmt(r.pnl_super, 3)}</td>
-                          <td className={`text-end ${pnlClass(r.pnl_gr)}`}>{fmt(r.pnl_gr, 3)}</td>
-                          <td className={`text-end fw-bold ${pnlClass(r.pnl_total)}`}>{fmt(r.pnl_total, 3)}</td>
-                          <td className="text-end">{fmt(r.information_ratio)}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-
-            {!loading && rows.length === 0 && !error && (
-              <p className="text-muted">No hay datos. Haz clic en Calcular.</p>
-            )}
-          </>
-        )}
-
         {/* ─── BENCHMARK TAB ─── */}
         {activeTab === 'benchmark' && (
-          <>
+          <div id="pdf-benchmark">
             <Row className="mb-3 align-items-center">
               <Col xs="auto" className="d-flex align-items-center gap-2">
                 <Button
@@ -923,6 +901,7 @@ function RiskManagement() {
                   {benchmarkLoading ? 'Cargando...' : 'Actualizar'}
                 </Button>
                 <MethodologyButton onClick={() => setMethModal('benchmark')} />
+                <PdfButton elementId="pdf-benchmark" fileName="benchmark.pdf" />
               </Col>
               <Col xs="auto">
                 <Form.Group>
@@ -940,13 +919,16 @@ function RiskManagement() {
                 </Form.Group>
               </Col>
               {benchmarkFactors && (
-                <Col className="d-flex align-items-center gap-2 small text-muted">
+                <Col className="d-flex align-items-center gap-3 small text-muted">
                   <span>
-                    Periodo: <strong>{benchmarkFactors.period.start}</strong> → <strong>{benchmarkFactors.period.end}</strong>
-                    {benchmarkFactors.z_score && (
-                      <> | Z-score: <strong>{benchmarkFactors.z_score}</strong></>
-                    )}
+                    Precio Inicio: <strong>{benchmarkFactors.period.start}</strong>
                   </span>
+                  <span>
+                    Precio Fin: <strong>{benchmarkFactors.period.end}</strong>
+                  </span>
+                  {benchmarkFactors.z_score && (
+                    <span>Z-score: <strong>{benchmarkFactors.z_score}</strong></span>
+                  )}
                 </Col>
               )}
             </Row>
@@ -1058,10 +1040,16 @@ function RiskManagement() {
 
                           // Read-only cells (all computed + factor/prices from backend)
                           let displayVal = row[col.key] || '—';
-                          if (isUsd && rawNum !== 0) {
-                            displayVal = fmtUsd(rawNum);
-                          } else if (col.key === 'factor_var_diario' && row[col.key]) {
+                          if (col.key === 'factor_var_diario' && row[col.key]) {
                             displayVal = `${parseFloat(row[col.key]).toFixed(2)}%`;
+                          } else if (DECIMAL_COLUMNS.has(col.key) && rawNum !== 0) {
+                            // Prices keep decimals
+                            displayVal = rawNum.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                          } else if (isUsd && rawNum !== 0) {
+                            displayVal = fmtUsd(rawNum);
+                          } else if (!DECIMAL_COLUMNS.has(col.key) && rawNum !== 0 && row[col.key]) {
+                            // Non-decimal columns: round to integer
+                            displayVal = Math.round(rawNum).toLocaleString('en-US');
                           }
 
                           return (
@@ -1076,12 +1064,12 @@ function RiskManagement() {
                 </tbody>
               </table>
             </div>
-          </>
+          </div>
         )}
 
         {/* ─── ROLLING VAR TAB ─── */}
         {activeTab === 'rolling' && (
-          <>
+          <div id="pdf-rolling">
             <Row className="mb-3 align-items-end">
               <Col xs="auto">
                 <Form.Group>
@@ -1135,6 +1123,7 @@ function RiskManagement() {
                   {rollingLoading ? 'Cargando...' : 'Actualizar'}
                 </Button>
                 <MethodologyButton onClick={() => setMethModal('rolling')} />
+                <PdfButton elementId="pdf-rolling" fileName="rolling_var.pdf" />
               </Col>
             </Row>
 
@@ -1236,38 +1225,11 @@ function RiskManagement() {
                       </div>
                     ))}
 
-                    {/* Comparativa Rolling VaR todos */}
-                    <div className="bg-white rounded p-3 mt-2" style={{ border: '1px solid #e2e8f0' }}>
-                      <h6 className="mb-3" style={{ color: '#7c3aed' }}>
-                        Comparativa Rolling VaR 180d (USD)
-                      </h6>
-                      <ResponsiveContainer width="100%" height={300}>
-                        <LineChart
-                          data={rollingData.dates.map((date, i) => {
-                            const point: Record<string, number | string | null> = { date };
-                            assets.forEach((a) => {
-                              const vals = rollingData.rolling_var[a];
-                              point[a] = vals ? vals[i] : null;
-                            });
-                            return point;
-                          }).filter((d) => assets.some((a) => d[a] != null))}
-                        >
-                          <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                          <XAxis dataKey="date" tick={{ fontSize: 10 }} tickFormatter={(d: string) => d.slice(5)} />
-                          <YAxis tick={{ fontSize: 10 }} domain={['auto', 'auto']} tickFormatter={(v: number) => `$${v.toLocaleString()}`} />
-                          <Tooltip labelFormatter={(d: string) => d} formatter={(v: number, name: string) => [`$${v?.toFixed(2)}`, name]} />
-                          <Legend />
-                          {assets.map((a) => (
-                            <Line key={a} type="monotone" dataKey={a} name={rollingData.contracts?.[a] ? `${a} (${rollingData.contracts[a]})` : a} stroke={CHART_COLORS[a]} dot={false} strokeWidth={1.5} />
-                          ))}
-                        </LineChart>
-                      </ResponsiveContainer>
-                    </div>
                   </>
                 )}
               </>
             )}
-          </>
+          </div>
         )}
 
         {/* ─── EXPOSICIÓN TAB ─── */}
@@ -1380,6 +1342,7 @@ function RiskManagement() {
                       {exposureLoading ? 'Calculando...' : 'Calcular Exposición'}
                     </Button>
                     <MethodologyButton onClick={() => setMethModal('exposure')} />
+                    <PdfButton elementId="pdf-exposure" fileName="exposicion.pdf" />
                   </div>
                 </Col>
                 <Col className="d-flex align-items-end gap-3">
@@ -1392,6 +1355,7 @@ function RiskManagement() {
                 </Col>
               </Row>
 
+              <div id="pdf-exposure">
               {/* Ventas Proyectadas - shared params */}
               <div className="bg-white rounded mb-3 p-3" style={{ border: '1px solid #e2e8f0' }}>
                 <h6 style={{ color: '#7c3aed', fontWeight: 600, marginBottom: 10 }}>Ventas Proyectadas & Parámetros Globales</h6>
@@ -1603,6 +1567,7 @@ function RiskManagement() {
                   </div>
                 </>
               )}
+            </div>
             </>
           );
         })()}
@@ -1670,7 +1635,7 @@ function RiskManagement() {
           const bfAssets = benchmarkFactors?.assets || [];
 
           return (
-            <>
+            <div id="pdf-matrices">
               <Row className="align-items-end mb-3 g-2">
                 <Col md={3}>
                   <Form.Label className="small mb-1">Fecha de referencia</Form.Label>
@@ -1691,6 +1656,7 @@ function RiskManagement() {
                     {benchmarkLoading ? 'Calculando...' : 'Calcular Matrices'}
                   </Button>
                   <MethodologyButton onClick={() => setMethModal('matrices')} />
+                  <PdfButton elementId="pdf-matrices" fileName="matrices.pdf" />
                 </Col>
               </Row>
 
@@ -1755,7 +1721,7 @@ function RiskManagement() {
                   {renderMatrix('Matriz de Correlación', benchmarkFactors.correlation_matrix, bfAssets, 4)}
                 </>
               )}
-            </>
+            </div>
           );
         })()}
       </Container>
