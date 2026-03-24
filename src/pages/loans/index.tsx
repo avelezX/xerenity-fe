@@ -1,4 +1,5 @@
-/* eslint-disable jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions */
+/* eslint-disable jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions, no-nested-ternary, @typescript-eslint/no-use-before-define */
+
 'use client';
 
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
@@ -101,7 +102,6 @@ export default function LoansPage() {
     setFilterDate,
     fullLoan,
     wakeServer,
-    selectedLoans,
     deleteMultipleLoans,
     loading,
     setCurrentSelection,

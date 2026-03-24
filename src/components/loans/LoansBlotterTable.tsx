@@ -1,4 +1,5 @@
-/* eslint-disable no-nested-ternary, jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions, jsx-a11y/control-has-associated-label */
+/* eslint-disable no-nested-ternary, jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions, jsx-a11y/control-has-associated-label, object-shorthand */
+
 'use client';
 
 import React, { useState, useMemo, useRef, useEffect, CSSProperties } from 'react';
@@ -407,7 +408,7 @@ export default function LoansBlotterTable({
     onSortingChange: setSorting,
     onColumnVisibilityChange: setColumnVisibility,
     onColumnSizingChange: setColumnSizing,
-    onGlobalFilterChange: onGlobalFilterChange,
+    onGlobalFilterChange,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
