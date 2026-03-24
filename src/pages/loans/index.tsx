@@ -143,24 +143,36 @@ export default function LoansPage() {
       ibr: [], fija: [], uvr: [],
     };
     // Build from individual cashflow items — use average rate_tot per loan
+    // lightweight-charts requires time as YYYY-MM-DD, so convert tenor (years) to fake dates
+    const BASE_YEAR = 2025;
     cashFlows.forEach((cf) => {
       const loan = loans.find((l) => l.id === cf.loanId);
       if (!loan || cf.flows.length === 0) return;
       const type = loan.type as ChartTab;
       if (!(type in byType)) return;
-      // average rate_tot across flows for this loan
       const avgRate = cf.flows.reduce((s, f) => s + (f.rate_tot ?? 0), 0) / cf.flows.length;
       if (!Number.isFinite(avgRate)) return;
-      // tenor in years — number_of_payments * period
       const periodYears: Record<string, number> = {
         Mensual: 1 / 12, Trimestral: 0.25, Semestral: 0.5, Anual: 1,
       };
       const tenor = loan.number_of_payments * (periodYears[loan.periodicity] ?? 0.25);
       if (tenor <= 0) return;
-      byType[type].push({ time: tenor.toFixed(1), value: avgRate });
+      // Convert tenor to a date: base + tenor years
+      const totalMonths = Math.round(tenor * 12);
+      const year = BASE_YEAR + Math.floor(totalMonths / 12);
+      const month = (totalMonths % 12) + 1;
+      const dateStr = `${year}-${String(month).padStart(2, '0')}-01`;
+      byType[type].push({ time: dateStr, value: avgRate * 100 });
     });
-    // Sort by tenor
-    Object.values(byType).forEach((arr) => arr.sort((a, b) => parseFloat(a.time) - parseFloat(b.time)));
+    // Sort by date and deduplicate (keep first per date)
+    Object.values(byType).forEach((arr) => {
+      arr.sort((a, b) => (a.time < b.time ? -1 : 1));
+      const seen = new Set<string>();
+      for (let i = arr.length - 1; i >= 0; i -= 1) {
+        if (seen.has(arr[i].time)) arr.splice(i, 1);
+        else seen.add(arr[i].time);
+      }
+    });
     return byType;
   }, [cashFlows, loans]);
 
