@@ -28,6 +28,7 @@ export type LoansBlotterProps = {
   onToggleSelect: (id: string) => void;
   onToggleSelectAll: () => void;
   onDelete: (loan: Loan) => void;
+  onViewCashflow: (loan: Loan) => void;
 };
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -99,6 +100,7 @@ const DEFAULT_VISIBILITY: VisibilityState = {
 
 const buildColumns = (
   onDelete: (loan: Loan) => void,
+  onViewCashflow: (loan: Loan) => void,
   selectedIds: Set<string>,
   onToggleSelect: (id: string) => void,
   onToggleSelectAll: () => void,
@@ -131,7 +133,18 @@ const buildColumns = (
     id: 'loan_identifier',
     header: 'Identificador',
     size: 120,
-    cell: (info) => <span style={{ fontSize: 11 }}>{info.getValue() || '—'}</span>,
+    cell: (info) => {
+      const v = info.getValue();
+      return (
+        <button
+          type="button"
+          onClick={() => onViewCashflow(info.row.original)}
+          style={{ background: 'none', border: 'none', color: '#0d6efd', cursor: 'pointer', textDecoration: 'underline', padding: 0, fontSize: 11 }}
+        >
+          {v || info.row.original.id.slice(0, 8)}
+        </button>
+      );
+    },
   }),
   columnHelper.accessor('type', {
     id: 'type',
@@ -383,6 +396,7 @@ export default function LoansBlotterTable({
   onToggleSelect,
   onToggleSelectAll,
   onDelete,
+  onViewCashflow,
 }: LoansBlotterProps) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(DEFAULT_VISIBILITY);
@@ -397,8 +411,8 @@ export default function LoansBlotterTable({
   const allSelected = filteredByType.length > 0 && filteredByType.every((l) => selectedIds.has(l.id));
 
   const columns = useMemo(
-    () => buildColumns(onDelete, selectedIds, onToggleSelect, onToggleSelectAll, allSelected),
-    [onDelete, selectedIds, onToggleSelect, onToggleSelectAll, allSelected],
+    () => buildColumns(onDelete, onViewCashflow, selectedIds, onToggleSelect, onToggleSelectAll, allSelected),
+    [onDelete, onViewCashflow, selectedIds, onToggleSelect, onToggleSelectAll, allSelected],
   );
 
   const table = useReactTable({

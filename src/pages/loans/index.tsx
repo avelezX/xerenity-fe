@@ -3,6 +3,7 @@
 'use client';
 
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import { Modal } from 'react-bootstrap';
 import { CoreLayout } from '@layout';
 import { ExportToCsv, downloadBlob } from 'src/utils/downloadCSV';
 import { ToastContainer, toast } from 'react-toastify';
@@ -13,8 +14,6 @@ import {
   faPlus,
   faLandmark,
   faTrash,
-  faTable,
-  faChartBar,
 } from '@fortawesome/free-solid-svg-icons';
 import tokens from 'design-tokens/tokens.json';
 import Chart from '@components/chart/Chart';
@@ -23,7 +22,8 @@ import { MultiValue } from 'react-select';
 import MultipleSelect from '@components/UI/MultipleSelect';
 import ConfirmationModal from '@components/UI/ConfirmationModal';
 import useAppStore from '@store';
-import { Loan } from 'src/types/loans';
+import { Loan, LoanCashFlowIbr } from 'src/types/loans';
+import currencyFormat from 'src/utils/currencyFormat';
 import LoansBlotterTable from 'src/components/loans/LoansBlotterTable';
 import NewCreditModal from './_NewCreditModal';
 import CashFlowOverlay from './_cashFlowOverLay/cashFlowOverlay';
@@ -38,14 +38,7 @@ const DELETE_TXT =
   'Al proceder removera el crédito de la lista y todas sus configuraciones.';
 
 const CSV_FILE = {
-  columns: [
-    'Fecha',
-    'Balance Inicial',
-    'Balance Final',
-    'Interes',
-    'Pago',
-    'Principal',
-  ],
+  columns: ['Fecha', 'Balance Inicial', 'Balance Final', 'Interes', 'Pago', 'Principal'],
   name: 'xerenity_flujo_de_caja.csv',
   format: 'text/csv;charset=utf-8;',
 };
@@ -67,14 +60,20 @@ const TYPE_PILL_COLORS: Record<string, { bg: string; color: string }> = {
   fija: { bg: '#cce5ff', color: '#004085' },
 };
 
-type ViewMode = 'table' | 'chart';
 type TypeFilter = 'Todos' | 'ibr' | 'uvr' | 'fija';
+type ChartTab = 'ibr' | 'fija' | 'uvr';
 
 const TYPE_OPTIONS: { key: TypeFilter; label: string }[] = [
   { key: 'Todos', label: 'Todos' },
   { key: 'ibr', label: 'IBR' },
   { key: 'uvr', label: 'UVR' },
   { key: 'fija', label: 'Tasa Fija' },
+];
+
+const CHART_TABS: { key: ChartTab; label: string }[] = [
+  { key: 'ibr', label: 'IBR' },
+  { key: 'fija', label: 'Tasa Fija' },
+  { key: 'uvr', label: 'UVR' },
 ];
 
 // ─── Page ───────────────────────────────────────────────────────────────────
@@ -88,6 +87,7 @@ export default function LoansPage() {
     getLoanData,
     loans,
     mergedCashFlows,
+    cashFlows,
     showDeleteConfirm,
     showNewLoanModal,
     showCashFlowTable,
@@ -107,14 +107,23 @@ export default function LoansPage() {
     setCurrentSelection,
   } = useAppStore();
 
-  const [viewMode, setViewMode] = useState<ViewMode>('table');
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('Todos');
   const [globalFilter, setGlobalFilter] = useState('');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [chartTab, setChartTab] = useState<ChartTab>('ibr');
+  const [cashflowModalLoan, setCashflowModalLoan] = useState<Loan | null>(null);
+  const [cashflowModalData, setCashflowModalData] = useState<LoanCashFlowIbr[]>([]);
+  const [cashflowModalLoading, setCashflowModalLoading] = useState(false);
 
   const cashflowsEmpty = mergedCashFlows.length === 0;
 
-  // Chart data
+  // ─── Computed: Deuda total from actual loans (not backend summary) ───
+  const totalDeuda = useMemo(
+    () => loans.reduce((sum, l) => sum + l.original_balance, 0),
+    [loans],
+  );
+
+  // ─── Chart data (from merged cashflows of selected loans) ───
   const paymentChartData = mergedCashFlows.map((flow) => ({
     time: flow.date.split(' ')[0],
     value: flow.payment,
@@ -128,6 +137,31 @@ export default function LoansPage() {
     value: flow.rate_tot,
   }));
 
+  // ─── Yield curve data: rate vs duration by type ───
+  const yieldCurveData = useMemo(() => {
+    const byType: Record<ChartTab, { time: string; value: number }[]> = {
+      ibr: [], fija: [], uvr: [],
+    };
+    // Build from individual cashflow items — use average rate_tot per loan
+    cashFlows.forEach((cf) => {
+      const loan = loans.find((l) => l.id === cf.loanId);
+      if (!loan || cf.flows.length === 0) return;
+      const type = loan.type as ChartTab;
+      if (!(type in byType)) return;
+      // average rate_tot across flows for this loan
+      const avgRate = cf.flows.reduce((s, f) => s + (f.rate_tot ?? 0), 0) / cf.flows.length;
+      // tenor in years — number_of_payments * period
+      const periodYears: Record<string, number> = {
+        Mensual: 1 / 12, Trimestral: 0.25, Semestral: 0.5, Anual: 1,
+      };
+      const tenor = loan.number_of_payments * (periodYears[loan.periodicity] ?? 0.25);
+      byType[type].push({ time: tenor.toFixed(1), value: avgRate });
+    });
+    // Sort by tenor
+    Object.values(byType).forEach((arr) => arr.sort((a, b) => parseFloat(a.time) - parseFloat(b.time)));
+    return byType;
+  }, [cashFlows, loans]);
+
   // Type counts for pills
   const typeCounts = useMemo(() => {
     const counts = { ibr: 0, uvr: 0, fija: 0 };
@@ -137,7 +171,7 @@ export default function LoansPage() {
     return counts;
   }, [loans]);
 
-  // Selection handlers
+  // ─── Selection handlers ───
   const onToggleSelect = useCallback((id: string) => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
@@ -165,6 +199,30 @@ export default function LoansPage() {
     onShowDeleteConfirm(true);
   }, [setCurrentSelection, onShowDeleteConfirm]);
 
+  // ─── Cashflow modal for individual loan ───
+  const onViewCashflow = useCallback(async (loan: Loan) => {
+    setCashflowModalLoan(loan);
+    setCashflowModalLoading(true);
+    setCashflowModalData([]);
+    // Check if we already have it in cashFlows store
+    const existing = cashFlows.find((cf) => cf.loanId === loan.id);
+    if (existing) {
+      setCashflowModalData(existing.flows);
+      setCashflowModalLoading(false);
+      return;
+    }
+    // Fetch from API
+    try {
+      const { fetchCashFlows } = await import('src/models/loans/fetchCashFlows');
+      const response = await fetchCashFlows(loan.id, loan.type, filterDate);
+      if (!response.error && response.data) {
+        setCashflowModalData(response.data);
+      }
+    } finally {
+      setCashflowModalLoading(false);
+    }
+  }, [cashFlows, filterDate]);
+
   // Keep store selectedLoans in sync
   useEffect(() => {
     const ids = Array.from(selectedIds);
@@ -181,14 +239,7 @@ export default function LoansPage() {
     const allValues: string[][] = [columns];
     mergedCashFlows.forEach(
       ({ date, beginning_balance, ending_balance, interest, payment, principal }) => {
-        allValues.push([
-          date,
-          beginning_balance.toString(),
-          ending_balance.toString(),
-          interest.toString(),
-          payment.toString(),
-          principal.toString(),
-        ]);
+        allValues.push([date, beginning_balance.toString(), ending_balance.toString(), interest.toString(), payment.toString(), principal.toString()]);
       }
     );
     const csv = ExportToCsv(allValues);
@@ -217,22 +268,14 @@ export default function LoansPage() {
     return () => resetStore();
   }, [getLoanData, resetStore]);
 
-  useEffect(() => {
-    wakeServer();
-  }, [wakeServer]);
+  useEffect(() => { wakeServer(); }, [wakeServer]);
 
   useEffect(() => {
-    if (errorMessage) {
-      toast.error(errorMessage, { position: toast.POSITION.BOTTOM_RIGHT });
-    } else if (successMessage) {
-      toast.success(successMessage, { position: toast.POSITION.BOTTOM_RIGHT });
-    }
+    if (errorMessage) toast.error(errorMessage, { position: toast.POSITION.BOTTOM_RIGHT });
+    else if (successMessage) toast.success(successMessage, { position: toast.POSITION.BOTTOM_RIGHT });
   }, [errorMessage, successMessage]);
 
-  const bankSelectItems = banks.map((bck) => ({
-    value: bck.bank_name,
-    label: bck.bank_name,
-  }));
+  const bankSelectItems = banks.map((bck) => ({ value: bck.bank_name, label: bck.bank_name }));
 
   return (
     <CoreLayout>
@@ -244,38 +287,14 @@ export default function LoansPage() {
             <h4>{PAGE_TITLE}</h4>
           </PageTitle>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <button
-              type="button"
-              disabled={cashflowsEmpty}
-              onClick={() => onShowCashFlowTable(true)}
-              style={{
-                padding: '4px 12px', fontSize: 11, fontWeight: 600, borderRadius: 6,
-                border: '1px solid #dee2e6', background: '#fff', cursor: cashflowsEmpty ? 'not-allowed' : 'pointer',
-                color: cashflowsEmpty ? '#adb5bd' : '#495057', opacity: cashflowsEmpty ? 0.6 : 1,
-              }}
-            >
-              Ver Flujos
-            </button>
-            <button
-              type="button"
-              disabled={cashflowsEmpty}
-              onClick={onDownloadSeries}
-              style={{
-                padding: '4px 12px', fontSize: 11, fontWeight: 600, borderRadius: 6,
-                border: '1px solid #dee2e6', background: '#fff', cursor: cashflowsEmpty ? 'not-allowed' : 'pointer',
-                color: cashflowsEmpty ? '#adb5bd' : '#495057', opacity: cashflowsEmpty ? 0.6 : 1,
-              }}
-            >
-              <Icon icon={faFileCsv} style={{ marginRight: 4 }} />
-              CSV
-            </button>
+            <ToolbarBtn disabled={cashflowsEmpty} onClick={() => onShowCashFlowTable(true)}>Ver Flujos</ToolbarBtn>
+            <ToolbarBtn disabled={cashflowsEmpty} onClick={onDownloadSeries}>
+              <Icon icon={faFileCsv} style={{ marginRight: 4 }} />CSV
+            </ToolbarBtn>
             <button
               type="button"
               onClick={() => onShowNewLoanModal(true)}
-              style={{
-                padding: '4px 12px', fontSize: 11, fontWeight: 600, borderRadius: 6,
-                border: 'none', background: '#0d6efd', color: '#fff', cursor: 'pointer',
-              }}
+              style={{ padding: '4px 12px', fontSize: 11, fontWeight: 600, borderRadius: 6, border: 'none', background: '#0d6efd', color: '#fff', cursor: 'pointer' }}
             >
               <Icon icon={faPlus} style={{ marginRight: 4 }} />
               Nuevo Crédito
@@ -284,30 +303,26 @@ export default function LoansPage() {
         </div>
 
         {/* ─── Summary Bar ─── */}
-        {fullLoan && (
-          <div style={{
-            display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'center',
-            padding: '12px 16px', background: '#f8f9fa', border: '1px solid #dee2e6',
-            borderRadius: 8, marginBottom: 12,
-          }}>
-            <SummaryItem label="# Créditos" value={fullLoan.loan_count?.toString() ?? '0'} />
-            <SummaryItem label="Deuda Total" value={fmtMM(fullLoan.total_value)} />
-            <SummaryItem label="CPD" value={`${((fullLoan.average_irr ?? 0) * 100).toFixed(2)}%`} />
-            <SummaryItem label="Tenor (Años)" value={(fullLoan.average_tenor ?? 0).toFixed(1)} />
-            <SummaryItem label="Duración (Años)" value={(fullLoan.average_duration ?? 0).toFixed(2)} />
-            {(fullLoan.total_value_ibr ?? 0) > 0 && (
-              <SummaryItem label="IBR" value={fmtMM(fullLoan.total_value_ibr)} color="#856404" />
-            )}
-            {(fullLoan.total_value_uvr ?? 0) > 0 && (
-              <SummaryItem label="UVR" value={fmtMM(fullLoan.total_value_uvr)} color="#6f42c1" />
-            )}
-            {(fullLoan.total_value_fija ?? 0) > 0 && (
-              <SummaryItem label="Tasa Fija" value={fmtMM(fullLoan.total_value_fija)} color="#004085" />
-            )}
-          </div>
-        )}
+        <div style={{
+          display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'center',
+          padding: '12px 16px', background: '#f8f9fa', border: '1px solid #dee2e6',
+          borderRadius: 8, marginBottom: 12,
+        }}>
+          <SummaryItem label="# Créditos" value={loans.length.toString()} />
+          <SummaryItem label="Deuda Total" value={fmtMM(totalDeuda)} />
+          {fullLoan && (
+            <>
+              <SummaryItem label="CPD" value={`${((fullLoan.average_irr ?? 0) * 100).toFixed(2)}%`} />
+              <SummaryItem label="Tenor (Años)" value={(fullLoan.average_tenor ?? 0).toFixed(1)} />
+              <SummaryItem label="Duración (Años)" value={(fullLoan.average_duration ?? 0).toFixed(2)} />
+            </>
+          )}
+          {typeCounts.ibr > 0 && <SummaryItem label="IBR" value={`${typeCounts.ibr} créditos`} color="#856404" />}
+          {typeCounts.uvr > 0 && <SummaryItem label="UVR" value={`${typeCounts.uvr} créditos`} color="#6f42c1" />}
+          {typeCounts.fija > 0 && <SummaryItem label="Tasa Fija" value={`${typeCounts.fija} créditos`} color="#004085" />}
+        </div>
 
-        {/* ─── Filters + Toggle ─── */}
+        {/* ─── Filters ─── */}
         <div style={{ display: 'flex', gap: 8, marginBottom: 12, alignItems: 'center', flexWrap: 'wrap' }}>
           {/* Type pills */}
           <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -334,116 +349,96 @@ export default function LoansPage() {
             })}
           </div>
 
-          {/* Bank filter */}
           <div style={{ width: 200 }}>
-            <MultipleSelect
-              data={bankSelectItems}
-              onChange={onBankFilter}
-              placeholder="Filtrar por banco"
-            />
+            <MultipleSelect data={bankSelectItems} onChange={onBankFilter} placeholder="Filtrar por banco" />
           </div>
 
-          {/* Date filter */}
           <input
             type="date"
             value={filterDate}
             onChange={(e) => setFilterDate(e.target.value)}
-            style={{
-              padding: '3px 8px', fontSize: 11, borderRadius: 6, border: '1px solid #ced4da',
-              fontFamily: 'monospace', outline: 'none',
-            }}
+            style={{ padding: '3px 8px', fontSize: 11, borderRadius: 6, border: '1px solid #ced4da', fontFamily: 'monospace', outline: 'none' }}
           />
 
-          {/* Delete selected */}
           {selectedIds.size > 0 && (
             <button
               type="button"
               onClick={onDeleteSelected}
-              style={{
-                padding: '4px 10px', fontSize: 11, fontWeight: 600, borderRadius: 6,
-                border: '1px solid #dc3545', background: '#fff', color: '#dc3545', cursor: 'pointer',
-              }}
+              style={{ padding: '4px 10px', fontSize: 11, fontWeight: 600, borderRadius: 6, border: '1px solid #dc3545', background: '#fff', color: '#dc3545', cursor: 'pointer' }}
             >
               <Icon icon={faTrash} style={{ marginRight: 4 }} />
               Borrar ({selectedIds.size})
             </button>
           )}
-
-          {/* View toggle */}
-          <div style={{ marginLeft: 'auto', display: 'flex', gap: 4 }}>
-            <button
-              type="button"
-              onClick={() => setViewMode('table')}
-              style={{
-                padding: '4px 10px', fontSize: 11, fontWeight: 600, borderRadius: '6px 0 0 6px',
-                border: '1px solid #dee2e6', cursor: 'pointer',
-                background: viewMode === 'table' ? '#495057' : '#fff',
-                color: viewMode === 'table' ? '#fff' : '#6c757d',
-              }}
-            >
-              <Icon icon={faTable} style={{ marginRight: 4 }} />
-              Tabla
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewMode('chart')}
-              style={{
-                padding: '4px 10px', fontSize: 11, fontWeight: 600, borderRadius: '0 6px 6px 0',
-                border: '1px solid #dee2e6', borderLeft: 'none', cursor: 'pointer',
-                background: viewMode === 'chart' ? '#495057' : '#fff',
-                color: viewMode === 'chart' ? '#fff' : '#6c757d',
-              }}
-            >
-              <Icon icon={faChartBar} style={{ marginRight: 4 }} />
-              Gráfico
-            </button>
-          </div>
         </div>
 
-        {/* ─── Content ─── */}
-        <div style={{ background: '#fff', border: '1px solid #dee2e6', borderRadius: 8, padding: 16 }}>
-          {viewMode === 'table' ? (
-            <LoansBlotterTable
-              loans={loans}
-              typeFilter={typeFilter}
-              globalFilter={globalFilter}
-              onGlobalFilterChange={setGlobalFilter}
-              selectedIds={selectedIds}
-              onToggleSelect={onToggleSelect}
-              onToggleSelectAll={onToggleSelectAll}
-              onDelete={onDeleteFromTable}
-            />
-          ) : (
-            <div>
-              {cashflowsEmpty ? (
-                <div style={{ padding: 40, textAlign: 'center', color: '#6c757d', border: '2px dashed #dee2e6', borderRadius: 8 }}>
-                  Selecciona créditos en la tabla para ver el gráfico de flujos.
+        {/* ─── Table ─── */}
+        <div style={{ background: '#fff', border: '1px solid #dee2e6', borderRadius: 8, padding: 16, marginBottom: 16 }}>
+          <LoansBlotterTable
+            loans={loans}
+            typeFilter={typeFilter}
+            globalFilter={globalFilter}
+            onGlobalFilterChange={setGlobalFilter}
+            selectedIds={selectedIds}
+            onToggleSelect={onToggleSelect}
+            onToggleSelectAll={onToggleSelectAll}
+            onDelete={onDeleteFromTable}
+            onViewCashflow={onViewCashflow}
+          />
+        </div>
+
+        {/* ─── Charts (inline, below table) ─── */}
+        {!cashflowsEmpty && (
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
+            {/* Cashflow + Rate chart */}
+            <div style={{ background: '#fff', border: '1px solid #dee2e6', borderRadius: 8, padding: 16 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8, color: '#212529' }}>Flujo de Caja &amp; Tasa Implícita</div>
+              <Chart showToolbar loading={loading}>
+                <Chart.Bar data={paymentChartData} color={INTEREST_COLOR} scaleId="right" title="Interés" />
+                <Chart.Bar data={principalChartData} color={PRINCIPAL_COLOR} scaleId="right" title="Capital" />
+                <Chart.Line data={rateChartData} color={designSystem['green-400'].value} scaleId="left" title="Tasa % (Izq)" />
+              </Chart>
+            </div>
+
+            {/* Yield curve chart with tabs */}
+            <div style={{ background: '#fff', border: '1px solid #dee2e6', borderRadius: 8, padding: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                <span style={{ fontSize: 13, fontWeight: 700, color: '#212529' }}>Curva de Tasa vs Duración</span>
+                <div style={{ display: 'flex', gap: 4, marginLeft: 'auto' }}>
+                  {CHART_TABS.map(({ key, label }) => (
+                    <button
+                      type="button"
+                      key={key}
+                      onClick={() => setChartTab(key)}
+                      style={{
+                        padding: '2px 8px', fontSize: 10, fontWeight: 600, borderRadius: 4, cursor: 'pointer',
+                        border: chartTab === key ? '2px solid #495057' : '1px solid #dee2e6',
+                        background: chartTab === key ? (TYPE_PILL_COLORS[key]?.bg ?? '#495057') : '#f8f9fa',
+                        color: chartTab === key ? (TYPE_PILL_COLORS[key]?.color ?? '#fff') : '#6c757d',
+                      }}
+                    >
+                      {label}
+                    </button>
+                  ))}
                 </div>
-              ) : (
+              </div>
+              {yieldCurveData[chartTab].length > 0 ? (
                 <Chart showToolbar loading={loading}>
-                  <Chart.Bar
-                    data={paymentChartData}
-                    color={INTEREST_COLOR}
-                    scaleId="right"
-                    title="Interés"
-                  />
-                  <Chart.Bar
-                    data={principalChartData}
-                    color={PRINCIPAL_COLOR}
-                    scaleId="right"
-                    title="Capital"
-                  />
                   <Chart.Line
-                    data={rateChartData}
-                    color={designSystem['green-400'].value}
+                    data={yieldCurveData[chartTab]}
+                    color={TYPE_PILL_COLORS[chartTab]?.color ?? '#495057'}
                     scaleId="left"
-                    title="Tasa % (Izq)"
+                    title={`Tasa (${chartTab.toUpperCase()})`}
                   />
                 </Chart>
+              ) : (
+                <div style={{ padding: 40, textAlign: 'center', color: '#adb5bd', fontSize: 12 }}>
+                  Sin datos para {chartTab.toUpperCase()}. Selecciona créditos de este tipo.
+                </div>
               )}
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
       {/* ─── Modals ─── */}
@@ -454,22 +449,68 @@ export default function LoansPage() {
         modalTitle={CONFIRM_MODAL_TITLE}
         onDelete={onDeleteConfirmed}
       />
-      <NewCreditModal
-        show={showNewLoanModal}
-        onShow={onShowNewLoanModal}
-        bankList={banks}
-      />
-      <CashFlowOverlay
-        cashFlows={mergedCashFlows}
-        handleShow={onShowCashFlowTable}
-        show={showCashFlowTable}
-      />
+      <NewCreditModal show={showNewLoanModal} onShow={onShowNewLoanModal} bankList={banks} />
+      <CashFlowOverlay cashFlows={mergedCashFlows} handleShow={onShowCashFlowTable} show={showCashFlowTable} />
+
+      {/* ─── Cashflow Modal (per loan) ─── */}
+      <Modal size="xl" show={!!cashflowModalLoan} onHide={() => setCashflowModalLoan(null)} centered>
+        <Modal.Header closeButton>
+          <Modal.Title style={{ fontSize: 16 }}>
+            Flujo de Caja — {cashflowModalLoan?.loan_identifier || cashflowModalLoan?.id.slice(0, 8)}
+            <span style={{ fontSize: 11, color: '#6c757d', marginLeft: 8 }}>
+              ({cashflowModalLoan?.bank} · {cashflowModalLoan?.type?.toUpperCase()} · {cashflowModalLoan?.interest_rate}%)
+            </span>
+          </Modal.Title>
+        </Modal.Header>
+        <Modal.Body style={{ maxHeight: '70vh', overflowY: 'auto' }}>
+          {cashflowModalLoading ? (
+            <div style={{ textAlign: 'center', padding: 40, color: '#6c757d' }}>Cargando flujos…</div>
+          ) : cashflowModalData.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: 40, color: '#6c757d' }}>Sin datos de flujo de caja.</div>
+          ) : (
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', fontSize: 11, borderCollapse: 'collapse', fontFamily: 'monospace' }}>
+                <thead>
+                  <tr style={{ background: '#f8f9fa', borderBottom: '2px solid #dee2e6' }}>
+                    <th style={thStyle}>Fecha</th>
+                    <th style={thStyle}>Tasa %</th>
+                    <th style={thStyle}>Balance Inicial</th>
+                    <th style={thStyle}>Pago Cuota</th>
+                    <th style={thStyle}>Intereses</th>
+                    <th style={thStyle}>Principal</th>
+                    <th style={thStyle}>Balance Final</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {cashflowModalData.map((row, i) => (
+                    <tr key={`${row.date}-${i}`} style={{ borderBottom: '1px solid #eee' }}>
+                      <td style={tdStyle}>{row.date?.split(' ')[0]}</td>
+                      <td style={tdStyle}>{((row.rate_tot ?? row.rate ?? 0) * 100).toFixed(2)}%</td>
+                      <td style={tdStyle}>{currencyFormat(row.beginning_balance, 0)}</td>
+                      <td style={tdStyle}>{currencyFormat(row.payment, 0)}</td>
+                      <td style={tdStyle}>{currencyFormat(row.interest, 0)}</td>
+                      <td style={tdStyle}>{currencyFormat(row.principal, 0)}</td>
+                      <td style={tdStyle}>{currencyFormat(row.ending_balance, 0)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Modal.Body>
+      </Modal>
+
       <ToastContainer />
     </CoreLayout>
   );
 }
 
-// ─── Summary Item ───────────────────────────────────────────────────────────
+// ─── Shared styles ──────────────────────────────────────────────────────────
+
+const thStyle: React.CSSProperties = { padding: '6px 8px', fontWeight: 700, textAlign: 'right', whiteSpace: 'nowrap' };
+const tdStyle: React.CSSProperties = { padding: '4px 8px', textAlign: 'right' };
+
+// ─── Sub-components ─────────────────────────────────────────────────────────
 
 function SummaryItem({ label, value, color }: { label: string; value: string; color?: string }) {
   return (
@@ -477,5 +518,24 @@ function SummaryItem({ label, value, color }: { label: string; value: string; co
       <div style={{ fontSize: 10, color: '#6c757d', textTransform: 'uppercase', marginBottom: 2 }}>{label}</div>
       <div style={{ fontSize: 16, fontWeight: 700, fontFamily: 'monospace', color: color ?? '#212529' }}>{value}</div>
     </div>
+  );
+}
+
+function ToolbarBtn({ disabled, onClick, children }: { disabled: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      style={{
+        padding: '4px 12px', fontSize: 11, fontWeight: 600, borderRadius: 6,
+        border: '1px solid #dee2e6', background: '#fff',
+        cursor: disabled ? 'not-allowed' : 'pointer',
+        color: disabled ? '#adb5bd' : '#495057',
+        opacity: disabled ? 0.6 : 1,
+      }}
+    >
+      {children}
+    </button>
   );
 }
