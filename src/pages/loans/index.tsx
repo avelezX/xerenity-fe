@@ -114,6 +114,7 @@ export default function LoansPage() {
   const [cashflowModalLoan, setCashflowModalLoan] = useState<Loan | null>(null);
   const [cashflowModalData, setCashflowModalData] = useState<LoanCashFlowIbr[]>([]);
   const [cashflowModalLoading, setCashflowModalLoading] = useState(false);
+  const [modalChartsReady, setModalChartsReady] = useState(false);
 
   const cashflowsEmpty = mergedCashFlows.length === 0;
 
@@ -457,7 +458,7 @@ export default function LoansPage() {
       <CashFlowOverlay cashFlows={mergedCashFlows} handleShow={onShowCashFlowTable} show={showCashFlowTable} />
 
       {/* ─── Cashflow Modal (per loan) ─── */}
-      <Modal size="xl" show={!!cashflowModalLoan} onHide={() => setCashflowModalLoan(null)} centered>
+      <Modal size="xl" show={!!cashflowModalLoan} onHide={() => { setCashflowModalLoan(null); setModalChartsReady(false); }} onEntered={() => setModalChartsReady(true)} centered>
         <Modal.Header closeButton>
           <Modal.Title style={{ fontSize: 16 }}>
             Flujo de Caja — {cashflowModalLoan?.loan_identifier || cashflowModalLoan?.id.slice(0, 8)}
@@ -473,37 +474,39 @@ export default function LoansPage() {
             <div style={{ textAlign: 'center', padding: 40, color: '#6c757d' }}>Sin datos de flujo de caja.</div>
           ) : (
             <>
-              {/* Charts in modal */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
-                <div>
-                  <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 4, color: '#212529' }}>Flujo de Caja</div>
-                  <Chart showToolbar loading={false}>
-                    <Chart.Bar
-                      data={cashflowModalData.map((f) => ({ time: f.date.split(' ')[0], value: f.interest }))}
-                      color={INTEREST_COLOR}
-                      scaleId="right"
-                      title="Interés"
-                    />
-                    <Chart.Bar
-                      data={cashflowModalData.map((f) => ({ time: f.date.split(' ')[0], value: f.principal }))}
-                      color={PRINCIPAL_COLOR}
-                      scaleId="right"
-                      title="Capital"
-                    />
-                  </Chart>
+              {/* Charts in modal — render only after modal animation completes */}
+              {modalChartsReady && (
+                <div key={`modal-charts-${cashflowModalLoan?.id}`} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
+                  <div>
+                    <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 4, color: '#212529' }}>Flujo de Caja</div>
+                    <Chart showToolbar loading={false}>
+                      <Chart.Bar
+                        data={cashflowModalData.map((f) => ({ time: f.date.split(' ')[0], value: f.interest }))}
+                        color={INTEREST_COLOR}
+                        scaleId="right"
+                        title="Interés"
+                      />
+                      <Chart.Bar
+                        data={cashflowModalData.map((f) => ({ time: f.date.split(' ')[0], value: f.principal }))}
+                        color={PRINCIPAL_COLOR}
+                        scaleId="right"
+                        title="Capital"
+                      />
+                    </Chart>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 4, color: '#212529' }}>Tasa Implícita</div>
+                    <Chart showToolbar loading={false}>
+                      <Chart.Line
+                        data={cashflowModalData.map((f) => ({ time: f.date.split(' ')[0], value: (f.rate_tot ?? f.rate ?? 0) * 100 }))}
+                        color={designSystem['green-400'].value}
+                        scaleId="left"
+                        title="Tasa %"
+                      />
+                    </Chart>
+                  </div>
                 </div>
-                <div>
-                  <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 4, color: '#212529' }}>Tasa Implícita</div>
-                  <Chart showToolbar loading={false}>
-                    <Chart.Line
-                      data={cashflowModalData.map((f) => ({ time: f.date.split(' ')[0], value: (f.rate_tot ?? f.rate ?? 0) * 100 }))}
-                      color={designSystem['green-400'].value}
-                      scaleId="left"
-                      title="Tasa %"
-                    />
-                  </Chart>
-                </div>
-              </div>
+              )}
 
               {/* Table */}
               <div style={{ overflowX: 'auto' }}>
