@@ -2,7 +2,7 @@ import type { MarketDataConfig } from 'src/types/trading';
 import { DEFAULT_MARKET_DATA_CONFIG } from 'src/types/trading';
 
 const BASE_URL =
-  process.env.NEXT_PUBLIC_PYSDK_URL || 'https://xerenity-pysdk.fly.dev';
+  process.env.NEXT_PUBLIC_PYSDK_URL || 'https://pysdk.fly.dev';
 
 const LS_KEY = 'xerenity_market_data_config';
 

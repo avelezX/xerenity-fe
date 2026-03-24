@@ -16,7 +16,7 @@ import type {
   ParBasisPoint,
 } from 'src/types/pricing';
 
-const BASE_URL = process.env.NEXT_PUBLIC_PYSDK_URL || 'https://xerenity-pysdk.fly.dev';
+const BASE_URL = process.env.NEXT_PUBLIC_PYSDK_URL || 'https://pysdk.fly.dev';
 
 async function pricingFetch<T>(path: string, options?: RequestInit): Promise<T> {
   const url = `${BASE_URL}/${path}`;
