@@ -52,29 +52,41 @@
   }
 
   .bottom-container {
+    position: relative;
     display: flex;
     flex-direction: column;
     align-items: stretch;
-    gap: 8px;
 
-    .sidebar-user-info {
+    // Clickable user button at the bottom
+    .sidebar-user-button {
       display: flex;
       align-items: center;
       gap: 10px;
       padding: 10px 8px;
+      border: none;
       border-top: solid 1px $gray-200;
+      background: none;
+      cursor: pointer;
+      width: 100%;
+      text-align: left;
+      border-radius: 0 0 $radius-md $radius-md;
+      transition: background-color 0.15s;
+
+      &:hover {
+        background-color: $purple-10;
+      }
 
       .sidebar-user-avatar {
         flex-shrink: 0;
-        width: 36px;
-        height: 36px;
+        width: 32px;
+        height: 32px;
         border-radius: 50%;
         background-color: $purple-200;
         color: $white-100;
         display: flex;
         align-items: center;
         justify-content: center;
-        font-size: 13px;
+        font-size: 12px;
         font-weight: 600;
         letter-spacing: 0.5px;
       }
@@ -82,22 +94,159 @@
       .sidebar-user-details {
         display: flex;
         flex-direction: column;
-        gap: 2px;
         min-width: 0;
+        flex: 1;
 
-        .sidebar-user-email {
-          font-size: 11px;
+        .sidebar-user-name {
+          font-size: 12px;
+          font-weight: 500;
           color: $purple-500;
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
         }
 
-        .sidebar-role-badge {
+        .sidebar-user-role {
           font-size: 10px;
-          align-self: flex-start;
-          padding: 2px 6px;
+          font-weight: 600;
+          text-transform: uppercase;
+          letter-spacing: 0.3px;
+
+          &.role-super-admin { color: #dc3545; }
+          &.role-corp-admin { color: #e67e22; }
+          &.role-gestor { color: #2980b9; }
+          &.role-lector { color: #7f8c8d; }
         }
+      }
+
+      .sidebar-chevron {
+        font-size: 10px;
+        color: $purple-500;
+        transition: transform 0.2s;
+        &.open { transform: rotate(180deg); }
+      }
+    }
+
+    // Popover menu that opens above the user button
+    .sidebar-user-popover {
+      position: absolute;
+      bottom: calc(100% + 6px);
+      left: 0;
+      right: 0;
+      background: $white-100;
+      border: 1px solid $gray-200;
+      border-radius: $radius-md;
+      box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.12);
+      z-index: 100;
+      animation: slideUp 0.15s ease-out;
+
+      .popover-header {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 14px 12px;
+
+        .popover-avatar {
+          flex-shrink: 0;
+          width: 40px;
+          height: 40px;
+          border-radius: 50%;
+          background-color: $purple-200;
+          color: $white-100;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 15px;
+          font-weight: 600;
+        }
+
+        .popover-identity {
+          display: flex;
+          flex-direction: column;
+          min-width: 0;
+
+          .popover-name {
+            font-size: 13px;
+            font-weight: 600;
+            color: $purple-500;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+          }
+
+          .popover-role {
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+
+            &.role-super-admin { color: #dc3545; }
+            &.role-corp-admin { color: #e67e22; }
+            &.role-gestor { color: #2980b9; }
+            &.role-lector { color: #7f8c8d; }
+          }
+        }
+      }
+
+      .popover-divider {
+        height: 1px;
+        background-color: $gray-200;
+        margin: 0 12px;
+      }
+
+      .popover-details {
+        padding: 10px 12px;
+
+        .popover-detail-row {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          padding: 4px 0;
+          font-size: 11px;
+          color: $purple-500;
+
+          .popover-icon {
+            width: 14px;
+            color: $purple-300;
+            flex-shrink: 0;
+          }
+
+          span {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+          }
+        }
+      }
+
+      .popover-logout {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        width: 100%;
+        padding: 10px 12px;
+        border: none;
+        background: none;
+        cursor: pointer;
+        font-size: 12px;
+        color: #dc3545;
+        border-radius: 0 0 $radius-md $radius-md;
+        transition: background-color 0.15s;
+
+        &:hover {
+          background-color: rgba(220, 53, 69, 0.06);
+        }
+      }
+    }
+
+    @keyframes slideUp {
+      from {
+        opacity: 0;
+        transform: translateY(4px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
       }
     }
   }
