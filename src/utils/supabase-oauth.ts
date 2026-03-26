@@ -1,14 +1,11 @@
 import { createClient } from '@supabase/supabase-js';
 
 /**
- * Supabase client for OAuth flows only.
+ * Supabase client for OAuth flows.
  *
- * Uses localStorage (default) instead of the auth-helpers' cookie storage.
- * This ensures the PKCE code_verifier persists reliably across the OAuth
- * redirect chain (login → provider → callback).
- *
- * After successful code exchange, the session must be synced to the
- * cookie-based client (createClientComponentClient) for the rest of the app.
+ * Uses implicit flow (no PKCE) to avoid code_verifier storage issues
+ * with the auth-helpers cookie adapter. Tokens arrive as hash fragments
+ * which are processed client-side on the callback page.
  */
 export default function createOAuthClient() {
   return createClient(
@@ -16,8 +13,8 @@ export default function createOAuthClient() {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       auth: {
-        flowType: 'pkce',
-        detectSessionInUrl: false,
+        flowType: 'implicit',
+        detectSessionInUrl: true,
       },
     },
   );

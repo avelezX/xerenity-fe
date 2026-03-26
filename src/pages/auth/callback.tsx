@@ -6,24 +6,25 @@ import createOAuthClient from '../../utils/supabase-oauth';
 /**
  * OAuth callback page.
  *
- * Uses a dedicated OAuth client (localStorage-based) for the PKCE code
- * exchange, then syncs the session to the cookie-based client that the
- * rest of the app uses.
+ * The OAuth client uses implicit flow, so tokens arrive as hash fragments
+ * (#access_token=...&refresh_token=...). We create an OAuth client with
+ * detectSessionInUrl: true to auto-process the hash, then sync the session
+ * to the cookie-based client for the rest of the app.
  */
 export default function AuthCallback() {
   const router = useRouter();
 
   useEffect(() => {
-    const queryParams = new URLSearchParams(window.location.search);
-    const hashParams = new URLSearchParams(
-      window.location.hash.replace('#', ''),
-    );
+    const hash = window.location.hash;
+    const query = window.location.search;
 
-    // Check for OAuth errors in both query string and hash fragment
+    // Check for errors in query or hash
+    const params = new URLSearchParams(query);
+    const hashParams = new URLSearchParams(hash.replace('#', ''));
     const error =
-      queryParams.get('error_description') ||
+      params.get('error_description') ||
       hashParams.get('error_description') ||
-      queryParams.get('error') ||
+      params.get('error') ||
       hashParams.get('error');
 
     if (error) {
@@ -31,47 +32,39 @@ export default function AuthCallback() {
       return undefined;
     }
 
-    // PKCE flow: exchange code using the OAuth client (localStorage has the code_verifier)
-    const code = queryParams.get('code');
+    // Create OAuth client — it auto-detects hash fragments on init
+    const oauthClient = createOAuthClient();
 
-    if (code) {
-      const oauthClient = createOAuthClient();
-      oauthClient.auth.exchangeCodeForSession(code).then(({ data, error: exchErr }) => {
-        if (exchErr || !data.session) {
-          const msg = exchErr?.message || 'no_session';
-          router.replace(`/login?error=${encodeURIComponent(msg)}`);
-          return;
-        }
+    // Listen for the session from the hash fragment processing
+    const {
+      data: { subscription },
+    } = oauthClient.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_IN' && session) {
+        subscription.unsubscribe();
 
-        // Sync session to the cookie-based client used by the rest of the app
+        // Sync session to cookie-based client for the rest of the app
         const supabase = createClientComponentClient();
         supabase.auth
           .setSession({
-            access_token: data.session.access_token,
-            refresh_token: data.session.refresh_token,
+            access_token: session.access_token,
+            refresh_token: session.refresh_token,
           })
           .then(() => {
             router.replace('/suameca');
           });
-      });
-      return undefined;
-    }
-
-    // Implicit flow fallback: tokens in hash fragment
-    const supabase = createClientComponentClient();
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_IN' && session) {
-        subscription.unsubscribe();
-        router.replace('/suameca');
       }
     });
 
-    // Fallback: if no auth event fires within 5s, check session directly
+    // Fallback timeout
     const timeout = setTimeout(async () => {
-      const { data } = await supabase.auth.getSession();
+      // Check if OAuth client got a session
+      const { data } = await oauthClient.auth.getSession();
       if (data.session) {
+        const supabase = createClientComponentClient();
+        await supabase.auth.setSession({
+          access_token: data.session.access_token,
+          refresh_token: data.session.refresh_token,
+        });
         router.replace('/suameca');
       } else {
         router.replace('/login?error=oauth_timeout');
