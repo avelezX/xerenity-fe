@@ -61,6 +61,7 @@ function SocialAuth() {
       provider,
       options: {
         redirectTo: `${window.location.origin}/auth/callback`,
+        scopes: provider === 'azure' ? 'email profile openid' : undefined,
       },
     });
   };
