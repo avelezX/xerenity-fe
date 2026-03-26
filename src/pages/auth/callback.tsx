@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
-import { createOAuthClient } from '../../utils/supabase-oauth';
+import createOAuthClient from '../../utils/supabase-oauth';
 
 /**
  * OAuth callback page.

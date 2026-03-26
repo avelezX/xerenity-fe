@@ -10,7 +10,7 @@ import { createClient } from '@supabase/supabase-js';
  * After successful code exchange, the session must be synced to the
  * cookie-based client (createClientComponentClient) for the rest of the app.
  */
-export function createOAuthClient() {
+export default function createOAuthClient() {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
