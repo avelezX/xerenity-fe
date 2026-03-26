@@ -3,16 +3,30 @@ import { useRouter } from 'next/router';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 
 /**
- * Client-side OAuth callback page.
- * Supabase implicit flow sends tokens as URL hash fragments (#access_token=...)
- * which are only visible to the browser, not the server.
- * We listen for onAuthStateChange to wait for Supabase to process the hash.
+ * OAuth callback page.
+ *
+ * Handles two flows:
+ * 1. PKCE flow (Azure/Microsoft): tokens arrive as ?code=... query param.
+ *    The code must be exchanged server-side so auth-helpers can set HTTP-only
+ *    session cookies. We redirect to /api/auth/callback for this.
+ * 2. Implicit flow: tokens arrive as #access_token=... hash fragment.
+ *    The Supabase client processes the hash client-side.
  */
 export default function AuthCallback() {
   const router = useRouter();
   const supabase = createClientComponentClient();
 
   useEffect(() => {
+    // PKCE flow: code in query params → redirect to server-side handler
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get('code');
+
+    if (code) {
+      router.replace(`/api/auth/callback?code=${code}`);
+      return undefined;
+    }
+
+    // Implicit flow: tokens in hash fragment → wait for client-side processing
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
