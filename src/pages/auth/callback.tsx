@@ -5,28 +5,42 @@ import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 /**
  * OAuth callback page.
  *
- * Handles two flows:
- * 1. PKCE flow (Azure/Microsoft): tokens arrive as ?code=... query param.
- *    The code must be exchanged server-side so auth-helpers can set HTTP-only
- *    session cookies. We redirect to /api/auth/callback for this.
- * 2. Implicit flow: tokens arrive as #access_token=... hash fragment.
- *    The Supabase client processes the hash client-side.
+ * Handles three scenarios:
+ * 1. Error from provider: ?error=... or #error=... → show on login page.
+ * 2. PKCE flow (Azure/Microsoft): ?code=... → server-side exchange.
+ * 3. Implicit flow: #access_token=... → client-side processing.
  */
 export default function AuthCallback() {
   const router = useRouter();
   const supabase = createClientComponentClient();
 
   useEffect(() => {
-    // PKCE flow: code in query params → redirect to server-side handler
-    const params = new URLSearchParams(window.location.search);
-    const code = params.get('code');
+    const queryParams = new URLSearchParams(window.location.search);
+    const hashParams = new URLSearchParams(
+      window.location.hash.replace('#', ''),
+    );
+
+    // Check for OAuth errors in both query string and hash fragment
+    const error =
+      queryParams.get('error_description') ||
+      hashParams.get('error_description') ||
+      queryParams.get('error') ||
+      hashParams.get('error');
+
+    if (error) {
+      router.replace(`/login?error=${encodeURIComponent(error)}`);
+      return undefined;
+    }
+
+    // PKCE flow: code in query params → server-side exchange
+    const code = queryParams.get('code');
 
     if (code) {
       router.replace(`/api/auth/callback?code=${code}`);
       return undefined;
     }
 
-    // Implicit flow: tokens in hash fragment → wait for client-side processing
+    // Implicit flow: tokens in hash fragment → client-side processing
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
