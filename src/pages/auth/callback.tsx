@@ -15,11 +15,10 @@ export default function AuthCallback() {
   const router = useRouter();
 
   useEffect(() => {
-    const hash = window.location.hash;
-    const query = window.location.search;
+    const { hash, search } = window.location;
 
     // Check for errors in query or hash
-    const params = new URLSearchParams(query);
+    const params = new URLSearchParams(search);
     const hashParams = new URLSearchParams(hash.replace('#', ''));
     const error =
       params.get('error_description') ||
