@@ -5,10 +5,10 @@ import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 /**
  * OAuth callback page.
  *
- * Handles three scenarios:
- * 1. Error from provider: ?error=... or #error=... → show on login page.
- * 2. PKCE flow (Azure/Microsoft): ?code=... → server-side exchange.
- * 3. Implicit flow: #access_token=... → client-side processing.
+ * Supabase v2 uses PKCE flow by default: tokens arrive as ?code=... query
+ * param. The code_verifier needed for exchange is stored client-side in
+ * cookies by createClientComponentClient, so the exchange MUST happen here
+ * (not on a server-side API route which loses access to the code_verifier).
  */
 export default function AuthCallback() {
   const router = useRouter();
@@ -32,15 +32,23 @@ export default function AuthCallback() {
       return undefined;
     }
 
-    // PKCE flow: code in query params → server-side exchange
+    // PKCE flow: exchange code client-side (code_verifier is in cookies)
     const code = queryParams.get('code');
 
     if (code) {
-      router.replace(`/api/auth/callback?code=${code}`);
+      supabase.auth.exchangeCodeForSession(code).then(({ error: exchErr }) => {
+        if (exchErr) {
+          router.replace(
+            `/login?error=${encodeURIComponent(exchErr.message)}`,
+          );
+        } else {
+          router.replace('/suameca');
+        }
+      });
       return undefined;
     }
 
-    // Implicit flow: tokens in hash fragment → client-side processing
+    // Implicit flow fallback: tokens in hash fragment
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
