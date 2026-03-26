@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { Provider } from '@supabase/supabase-js';
-import { createOAuthClient } from '../../../utils/supabase-oauth';
+import createOAuthClient from '../../../utils/supabase-oauth';
 import SocialAuthContainer from './SocialAuth.styled';
 
 const PROVIDERS: { name: string; provider: Provider; icon: JSX.Element }[] = [
