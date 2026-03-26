@@ -1,18 +1,17 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { createOAuthClient } from '../../utils/supabase-oauth';
 
 /**
  * OAuth callback page.
  *
- * Supabase v2 uses PKCE flow by default: tokens arrive as ?code=... query
- * param. The code_verifier needed for exchange is stored client-side in
- * cookies by createClientComponentClient, so the exchange MUST happen here
- * (not on a server-side API route which loses access to the code_verifier).
+ * Uses a dedicated OAuth client (localStorage-based) for the PKCE code
+ * exchange, then syncs the session to the cookie-based client that the
+ * rest of the app uses.
  */
 export default function AuthCallback() {
   const router = useRouter();
-  const supabase = createClientComponentClient();
 
   useEffect(() => {
     const queryParams = new URLSearchParams(window.location.search);
@@ -32,23 +31,34 @@ export default function AuthCallback() {
       return undefined;
     }
 
-    // PKCE flow: exchange code client-side (code_verifier is in cookies)
+    // PKCE flow: exchange code using the OAuth client (localStorage has the code_verifier)
     const code = queryParams.get('code');
 
     if (code) {
-      supabase.auth.exchangeCodeForSession(code).then(({ error: exchErr }) => {
-        if (exchErr) {
-          router.replace(
-            `/login?error=${encodeURIComponent(exchErr.message)}`,
-          );
-        } else {
-          router.replace('/suameca');
+      const oauthClient = createOAuthClient();
+      oauthClient.auth.exchangeCodeForSession(code).then(({ data, error: exchErr }) => {
+        if (exchErr || !data.session) {
+          const msg = exchErr?.message || 'no_session';
+          router.replace(`/login?error=${encodeURIComponent(msg)}`);
+          return;
         }
+
+        // Sync session to the cookie-based client used by the rest of the app
+        const supabase = createClientComponentClient();
+        supabase.auth
+          .setSession({
+            access_token: data.session.access_token,
+            refresh_token: data.session.refresh_token,
+          })
+          .then(() => {
+            router.replace('/suameca');
+          });
       });
       return undefined;
     }
 
     // Implicit flow fallback: tokens in hash fragment
+    const supabase = createClientComponentClient();
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
@@ -73,7 +83,7 @@ export default function AuthCallback() {
       clearTimeout(timeout);
       subscription.unsubscribe();
     };
-  }, [supabase, router]);
+  }, [router]);
 
   return (
     <div

@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import type { Provider } from '@supabase/supabase-js';
+import { createOAuthClient } from '../../../utils/supabase-oauth';
 import SocialAuthContainer from './SocialAuth.styled';
 
 const PROVIDERS: { name: string; provider: Provider; icon: JSX.Element }[] = [
@@ -52,12 +52,12 @@ const PROVIDERS: { name: string; provider: Provider; icon: JSX.Element }[] = [
 ];
 
 function SocialAuth() {
-  const supabase = createClientComponentClient();
   const [loading, setLoading] = useState<string | null>(null);
 
   const handleSocialLogin = async (provider: Provider) => {
     setLoading(provider);
-    await supabase.auth.signInWithOAuth({
+    const oauthClient = createOAuthClient();
+    await oauthClient.auth.signInWithOAuth({
       provider,
       options: {
         redirectTo: `${window.location.origin}/auth/callback`,
