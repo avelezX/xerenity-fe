@@ -17,6 +17,8 @@ import {
   updateUserRole as updateUserRoleRpc,
   deactivateUser as deactivateUserRpc,
   createCompany as createCompanyRpc,
+  setAccountType as setAccountTypeRpc,
+  listCompaniesByDomain as listCompaniesByDomainRpc,
 } from 'src/models/user';
 
 export interface UserSlice {
@@ -25,6 +27,7 @@ export interface UserSlice {
   companyUsers: CompanyUser[];
   allUsers: (CompanyUser & { company_name?: string })[];
   companies: Company[];
+  domainCompanies: Company[];
   invitations: Invitation[];
   userLoading: boolean;
   userError: string | undefined;
@@ -34,17 +37,20 @@ export interface UserSlice {
   isCorpAdmin: () => boolean;
   canManageUsers: () => boolean;
   hasMinRole: (role: UserRole) => boolean;
+  needsOnboarding: () => boolean;
 
   // Actions
   loadUserProfile: () => Promise<void>;
   loadCompanyUsers: () => Promise<void>;
   loadAllUsers: () => Promise<void>;
   loadCompanies: () => Promise<void>;
+  loadCompaniesByDomain: (domain: string) => Promise<void>;
   loadInvitations: () => Promise<void>;
+  setAccountType: (accountType: string, companyId?: string) => Promise<{ success: boolean; error?: string }>;
   inviteUser: (email: string, role: UserRole) => Promise<{ success: boolean; error?: string }>;
   updateUserRole: (userId: string, role: UserRole) => Promise<{ success: boolean; error?: string }>;
   deactivateUser: (userId: string) => Promise<{ success: boolean; error?: string }>;
-  createCompany: (name: string, nit: string | null) => Promise<{ success: boolean; error?: string }>;
+  createCompany: (name: string, nit: string | null, domain?: string | null) => Promise<{ success: boolean; error?: string; data?: { id: string } }>;
   resetUserStore: () => void;
 }
 
@@ -53,6 +59,7 @@ const initialUserState = {
   companyUsers: [] as CompanyUser[],
   allUsers: [] as (CompanyUser & { company_name?: string })[],
   companies: [] as Company[],
+  domainCompanies: [] as Company[],
   invitations: [] as Invitation[],
   userLoading: false,
   userError: undefined as string | undefined,
@@ -73,6 +80,10 @@ const createUserSlice: StateCreator<UserSlice> = (set, get) => ({
     const currentIdx = ROLE_HIERARCHY.indexOf(currentRole);
     const requiredIdx = ROLE_HIERARCHY.indexOf(requiredRole);
     return currentIdx >= requiredIdx;
+  },
+  needsOnboarding: () => {
+    const { userProfile } = get();
+    return userProfile !== null && userProfile.account_type === null;
   },
 
   loadUserProfile: async () => {
@@ -109,6 +120,29 @@ const createUserSlice: StateCreator<UserSlice> = (set, get) => ({
       return;
     }
     set({ companies: res.data, userLoading: false });
+  },
+
+  loadCompaniesByDomain: async (domain: string) => {
+    set({ userLoading: true, userError: undefined });
+    const res = await listCompaniesByDomainRpc(domain);
+    if (res.error) {
+      set({ userLoading: false, userError: res.error });
+      return;
+    }
+    set({ domainCompanies: res.data, userLoading: false });
+  },
+
+  setAccountType: async (accountType: string, companyId?: string) => {
+    set({ userLoading: true, userError: undefined });
+    const res = await setAccountTypeRpc(accountType, companyId);
+    set({ userLoading: false });
+    if (res.error) {
+      set({ userError: res.error });
+      return { success: false, error: res.error };
+    }
+    // Refresh user profile
+    await get().loadUserProfile();
+    return { success: true };
   },
 
   loadInvitations: async () => {
@@ -168,16 +202,16 @@ const createUserSlice: StateCreator<UserSlice> = (set, get) => ({
     return { success: true };
   },
 
-  createCompany: async (name: string, nit: string | null) => {
+  createCompany: async (name: string, nit: string | null, domain?: string | null) => {
     set({ userLoading: true, userError: undefined });
-    const res = await createCompanyRpc(name, nit);
+    const res = await createCompanyRpc(name, nit, domain);
     set({ userLoading: false });
     if (res.error) {
       set({ userError: res.error });
       return { success: false, error: res.error };
     }
     await get().loadCompanies();
-    return { success: true };
+    return { success: true, data: res.data };
   },
 
   resetUserStore: () => set(initialUserState),

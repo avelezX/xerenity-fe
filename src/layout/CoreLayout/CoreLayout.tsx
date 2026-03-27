@@ -18,7 +18,7 @@ export default function CoreLayout({ children }: PropsWithChildren) {
   const router = useRouter();
   const [mobileUI, setMobileUI] = useState(false);
   const supabase = createClientComponentClient();
-  const loadUserProfile = useAppStore((s) => s.loadUserProfile);
+  const { loadUserProfile, needsOnboarding } = useAppStore();
 
   const getRedirect = () => {
     const redirect = getCookie('redirect');
@@ -48,11 +48,18 @@ export default function CoreLayout({ children }: PropsWithChildren) {
       if (!session) {
         router.push(getRedirect());
         setMobileUI(false);
-      } else {
-        loadUserProfile();
-        if (isMobile) {
-          setMobileUI(true);
-        }
+        return;
+      }
+
+      // Check if user needs onboarding
+      await loadUserProfile();
+      if (needsOnboarding()) {
+        router.push('/onboarding');
+        return;
+      }
+
+      if (isMobile) {
+        setMobileUI(true);
       }
     };
 
