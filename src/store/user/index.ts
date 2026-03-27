@@ -19,6 +19,8 @@ import {
   createCompany as createCompanyRpc,
   setAccountType as setAccountTypeRpc,
   listCompaniesByDomain as listCompaniesByDomainRpc,
+  updateCompany as updateCompanyRpc,
+  assignUserToCompany as assignUserToCompanyRpc,
 } from 'src/models/user';
 
 export interface UserSlice {
@@ -51,6 +53,8 @@ export interface UserSlice {
   updateUserRole: (userId: string, role: UserRole) => Promise<{ success: boolean; error?: string }>;
   deactivateUser: (userId: string) => Promise<{ success: boolean; error?: string }>;
   createCompany: (name: string, nit: string | null, domain?: string | null) => Promise<{ success: boolean; error?: string; data?: { id: string } }>;
+  updateCompany: (companyId: string, name: string, nit: string | null, domain: string | null) => Promise<{ success: boolean; error?: string }>;
+  assignUserToCompany: (userId: string, companyId: string | null, accountType: string) => Promise<{ success: boolean; error?: string }>;
   resetUserStore: () => void;
 }
 
@@ -212,6 +216,30 @@ const createUserSlice: StateCreator<UserSlice> = (set, get) => ({
     }
     await get().loadCompanies();
     return { success: true, data: res.data };
+  },
+
+  updateCompany: async (companyId: string, name: string, nit: string | null, domain: string | null) => {
+    set({ userLoading: true, userError: undefined });
+    const res = await updateCompanyRpc(companyId, name, nit, domain);
+    set({ userLoading: false });
+    if (res.error) {
+      set({ userError: res.error });
+      return { success: false, error: res.error };
+    }
+    await get().loadCompanies();
+    return { success: true };
+  },
+
+  assignUserToCompany: async (userId: string, companyId: string | null, accountType: string) => {
+    set({ userLoading: true, userError: undefined });
+    const res = await assignUserToCompanyRpc(userId, companyId, accountType);
+    set({ userLoading: false });
+    if (res.error) {
+      set({ userError: res.error });
+      return { success: false, error: res.error };
+    }
+    await get().loadAllUsers();
+    return { success: true };
   },
 
   resetUserStore: () => set(initialUserState),

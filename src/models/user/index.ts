@@ -179,6 +179,48 @@ export const listCompaniesByDomain = async (
   }
 };
 
+export const updateCompany = async (
+  companyId: string,
+  name: string,
+  nit: string | null,
+  domain: string | null,
+): Promise<{ success: boolean; error: string | undefined }> => {
+  try {
+    const { error } = await supabase
+      .schema(SCHEMA)
+      .rpc('update_company', {
+        p_company_id: companyId,
+        p_name: name,
+        p_nit: nit,
+        p_domain: domain,
+      });
+    if (error) return { success: false, error: error.message };
+    return { success: true, error: undefined };
+  } catch {
+    return { success: false, error: 'Error updating company' };
+  }
+};
+
+export const assignUserToCompany = async (
+  userId: string,
+  companyId: string | null,
+  accountType: string,
+): Promise<{ success: boolean; error: string | undefined }> => {
+  try {
+    const { error } = await supabase
+      .schema(SCHEMA)
+      .rpc('admin_assign_user_company', {
+        p_user_id: userId,
+        p_company_id: companyId,
+        p_account_type: accountType,
+      });
+    if (error) return { success: false, error: error.message };
+    return { success: true, error: undefined };
+  } catch {
+    return { success: false, error: 'Error assigning user to company' };
+  }
+};
+
 export const listInvitations = async (): Promise<ListResponse<Invitation>> => {
   const response: ListResponse<Invitation> = { data: [], error: undefined };
   try {
