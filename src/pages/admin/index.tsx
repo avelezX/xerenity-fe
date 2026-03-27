@@ -2,7 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { CoreLayout } from '@layout';
-import { Container, Row, Col, Table, Modal, Form, Badge } from 'react-bootstrap';
+import { Container, Row, Col, Modal, Form, Badge } from 'react-bootstrap';
 import { FontAwesomeIcon as Icon } from '@fortawesome/react-fontawesome';
 import {
   faCog,
@@ -46,49 +46,32 @@ const ROLE_COLORS: Record<string, string> = {
 type SortField = 'email' | 'full_name' | 'company_name' | 'account_type' | 'role' | 'is_active';
 type SortDir = 'asc' | 'desc';
 
-const StyledTable = styled(Table)`
-  thead th {
-    background: #302b63;
-    color: white;
-    border-color: #302b63;
-    font-size: 13px;
-    font-weight: 500;
+const TableWrap = styled.div`
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+  margin-bottom: 16px;
+
+  .table { margin-bottom: 0; }
+  .table thead th {
+    background: #302b63 !important;
+    color: #fff !important;
+    border-color: #3d3580 !important;
+    font-size: 11px !important;
+    font-weight: 600 !important;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
     white-space: nowrap;
-    vertical-align: middle;
-
-    &.sortable {
-      cursor: pointer;
-      user-select: none;
-
-      &:hover {
-        background: #3d3580;
-      }
-
-      .sort-icon {
-        margin-left: 6px;
-        opacity: 0.5;
-      }
-
-      .sort-icon.active {
-        opacity: 1;
-      }
-    }
+    vertical-align: middle !important;
+    padding: 10px 12px !important;
   }
-
-  tbody td {
-    font-size: 13px;
-    vertical-align: middle;
-  }
-
-  tbody tr:hover {
-    background: rgba(48, 43, 99, 0.05) !important;
-  }
-`;
-
-const TypeBadge = styled(Badge)<{ $type?: string }>`
-  font-size: 11px;
-  font-weight: 500;
-  padding: 4px 8px;
+  .table thead th.sortable { cursor: pointer; user-select: none; transition: background 0.15s; }
+  .table thead th.sortable:hover { background: #4a44a0 !important; }
+  .table thead th .sort-icon { margin-left: 6px; font-size: 10px; opacity: 0.4; }
+  .table thead th .sort-icon.active { opacity: 1; color: #f0c040; }
+  .table tbody td { font-size: 13px; vertical-align: middle !important; padding: 8px 12px !important; border-color: #eee !important; }
+  .table tbody tr:nth-child(even) { background: #fafaff; }
+  .table tbody tr:hover { background: rgba(48, 43, 99, 0.06) !important; }
 `;
 
 const AdminPage = () => {
@@ -180,15 +163,12 @@ const AdminPage = () => {
     return sortDir === 'asc' ? faSortUp : faSortDown;
   };
 
+  const badgeStyle = { fontSize: '11px', padding: '5px 10px', borderRadius: '12px', fontWeight: 600 as const };
   const getAccountTypeBadge = (user: Record<string, unknown>) => {
-    const accountType = user.account_type as string | null | undefined;
-    if (accountType === 'corporate') {
-      return <TypeBadge bg="primary">Corporativo</TypeBadge>;
-    }
-    if (accountType === 'individual') {
-      return <TypeBadge bg="warning" text="dark">Individual</TypeBadge>;
-    }
-    return <TypeBadge bg="secondary">Sin asignar</TypeBadge>;
+    const at = user.account_type as string | null | undefined;
+    if (at === 'corporate') return <Badge style={{ ...badgeStyle, background: '#302b63' }}>Corporativo</Badge>;
+    if (at === 'individual') return <Badge bg="warning" text="dark" style={badgeStyle}>Individual</Badge>;
+    return <Badge bg="light" text="dark" style={{ ...badgeStyle, border: '1px solid #dee2e6' }}>Sin asignar</Badge>;
   };
 
   const handleCreateCompany = async () => {
@@ -315,7 +295,8 @@ const AdminPage = () => {
                   Nueva Empresa
                 </Button>
               </div>
-              <StyledTable striped bordered hover size="sm" responsive>
+              <TableWrap>
+              <table className="table table-hover table-sm">
                 <thead>
                   <tr>
                     <th>Nombre</th>
@@ -366,7 +347,8 @@ const AdminPage = () => {
                     </tr>
                   )}
                 </tbody>
-              </StyledTable>
+              </table>
+              </TableWrap>
             </Col>
           </Row>
 
@@ -375,7 +357,8 @@ const AdminPage = () => {
             <Col>
               <h5 className="mb-3">Todos los Usuarios ({allUsers.length})</h5>
               {userLoading && <p className="text-muted">Cargando...</p>}
-              <StyledTable striped bordered hover size="sm" responsive>
+              <TableWrap>
+              <table className="table table-hover table-sm">
                 <thead>
                   <tr>
                     <th className="sortable" onClick={() => toggleSort('email')}>
@@ -410,7 +393,7 @@ const AdminPage = () => {
                     <tr key={u.id}>
                       <td>{u.email}</td>
                       <td>{u.full_name || <span className="text-muted">-</span>}</td>
-                      <td>{u.company_name || <span className="text-muted">-</span>}</td>
+                      <td>{u.company_name ? <span style={{ fontWeight: 500, color: '#302b63' }}>{u.company_name}</span> : <span className="text-muted">-</span>}</td>
                       <td>{getAccountTypeBadge(u as unknown as Record<string, unknown>)}</td>
                       <td>
                         <Form.Select
@@ -432,9 +415,9 @@ const AdminPage = () => {
                         </Form.Select>
                       </td>
                       <td>
-                        <Badge bg={u.is_active ? 'success' : 'danger'}>
-                          {u.is_active ? 'Activo' : 'Inactivo'}
-                        </Badge>
+                        {u.is_active
+                          ? <span style={{ color: '#198754', fontSize: '12px', fontWeight: 600 }}>● Activo</span>
+                          : <span style={{ color: '#dc3545', fontSize: '12px', fontWeight: 600 }}>● Inactivo</span>}
                       </td>
                       <td>
                         <Button
@@ -455,7 +438,8 @@ const AdminPage = () => {
                     </tr>
                   )}
                 </tbody>
-              </StyledTable>
+              </table>
+              </TableWrap>
             </Col>
           </Row>
 
