@@ -131,7 +131,7 @@ const AdminPage = () => {
         case 'email': valA = a.email || ''; valB = b.email || ''; break;
         case 'full_name': valA = a.full_name || ''; valB = b.full_name || ''; break;
         case 'company_name': valA = a.company_name || ''; valB = b.company_name || ''; break;
-        case 'account_type': valA = (a as Record<string, unknown>).account_type as string || ''; valB = (b as Record<string, unknown>).account_type as string || ''; break;
+        case 'account_type': valA = (a as unknown as Record<string, unknown>).account_type as string || ''; valB = (b as unknown as Record<string, unknown>).account_type as string || ''; break;
         case 'role': valA = a.role || ''; valB = b.role || ''; break;
         case 'is_active': valA = a.is_active; valB = b.is_active; break;
         default: break;
