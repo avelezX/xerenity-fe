@@ -5,7 +5,7 @@ export interface UserProfile {
   id: string;
   email: string;
   full_name: string;
-  account_type: AccountType;
+  account_type: AccountType | null;
   company_id: string | null;
   company_name: string | null;
   role: UserRole;
@@ -25,6 +25,7 @@ export interface Company {
   id: string;
   name: string;
   nit: string | null;
+  domain: string | null;
   created_at: string;
 }
 
