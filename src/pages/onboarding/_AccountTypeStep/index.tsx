@@ -65,7 +65,7 @@ const TypeCard = styled.button`
   }
 `;
 
-function AccountTypeStep({ onSelect, loading }: AccountTypeStepProps) {
+function AccountTypeStep({ onSelect = () => {}, loading = false }: Partial<AccountTypeStepProps>) {
   return (
     <CardGrid>
       <TypeCard

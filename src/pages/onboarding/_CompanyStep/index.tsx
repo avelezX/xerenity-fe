@@ -117,17 +117,17 @@ const Container = styled.div`
 `;
 
 function CompanyStep({
-  domain,
-  domainCompanies,
-  loading,
-  onJoin,
-  onCreate,
-  onBack,
-}: CompanyStepProps) {
+  domain = '',
+  domainCompanies = [],
+  loading = false,
+  onJoin = () => {},
+  onCreate = () => {},
+  onBack = () => {},
+}: Partial<CompanyStepProps>) {
   const [companyName, setCompanyName] = useState('');
   const [companyNit, setCompanyNit] = useState('');
   const [error, setError] = useState('');
-  const isFreemail = isFreemailDomain(domain);
+  const isFreemail = domain ? isFreemailDomain(domain) : false;
 
   const handleCreate = () => {
     if (!companyName.trim()) {
