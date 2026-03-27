@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { CoreLayout } from '@layout';
 import { Container, Row, Col, Table, Modal, Form, Badge } from 'react-bootstrap';
 import { FontAwesomeIcon as Icon } from '@fortawesome/react-fontawesome';
-import { faCog, faPlus, faPenToSquare, faBuilding } from '@fortawesome/free-solid-svg-icons';
+import { faCog, faPlus, faPenToSquare, faBuilding, faTrash } from '@fortawesome/free-solid-svg-icons';
 import { toast } from 'react-toastify';
 import PageTitle from '@components/PageTitle';
 import Button from '@components/UI/Button';
@@ -32,6 +32,7 @@ const AdminPage = () => {
     createCompany,
     updateCompany,
     assignUserToCompany,
+    deleteCompany,
   } = useAppStore();
 
   // Create company modal
@@ -106,6 +107,18 @@ const AdminPage = () => {
       setEditingCompany(null);
     } else {
       toast.error(res.error || 'Error al actualizar empresa');
+    }
+  };
+
+  const handleDeleteCompany = async (company: Company) => {
+    // eslint-disable-next-line no-alert
+    const confirmed = window.confirm(`Eliminar "${company.name}"? Esta accion no se puede deshacer.`);
+    if (!confirmed) return;
+    const res = await deleteCompany(company.id);
+    if (res.success) {
+      toast.success('Empresa eliminada');
+    } else {
+      toast.error(res.error || 'Error al eliminar empresa');
     }
   };
 
@@ -196,13 +209,20 @@ const AdminPage = () => {
                         )}
                       </td>
                       <td>{new Date(c.created_at).toLocaleDateString('es-CO')}</td>
-                      <td>
+                      <td className="d-flex gap-1">
                         <Button
                           variant="outline-primary"
                           size="sm"
                           onClick={() => openEditCompany(c)}
                         >
                           <Icon icon={faPenToSquare} />
+                        </Button>
+                        <Button
+                          variant="outline-danger"
+                          size="sm"
+                          onClick={() => handleDeleteCompany(c)}
+                        >
+                          <Icon icon={faTrash} />
                         </Button>
                       </td>
                     </tr>

@@ -179,6 +179,20 @@ export const listCompaniesByDomain = async (
   }
 };
 
+export const deleteCompany = async (
+  companyId: string,
+): Promise<{ success: boolean; error: string | undefined }> => {
+  try {
+    const { error } = await supabase
+      .schema(SCHEMA)
+      .rpc('delete_company', { p_company_id: companyId });
+    if (error) return { success: false, error: error.message };
+    return { success: true, error: undefined };
+  } catch {
+    return { success: false, error: 'Error deleting company' };
+  }
+};
+
 export const updateCompany = async (
   companyId: string,
   name: string,

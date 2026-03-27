@@ -20,6 +20,7 @@ import {
   setAccountType as setAccountTypeRpc,
   listCompaniesByDomain as listCompaniesByDomainRpc,
   updateCompany as updateCompanyRpc,
+  deleteCompany as deleteCompanyRpc,
   assignUserToCompany as assignUserToCompanyRpc,
 } from 'src/models/user';
 
@@ -54,6 +55,7 @@ export interface UserSlice {
   deactivateUser: (userId: string) => Promise<{ success: boolean; error?: string }>;
   createCompany: (name: string, nit: string | null, domain?: string | null) => Promise<{ success: boolean; error?: string; data?: { id: string } }>;
   updateCompany: (companyId: string, name: string, nit: string | null, domain: string | null) => Promise<{ success: boolean; error?: string }>;
+  deleteCompany: (companyId: string) => Promise<{ success: boolean; error?: string }>;
   assignUserToCompany: (userId: string, companyId: string | null, accountType: string) => Promise<{ success: boolean; error?: string }>;
   resetUserStore: () => void;
 }
@@ -221,6 +223,18 @@ const createUserSlice: StateCreator<UserSlice> = (set, get) => ({
   updateCompany: async (companyId: string, name: string, nit: string | null, domain: string | null) => {
     set({ userLoading: true, userError: undefined });
     const res = await updateCompanyRpc(companyId, name, nit, domain);
+    set({ userLoading: false });
+    if (res.error) {
+      set({ userError: res.error });
+      return { success: false, error: res.error };
+    }
+    await get().loadCompanies();
+    return { success: true };
+  },
+
+  deleteCompany: async (companyId: string) => {
+    set({ userLoading: true, userError: undefined });
+    const res = await deleteCompanyRpc(companyId);
     set({ userLoading: false });
     if (res.error) {
       set({ userError: res.error });
