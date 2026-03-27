@@ -1,11 +1,21 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { CoreLayout } from '@layout';
 import { Container, Row, Col, Table, Modal, Form, Badge } from 'react-bootstrap';
 import { FontAwesomeIcon as Icon } from '@fortawesome/react-fontawesome';
-import { faCog, faPlus, faPenToSquare, faBuilding, faTrash } from '@fortawesome/free-solid-svg-icons';
+import {
+  faCog,
+  faPlus,
+  faPenToSquare,
+  faBuilding,
+  faTrash,
+  faSortUp,
+  faSortDown,
+  faSort,
+} from '@fortawesome/free-solid-svg-icons';
 import { toast } from 'react-toastify';
+import styled from 'styled-components';
 import PageTitle from '@components/PageTitle';
 import Button from '@components/UI/Button';
 import useAppStore from 'src/store';
@@ -18,6 +28,68 @@ const ACCOUNT_TYPE_OPTIONS: { value: AccountType | 'none'; label: string }[] = [
   { value: 'corporate', label: 'Corporativo' },
   { value: 'none', label: 'Sin asignar' },
 ];
+
+const ROLE_LABELS: Record<string, string> = {
+  super_admin: 'Super Admin',
+  corp_admin: 'Admin Corp',
+  gestor: 'Gestor',
+  lector: 'Lector',
+};
+
+const ROLE_COLORS: Record<string, string> = {
+  super_admin: '#dc3545',
+  corp_admin: '#6f42c1',
+  gestor: '#0d6efd',
+  lector: '#6c757d',
+};
+
+type SortField = 'email' | 'full_name' | 'company_name' | 'account_type' | 'role' | 'is_active';
+type SortDir = 'asc' | 'desc';
+
+const StyledTable = styled(Table)`
+  thead th {
+    background: #302b63;
+    color: white;
+    border-color: #302b63;
+    font-size: 13px;
+    font-weight: 500;
+    white-space: nowrap;
+    vertical-align: middle;
+
+    &.sortable {
+      cursor: pointer;
+      user-select: none;
+
+      &:hover {
+        background: #3d3580;
+      }
+
+      .sort-icon {
+        margin-left: 6px;
+        opacity: 0.5;
+      }
+
+      .sort-icon.active {
+        opacity: 1;
+      }
+    }
+  }
+
+  tbody td {
+    font-size: 13px;
+    vertical-align: middle;
+  }
+
+  tbody tr:hover {
+    background: rgba(48, 43, 99, 0.05) !important;
+  }
+`;
+
+const TypeBadge = styled(Badge)<{ $type?: string }>`
+  font-size: 11px;
+  font-weight: 500;
+  padding: 4px 8px;
+`;
 
 const AdminPage = () => {
   const {
@@ -34,6 +106,10 @@ const AdminPage = () => {
     assignUserToCompany,
     deleteCompany,
   } = useAppStore();
+
+  // Sort state
+  const [sortField, setSortField] = useState<SortField>('email');
+  const [sortDir, setSortDir] = useState<SortDir>('asc');
 
   // Create company modal
   const [showCreateCompany, setShowCreateCompany] = useState(false);
@@ -60,6 +136,60 @@ const AdminPage = () => {
     loadAllUsers();
     loadCompanies();
   }, [loadUserProfile, loadAllUsers, loadCompanies]);
+
+  // Sorted users
+  const sortedUsers = useMemo(() => {
+    const sorted = [...allUsers];
+    sorted.sort((a, b) => {
+      let valA: string | boolean = '';
+      let valB: string | boolean = '';
+
+      switch (sortField) {
+        case 'email': valA = a.email || ''; valB = b.email || ''; break;
+        case 'full_name': valA = a.full_name || ''; valB = b.full_name || ''; break;
+        case 'company_name': valA = a.company_name || ''; valB = b.company_name || ''; break;
+        case 'account_type': valA = (a as Record<string, unknown>).account_type as string || ''; valB = (b as Record<string, unknown>).account_type as string || ''; break;
+        case 'role': valA = a.role || ''; valB = b.role || ''; break;
+        case 'is_active': valA = a.is_active; valB = b.is_active; break;
+        default: break;
+      }
+
+      if (typeof valA === 'boolean') {
+        return sortDir === 'asc'
+          ? (valA === valB ? 0 : valA ? -1 : 1)
+          : (valA === valB ? 0 : valA ? 1 : -1);
+      }
+
+      const cmp = String(valA).localeCompare(String(valB), 'es');
+      return sortDir === 'asc' ? cmp : -cmp;
+    });
+    return sorted;
+  }, [allUsers, sortField, sortDir]);
+
+  const toggleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortField(field);
+      setSortDir('asc');
+    }
+  };
+
+  const getSortIcon = (field: SortField) => {
+    if (sortField !== field) return faSort;
+    return sortDir === 'asc' ? faSortUp : faSortDown;
+  };
+
+  const getAccountTypeBadge = (user: Record<string, unknown>) => {
+    const accountType = user.account_type as string | null | undefined;
+    if (accountType === 'corporate') {
+      return <TypeBadge bg="primary">Corporativo</TypeBadge>;
+    }
+    if (accountType === 'individual') {
+      return <TypeBadge bg="warning" text="dark">Individual</TypeBadge>;
+    }
+    return <TypeBadge bg="secondary">Sin asignar</TypeBadge>;
+  };
 
   const handleCreateCompany = async () => {
     if (!companyName.trim()) {
@@ -125,7 +255,6 @@ const AdminPage = () => {
   const openAssignUser = (userId: string, email: string, currentCompanyName?: string) => {
     setAssignUserId(userId);
     setAssignUserEmail(email);
-    // Pre-select company if user already has one
     const currentCompany = companies.find((c) => c.name === currentCompanyName);
     setAssignCompanyId(currentCompany?.id || '');
     setAssignAccountType(currentCompany ? 'corporate' : 'individual');
@@ -176,7 +305,7 @@ const AdminPage = () => {
           <Row className="mt-4">
             <Col>
               <div className="d-flex align-items-center justify-content-between mb-3">
-                <h5>Empresas</h5>
+                <h5>Empresas ({companies.length})</h5>
                 <Button
                   variant="primary"
                   size="sm"
@@ -186,21 +315,21 @@ const AdminPage = () => {
                   Nueva Empresa
                 </Button>
               </div>
-              <Table striped bordered hover size="sm" responsive>
+              <StyledTable striped bordered hover size="sm" responsive>
                 <thead>
                   <tr>
                     <th>Nombre</th>
                     <th>NIT</th>
                     <th>Dominio</th>
                     <th>Creado</th>
-                    <th style={{ width: '80px' }}>Acciones</th>
+                    <th style={{ width: '100px' }}>Acciones</th>
                   </tr>
                 </thead>
                 <tbody>
                   {companies.map((c) => (
                     <tr key={c.id}>
-                      <td>{c.name}</td>
-                      <td>{c.nit || '-'}</td>
+                      <td><strong>{c.name}</strong></td>
+                      <td>{c.nit || <span className="text-muted">-</span>}</td>
                       <td>
                         {c.domain ? (
                           <Badge bg="info">{c.domain}</Badge>
@@ -209,21 +338,23 @@ const AdminPage = () => {
                         )}
                       </td>
                       <td>{new Date(c.created_at).toLocaleDateString('es-CO')}</td>
-                      <td className="d-flex gap-1">
-                        <Button
-                          variant="outline-primary"
-                          size="sm"
-                          onClick={() => openEditCompany(c)}
-                        >
-                          <Icon icon={faPenToSquare} />
-                        </Button>
-                        <Button
-                          variant="outline-danger"
-                          size="sm"
-                          onClick={() => handleDeleteCompany(c)}
-                        >
-                          <Icon icon={faTrash} />
-                        </Button>
+                      <td>
+                        <div className="d-flex gap-1">
+                          <Button
+                            variant="outline-primary"
+                            size="sm"
+                            onClick={() => openEditCompany(c)}
+                          >
+                            <Icon icon={faPenToSquare} />
+                          </Button>
+                          <Button
+                            variant="outline-danger"
+                            size="sm"
+                            onClick={() => handleDeleteCompany(c)}
+                          >
+                            <Icon icon={faTrash} />
+                          </Button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -235,54 +366,73 @@ const AdminPage = () => {
                     </tr>
                   )}
                 </tbody>
-              </Table>
+              </StyledTable>
             </Col>
           </Row>
 
           {/* All Users Section */}
           <Row className="mt-4">
             <Col>
-              <h5 className="mb-3">Todos los Usuarios</h5>
+              <h5 className="mb-3">Todos los Usuarios ({allUsers.length})</h5>
               {userLoading && <p className="text-muted">Cargando...</p>}
-              <Table striped bordered hover size="sm" responsive>
+              <StyledTable striped bordered hover size="sm" responsive>
                 <thead>
                   <tr>
-                    <th>Email</th>
-                    <th>Nombre</th>
-                    <th>Empresa</th>
-                    <th>Tipo</th>
-                    <th>Rol</th>
-                    <th>Estado</th>
-                    <th style={{ width: '80px' }}>Empresa</th>
+                    <th className="sortable" onClick={() => toggleSort('email')}>
+                      Email
+                      <Icon icon={getSortIcon('email')} className={`sort-icon ${sortField === 'email' ? 'active' : ''}`} />
+                    </th>
+                    <th className="sortable" onClick={() => toggleSort('full_name')}>
+                      Nombre
+                      <Icon icon={getSortIcon('full_name')} className={`sort-icon ${sortField === 'full_name' ? 'active' : ''}`} />
+                    </th>
+                    <th className="sortable" onClick={() => toggleSort('company_name')}>
+                      Empresa
+                      <Icon icon={getSortIcon('company_name')} className={`sort-icon ${sortField === 'company_name' ? 'active' : ''}`} />
+                    </th>
+                    <th className="sortable" onClick={() => toggleSort('account_type')}>
+                      Tipo
+                      <Icon icon={getSortIcon('account_type')} className={`sort-icon ${sortField === 'account_type' ? 'active' : ''}`} />
+                    </th>
+                    <th className="sortable" onClick={() => toggleSort('role')}>
+                      Rol
+                      <Icon icon={getSortIcon('role')} className={`sort-icon ${sortField === 'role' ? 'active' : ''}`} />
+                    </th>
+                    <th className="sortable" onClick={() => toggleSort('is_active')}>
+                      Estado
+                      <Icon icon={getSortIcon('is_active')} className={`sort-icon ${sortField === 'is_active' ? 'active' : ''}`} />
+                    </th>
+                    <th>Asignar</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {allUsers.map((u) => (
+                  {sortedUsers.map((u) => (
                     <tr key={u.id}>
                       <td>{u.email}</td>
-                      <td>{u.full_name}</td>
+                      <td>{u.full_name || <span className="text-muted">-</span>}</td>
                       <td>{u.company_name || <span className="text-muted">-</span>}</td>
-                      <td>
-                        <Badge bg={u.company_name ? 'primary' : 'secondary'}>
-                          {u.company_name ? 'Corp' : 'Individual'}
-                        </Badge>
-                      </td>
+                      <td>{getAccountTypeBadge(u as unknown as Record<string, unknown>)}</td>
                       <td>
                         <Form.Select
                           size="sm"
                           value={u.role}
                           onChange={(e) => handleRoleChange(u.id, e.target.value as UserRole)}
                           disabled={u.id === userProfile?.id}
+                          style={{
+                            fontSize: '12px',
+                            color: ROLE_COLORS[u.role] || '#333',
+                            fontWeight: 600,
+                          }}
                         >
                           {ROLE_OPTIONS.map((r) => (
                             <option key={r} value={r}>
-                              {r}
+                              {ROLE_LABELS[r] || r}
                             </option>
                           ))}
                         </Form.Select>
                       </td>
                       <td>
-                        <Badge bg={u.is_active ? 'success' : 'secondary'}>
+                        <Badge bg={u.is_active ? 'success' : 'danger'}>
                           {u.is_active ? 'Activo' : 'Inactivo'}
                         </Badge>
                       </td>
@@ -305,7 +455,7 @@ const AdminPage = () => {
                     </tr>
                   )}
                 </tbody>
-              </Table>
+              </StyledTable>
             </Col>
           </Row>
 
