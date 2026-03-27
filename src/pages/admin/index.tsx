@@ -138,9 +138,9 @@ const AdminPage = () => {
       }
 
       if (typeof valA === 'boolean') {
-        return sortDir === 'asc'
-          ? (valA === valB ? 0 : valA ? -1 : 1)
-          : (valA === valB ? 0 : valA ? 1 : -1);
+        if (valA === valB) return 0;
+        const boolCmp = valA ? -1 : 1;
+        return sortDir === 'asc' ? boolCmp : -boolCmp;
       }
 
       const cmp = String(valA).localeCompare(String(valB), 'es');
