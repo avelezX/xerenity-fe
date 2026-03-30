@@ -118,6 +118,13 @@ const fmt = (v: number | null, decimals = 2): string => {
   });
 };
 
+const pnlClass = (v: number | null): string => {
+  if (v == null) return '';
+  if (v > 0) return 'text-success';
+  if (v < 0) return 'text-danger';
+  return '';
+};
+
 const fmtUsd = (v: number): string => {
   if (v === 0) return '';
   const prefix = v < 0 ? '-$' : '$';
