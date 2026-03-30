@@ -42,6 +42,7 @@ const DASHBOARD_TABS = [
   { label: 'Monedas', path: '/monedas-dashboard' },
   { label: 'FIC', path: '/fic' },
   { label: 'Peru', path: '/peru' },
+  { label: 'Chile', path: '/chile' },
   { label: 'Par de Monedas', path: '/par-monedas' },
 ];
 

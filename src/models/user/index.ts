@@ -128,15 +128,110 @@ export const listCompanies = async (): Promise<ListResponse<Company>> => {
 export const createCompany = async (
   name: string,
   nit: string | null,
+  domain: string | null = null,
+): Promise<{ success: boolean; error: string | undefined; data?: { id: string } }> => {
+  try {
+    const { data, error } = await supabase
+      .schema(SCHEMA)
+      .rpc('create_company', { p_name: name, p_nit: nit, p_domain: domain });
+    if (error) return { success: false, error: error.message };
+    return { success: true, error: undefined, data: data ?? undefined };
+  } catch {
+    return { success: false, error: 'Error creating company' };
+  }
+};
+
+export const setAccountType = async (
+  accountType: string,
+  companyId?: string,
 ): Promise<{ success: boolean; error: string | undefined }> => {
   try {
     const { error } = await supabase
       .schema(SCHEMA)
-      .rpc('create_company', { p_name: name, p_nit: nit });
+      .rpc('set_account_type', {
+        p_account_type: accountType,
+        p_company_id: companyId ?? null,
+      });
     if (error) return { success: false, error: error.message };
     return { success: true, error: undefined };
   } catch {
-    return { success: false, error: 'Error creating company' };
+    return { success: false, error: 'Error setting account type' };
+  }
+};
+
+export const listCompaniesByDomain = async (
+  domain: string,
+): Promise<ListResponse<Company>> => {
+  const response: ListResponse<Company> = { data: [], error: undefined };
+  try {
+    const { data, error } = await supabase
+      .schema(SCHEMA)
+      .rpc('list_companies_by_domain', { p_domain: domain });
+    if (error) {
+      response.error = 'Error fetching companies by domain';
+      return response;
+    }
+    response.data = data ?? [];
+    return response;
+  } catch {
+    response.error = 'Error fetching companies by domain';
+    return response;
+  }
+};
+
+export const deleteCompany = async (
+  companyId: string,
+): Promise<{ success: boolean; error: string | undefined }> => {
+  try {
+    const { error } = await supabase
+      .schema(SCHEMA)
+      .rpc('delete_company', { p_company_id: companyId });
+    if (error) return { success: false, error: error.message };
+    return { success: true, error: undefined };
+  } catch {
+    return { success: false, error: 'Error deleting company' };
+  }
+};
+
+export const updateCompany = async (
+  companyId: string,
+  name: string,
+  nit: string | null,
+  domain: string | null,
+): Promise<{ success: boolean; error: string | undefined }> => {
+  try {
+    const { error } = await supabase
+      .schema(SCHEMA)
+      .rpc('update_company', {
+        p_company_id: companyId,
+        p_name: name,
+        p_nit: nit,
+        p_domain: domain,
+      });
+    if (error) return { success: false, error: error.message };
+    return { success: true, error: undefined };
+  } catch {
+    return { success: false, error: 'Error updating company' };
+  }
+};
+
+export const assignUserToCompany = async (
+  userId: string,
+  companyId: string | null,
+  accountType: string,
+): Promise<{ success: boolean; error: string | undefined }> => {
+  try {
+    const { error } = await supabase
+      .schema(SCHEMA)
+      .rpc('admin_assign_user_company', {
+        p_user_id: userId,
+        p_company_id: companyId,
+        p_account_type: accountType,
+      });
+    if (error) return { success: false, error: error.message };
+    return { success: true, error: undefined };
+  } catch {
+    return { success: false, error: 'Error assigning user to company' };
   }
 };
 

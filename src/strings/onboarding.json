@@ -1,0 +1,25 @@
+{
+  "title": "Configura tu cuenta",
+  "subtitle": "Selecciona el tipo de cuenta que deseas usar",
+  "steps": {
+    "accountType": {
+      "individual": "Individual",
+      "individualDesc": "Cuenta personal para uso propio",
+      "enterprise": "Empresa",
+      "enterpriseDesc": "Cuenta corporativa con acceso para tu equipo"
+    },
+    "company": {
+      "title": "Tu empresa",
+      "subtitle": "Selecciona o crea tu empresa",
+      "joinExisting": "Unirse a una empresa existente",
+      "createNew": "Crear nueva empresa",
+      "name": "Nombre de la empresa",
+      "nit": "NIT (opcional)",
+      "join": "Unirse",
+      "create": "Crear empresa",
+      "noMatch": "No se encontraron empresas con tu dominio",
+      "freemailNotice": "Tu email no es corporativo. Puedes crear una nueva empresa.",
+      "back": "Volver"
+    }
+  }
+}

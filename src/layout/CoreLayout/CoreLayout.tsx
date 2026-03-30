@@ -9,6 +9,7 @@ import Sidebar from '@layout/CoreLayout/Sidebar/Sidebar';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { deleteCookie, getCookie } from 'cookies-next';
 import { useRouter } from 'next/router';
+import useAppStore from 'src/store';
 import MobileWarning from './MobileWarning';
 
 const LOGIN_PATH = '/login';
@@ -17,6 +18,7 @@ export default function CoreLayout({ children }: PropsWithChildren) {
   const router = useRouter();
   const [mobileUI, setMobileUI] = useState(false);
   const supabase = createClientComponentClient();
+  const { loadUserProfile, needsOnboarding } = useAppStore();
 
   const getRedirect = () => {
     const redirect = getCookie('redirect');
@@ -46,7 +48,17 @@ export default function CoreLayout({ children }: PropsWithChildren) {
       if (!session) {
         router.push(getRedirect());
         setMobileUI(false);
-      } else if (session && isMobile) {
+        return;
+      }
+
+      // Check if user needs onboarding
+      await loadUserProfile();
+      if (needsOnboarding()) {
+        router.push('/onboarding');
+        return;
+      }
+
+      if (isMobile) {
         setMobileUI(true);
       }
     };

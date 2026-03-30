@@ -4,6 +4,7 @@ import {
   faLock,
   faUser,
   faEarthAmericas,
+  faBuilding,
 } from '@fortawesome/free-solid-svg-icons';
 import { InputGroup, Collapse } from 'react-bootstrap';
 import { useState } from 'react';
@@ -19,12 +20,44 @@ import {
 
 import Spinner from '@components/UI/Spinner';
 import * as Yup from 'yup';
+import styled from 'styled-components';
 import strings from '../../../strings/signup.json';
 import ErrorMsg from '../_ErrorMsg';
 import countries from '../../../strings/countries.json';
 import SignFormContainer from './SignFormContainer.styled';
 
 const { form } = strings;
+
+const AccountTypeToggle = styled.div`
+  display: flex;
+  gap: 0;
+  margin-bottom: 4px;
+  border: 1px solid #dedede;
+  border-radius: 8px;
+  overflow: hidden;
+  width: 100%;
+
+  button {
+    flex: 1;
+    padding: 10px 16px;
+    border: none;
+    background: white;
+    font-size: 13px;
+    font-weight: 500;
+    color: #8e8e8e;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: all 0.2s;
+
+    &.active {
+      background: #302b63;
+      color: white;
+    }
+  }
+`;
 
 function SingUpForm() {
   const supabase = createClientComponentClient();
@@ -36,6 +69,9 @@ function SingUpForm() {
     password: Yup.string().min(10).required(form.required),
     name: Yup.string().min(2).required(form.required),
     country: Yup.string().min(2).required(form.required),
+    accountType: Yup.string()
+      .oneOf(['individual', 'corporate'])
+      .required(form.required),
   });
 
   const initialValues = {
@@ -43,6 +79,7 @@ function SingUpForm() {
     password: '',
     name: '',
     country: 'CO',
+    accountType: 'individual' as 'individual' | 'corporate',
   };
 
   const onSubmit: FormikConfig<typeof initialValues>['onSubmit'] = async (
@@ -57,10 +94,11 @@ function SingUpForm() {
       email: preparedValues.email,
       password: preparedValues.password,
       options: {
-        emailRedirectTo: 'https://xerenity.vercel.app/api/auth/callback',
+        emailRedirectTo: 'https://xerenity.vercel.app/auth/callback',
         data: {
           full_name: preparedValues.name,
           country: preparedValues.country,
+          account_type: preparedValues.accountType,
         },
       },
     });
@@ -79,7 +117,7 @@ function SingUpForm() {
       onSubmit={onSubmit}
       validationSchema={signUpSchema}
     >
-      {({ values, handleChange, isSubmitting, handleSubmit }) => (
+      {({ values, handleChange, isSubmitting, handleSubmit, setFieldValue }) => (
         <SignFormContainer onSubmit={handleSubmit}>
           <SignFormContainer.Group controlId="email">
             <InputGroup>
@@ -156,6 +194,28 @@ function SingUpForm() {
               {(msg: string) => <ErrorMsg>{msg}</ErrorMsg>}
             </ErrorMessage>
           </SignFormContainer.Group>
+
+          <SignFormContainer.Group controlId="accountType">
+            <AccountTypeToggle>
+              <button
+                type="button"
+                className={values.accountType === 'individual' ? 'active' : ''}
+                onClick={() => setFieldValue('accountType', 'individual')}
+              >
+                <Icon icon={faUser} />
+                Individual
+              </button>
+              <button
+                type="button"
+                className={values.accountType === 'corporate' ? 'active' : ''}
+                onClick={() => setFieldValue('accountType', 'corporate')}
+              >
+                <Icon icon={faBuilding} />
+                Empresa
+              </button>
+            </AccountTypeToggle>
+          </SignFormContainer.Group>
+
           <div className="form-actions">
             <Button type="submit" disabled={isSubmitting}>
               {form.action}
