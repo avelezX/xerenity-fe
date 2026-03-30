@@ -111,3 +111,57 @@ export interface ExposureResponse {
   exposicion_pen: number;
   market_prices?: Record<string, MarketPrice>;
 }
+
+// ── Futures Portfolio ──
+
+export interface FuturesPosition {
+  id: string | null;
+  asset: string;
+  contract: string | null;
+  direction: string | null;
+  nominal: number | null;
+  multiplier: number | null;
+  entry_price: number | null;
+  entry_date: string | null;
+  current_price: number | null;
+  current_price_date: string | null;
+  precio_previo: number | null;
+  precio_previo_date: string | null;
+  valor_t: number | null;
+  valor_t1: number | null;
+  pnl_inception: number | null;
+  pnl_month: number | null;
+  price_unit: string | null;
+}
+
+export interface FuturesPortfolioResponse {
+  portfolio: FuturesPosition[];
+}
+
+export interface NewFuturesPosition {
+  asset: string;
+  contract: string;
+  direction: 'LONG' | 'SHORT';
+  nominal: number;
+  entry_price: number;
+  entry_date: string;
+}
+
+export interface FuturesRollParams {
+  position_id: string;
+  new_contract: string;
+  roll_price: number;
+  new_entry_price?: number;
+  roll_date?: string;
+}
+
+export interface FuturesCloseParams {
+  position_id: string;
+  closed_price: number;
+  closed_date?: string;
+}
+
+export interface FuturesEditParams {
+  position_id: string;
+  updates: Partial<Pick<NewFuturesPosition, 'asset' | 'contract' | 'direction' | 'nominal' | 'entry_price' | 'entry_date'>>;
+}
