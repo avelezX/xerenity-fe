@@ -110,6 +110,14 @@ const parseDisplayValue = (s: string): number => {
 };
 
 /** Format a number as USD with thousands, no decimals: $1,000,000 */
+const fmt = (v: number | null, decimals = 2): string => {
+  if (v == null) return '—';
+  return v.toLocaleString('en-US', {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  });
+};
+
 const fmtUsd = (v: number): string => {
   if (v === 0) return '';
   const prefix = v < 0 ? '-$' : '$';
