@@ -16,6 +16,7 @@ import {
   faBorderAll,
   faBookOpen,
   faFilePdf,
+  faBriefcase,
 } from '@fortawesome/free-solid-svg-icons';
 import { toast } from 'react-toastify';
 import PageTitle from '@components/PageTitle';
@@ -30,8 +31,10 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from 'recharts';
-import { fetchRiskManagement, fetchRollingVar, fetchBenchmarkFactors, fetchExposure } from 'src/models/risk/riskApi';
-import type { RiskRow, RiskConfig, RollingVarResponse, BenchmarkFactorsResponse, ExposureParams, ExposureResponse, MarketPrice } from 'src/types/risk';
+import { fetchRiskManagement, fetchRollingVar, fetchBenchmarkFactors, fetchExposure, fetchFuturesPortfolio, upsertFuturesPositions, rollFuturesPosition, closeFuturesPosition, deleteFuturesPosition, editFuturesPosition } from 'src/models/risk/riskApi';
+import type { RiskRow, RiskConfig, RollingVarResponse, BenchmarkFactorsResponse, ExposureParams, ExposureResponse, MarketPrice, FuturesPosition, FuturesPortfolioResponse, NewFuturesPosition } from 'src/types/risk';
+import useAppStore from 'src/store';
+import type { Company } from 'src/types/user';
 
 const PAGE_TITLE = 'Gestión de Riesgos';
 
@@ -40,6 +43,7 @@ const TAB_ITEMS: TabItemType[] = [
   { name: 'Rolling VaR', property: 'rolling', icon: faChartLine, active: false },
   { name: 'Exposición', property: 'exposure', icon: faDollarSign, active: false },
   { name: 'Matrices', property: 'matrices', icon: faBorderAll, active: false },
+  { name: 'Portafolio GR', property: 'futures', icon: faBriefcase, active: false },
 ];
 
 const DEFAULT_ASSETS = ['MAIZ', 'AZUCAR', 'CACAO', 'USD'];
@@ -565,6 +569,23 @@ const METHODOLOGY: Record<string, { title: string; content: React.ReactNode }> =
 };
 
 function RiskManagement() {
+  const { userProfile, companies, isSuperAdmin, loadCompanies } = useAppStore();
+  const [selectedCompanyId, setSelectedCompanyId] = useState<string | undefined>(undefined);
+
+  // Load companies list for super_admin selector
+  useEffect(() => {
+    if (isSuperAdmin() && companies.length === 0) {
+      loadCompanies();
+    }
+  }, [isSuperAdmin, companies.length, loadCompanies]);
+
+  // Set default company to user's own company
+  useEffect(() => {
+    if (userProfile?.company_id && !selectedCompanyId) {
+      setSelectedCompanyId(userProfile.company_id);
+    }
+  }, [userProfile?.company_id, selectedCompanyId]);
+
   const [activeTab, setActiveTab] = useState('benchmark');
   const [pageTabs, setPageTabs] = useState<TabItemType[]>(TAB_ITEMS);
   const [filterDate, setFilterDate] = useState(defaultDate());
@@ -633,6 +654,27 @@ function RiskManagement() {
   const [exposureResult, setExposureResult] = useState<ExposureResponse | null>(null);
   const [exposureLoading, setExposureLoading] = useState(false);
 
+  // Futures Portfolio state
+  const [futuresPortfolio, setFuturesPortfolio] = useState<FuturesPosition[]>([]);
+  const [futuresLoading, setFuturesLoading] = useState(false);
+  const [futuresShowClosed, setFuturesShowClosed] = useState(false);
+  const [futuresShowAddForm, setFuturesShowAddForm] = useState(false);
+  const [futuresMonth, setFuturesMonth] = useState(currentMonth());
+  const [newPosition, setNewPosition] = useState<NewFuturesPosition>({
+    asset: 'MAIZ', contract: '', direction: 'SHORT', nominal: 1, entry_price: 0, entry_date: defaultDate(),
+  });
+  // Roll modal
+  const [rollModal, setRollModal] = useState<FuturesPosition | null>(null);
+  const [rollContract, setRollContract] = useState('');
+  const [rollPrice, setRollPrice] = useState('');
+  const [rollEntryPrice, setRollEntryPrice] = useState('');
+  // Close modal
+  const [closeModal, setCloseModal] = useState<FuturesPosition | null>(null);
+  const [closePrice, setClosePrice] = useState('');
+  // Edit modal
+  const [editModal, setEditModal] = useState<FuturesPosition | null>(null);
+  const [editFields, setEditFields] = useState<Partial<NewFuturesPosition>>({});
+
   const handleTabChange = (tabProp: string) => {
     setActiveTab(tabProp);
     setPageTabs((prev) =>
@@ -644,7 +686,7 @@ function RiskManagement() {
     setLoading(true);
     setError(null);
     try {
-      const data = await fetchRiskManagement(filterDate);
+      const data = await fetchRiskManagement(filterDate, undefined, selectedCompanyId);
       setRows(data.risk_table);
       setConfig(data.config);
       toast.success('Cálculo completado');
@@ -749,7 +791,7 @@ function RiskManagement() {
   const handleFetchExposure = useCallback(async () => {
     setExposureLoading(true);
     try {
-      const data = await fetchExposure(filterDate, exposureParams);
+      const data = await fetchExposure(filterDate, exposureParams, selectedCompanyId);
       setExposureResult(data);
 
       // Update local params with DB prices
@@ -778,6 +820,100 @@ function RiskManagement() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // ── Futures Portfolio handlers ──
+  const futuresFilterDate = lastDayOfMonth(futuresMonth.year, futuresMonth.month);
+
+  const handleFetchFutures = useCallback(async () => {
+    setFuturesLoading(true);
+    try {
+      const data = await fetchFuturesPortfolio(futuresFilterDate, !futuresShowClosed, selectedCompanyId);
+      setFuturesPortfolio(data.portfolio);
+    } catch (e: unknown) {
+      toast.error((e as Error)?.message || 'Error cargando portafolio de futuros');
+    } finally {
+      setFuturesLoading(false);
+    }
+  }, [futuresFilterDate, futuresShowClosed]);
+
+  const handleAddPosition = useCallback(async () => {
+    if (!newPosition.contract || !newPosition.entry_price) {
+      toast.error('Contrato y precio de compra son requeridos');
+      return;
+    }
+    try {
+      await upsertFuturesPositions(futuresFilterDate, [newPosition], selectedCompanyId);
+      toast.success('Posición creada');
+      setFuturesShowAddForm(false);
+      setNewPosition({ asset: 'MAIZ', contract: '', direction: 'SHORT', nominal: 1, entry_price: 0, entry_date: defaultDate() });
+      handleFetchFutures();
+    } catch (e: unknown) {
+      toast.error((e as Error)?.message || 'Error creando posición');
+    }
+  }, [filterDate, newPosition, handleFetchFutures]);
+
+  const handleRoll = useCallback(async () => {
+    if (!rollModal?.id || !rollContract || !rollPrice) return;
+    try {
+      await rollFuturesPosition(futuresFilterDate, {
+        position_id: rollModal.id,
+        new_contract: rollContract,
+        roll_price: parseFloat(rollPrice),
+        new_entry_price: rollEntryPrice ? parseFloat(rollEntryPrice) : undefined,
+        roll_date: futuresFilterDate,
+      }, selectedCompanyId);
+      toast.success(`Roll completado: ${rollModal.contract} → ${rollContract}`);
+      setRollModal(null);
+      setRollContract('');
+      setRollPrice('');
+      setRollEntryPrice('');
+      handleFetchFutures();
+    } catch (e: unknown) {
+      toast.error((e as Error)?.message || 'Error en roll');
+    }
+  }, [filterDate, rollModal, rollContract, rollPrice, rollEntryPrice, handleFetchFutures]);
+
+  const handleClose = useCallback(async () => {
+    if (!closeModal?.id || !closePrice) return;
+    try {
+      await closeFuturesPosition(futuresFilterDate, {
+        position_id: closeModal.id,
+        closed_price: parseFloat(closePrice),
+        closed_date: futuresFilterDate,
+      }, selectedCompanyId);
+      toast.success('Posición cerrada');
+      setCloseModal(null);
+      setClosePrice('');
+      handleFetchFutures();
+    } catch (e: unknown) {
+      toast.error((e as Error)?.message || 'Error cerrando posición');
+    }
+  }, [filterDate, closeModal, closePrice, handleFetchFutures]);
+
+  const handleDelete = useCallback(async (pos: FuturesPosition) => {
+    if (!pos.id) return;
+    if (!window.confirm(`Eliminar posición ${pos.asset} ${pos.contract} ${pos.direction} x${pos.nominal}?`)) return;
+    try {
+      await deleteFuturesPosition(futuresFilterDate, pos.id, selectedCompanyId);
+      toast.success('Posición eliminada');
+      handleFetchFutures();
+    } catch (e: unknown) {
+      toast.error((e as Error)?.message || 'Error eliminando posición');
+    }
+  }, [filterDate, handleFetchFutures]);
+
+  const handleEdit = useCallback(async () => {
+    if (!editModal?.id || Object.keys(editFields).length === 0) return;
+    try {
+      await editFuturesPosition(futuresFilterDate, { position_id: editModal.id, updates: editFields }, selectedCompanyId);
+      toast.success('Posición actualizada');
+      setEditModal(null);
+      setEditFields({});
+      handleFetchFutures();
+    } catch (e: unknown) {
+      toast.error((e as Error)?.message || 'Error editando posición');
+    }
+  }, [filterDate, editModal, editFields, handleFetchFutures]);
+
   useEffect(() => {
     if (activeTab === 'rolling' && !rollingData) {
       handleFetchRolling();
@@ -785,8 +921,11 @@ function RiskManagement() {
     if (activeTab === 'benchmark' && !benchmarkFactors) {
       handleFetchBenchmarkFactors();
     }
+    if (activeTab === 'futures') {
+      handleFetchFutures();
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, benchmarkFactors]);
+  }, [activeTab, benchmarkFactors, futuresMonth]);
 
   // When exposure results change, update benchmark position_super
   useEffect(() => {
@@ -833,6 +972,30 @@ function RiskManagement() {
           <Icon icon={faShieldAlt} />
           <h4>{PAGE_TITLE}</h4>
         </PageTitle>
+
+        {/* Company selector — only visible to super_admin */}
+        {isSuperAdmin() && companies.length > 0 && (
+          <Row className="mb-3">
+            <Col xs="auto">
+              <Form.Group className="d-flex align-items-center gap-2">
+                <Form.Label className="mb-0 fw-bold" style={{ whiteSpace: 'nowrap' }}>
+                  Empresa:
+                </Form.Label>
+                <Form.Select
+                  size="sm"
+                  value={selectedCompanyId || ''}
+                  onChange={(e) => setSelectedCompanyId(e.target.value || undefined)}
+                  style={{ minWidth: 220 }}
+                >
+                  <option value="">Todas las empresas</option>
+                  {companies.map((c: Company) => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </Form.Select>
+              </Form.Group>
+            </Col>
+          </Row>
+        )}
 
         {/* Tabs */}
         <Tabs outlined className="mb-3">
@@ -1711,7 +1874,307 @@ function RiskManagement() {
             </div>
           );
         })()}
+
+        {/* ── Portafolio GR (Futures) Tab ── */}
+        {activeTab === 'futures' && (
+          <div id="futures-tab">
+            {/* Month selector + controls */}
+            <div className="d-flex align-items-center gap-2 mb-3 flex-wrap">
+              <button type="button" className="btn btn-sm btn-outline-secondary" onClick={() => {
+                const prev = futuresMonth.month === 0 ? { year: futuresMonth.year - 1, month: 11 } : { year: futuresMonth.year, month: futuresMonth.month - 1 };
+                setFuturesMonth(prev);
+              }}>
+                <Icon icon={faChevronLeft} />
+              </button>
+              <strong style={{ minWidth: 140, textAlign: 'center' }}>
+                {MONTH_NAMES[futuresMonth.month]} {futuresMonth.year}
+              </strong>
+              <button type="button" className="btn btn-sm btn-outline-secondary" onClick={() => {
+                const next = futuresMonth.month === 11 ? { year: futuresMonth.year + 1, month: 0 } : { year: futuresMonth.year, month: futuresMonth.month + 1 };
+                setFuturesMonth(next);
+              }}>
+                <Icon icon={faChevronRight} />
+              </button>
+
+              <Button
+                className="btn-sm ms-3"
+                onClick={handleFetchFutures}
+                disabled={futuresLoading}
+              >
+                <Icon icon={faSyncAlt} spin={futuresLoading} className="me-1" />
+                Actualizar
+              </Button>
+              <Button
+                className="btn-sm btn-outline-primary"
+                onClick={() => setFuturesShowAddForm(!futuresShowAddForm)}
+              >
+                {futuresShowAddForm ? 'Cancelar' : '+ Nueva Posición'}
+              </Button>
+              <Form.Check
+                type="switch"
+                label="Mostrar cerradas"
+                checked={futuresShowClosed}
+                onChange={(e) => { setFuturesShowClosed(e.target.checked); }}
+                className="ms-3"
+              />
+              <PdfButton elementId="futures-tab" fileName="portafolio_gr_futuros.pdf" />
+            </div>
+
+            {/* Add Position Form */}
+            {futuresShowAddForm && (
+              <div className="border rounded p-3 mb-3" style={{ background: '#f8fafc', maxWidth: 800 }}>
+                <h6 style={{ fontWeight: 600, marginBottom: 12 }}>Nueva Posición</h6>
+                <Row className="g-2 align-items-end">
+                  <Col xs={2}>
+                    <Form.Label className="small mb-1">Activo</Form.Label>
+                    <Form.Select size="sm" value={newPosition.asset} onChange={(e) => setNewPosition({ ...newPosition, asset: e.target.value })}>
+                      <option value="MAIZ">MAIZ</option>
+                      <option value="AZUCAR">AZUCAR</option>
+                      <option value="CACAO">CACAO</option>
+                    </Form.Select>
+                  </Col>
+                  <Col xs={2}>
+                    <Form.Label className="small mb-1">Contrato</Form.Label>
+                    <Form.Control size="sm" placeholder="ZCN26" value={newPosition.contract} onChange={(e) => setNewPosition({ ...newPosition, contract: e.target.value.toUpperCase() })} />
+                  </Col>
+                  <Col xs={2}>
+                    <Form.Label className="small mb-1">Dirección</Form.Label>
+                    <Form.Select size="sm" value={newPosition.direction} onChange={(e) => setNewPosition({ ...newPosition, direction: e.target.value as 'LONG' | 'SHORT' })}>
+                      <option value="LONG">LONG</option>
+                      <option value="SHORT">SHORT</option>
+                    </Form.Select>
+                  </Col>
+                  <Col xs={1}>
+                    <Form.Label className="small mb-1">Contratos</Form.Label>
+                    <Form.Control size="sm" type="number" min={1} value={newPosition.nominal} onChange={(e) => setNewPosition({ ...newPosition, nominal: parseInt(e.target.value) || 1 })} />
+                  </Col>
+                  <Col xs={2}>
+                    <Form.Label className="small mb-1">Precio Compra</Form.Label>
+                    <Form.Control size="sm" type="number" step="0.01" value={newPosition.entry_price || ''} onChange={(e) => setNewPosition({ ...newPosition, entry_price: parseFloat(e.target.value) || 0 })} />
+                  </Col>
+                  <Col xs={2}>
+                    <Form.Label className="small mb-1">Fecha Entrada</Form.Label>
+                    <Form.Control size="sm" type="date" value={newPosition.entry_date} onChange={(e) => setNewPosition({ ...newPosition, entry_date: e.target.value })} />
+                  </Col>
+                  <Col xs={1}>
+                    <Button className="btn-sm btn-success w-100" onClick={handleAddPosition}>Crear</Button>
+                  </Col>
+                </Row>
+              </div>
+            )}
+
+            {/* Portfolio Table */}
+            {futuresLoading ? (
+              <p className="text-muted">Cargando portafolio...</p>
+            ) : futuresPortfolio.length === 0 ? (
+              <p className="text-muted">No hay posiciones de futuros registradas.</p>
+            ) : (
+              <div className="table-responsive">
+                <table className="table table-sm table-bordered table-hover mb-0" style={{ fontSize: '0.8rem' }}>
+                  <thead>
+                    <tr style={{ background: '#1e293b', color: '#fff', fontSize: '0.75rem' }}>
+                      <th>Activo</th>
+                      <th>Contrato</th>
+                      <th>Dir.</th>
+                      <th className="text-center">Nom.</th>
+                      <th>Fecha Apertura</th>
+                      <th className="text-end">Precio Compra</th>
+                      <th className="text-end">Precio Previo</th>
+                      <th className="text-end">Precio Actual</th>
+                      <th className="text-end" style={{ background: '#334155' }}>Valor T</th>
+                      <th className="text-end" style={{ background: '#334155' }}>Valor T-1</th>
+                      <th className="text-end" style={{ background: '#0f766e', color: '#fff' }}>P&G Mes</th>
+                      <th className="text-end" style={{ background: '#0f766e', color: '#fff' }}>P&G Inicio</th>
+                      <th className="text-center">Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {futuresPortfolio.map((pos, idx) => {
+                      const isTotal = pos.asset === 'Total';
+                      const rowStyle = isTotal ? { background: '#f1f5f9', fontWeight: 700 } : {};
+                      const dirColor = pos.direction === 'LONG' ? '#059669' : '#dc2626';
+                      return (
+                        <tr key={pos.id ?? `total-${idx}`} style={rowStyle as React.CSSProperties}>
+                          <td>
+                            <strong>{pos.asset}</strong>
+                            {!isTotal && pos.current_price_date && (
+                              <span className="text-muted ms-1" style={{ fontSize: '0.7rem' }}>({pos.current_price_date})</span>
+                            )}
+                          </td>
+                          <td>{pos.contract ?? ''}</td>
+                          <td style={{ color: dirColor, fontWeight: 600 }}>{pos.direction ?? ''}</td>
+                          <td className="text-center">{pos.nominal ?? ''}</td>
+                          <td>{pos.entry_date ?? ''}</td>
+                          <td className="text-end">{pos.entry_price != null ? fmt(pos.entry_price, 2) : ''}</td>
+                          <td className="text-end">
+                            {pos.precio_previo != null ? fmt(pos.precio_previo, 2) : ''}
+                            {!isTotal && pos.precio_previo_date && (
+                              <span className="text-muted ms-1" style={{ fontSize: '0.65rem' }}>({pos.precio_previo_date})</span>
+                            )}
+                          </td>
+                          <td className="text-end">{pos.current_price != null ? fmt(pos.current_price, 2) : ''}</td>
+                          <td className="text-end">{pos.valor_t != null ? fmtUsd(pos.valor_t) : ''}</td>
+                          <td className="text-end">{pos.valor_t1 != null ? fmtUsd(pos.valor_t1) : ''}</td>
+                          <td className={`text-end ${pnlClass(pos.pnl_month)}`}>{pos.pnl_month != null ? fmtUsd(pos.pnl_month) : ''}</td>
+                          <td className={`text-end ${pnlClass(pos.pnl_inception)}`}>{pos.pnl_inception != null ? fmtUsd(pos.pnl_inception) : ''}</td>
+                          <td className="text-center">
+                            {!isTotal && pos.id && (
+                              <div className="d-flex gap-1 justify-content-center">
+                                <button
+                                  type="button"
+                                  className="btn btn-outline-secondary btn-sm"
+                                  style={{ fontSize: '0.7rem', padding: '1px 6px' }}
+                                  onClick={() => {
+                                    setEditModal(pos);
+                                    setEditFields({
+                                      asset: pos.asset,
+                                      contract: pos.contract ?? '',
+                                      direction: (pos.direction as 'LONG' | 'SHORT') ?? 'SHORT',
+                                      nominal: pos.nominal ?? 1,
+                                      entry_price: pos.entry_price ?? 0,
+                                      entry_date: pos.entry_date ?? '',
+                                    });
+                                  }}
+                                  title="Editar posición"
+                                >
+                                  Editar
+                                </button>
+                                <button
+                                  type="button"
+                                  className="btn btn-outline-primary btn-sm"
+                                  style={{ fontSize: '0.7rem', padding: '1px 6px' }}
+                                  onClick={() => { setRollModal(pos); setRollContract(''); setRollPrice(''); setRollEntryPrice(''); }}
+                                  title="Roll de contrato"
+                                >
+                                  Roll
+                                </button>
+                                <button
+                                  type="button"
+                                  className="btn btn-outline-danger btn-sm"
+                                  style={{ fontSize: '0.7rem', padding: '1px 6px' }}
+                                  onClick={() => { setCloseModal(pos); setClosePrice(pos.current_price?.toString() ?? ''); }}
+                                  title="Cerrar posición"
+                                >
+                                  Cerrar
+                                </button>
+                                <button
+                                  type="button"
+                                  className="btn btn-outline-danger btn-sm"
+                                  style={{ fontSize: '0.7rem', padding: '1px 6px' }}
+                                  onClick={() => handleDelete(pos)}
+                                  title="Eliminar posición"
+                                >
+                                  &times;
+                                </button>
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* Multiplier reference */}
+            {futuresPortfolio.length > 0 && (
+              <div className="mt-2" style={{ fontSize: '0.72rem', color: '#64748b' }}>
+                Multiplicadores: MAIZ = 5,000 bu/contrato · AZUCAR = 112,000 lbs/contrato · CACAO = 10 ton/contrato
+              </div>
+            )}
+          </div>
+        )}
       </Container>
+
+      {/* Edit Position Modal */}
+      <Modal show={editModal != null} onHide={() => setEditModal(null)} size="sm">
+        <Modal.Header closeButton style={{ background: '#1e293b' }}>
+          <Modal.Title style={{ color: '#fff', fontSize: '0.95rem' }}>
+            Editar: {editModal?.asset} {editModal?.contract}
+          </Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <Form.Group className="mb-2">
+            <Form.Label className="small">Activo</Form.Label>
+            <Form.Select size="sm" value={editFields.asset ?? ''} onChange={(e) => setEditFields({ ...editFields, asset: e.target.value })}>
+              <option value="MAIZ">MAIZ</option>
+              <option value="AZUCAR">AZUCAR</option>
+              <option value="CACAO">CACAO</option>
+            </Form.Select>
+          </Form.Group>
+          <Form.Group className="mb-2">
+            <Form.Label className="small">Contrato</Form.Label>
+            <Form.Control size="sm" value={editFields.contract ?? ''} onChange={(e) => setEditFields({ ...editFields, contract: e.target.value.toUpperCase() })} />
+          </Form.Group>
+          <Form.Group className="mb-2">
+            <Form.Label className="small">Dirección</Form.Label>
+            <Form.Select size="sm" value={editFields.direction ?? 'SHORT'} onChange={(e) => setEditFields({ ...editFields, direction: e.target.value as 'LONG' | 'SHORT' })}>
+              <option value="LONG">LONG</option>
+              <option value="SHORT">SHORT</option>
+            </Form.Select>
+          </Form.Group>
+          <Form.Group className="mb-2">
+            <Form.Label className="small">Contratos</Form.Label>
+            <Form.Control size="sm" type="number" min={1} value={editFields.nominal ?? 1} onChange={(e) => setEditFields({ ...editFields, nominal: parseInt(e.target.value) || 1 })} />
+          </Form.Group>
+          <Form.Group className="mb-2">
+            <Form.Label className="small">Precio Compra</Form.Label>
+            <Form.Control size="sm" type="number" step="0.01" value={editFields.entry_price ?? ''} onChange={(e) => setEditFields({ ...editFields, entry_price: parseFloat(e.target.value) || 0 })} />
+          </Form.Group>
+          <Form.Group className="mb-2">
+            <Form.Label className="small">Fecha Entrada</Form.Label>
+            <Form.Control size="sm" type="date" value={editFields.entry_date ?? ''} onChange={(e) => setEditFields({ ...editFields, entry_date: e.target.value })} />
+          </Form.Group>
+          <Button className="btn-sm btn-primary w-100 mt-2" onClick={handleEdit}>
+            Guardar Cambios
+          </Button>
+        </Modal.Body>
+      </Modal>
+
+      {/* Roll Modal */}
+      <Modal show={rollModal != null} onHide={() => setRollModal(null)} size="sm">
+        <Modal.Header closeButton style={{ background: '#1e293b' }}>
+          <Modal.Title style={{ color: '#fff', fontSize: '0.95rem' }}>
+            Roll: {rollModal?.asset} {rollModal?.contract}
+          </Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <Form.Group className="mb-2">
+            <Form.Label className="small">Nuevo Contrato</Form.Label>
+            <Form.Control size="sm" placeholder="ZCN26" value={rollContract} onChange={(e) => setRollContract(e.target.value.toUpperCase())} />
+          </Form.Group>
+          <Form.Group className="mb-2">
+            <Form.Label className="small">Precio de Cierre (contrato actual)</Form.Label>
+            <Form.Control size="sm" type="number" step="0.01" value={rollPrice} onChange={(e) => setRollPrice(e.target.value)} />
+          </Form.Group>
+          <Form.Group className="mb-2">
+            <Form.Label className="small">Precio Entrada (nuevo contrato)</Form.Label>
+            <Form.Control size="sm" type="number" step="0.01" value={rollEntryPrice} onChange={(e) => setRollEntryPrice(e.target.value)} placeholder="Mismo que cierre si vacío" />
+          </Form.Group>
+          <Button className="btn-sm btn-primary w-100 mt-2" onClick={handleRoll} disabled={!rollContract || !rollPrice}>
+            Ejecutar Roll
+          </Button>
+        </Modal.Body>
+      </Modal>
+
+      {/* Close Position Modal */}
+      <Modal show={closeModal != null} onHide={() => setCloseModal(null)} size="sm">
+        <Modal.Header closeButton style={{ background: '#1e293b' }}>
+          <Modal.Title style={{ color: '#fff', fontSize: '0.95rem' }}>
+            Cerrar: {closeModal?.asset} {closeModal?.contract}
+          </Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <Form.Group className="mb-2">
+            <Form.Label className="small">Precio de Cierre</Form.Label>
+            <Form.Control size="sm" type="number" step="0.01" value={closePrice} onChange={(e) => setClosePrice(e.target.value)} />
+          </Form.Group>
+          <Button className="btn-sm btn-danger w-100 mt-2" onClick={handleClose} disabled={!closePrice}>
+            Cerrar Posición
+          </Button>
+        </Modal.Body>
+      </Modal>
 
       {/* Methodology Modal */}
       <Modal show={methModal != null} onHide={() => setMethModal(null)} size="lg" scrollable>

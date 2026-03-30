@@ -8,7 +8,8 @@ import {
   faHome,
   faCalculator,
   faBriefcase,
-  faShieldAlt,
+  faScaleBalanced,
+  faChartArea,
   faCog,
   faUsers,
 } from '@fortawesome/free-solid-svg-icons';
@@ -36,12 +37,6 @@ const NAV_ITEMS: NavItemProps[] = [
   },
   */
   {
-    name: 'créditos',
-    path: '/loans',
-    icon: faLandmark,
-    active: false,
-  },
-  {
     name: 'TasasCOP',
     path: '/tes',
     icon: faLineChart,
@@ -67,43 +62,15 @@ const NAV_ITEMS: NavItemProps[] = [
   },
 ];
 
-const PRICING_SUBNAV: NavItemProps[] = [
-  {
-    name: 'Portafolio',
-    path: '/portfolio',
-    icon: faBriefcase,
-    active: false,
-  },
-  {
-    name: 'NDF Pricer',
-    path: '/ndf-pricer',
-    icon: faCalculator,
-    active: false,
-  },
-  {
-    name: 'IBR Swap',
-    path: '/ibr-swap',
-    icon: faLineChart,
-    active: false,
-  },
-  {
-    name: 'XCCY Swap',
-    path: '/xccy-swap',
-    icon: faLineChart,
-    active: false,
-  },
-  {
-    name: 'COLTES',
-    path: '/coltes-calculator',
-    icon: faCalculator,
-    active: false,
-  },
-  {
-    name: 'Portafolio TES',
-    path: '/tes-portfolio',
-    icon: faLandmark,
-    active: false,
-  },
+const RIESGOS_SUBNAV: NavItemProps[] = [
+  { name: 'Commodities', path: '/risk-management', icon: faChartArea, active: false },
+  { name: 'Créditos', path: '/loans', icon: faLandmark, active: false },
+  { name: 'Portafolio OTC', path: '/portfolio', icon: faBriefcase, active: false },
+  { name: 'NDF Pricer', path: '/ndf-pricer', icon: faCalculator, active: false },
+  { name: 'IBR Swap', path: '/ibr-swap', icon: faLineChart, active: false },
+  { name: 'XCCY Swap', path: '/xccy-swap', icon: faLineChart, active: false },
+  { name: 'COLTES', path: '/coltes-calculator', icon: faCalculator, active: false },
+  { name: 'Portafolio TES', path: '/tes-portfolio', icon: faLandmark, active: false },
 ];
 
 const MONEDAS_SUBNAV: NavItemProps[] = [
@@ -151,11 +118,20 @@ const SidebarNavList = ({ currentPath }: SidebarNavProps) => {
           />
         ))}
       <SubNavItem
-        name="Pricing"
-        icon={faCalculator}
-        active={currentPath.includes('/ndf-pricer') || currentPath.includes('/ibr-swap') || currentPath.includes('/xccy-swap') || currentPath.includes('/portfolio') || currentPath.includes('/coltes-calculator') || currentPath.includes('/tes-portfolio')}
+        name="Riesgos"
+        icon={faScaleBalanced}
+        active={
+          currentPath.includes('/risk-management') ||
+          currentPath.includes('/loans') ||
+          currentPath.includes('/ndf-pricer') ||
+          currentPath.includes('/ibr-swap') ||
+          currentPath.includes('/xccy-swap') ||
+          currentPath.includes('/portfolio') ||
+          currentPath.includes('/coltes-calculator') ||
+          currentPath.includes('/tes-portfolio')
+        }
       >
-        {PRICING_SUBNAV.map(({ name, path, icon }) => (
+        {RIESGOS_SUBNAV.map(({ name, path, icon }) => (
           <NavigationItem
             active={currentPath.includes(path)}
             name={name}
@@ -179,18 +155,6 @@ const SidebarNavList = ({ currentPath }: SidebarNavProps) => {
             key={`${name}${path}`}
           />
         ))}
-      </SubNavItem>
-      <SubNavItem
-        name="Riesgos"
-        icon={faShieldAlt}
-        active={currentPath.includes('/risk-management')}
-      >
-        <NavigationItem
-          active={currentPath.includes('/risk-management')}
-          name="Gestión de Riesgos"
-          path="/risk-management"
-          icon={faShieldAlt}
-        />
       </SubNavItem>
       <NavigationItem
         name="Series"
