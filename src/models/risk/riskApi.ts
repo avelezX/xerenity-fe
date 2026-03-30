@@ -18,7 +18,7 @@ async function postJson<T>(url: string, body: Record<string, unknown>): Promise<
 
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   if (session?.access_token) {
-    headers['Authorization'] = `Bearer ${session.access_token}`;
+    headers.Authorization = `Bearer ${session.access_token}`;
   }
 
   const res = await fetch(url, {
@@ -35,9 +35,9 @@ async function postJson<T>(url: string, body: Record<string, unknown>): Promise<
 }
 
 /** Helper: add company_id to body if provided (super_admin company selector) */
-function withCompany(body: Record<string, unknown>, companyId?: string): Record<string, unknown> {
-  if (companyId) body.company_id = companyId;
-  return body;
+function withCompany(base: Record<string, unknown>, companyId?: string): Record<string, unknown> {
+  if (companyId) return { ...base, company_id: companyId };
+  return base;
 }
 
 export const fetchRiskManagement = (

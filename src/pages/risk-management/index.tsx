@@ -32,7 +32,7 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 import { fetchRiskManagement, fetchRollingVar, fetchBenchmarkFactors, fetchExposure, fetchFuturesPortfolio, upsertFuturesPositions, rollFuturesPosition, closeFuturesPosition, deleteFuturesPosition, editFuturesPosition } from 'src/models/risk/riskApi';
-import type { RiskRow, RiskConfig, RollingVarResponse, BenchmarkFactorsResponse, ExposureParams, ExposureResponse, MarketPrice, FuturesPosition, FuturesPortfolioResponse, NewFuturesPosition } from 'src/types/risk';
+import type { RiskRow, RiskConfig, RollingVarResponse, BenchmarkFactorsResponse, ExposureParams, ExposureResponse, MarketPrice, FuturesPosition, NewFuturesPosition } from 'src/types/risk';
 import useAppStore from 'src/store';
 import type { Company } from 'src/types/user';
 
@@ -1961,7 +1961,7 @@ function RiskManagement() {
                   </Col>
                   <Col xs={1}>
                     <Form.Label className="small mb-1">Contratos</Form.Label>
-                    <Form.Control size="sm" type="number" min={1} value={newPosition.nominal} onChange={(e) => setNewPosition({ ...newPosition, nominal: parseInt(e.target.value) || 1 })} />
+                    <Form.Control size="sm" type="number" min={1} value={newPosition.nominal} onChange={(e) => setNewPosition({ ...newPosition, nominal: parseInt(e.target.value, 10) || 1 })} />
                   </Col>
                   <Col xs={2}>
                     <Form.Label className="small mb-1">Precio Compra</Form.Label>
@@ -1979,11 +1979,13 @@ function RiskManagement() {
             )}
 
             {/* Portfolio Table */}
-            {futuresLoading ? (
+            {futuresLoading && (
               <p className="text-muted">Cargando portafolio...</p>
-            ) : futuresPortfolio.length === 0 ? (
+            )}
+            {!futuresLoading && futuresPortfolio.length === 0 && (
               <p className="text-muted">No hay posiciones de futuros registradas.</p>
-            ) : (
+            )}
+            {!futuresLoading && futuresPortfolio.length > 0 && (
               <div className="table-responsive">
                 <table className="table table-sm table-bordered table-hover mb-0" style={{ fontSize: '0.8rem' }}>
                   <thead>
@@ -2131,7 +2133,7 @@ function RiskManagement() {
           </Form.Group>
           <Form.Group className="mb-2">
             <Form.Label className="small">Contratos</Form.Label>
-            <Form.Control size="sm" type="number" min={1} value={editFields.nominal ?? 1} onChange={(e) => setEditFields({ ...editFields, nominal: parseInt(e.target.value) || 1 })} />
+            <Form.Control size="sm" type="number" min={1} value={editFields.nominal ?? 1} onChange={(e) => setEditFields({ ...editFields, nominal: parseInt(e.target.value, 10) || 1 })} />
           </Form.Group>
           <Form.Group className="mb-2">
             <Form.Label className="small">Precio Compra</Form.Label>
