@@ -11,9 +11,9 @@ import type {
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 
 const BASE_URL = process.env.NEXT_PUBLIC_PYSDK_URL || 'https://pysdk.fly.dev';
+const supabase = createClientComponentClient();
 
 async function postJson<T>(url: string, body: Record<string, unknown>): Promise<T> {
-  const supabase = createClientComponentClient();
   const { data: { session } } = await supabase.auth.getSession();
 
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
