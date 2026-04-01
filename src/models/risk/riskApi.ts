@@ -1,114 +1,276 @@
+/* eslint-disable no-restricted-syntax, prefer-template */
 /**
- * Risk Management API client — calls the pysdk Django server.
- * Sends Supabase JWT in Authorization header for multi-tenant isolation.
- * Super admins can pass companyId to view other companies' portfolios.
+ * Risk Management API — frontend-only calculations.
+ * Reads data directly from Supabase and computes VaR, exposure, and P&L locally.
+ * No dependency on Fly.io/Django backend for the Commodities module.
  */
 import type {
-  RiskManagementResponse, RollingVarResponse, BenchmarkFactorsResponse,
+  RollingVarResponse, BenchmarkFactorsResponse,
   ExposureResponse, ExposureParams,
   FuturesPortfolioResponse, NewFuturesPosition, FuturesRollParams, FuturesCloseParams, FuturesEditParams,
 } from 'src/types/risk';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import {
+  fetchRiskPrices, pivotPrices,
+  fetchFuturesPositionsFromDB, upsertFuturesPositionsDB,
+  closeFuturesPositionDB, deleteFuturesPositionDB, editFuturesPositionDB,
+} from 'src/lib/risk/supabaseRisk';
+import {
+  calculateVarSeries, getLatestVarFactors, calculateMatrices,
+  findPrice, getZScore,
+} from 'src/lib/risk/varCalculator';
+import { calcularExposicionTotal } from 'src/lib/risk/exposureCalculator';
+import { calculateFuturesPortfolio, executeRoll } from 'src/lib/risk/futuresCalculator';
 
-const BASE_URL = process.env.NEXT_PUBLIC_PYSDK_URL || 'https://pysdk.fly.dev';
-const supabase = createClientComponentClient();
-
-async function postJson<T>(url: string, body: Record<string, unknown>): Promise<T> {
-  const { data: { session } } = await supabase.auth.getSession();
-
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  if (session?.access_token) {
-    headers.Authorization = `Bearer ${session.access_token}`;
-  }
-
-  const res = await fetch(url, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(text || `Request failed: ${res.status}`);
-  }
-  const json = await res.json();
-  return json.body ?? json;
-}
-
-/** Helper: add company_id to body if provided (super_admin company selector) */
-function withCompany(base: Record<string, unknown>, companyId?: string): Record<string, unknown> {
-  if (companyId) return { ...base, company_id: companyId };
-  return base;
-}
-
-export const fetchRiskManagement = (
-  filterDate: string,
-  portfolioId?: string,
-  companyId?: string,
-): Promise<RiskManagementResponse> => {
-  const body: Record<string, unknown> = { filter_date: filterDate };
-  if (portfolioId) body.portfolio_id = portfolioId;
-  return postJson(`${BASE_URL}/risk_management`, withCompany(body, companyId));
+const UNITS: Record<string, string> = {
+  MAIZ: 'TONS', AZUCAR: 'TONS', CACAO: 'TONS', USD: 'USD/COP',
 };
 
-export const fetchRollingVar = (
-  filterDate: string,
-  confidenceLevel = 0.99
-): Promise<RollingVarResponse> =>
-  postJson(`${BASE_URL}/risk_rolling_var`, { filter_date: filterDate, confidence_level: confidenceLevel });
+// ── Helper: get date range for price history ──
 
-export const fetchBenchmarkFactors = (
-  filterDate: string,
-  confidenceLevel = 0.99
-): Promise<BenchmarkFactorsResponse> =>
-  postJson(`${BASE_URL}/risk_benchmark_factors`, { filter_date: filterDate, confidence_level: confidenceLevel });
+function getStartDate(filterDate: string, daysBack: number): string {
+  const d = new Date(filterDate + 'T12:00:00');
+  d.setDate(d.getDate() - daysBack);
+  return d.toISOString().slice(0, 10);
+}
 
-export const fetchExposure = (
+function lastBusinessDayOfPrevMonth(filterDate: string): string {
+  const d = new Date(filterDate + 'T12:00:00');
+  const first = new Date(d.getFullYear(), d.getMonth(), 1);
+  const last = new Date(first.getTime() - 86400000);
+  const wd = last.getDay();
+  if (wd === 0) last.setDate(last.getDate() - 2);
+  else if (wd === 6) last.setDate(last.getDate() - 1);
+  return last.toISOString().slice(0, 10);
+}
+
+// ── Benchmark Factors ──
+
+export async function fetchBenchmarkFactors(
+  filterDate: string,
+  confidenceLevel = 0.99,
+): Promise<BenchmarkFactorsResponse> {
+  const startDate = getStartDate(filterDate, 400); // ~13 months for 180d rolling + prices
+  const rows = await fetchRiskPrices(startDate, filterDate);
+  const { dates, prices, contracts } = pivotPrices(rows);
+  const assets = Object.keys(prices);
+
+  if (assets.length === 0) throw new Error('No hay precios disponibles');
+
+  const { varFactors, returns } = calculateVarSeries(prices, 180, confidenceLevel);
+  const latestFactors = getLatestVarFactors(varFactors);
+  const { covariance, correlation, observations } = calculateMatrices(returns, 180);
+
+  // Price start: last business day of previous month
+  const priceStartDate = lastBusinessDayOfPrevMonth(filterDate);
+
+  const factors: Record<string, {
+    factor_var_diario: number | null;
+    daily_variance: number | null;
+    price_start: number | null;
+    price_end: number | null;
+    factor_unit: string;
+    contract?: string;
+  }> = {};
+
+  const actualStartDates: string[] = [];
+  const actualEndDates: string[] = [];
+
+  for (const asset of assets) {
+    const pStart = findPrice(dates, prices[asset], priceStartDate);
+    const pEnd = findPrice(dates, prices[asset], filterDate);
+    if (pStart.date) actualStartDates.push(pStart.date);
+    if (pEnd.date) actualEndDates.push(pEnd.date);
+
+    const dailyVar = covariance[asset]?.[asset] ?? null;
+
+    factors[asset] = {
+      factor_var_diario: latestFactors[asset] ?? null,
+      daily_variance: dailyVar,
+      price_start: pStart.price != null ? Math.round(pStart.price * 10000) / 10000 : null,
+      price_end: pEnd.price != null ? Math.round(pEnd.price * 10000) / 10000 : null,
+      factor_unit: UNITS[asset] ?? '',
+      contract: contracts[asset],
+    };
+  }
+
+  const realStart = actualStartDates.length > 0 ? actualStartDates.sort().pop()! : priceStartDate;
+  const realEnd = actualEndDates.length > 0 ? actualEndDates.sort().pop()! : filterDate;
+
+  // Covariance period
+  const len = dates.length;
+  const covStart = len > 180 ? dates[len - 180] : dates[0];
+  const covEnd = dates[len - 1];
+
+  return {
+    factors,
+    covariance_matrix: covariance,
+    correlation_matrix: correlation,
+    assets,
+    contracts,
+    period: { start: realStart, end: realEnd },
+    covariance_period: { start: covStart, end: covEnd, observations },
+    confidence_level: confidenceLevel,
+    z_score: Math.round(getZScore(confidenceLevel) * 10000) / 10000,
+  };
+}
+
+// ── Rolling VaR ──
+
+export async function fetchRollingVar(
+  filterDate: string,
+  confidenceLevel = 0.99,
+): Promise<RollingVarResponse> {
+  const startDate = getStartDate(filterDate, 365);
+  const rows = await fetchRiskPrices(startDate, filterDate);
+  const { dates, prices, contracts } = pivotPrices(rows);
+
+  if (dates.length === 0) throw new Error('No hay precios disponibles');
+
+  const { varFactors } = calculateVarSeries(prices, 180, confidenceLevel);
+
+  // Rolling VaR in $ = var_factor × price
+  const rollingVar: Record<string, (number | null)[]> = {};
+  for (const [asset, factors] of Object.entries(varFactors)) {
+    const assetPrices = prices[asset];
+    rollingVar[asset] = factors.map((f, i) => {
+      const p = assetPrices[i];
+      if (f == null || p == null) return null;
+      return Math.round(f * p * 100) / 100;
+    });
+  }
+
+  return { dates, prices, rolling_var: rollingVar, contracts };
+}
+
+// ── Exposure ──
+
+export async function fetchExposure(
   filterDate: string,
   exposureParams: ExposureParams,
-  companyId?: string,
-): Promise<ExposureResponse> =>
-  postJson(`${BASE_URL}/risk_exposure`, withCompany({ filter_date: filterDate, exposure_params: exposureParams }, companyId));
+): Promise<ExposureResponse> {
+  // Fetch latest prices to override params
+  const startDate = getStartDate(filterDate, 60);
+  const rows = await fetchRiskPrices(startDate, filterDate);
+  const { dates, prices, contracts } = pivotPrices(rows);
+
+  const priceMap: Record<string, string> = {
+    AZUCAR: 'precio_azucar_cent_lb',
+    MAIZ: 'precio_maiz_cent_bu',
+    CACAO: 'precio_cocoa_usd_ton',
+    USD: 'trm',
+  };
+
+  const marketPrices: Record<string, { value: number; date: string; source: string; contract?: string }> = {};
+  const params = { ...exposureParams };
+
+  for (const [dbCol, paramKey] of Object.entries(priceMap)) {
+    if (prices[dbCol]) {
+      const found = findPrice(dates, prices[dbCol], filterDate);
+      if (found.price != null && found.date != null) {
+        marketPrices[paramKey] = {
+          value: Math.round(found.price * 10000) / 10000,
+          date: found.date,
+          source: dbCol,
+          contract: contracts[dbCol],
+        };
+        (params as Record<string, unknown>)[paramKey] = found.price;
+      }
+    }
+  }
+
+  const result = calcularExposicionTotal(params);
+  return {
+    ...result,
+    market_prices: marketPrices,
+    exposicion_ventas_intl: result.exposicion_real_usd,
+    exposicion_pen: 0,
+  } as unknown as ExposureResponse;
+}
 
 // ── Futures Portfolio ──
 
-export const fetchFuturesPortfolio = (
+export async function fetchFuturesPortfolio(
   filterDate: string,
   activeOnly = true,
   companyId?: string,
-): Promise<FuturesPortfolioResponse> =>
-  postJson(`${BASE_URL}/risk_futures_portfolio`, withCompany({ filter_date: filterDate, active_only: activeOnly }, companyId));
+): Promise<FuturesPortfolioResponse> {
+  const positions = await fetchFuturesPositionsFromDB(companyId, activeOnly);
 
-export const upsertFuturesPositions = (
-  filterDate: string,
+  if (positions.length === 0) return { portfolio: [] };
+
+  const startDate = getStartDate(filterDate, 90);
+  const rows = await fetchRiskPrices(startDate, filterDate);
+  const { dates, prices } = pivotPrices(rows);
+
+  const portfolio = calculateFuturesPortfolio(positions, dates, prices, filterDate);
+  return { portfolio };
+}
+
+// ── Futures CRUD ──
+
+export async function upsertFuturesPositions(
+  _filterDate: string,
   positions: NewFuturesPosition[],
   companyId?: string,
-): Promise<{ status: string; count: number }> =>
-  postJson(`${BASE_URL}/risk_futures_portfolio_upsert`, withCompany({ filter_date: filterDate, positions }, companyId));
+): Promise<{ status: string; count: number }> {
+  const records = positions.map((p) => ({
+    ...p,
+    active: true,
+    ...(companyId ? { company_id: companyId } : {}),
+  }));
+  await upsertFuturesPositionsDB(records);
+  return { status: 'ok', count: positions.length };
+}
 
-export const rollFuturesPosition = (
-  filterDate: string,
+export async function rollFuturesPosition(
+  _filterDate: string,
   params: FuturesRollParams,
-  companyId?: string,
-): Promise<{ status: string; closed_position_id: string; new_position: unknown }> =>
-  postJson(`${BASE_URL}/risk_futures_portfolio_roll`, withCompany({ filter_date: filterDate, ...params }, companyId));
+): Promise<{ status: string; closed_position_id: string; new_position: unknown }> {
+  const positions = await fetchFuturesPositionsFromDB();
+  const oldPos = positions.find((p) => p.id === params.position_id);
+  if (!oldPos) throw new Error(`Position ${params.position_id} not found`);
 
-export const closeFuturesPosition = (
-  filterDate: string,
+  const { closeUpdate, newPosition } = executeRoll(
+    oldPos, params.new_contract, params.roll_price,
+    params.roll_date ?? new Date().toISOString().slice(0, 10),
+    params.new_entry_price,
+  );
+
+  await closeFuturesPositionDB(
+    params.position_id,
+    closeUpdate.closed_date as string,
+    closeUpdate.closed_price as number,
+    closeUpdate.rolled_to as string,
+  );
+  await upsertFuturesPositionsDB([newPosition]);
+
+  return { status: 'rolled', closed_position_id: params.position_id, new_position: newPosition };
+}
+
+export async function closeFuturesPosition(
+  _filterDate: string,
   params: FuturesCloseParams,
-  companyId?: string,
-): Promise<{ status: string; position_id: string }> =>
-  postJson(`${BASE_URL}/risk_futures_portfolio_close`, withCompany({ filter_date: filterDate, ...params }, companyId));
+): Promise<{ status: string; position_id: string }> {
+  await closeFuturesPositionDB(
+    params.position_id,
+    params.closed_date ?? new Date().toISOString().slice(0, 10),
+    params.closed_price,
+  );
+  return { status: 'closed', position_id: params.position_id };
+}
 
-export const deleteFuturesPosition = (
-  filterDate: string,
+export async function deleteFuturesPosition(
+  _filterDate: string,
   positionId: string,
-  companyId?: string,
-): Promise<{ status: string; position_id: string }> =>
-  postJson(`${BASE_URL}/risk_futures_portfolio_delete`, withCompany({ filter_date: filterDate, position_id: positionId }, companyId));
+): Promise<{ status: string; position_id: string }> {
+  await deleteFuturesPositionDB(positionId);
+  return { status: 'deleted', position_id: positionId };
+}
 
-export const editFuturesPosition = (
-  filterDate: string,
+export async function editFuturesPosition(
+  _filterDate: string,
   params: FuturesEditParams,
-  companyId?: string,
-): Promise<{ status: string; position_id: string; updated_fields: string[] }> =>
-  postJson(`${BASE_URL}/risk_futures_portfolio_edit`, withCompany({ filter_date: filterDate, ...params }, companyId));
+): Promise<{ status: string; position_id: string; updated_fields: string[] }> {
+  await editFuturesPositionDB(params.position_id, params.updates);
+  return { status: 'updated', position_id: params.position_id, updated_fields: Object.keys(params.updates) };
+}

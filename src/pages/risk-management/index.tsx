@@ -31,8 +31,8 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from 'recharts';
-import { fetchRiskManagement, fetchRollingVar, fetchBenchmarkFactors, fetchExposure, fetchFuturesPortfolio, upsertFuturesPositions, rollFuturesPosition, closeFuturesPosition, deleteFuturesPosition, editFuturesPosition } from 'src/models/risk/riskApi';
-import type { RiskRow, RiskConfig, RollingVarResponse, BenchmarkFactorsResponse, ExposureParams, ExposureResponse, MarketPrice, FuturesPosition, NewFuturesPosition } from 'src/types/risk';
+import { fetchRollingVar, fetchBenchmarkFactors, fetchExposure, fetchFuturesPortfolio, upsertFuturesPositions, rollFuturesPosition, closeFuturesPosition, deleteFuturesPosition, editFuturesPosition } from 'src/models/risk/riskApi';
+import type { RollingVarResponse, BenchmarkFactorsResponse, ExposureParams, ExposureResponse, MarketPrice, FuturesPosition, NewFuturesPosition } from 'src/types/risk';
 import useAppStore from 'src/store';
 import type { Company } from 'src/types/user';
 
@@ -604,10 +604,6 @@ function RiskManagement() {
   const [activeTab, setActiveTab] = useState('benchmark');
   const [pageTabs, setPageTabs] = useState<TabItemType[]>(TAB_ITEMS);
   const [filterDate, setFilterDate] = useState(defaultDate());
-  const [, setLoading] = useState(false);
-  const [, setRows] = useState<RiskRow[]>([]);
-  const [, setConfig] = useState<RiskConfig | null>(null);
-  const [, setError] = useState<string | null>(null);
 
   // Methodology modal
   const [methModal, setMethModal] = useState<string | null>(null);
@@ -697,22 +693,7 @@ function RiskManagement() {
     );
   };
 
-  const handleCalculate = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await fetchRiskManagement(filterDate, undefined, selectedCompanyId);
-      setRows(data.risk_table);
-      setConfig(data.config);
-      toast.success('Cálculo completado');
-    } catch (e: unknown) {
-      const msg = (e as Error)?.message || 'Error calculando riesgos';
-      setError(msg);
-      toast.error(msg);
-    } finally {
-      setLoading(false);
-    }
-  }, [filterDate]);
+  // handleCalculate removed — benchmark factors loaded via tab useEffect below
 
   const handleFetchRolling = useCallback(async () => {
     setRollingLoading(true);
@@ -806,7 +787,7 @@ function RiskManagement() {
   const handleFetchExposure = useCallback(async () => {
     setExposureLoading(true);
     try {
-      const data = await fetchExposure(filterDate, exposureParams, selectedCompanyId);
+      const data = await fetchExposure(filterDate, exposureParams);
       setExposureResult(data);
 
       // Update local params with DB prices
@@ -831,7 +812,7 @@ function RiskManagement() {
   }, [filterDate, exposureParams]);
 
   useEffect(() => {
-    handleCalculate();
+    handleFetchBenchmarkFactors();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -875,7 +856,7 @@ function RiskManagement() {
         roll_price: parseFloat(rollPrice),
         new_entry_price: rollEntryPrice ? parseFloat(rollEntryPrice) : undefined,
         roll_date: futuresFilterDate,
-      }, selectedCompanyId);
+      });
       toast.success(`Roll completado: ${rollModal.contract} → ${rollContract}`);
       setRollModal(null);
       setRollContract('');
@@ -894,7 +875,7 @@ function RiskManagement() {
         position_id: closeModal.id,
         closed_price: parseFloat(closePrice),
         closed_date: futuresFilterDate,
-      }, selectedCompanyId);
+      });
       toast.success('Posición cerrada');
       setCloseModal(null);
       setClosePrice('');
@@ -908,7 +889,7 @@ function RiskManagement() {
     if (!pos.id) return;
     if (!window.confirm(`Eliminar posición ${pos.asset} ${pos.contract} ${pos.direction} x${pos.nominal}?`)) return;
     try {
-      await deleteFuturesPosition(futuresFilterDate, pos.id, selectedCompanyId);
+      await deleteFuturesPosition(futuresFilterDate, pos.id);
       toast.success('Posición eliminada');
       handleFetchFutures();
     } catch (e: unknown) {
@@ -919,7 +900,7 @@ function RiskManagement() {
   const handleEdit = useCallback(async () => {
     if (!editModal?.id || Object.keys(editFields).length === 0) return;
     try {
-      await editFuturesPosition(futuresFilterDate, { position_id: editModal.id, updates: editFields }, selectedCompanyId);
+      await editFuturesPosition(futuresFilterDate, { position_id: editModal.id, updates: editFields });
       toast.success('Posición actualizada');
       setEditModal(null);
       setEditFields({});
