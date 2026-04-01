@@ -165,6 +165,33 @@ export interface FuturesCloseParams {
   closed_date?: string;
 }
 
+// ── Resumen (Dashboard) ──
+
+export interface ResumenRow {
+  nombre: string;
+  posiciones: number;
+  valor: number | null;
+  pnl: number | null;
+  isSubRow?: boolean;
+}
+
+export interface ResumenSection {
+  nombre: string;
+  icon: string;
+  posiciones: number;
+  valor_total: number | null;
+  pnl_mes: number | null;
+  detalle: ResumenRow[];
+}
+
+export interface ResumenData {
+  fecha: string;
+  secciones: ResumenSection[];
+  totales: { posiciones: number; valor_total: number; pnl_mes: number };
+}
+
+// ── Futures Edit ──
+
 export interface FuturesEditParams {
   position_id: string;
   updates: Partial<Pick<NewFuturesPosition, 'asset' | 'contract' | 'direction' | 'nominal' | 'entry_price' | 'entry_date'>>;
