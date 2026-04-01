@@ -132,6 +132,10 @@ export interface FuturesPosition {
   pnl_inception: number | null;
   pnl_month: number | null;
   price_unit: string | null;
+  active?: boolean | null;
+  closed_date?: string | null;
+  closed_price?: number | null;
+  rolled_to?: string | null;
 }
 
 export interface FuturesPortfolioResponse {

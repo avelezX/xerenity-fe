@@ -1,0 +1,216 @@
+/* eslint-disable no-plusplus, no-continue, no-restricted-syntax, prefer-template */
+/**
+ * Futures portfolio calculator — TypeScript port of gestion_de_riesgos/futures_portfolio.py
+ *
+ * Calculates P&L per position (inception and monthly) with contract multipliers.
+ */
+
+import type { FuturesPosition } from 'src/types/risk';
+import type { FuturesPositionRow } from './supabaseRisk';
+
+// ── Constants ──
+
+const CONTRACT_MULTIPLIERS: Record<string, number> = {
+  MAIZ: 5_000,     // bushels
+  AZUCAR: 112_000, // libras
+  CACAO: 10,        // toneladas metricas
+};
+
+const DIRECTION_SIGN: Record<string, number> = {
+  LONG: 1,
+  SHORT: -1,
+};
+
+const PRICE_UNITS: Record<string, string> = {
+  MAIZ: 'cents/bu',
+  AZUCAR: 'cents/lb',
+  CACAO: 'USD/ton',
+};
+
+// ── Helpers ──
+
+/**
+ * Last business day of the previous month (skip weekends).
+ */
+export function lastBusinessDayOfPrevMonth(refDate: Date): Date {
+  const firstOfMonth = new Date(refDate.getFullYear(), refDate.getMonth(), 1);
+  const lastCalDay = new Date(firstOfMonth.getTime() - 86400000); // day before = last of prev month
+  const wd = lastCalDay.getDay(); // 0=Sun, 6=Sat
+  if (wd === 0) lastCalDay.setDate(lastCalDay.getDate() - 2); // Sun → Fri
+  else if (wd === 6) lastCalDay.setDate(lastCalDay.getDate() - 1); // Sat → Fri
+  return lastCalDay;
+}
+
+function toDateStr(d: Date): string {
+  return d.toISOString().slice(0, 10);
+}
+
+/**
+ * Find the last available price for an asset on or before targetDate.
+ */
+function findPrice(
+  dates: string[],
+  assetPrices: (number | null)[],
+  targetDate: string,
+): { price: number | null; date: string | null } {
+  for (let i = dates.length - 1; i >= 0; i--) {
+    if (dates[i] <= targetDate && assetPrices[i] != null) {
+      return { price: assetPrices[i], date: dates[i] };
+    }
+  }
+  return { price: null, date: null };
+}
+
+// ── Main Calculator ──
+
+export function calculateFuturesPortfolio(
+  positions: FuturesPositionRow[],
+  dates: string[],
+  prices: Record<string, (number | null)[]>,
+  filterDate: string,
+): FuturesPosition[] {
+  const refDate = new Date(filterDate + 'T12:00:00');
+  const prevMonthLastBD = lastBusinessDayOfPrevMonth(refDate);
+  const prevMonthStr = toDateStr(prevMonthLastBD);
+
+  const result: FuturesPosition[] = [];
+
+  let totalValorT = 0;
+  let totalValorT1 = 0;
+  let totalPnlMonth = 0;
+  let totalPnlInception = 0;
+
+  for (const pos of positions) {
+    const multiplier = CONTRACT_MULTIPLIERS[pos.asset] ?? 1;
+    const dirSign = DIRECTION_SIGN[pos.direction] ?? 1;
+    const assetPrices = prices[pos.asset];
+
+    if (!assetPrices) continue;
+
+    // Current price: last available on or before filterDate
+    const current = findPrice(dates, assetPrices, filterDate);
+
+    // Precio previo logic:
+    // If position opened in the current month → use entry_price
+    // If older → use last business day of previous month's price
+    const entryMonth = pos.entry_date.slice(0, 7); // "YYYY-MM"
+    const filterMonth = filterDate.slice(0, 7);
+
+    let precioPrevio: number | null;
+    let precioPrevioDate: string | null;
+
+    if (entryMonth === filterMonth) {
+      // Opened this month — previo = entry price
+      precioPrevio = pos.entry_price;
+      precioPrevioDate = pos.entry_date;
+    } else {
+      // Older position — previo = last BD of prev month
+      const prev = findPrice(dates, assetPrices, prevMonthStr);
+      precioPrevio = prev.price;
+      precioPrevioDate = prev.date;
+    }
+
+    const currentPrice = current.price;
+    const entryPrice = pos.entry_price;
+
+    // Calculations
+    const valorT = currentPrice != null ? pos.nominal * multiplier * currentPrice : null;
+    const valorT1 = precioPrevio != null ? pos.nominal * multiplier * precioPrevio : null;
+
+    const pnlInception =
+      currentPrice != null
+        ? (currentPrice - entryPrice) * pos.nominal * multiplier * dirSign
+        : null;
+
+    const pnlMonth =
+      currentPrice != null && precioPrevio != null
+        ? (currentPrice - precioPrevio) * pos.nominal * multiplier * dirSign
+        : null;
+
+    if (valorT != null) totalValorT += valorT;
+    if (valorT1 != null) totalValorT1 += valorT1;
+    if (pnlMonth != null) totalPnlMonth += pnlMonth;
+    if (pnlInception != null) totalPnlInception += pnlInception;
+
+    result.push({
+      id: pos.id,
+      asset: pos.asset,
+      contract: pos.contract,
+      direction: pos.direction,
+      nominal: pos.nominal,
+      multiplier,
+      entry_price: entryPrice,
+      entry_date: pos.entry_date,
+      current_price: currentPrice,
+      current_price_date: current.date,
+      precio_previo: precioPrevio,
+      precio_previo_date: precioPrevioDate,
+      valor_t: valorT != null ? Math.round(valorT) : null,
+      valor_t1: valorT1 != null ? Math.round(valorT1) : null,
+      pnl_inception: pnlInception != null ? Math.round(pnlInception) : null,
+      pnl_month: pnlMonth != null ? Math.round(pnlMonth) : null,
+      price_unit: PRICE_UNITS[pos.asset] ?? '',
+      active: pos.active,
+      closed_date: pos.closed_date,
+      closed_price: pos.closed_price,
+      rolled_to: pos.rolled_to,
+    });
+  }
+
+  // Totals row
+  result.push({
+    id: '',
+    asset: 'Total',
+    contract: '',
+    direction: '' as 'LONG',
+    nominal: 0,
+    multiplier: 0,
+    entry_price: 0,
+    entry_date: '',
+    current_price: null,
+    current_price_date: null,
+    precio_previo: null,
+    precio_previo_date: null,
+    valor_t: Math.round(totalValorT),
+    valor_t1: Math.round(totalValorT1),
+    pnl_inception: Math.round(totalPnlInception),
+    pnl_month: Math.round(totalPnlMonth),
+    price_unit: '',
+    active: true,
+    closed_date: null,
+    closed_price: null,
+    rolled_to: null,
+  });
+
+  return result;
+}
+
+/**
+ * Execute a roll: returns close update + new position record.
+ */
+export function executeRoll(
+  oldPosition: FuturesPositionRow,
+  newContract: string,
+  rollPrice: number,
+  rollDate: string,
+  newEntryPrice?: number,
+): { closeUpdate: Record<string, unknown>; newPosition: Partial<FuturesPositionRow> } {
+  return {
+    closeUpdate: {
+      active: false,
+      closed_date: rollDate,
+      closed_price: rollPrice,
+      rolled_to: newContract,
+    },
+    newPosition: {
+      asset: oldPosition.asset,
+      contract: newContract,
+      direction: oldPosition.direction,
+      nominal: oldPosition.nominal,
+      entry_price: newEntryPrice ?? rollPrice,
+      entry_date: rollDate,
+      active: true,
+      company_id: oldPosition.company_id,
+    },
+  };
+}
