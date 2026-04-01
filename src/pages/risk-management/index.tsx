@@ -35,6 +35,9 @@ import { fetchRollingVar, fetchBenchmarkFactors, fetchExposure, fetchFuturesPort
 import type { RollingVarResponse, BenchmarkFactorsResponse, ExposureParams, ExposureResponse, MarketPrice, FuturesPosition, NewFuturesPosition } from 'src/types/risk';
 import useAppStore from 'src/store';
 import type { Company } from 'src/types/user';
+import RoleGuard from 'src/components/RoleGuard';
+import { fetchCompanyRiskConfig, getAssetsWithCurrency, getChartColors, saveCompanyRiskConfig, COMMODITY_TEMPLATES } from 'src/lib/risk/companyConfig';
+import type { RiskCompanyConfig } from 'src/lib/risk/companyConfig';
 
 const PAGE_TITLE = 'Gestión de Riesgos';
 
@@ -85,10 +88,10 @@ function getExposureForAsset(asset: string, result: ExposureResponse | null): nu
 
 const BENCHMARK_COLUMNS = [
   { key: 'asset', label: 'Activo' },
-  { key: 'position_super', label: 'Super USD' },
+  { key: 'position_super', label: 'Exposición Natural' },
   { key: 'position_gr', label: 'Portafolio GR' },
   { key: 'position_total', label: 'Total' },
-  { key: 'var_super', label: 'VaR Super' },
+  { key: 'var_super', label: 'VaR Exp. Natural' },
   { key: 'var_gr', label: 'VaR GR' },
   { key: 'var_total', label: 'VaR Total' },
   { key: 'factor_var_diario', label: 'Factor VaR Diario' },
@@ -96,7 +99,7 @@ const BENCHMARK_COLUMNS = [
   { key: 'var_portfolio', label: 'Portafolio' },
   { key: 'price_start', label: 'Precio Inicio' },
   { key: 'price_end', label: 'Precio Fin' },
-  { key: 'pnl_super', label: 'P&G Super' },
+  { key: 'pnl_super', label: 'P&G Exp. Natural' },
   { key: 'pnl_gr', label: 'P&G GR' },
   { key: 'pnl_total', label: 'P&G Total' },
   { key: 'information_ratio', label: 'Info Ratio' },
@@ -401,7 +404,7 @@ const METHODOLOGY: Record<string, { title: string; content: React.ReactNode }> =
 
         <p style={methH}>Columnas principales</p>
         <ul>
-          <li><strong>Super USD (Posición Benchmark):</strong> Se obtiene automáticamente del cálculo de Exposición. Representa la exposición natural de la compañía en USD por commodity.</li>
+          <li><strong>Exposición Natural (Posición Benchmark):</strong> Se obtiene automáticamente del cálculo de Exposición. Representa la exposición natural de la compañía en USD por commodity.</li>
           <li><strong>GR USD (Posición Cobertura):</strong> Posición nominal en USD de los instrumentos de cobertura (forwards, futuros). Se ingresa manualmente.</li>
           <li><strong>Posición Total:</strong> Super + GR. Si es cero, la cobertura es perfecta.</li>
         </ul>
@@ -539,7 +542,7 @@ const METHODOLOGY: Record<string, { title: string; content: React.ReactNode }> =
         <div style={methFormula}>
           Exposición Real = Ventas Internacionales (USD) − Total Commodities (USD)
         </div>
-        <p>Representa la exposición neta de la compañía al dólar después de restar el consumo de materias primas. Este valor alimenta la columna Super USD del activo USD en el Benchmark.</p>
+        <p>Representa la exposición neta de la compañía al dólar después de restar el consumo de materias primas. Este valor alimenta la columna Exposición Natural del activo USD en el Benchmark.</p>
 
         <p style={methH}>Precios de Mercado</p>
         <p>Los precios de los futuros se actualizan automáticamente. Los campos con fondo azul indican precios de mercado no editables, mostrando la fecha de cotización y el contrato utilizado. Los demás campos son editables y permiten ajustar manualmente los parámetros de cálculo.</p>
@@ -583,6 +586,88 @@ const METHODOLOGY: Record<string, { title: string; content: React.ReactNode }> =
   },
 };
 
+// ── Setup screen for companies without risk config ──
+function CommoditySetup({ companyId, onSaved }: { companyId: string; onSaved: (cfg: RiskCompanyConfig) => void }) {
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [saving, setSaving] = useState(false);
+
+  const toggleAsset = (asset: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(asset)) next.delete(asset);
+      else next.add(asset);
+      return next;
+    });
+  };
+
+  const handleSave = async () => {
+    if (selected.size === 0) {
+      toast.error('Selecciona al menos un commodity');
+      return;
+    }
+    setSaving(true);
+    try {
+      const commodities = COMMODITY_TEMPLATES.filter((c) => selected.has(c.asset));
+      const cfg = await saveCompanyRiskConfig(companyId, commodities);
+      toast.success('Configuración guardada');
+      onSaved(cfg);
+    } catch (e: unknown) {
+      toast.error((e as Error)?.message || 'Error guardando configuración');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Container fluid className="p-4">
+      <div className="text-center py-5">
+        <Icon icon={faShieldAlt} size="3x" className="text-muted mb-3" />
+        <h4>Configurar Gestión de Riesgos</h4>
+        <p className="text-muted mb-4">
+          Selecciona los commodities que tu empresa desea gestionar.
+          Podrás modificar esta selección más adelante.
+        </p>
+        <Row className="justify-content-center mb-4">
+          {COMMODITY_TEMPLATES.map((c) => (
+            <Col key={c.asset} xs="auto" className="mb-2">
+              <div
+                role="button"
+                tabIndex={0}
+                onClick={() => toggleAsset(c.asset)}
+                onKeyDown={(e) => e.key === 'Enter' && toggleAsset(c.asset)}
+                style={{
+                  padding: '12px 24px',
+                  borderRadius: 8,
+                  border: selected.has(c.asset) ? `2px solid ${c.chart_color}` : '2px solid #e2e8f0',
+                  background: selected.has(c.asset) ? `${c.chart_color}15` : '#fff',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                  minWidth: 120,
+                  textAlign: 'center' as const,
+                }}
+              >
+                <div style={{ fontWeight: 600, color: selected.has(c.asset) ? c.chart_color : '#64748b' }}>
+                  {c.asset}
+                </div>
+                <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>
+                  {c.exchange} — {c.symbol}
+                </div>
+              </div>
+            </Col>
+          ))}
+        </Row>
+        <Button
+          variant="primary"
+          onClick={handleSave}
+          disabled={saving || selected.size === 0}
+        >
+          {saving ? 'Guardando...' : `Configurar ${selected.size} commodity${selected.size !== 1 ? 's' : ''}`}
+        </Button>
+      </div>
+    </Container>
+  );
+}
+
 function RiskManagement() {
   const { userProfile, companies, isSuperAdmin, loadCompanies } = useAppStore();
   const [selectedCompanyId, setSelectedCompanyId] = useState<string | undefined>(undefined);
@@ -601,6 +686,23 @@ function RiskManagement() {
     }
   }, [userProfile?.company_id, selectedCompanyId]);
 
+  // Company risk configuration (commodities, multipliers, exposure params)
+  const [companyConfig, setCompanyConfig] = useState<RiskCompanyConfig | null>(null);
+  const [, setConfigLoading] = useState(false);
+
+  useEffect(() => {
+    if (!selectedCompanyId) return;
+    setConfigLoading(true);
+    fetchCompanyRiskConfig(selectedCompanyId)
+      .then((cfg) => setCompanyConfig(cfg))
+      .catch(() => setCompanyConfig(null))
+      .finally(() => setConfigLoading(false));
+  }, [selectedCompanyId]);
+
+  // Dynamic assets and colors from config (fallback to defaults)
+  const dynamicAssets = companyConfig ? getAssetsWithCurrency(companyConfig) : DEFAULT_ASSETS;
+  const dynamicColors = companyConfig ? getChartColors(companyConfig) : CHART_COLORS;
+
   const [activeTab, setActiveTab] = useState('benchmark');
   const [pageTabs, setPageTabs] = useState<TabItemType[]>(TAB_ITEMS);
   const [filterDate, setFilterDate] = useState(defaultDate());
@@ -612,7 +714,7 @@ function RiskManagement() {
   const [confidenceLevel, setConfidenceLevel] = useState(0.99);
 
   // Benchmark state
-  const [assets, setAssets] = useState<string[]>(DEFAULT_ASSETS);
+  const [assets, setAssets] = useState<string[]>(dynamicAssets);
   const [benchmarkMonth, setBenchmarkMonth] = useState(currentMonth());
   const [benchmarkRows, setBenchmarkRows] = useState<BenchmarkRow[]>(emptyBenchmarkRows());
   const [benchmarkFactors, setBenchmarkFactors] = useState<BenchmarkFactorsResponse | null>(null);
@@ -963,6 +1065,46 @@ function RiskManagement() {
 
   return (
     <CoreLayout>
+      <RoleGuard requiredRole="corp_admin" fallback={
+        <Container fluid className="p-4">
+          <p className="text-muted">No tienes acceso a esta sección. Contacta a tu administrador.</p>
+        </Container>
+      }>
+      {/* No company assigned — non-admin users see message */}
+      {!selectedCompanyId && userProfile && !isSuperAdmin() && (
+        <Container fluid className="p-4 text-center py-5">
+          <Icon icon={faShieldAlt} size="3x" className="text-muted mb-3" />
+          <h5>Sin empresa asignada</h5>
+          <p className="text-muted">Tu cuenta no tiene una empresa asociada. Contacta a tu administrador para configurar el acceso al módulo de riesgos.</p>
+        </Container>
+      )}
+      {/* Super admin without company — show company selector prompt */}
+      {!selectedCompanyId && isSuperAdmin() && (
+        <Container fluid className="p-4 text-center py-5">
+          <Icon icon={faShieldAlt} size="3x" className="text-muted mb-3" />
+          <h5>Selecciona una empresa</h5>
+          <p className="text-muted mb-3">Como super admin, selecciona una empresa del menú superior para ver su gestión de riesgos.</p>
+          {companies.length > 0 && (
+            <Form.Select
+              size="sm"
+              style={{ maxWidth: 300, margin: '0 auto' }}
+              value=""
+              onChange={(e) => setSelectedCompanyId(e.target.value || undefined)}
+            >
+              <option value="">Seleccionar empresa...</option>
+              {companies.map((c: Company) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </Form.Select>
+          )}
+        </Container>
+      )}
+      {/* Show setup screen if company has no risk config */}
+      {!companyConfig && selectedCompanyId && (
+        <CommoditySetup companyId={selectedCompanyId} onSaved={(cfg) => setCompanyConfig(cfg)} />
+      )}
+      {/* Show main content only when company has config */}
+      {companyConfig && (
       <Container fluid className="p-4">
         <PageTitle>
           <Icon icon={faShieldAlt} />
@@ -1080,7 +1222,7 @@ function RiskManagement() {
             </Row>
 
             <p className="small text-muted mb-3">
-              <span style={{ background: '#dbeafe', padding: '1px 6px', border: '1px solid #93c5fd', borderRadius: 3 }}>Super USD</span> se llena automáticamente desde Exposición.
+              <span style={{ background: '#dbeafe', padding: '1px 6px', border: '1px solid #93c5fd', borderRadius: 3 }}>Exposición Natural</span> se llena automáticamente desde Exposición.
               Ingresa <strong>Portafolio GR</strong> y <strong>P&G GR</strong> manualmente. Los demás campos se calculan automáticamente.
             </p>
 
@@ -1100,7 +1242,7 @@ function RiskManagement() {
                     <th rowSpan={2}>Info Ratio</th>
                   </tr>
                   <tr>
-                    <th>Super USD</th><th>Portafolio GR</th><th>Total</th>
+                    <th>Exposición Natural</th><th>Portafolio GR</th><th>Total</th>
                     <th>Super</th><th>GR</th><th>Total</th>
                     <th>Diario %</th><th>Unidad</th>
                     <th>Inicio</th><th>Fin</th>
@@ -1282,7 +1424,7 @@ function RiskManagement() {
                   <Row className="g-3">
                     <Col md={6}>
                       <div className="bg-white rounded p-3 h-100" style={{ border: '1px solid #e2e8f0' }}>
-                        <h6 className="mb-3" style={{ color: CHART_COLORS[selectedAsset] || '#7c3aed' }}>
+                        <h6 className="mb-3" style={{ color: dynamicColors[selectedAsset] || '#7c3aed' }}>
                           Precio — {selectedAsset}
                           {rollingData.contracts?.[selectedAsset] && (
                             <span className="ms-1" style={{ fontSize: '0.72rem', color: '#6b7280', fontWeight: 400 }}>
@@ -1296,7 +1438,7 @@ function RiskManagement() {
                             <XAxis dataKey="date" tick={{ fontSize: 10 }} tickFormatter={(d: string) => d.slice(5)} />
                             <YAxis tick={{ fontSize: 10 }} domain={['auto', 'auto']} />
                             <Tooltip labelFormatter={(d: string) => d} formatter={(v: number) => [v?.toFixed(4), 'Precio']} />
-                            <Line type="monotone" dataKey="value" stroke={CHART_COLORS[selectedAsset] || '#7c3aed'} dot={false} strokeWidth={2} />
+                            <Line type="monotone" dataKey="value" stroke={dynamicColors[selectedAsset] || '#7c3aed'} dot={false} strokeWidth={2} />
                           </LineChart>
                         </ResponsiveContainer>
                       </div>
@@ -1330,7 +1472,7 @@ function RiskManagement() {
                   <>
                     {assets.map((asset) => (
                       <div key={asset} className="mb-4">
-                        <h6 className="mb-2" style={{ color: CHART_COLORS[asset], fontWeight: 600 }}>
+                        <h6 className="mb-2" style={{ color: dynamicColors[asset], fontWeight: 600 }}>
                           {asset}
                           {rollingData.contracts?.[asset] && (
                             <span className="ms-1" style={{ fontSize: '0.72rem', color: '#6b7280', fontWeight: 400 }}>
@@ -1348,7 +1490,7 @@ function RiskManagement() {
                                   <XAxis dataKey="date" tick={{ fontSize: 9 }} tickFormatter={(d: string) => d.slice(5)} />
                                   <YAxis tick={{ fontSize: 9 }} domain={['auto', 'auto']} />
                                   <Tooltip labelFormatter={(d: string) => d} formatter={(v: number) => [v?.toFixed(4), 'Precio']} />
-                                  <Line type="monotone" dataKey="value" stroke={CHART_COLORS[asset]} dot={false} strokeWidth={2} />
+                                  <Line type="monotone" dataKey="value" stroke={dynamicColors[asset]} dot={false} strokeWidth={2} />
                                 </LineChart>
                               </ResponsiveContainer>
                             </div>
@@ -1924,9 +2066,9 @@ function RiskManagement() {
                   <Col xs={2}>
                     <Form.Label className="small mb-1">Activo</Form.Label>
                     <Form.Select size="sm" value={newPosition.asset} onChange={(e) => setNewPosition({ ...newPosition, asset: e.target.value })}>
-                      <option value="MAIZ">MAIZ</option>
-                      <option value="AZUCAR">AZUCAR</option>
-                      <option value="CACAO">CACAO</option>
+                      {(companyConfig?.commodities ?? [{asset:'MAIZ'},{asset:'AZUCAR'},{asset:'CACAO'}]).map((c) => (
+                        <option key={c.asset} value={c.asset}>{c.asset}</option>
+                      ))}
                     </Form.Select>
                   </Col>
                   <Col xs={2}>
@@ -2084,6 +2226,7 @@ function RiskManagement() {
           </div>
         )}
       </Container>
+      )}
 
       {/* Edit Position Modal */}
       <Modal show={editModal != null} onHide={() => setEditModal(null)} size="sm">
@@ -2096,9 +2239,9 @@ function RiskManagement() {
           <Form.Group className="mb-2">
             <Form.Label className="small">Activo</Form.Label>
             <Form.Select size="sm" value={editFields.asset ?? ''} onChange={(e) => setEditFields({ ...editFields, asset: e.target.value })}>
-              <option value="MAIZ">MAIZ</option>
-              <option value="AZUCAR">AZUCAR</option>
-              <option value="CACAO">CACAO</option>
+              {(companyConfig?.commodities ?? [{asset:'MAIZ'},{asset:'AZUCAR'},{asset:'CACAO'}]).map((c) => (
+                <option key={c.asset} value={c.asset}>{c.asset}</option>
+              ))}
             </Form.Select>
           </Form.Group>
           <Form.Group className="mb-2">
@@ -2186,6 +2329,7 @@ function RiskManagement() {
           {methModal && METHODOLOGY[methModal]?.content}
         </Modal.Body>
       </Modal>
+    </RoleGuard>
     </CoreLayout>
   );
 }
