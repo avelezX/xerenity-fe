@@ -20,8 +20,11 @@ import {
 } from 'src/lib/risk/varCalculator';
 import { calcularExposicionTotal } from 'src/lib/risk/exposureCalculator';
 import { calculateFuturesPortfolio, executeRoll } from 'src/lib/risk/futuresCalculator';
+import type { CommodityConfig, RiskCompanyConfig } from 'src/lib/risk/companyConfig';
+import { getUnits } from 'src/lib/risk/companyConfig';
 
-const UNITS: Record<string, string> = {
+// Fallback units (used when no company config)
+const DEFAULT_UNITS: Record<string, string> = {
   MAIZ: 'TONS', AZUCAR: 'TONS', CACAO: 'TONS', USD: 'USD/COP',
 };
 
@@ -48,7 +51,9 @@ function lastBusinessDayOfPrevMonth(filterDate: string): string {
 export async function fetchBenchmarkFactors(
   filterDate: string,
   confidenceLevel = 0.99,
+  companyConfig?: RiskCompanyConfig | null,
 ): Promise<BenchmarkFactorsResponse> {
+  const units = companyConfig ? getUnits(companyConfig) : DEFAULT_UNITS;
   const startDate = getStartDate(filterDate, 400); // ~13 months for 180d rolling + prices
   const rows = await fetchRiskPrices(startDate, filterDate);
   const { dates, prices, contracts } = pivotPrices(rows);
@@ -88,7 +93,7 @@ export async function fetchBenchmarkFactors(
       daily_variance: dailyVar,
       price_start: pStart.price != null ? Math.round(pStart.price * 10000) / 10000 : null,
       price_end: pEnd.price != null ? Math.round(pEnd.price * 10000) / 10000 : null,
-      factor_unit: UNITS[asset] ?? '',
+      factor_unit: units[asset] ?? '',
       contract: contracts[asset],
     };
   }
@@ -193,6 +198,7 @@ export async function fetchFuturesPortfolio(
   filterDate: string,
   activeOnly = true,
   companyId?: string,
+  commodityConfig?: CommodityConfig[],
 ): Promise<FuturesPortfolioResponse> {
   const positions = await fetchFuturesPositionsFromDB(companyId, activeOnly);
 
@@ -202,7 +208,7 @@ export async function fetchFuturesPortfolio(
   const rows = await fetchRiskPrices(startDate, filterDate);
   const { dates, prices } = pivotPrices(rows);
 
-  const portfolio = calculateFuturesPortfolio(positions, dates, prices, filterDate);
+  const portfolio = calculateFuturesPortfolio(positions, dates, prices, filterDate, commodityConfig);
   return { portfolio };
 }
 

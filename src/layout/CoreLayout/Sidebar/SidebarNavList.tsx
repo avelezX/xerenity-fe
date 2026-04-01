@@ -117,6 +117,7 @@ const SidebarNavList = ({ currentPath }: SidebarNavProps) => {
             key={`${name}${path}`}
           />
         ))}
+      {(userRole === 'super_admin' || userRole === 'corp_admin') && (
       <SubNavItem
         name="Riesgos"
         icon={faScaleBalanced}
@@ -125,7 +126,7 @@ const SidebarNavList = ({ currentPath }: SidebarNavProps) => {
           currentPath.includes('/loans') ||
           currentPath.includes('/ndf-pricer') ||
           currentPath.includes('/ibr-swap') ||
-          currentPath.includes('/xccy-swap') ||
+          currentPath.includes('/xcxy-swap') ||
           currentPath.includes('/portfolio') ||
           currentPath.includes('/coltes-calculator') ||
           currentPath.includes('/tes-portfolio')
@@ -141,6 +142,7 @@ const SidebarNavList = ({ currentPath }: SidebarNavProps) => {
           />
         ))}
       </SubNavItem>
+      )}
       <SubNavItem
         name="Monedas"
         icon={faDollarSign}

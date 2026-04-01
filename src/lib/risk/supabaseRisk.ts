@@ -73,6 +73,22 @@ export function pivotPrices(rows: RiskPriceRow[]): {
   return { dates, prices, contracts };
 }
 
+/**
+ * Fetch distinct assets available in risk_prices (for onboarding).
+ */
+export async function fetchAvailableAssets(): Promise<string[]> {
+  const { data, error } = await supabase
+    .schema(SCHEMA)
+    .from('risk_prices')
+    .select('asset')
+    .limit(1000);
+
+  if (error) throw new Error(`Failed to fetch available assets: ${error.message}`);
+  const assets = new Set<string>();
+  (data ?? []).forEach((row: { asset: string }) => assets.add(row.asset));
+  return Array.from(assets).sort();
+}
+
 // ── Risk Positions (per-company) ──
 
 export interface RiskPositionRow {

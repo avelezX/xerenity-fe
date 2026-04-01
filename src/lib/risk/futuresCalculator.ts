@@ -7,13 +7,15 @@
 
 import type { FuturesPosition } from 'src/types/risk';
 import type { FuturesPositionRow } from './supabaseRisk';
+import type { CommodityConfig } from './companyConfig';
 
 // ── Constants ──
 
-const CONTRACT_MULTIPLIERS: Record<string, number> = {
-  MAIZ: 5_000,     // bushels
-  AZUCAR: 112_000, // libras
-  CACAO: 10,        // toneladas metricas
+// Fallback multipliers (used when no company config is available)
+const DEFAULT_MULTIPLIERS: Record<string, number> = {
+  MAIZ: 5_000,
+  AZUCAR: 112_000,
+  CACAO: 10,
 };
 
 const DIRECTION_SIGN: Record<string, number> = {
@@ -21,7 +23,7 @@ const DIRECTION_SIGN: Record<string, number> = {
   SHORT: -1,
 };
 
-const PRICE_UNITS: Record<string, string> = {
+const DEFAULT_PRICE_UNITS: Record<string, string> = {
   MAIZ: 'cents/bu',
   AZUCAR: 'cents/lb',
   CACAO: 'USD/ton',
@@ -68,7 +70,17 @@ export function calculateFuturesPortfolio(
   dates: string[],
   prices: Record<string, (number | null)[]>,
   filterDate: string,
+  commodityConfig?: CommodityConfig[],
 ): FuturesPosition[] {
+  // Build multipliers and price units from config or use defaults
+  const multipliers: Record<string, number> = { ...DEFAULT_MULTIPLIERS };
+  const priceUnits: Record<string, string> = { ...DEFAULT_PRICE_UNITS };
+  if (commodityConfig) {
+    commodityConfig.forEach((c) => {
+      multipliers[c.asset] = c.contract_multiplier;
+      priceUnits[c.asset] = c.price_unit;
+    });
+  }
   const refDate = new Date(filterDate + 'T12:00:00');
   const prevMonthLastBD = lastBusinessDayOfPrevMonth(refDate);
   const prevMonthStr = toDateStr(prevMonthLastBD);
@@ -81,7 +93,7 @@ export function calculateFuturesPortfolio(
   let totalPnlInception = 0;
 
   for (const pos of positions) {
-    const multiplier = CONTRACT_MULTIPLIERS[pos.asset] ?? 1;
+    const multiplier = multipliers[pos.asset] ?? 1;
     const dirSign = DIRECTION_SIGN[pos.direction] ?? 1;
     const assetPrices = prices[pos.asset];
 
@@ -149,7 +161,7 @@ export function calculateFuturesPortfolio(
       valor_t1: valorT1 != null ? Math.round(valorT1) : null,
       pnl_inception: pnlInception != null ? Math.round(pnlInception) : null,
       pnl_month: pnlMonth != null ? Math.round(pnlMonth) : null,
-      price_unit: PRICE_UNITS[pos.asset] ?? '',
+      price_unit: priceUnits[pos.asset] ?? '',
       active: pos.active,
       closed_date: pos.closed_date,
       closed_price: pos.closed_price,
