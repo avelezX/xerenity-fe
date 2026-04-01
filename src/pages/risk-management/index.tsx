@@ -17,6 +17,7 @@ import {
   faBookOpen,
   faFilePdf,
   faBriefcase,
+  faChartPie,
 } from '@fortawesome/free-solid-svg-icons';
 import { toast } from 'react-toastify';
 import PageTitle from '@components/PageTitle';
@@ -32,7 +33,8 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 import { fetchRollingVar, fetchBenchmarkFactors, fetchExposure, fetchFuturesPortfolio, upsertFuturesPositions, rollFuturesPosition, closeFuturesPosition, deleteFuturesPosition, editFuturesPosition } from 'src/models/risk/riskApi';
-import type { RollingVarResponse, BenchmarkFactorsResponse, ExposureParams, ExposureResponse, MarketPrice, FuturesPosition, NewFuturesPosition } from 'src/types/risk';
+import type { RollingVarResponse, BenchmarkFactorsResponse, ExposureParams, ExposureResponse, MarketPrice, FuturesPosition, NewFuturesPosition, ResumenData } from 'src/types/risk';
+import { fetchResumenData } from 'src/lib/risk/resumenCalculator';
 import useAppStore from 'src/store';
 import type { Company } from 'src/types/user';
 import RoleGuard from 'src/components/RoleGuard';
@@ -42,7 +44,8 @@ import type { RiskCompanyConfig } from 'src/lib/risk/companyConfig';
 const PAGE_TITLE = 'Gestión de Riesgos';
 
 const TAB_ITEMS: TabItemType[] = [
-  { name: 'Benchmark', property: 'benchmark', icon: faEdit, active: true },
+  { name: 'Resumen', property: 'resumen', icon: faChartPie, active: true },
+  { name: 'Benchmark', property: 'benchmark', icon: faEdit, active: false },
   { name: 'Rolling VaR', property: 'rolling', icon: faChartLine, active: false },
   { name: 'Exposición', property: 'exposure', icon: faDollarSign, active: false },
   { name: 'Matrices', property: 'matrices', icon: faBorderAll, active: false },
@@ -703,9 +706,18 @@ function RiskManagement() {
   const dynamicAssets = companyConfig ? getAssetsWithCurrency(companyConfig) : DEFAULT_ASSETS;
   const dynamicColors = companyConfig ? getChartColors(companyConfig) : CHART_COLORS;
 
-  const [activeTab, setActiveTab] = useState('benchmark');
+  const [activeTab, setActiveTab] = useState('resumen');
   const [pageTabs, setPageTabs] = useState<TabItemType[]>(TAB_ITEMS);
   const [filterDate, setFilterDate] = useState(defaultDate());
+
+  // Resumen state
+  const [resumenData, setResumenData] = useState<ResumenData | null>(null);
+  const [resumenLoading, setResumenLoading] = useState(false);
+  const [resumenMonth, setResumenMonth] = useState(currentMonth());
+
+  // Access store data for loans and TES
+  const fullLoan = useAppStore((s) => (s as unknown as Record<string, unknown>).fullLoan) as { total_value: number; loan_count: number; accrued_interest: number } | undefined;
+  const pricedTesBonds = useAppStore((s) => (s as unknown as Record<string, unknown>).pricedTesBonds) as Array<{ bond_name: string; notional: number; npv?: number; pnl_mtm?: number }> | undefined;
 
   // Methodology modal
   const [methModal, setMethModal] = useState<string | null>(null);
@@ -795,7 +807,24 @@ function RiskManagement() {
     );
   };
 
-  // handleCalculate removed — benchmark factors loaded via tab useEffect below
+  // ── Resumen handler ──
+  const resumenFilterDate = lastDayOfMonth(resumenMonth.year, resumenMonth.month);
+
+  const handleFetchResumen = useCallback(async () => {
+    setResumenLoading(true);
+    try {
+      const data = await fetchResumenData(resumenFilterDate, selectedCompanyId, {
+        fullLoan,
+        pricedTesBonds: pricedTesBonds ?? [],
+      });
+      setResumenData(data);
+    } catch (e: unknown) {
+      toast.error((e as Error)?.message || 'Error cargando resumen');
+    } finally {
+      setResumenLoading(false);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resumenFilterDate, selectedCompanyId]);
 
   const handleFetchRolling = useCallback(async () => {
     setRollingLoading(true);
@@ -1013,6 +1042,9 @@ function RiskManagement() {
   }, [filterDate, editModal, editFields, handleFetchFutures]);
 
   useEffect(() => {
+    if (activeTab === 'resumen' && !resumenData) {
+      handleFetchResumen();
+    }
     if (activeTab === 'rolling' && !rollingData) {
       handleFetchRolling();
     }
@@ -1023,7 +1055,7 @@ function RiskManagement() {
       handleFetchFutures();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, benchmarkFactors, futuresMonth]);
+  }, [activeTab, benchmarkFactors, futuresMonth, resumenData]);
 
   // When exposure results change, update benchmark position_super
   useEffect(() => {
@@ -1148,6 +1180,165 @@ function RiskManagement() {
             </Tab>
           ))}
         </Tabs>
+
+        {/* ─── RESUMEN TAB ─── */}
+        {activeTab === 'resumen' && (
+          <div>
+            {/* Month navigator */}
+            <Row className="mb-3 align-items-center">
+              <Col xs="auto" className="d-flex align-items-center gap-2">
+                <Button
+                  variant="outline-secondary"
+                  size="sm"
+                  onClick={() => {
+                    const prev = resumenMonth.month === 0
+                      ? { year: resumenMonth.year - 1, month: 11 }
+                      : { year: resumenMonth.year, month: resumenMonth.month - 1 };
+                    setResumenMonth(prev);
+                    setResumenData(null);
+                  }}
+                  style={{ padding: '4px 10px' }}
+                >
+                  <Icon icon={faChevronLeft} />
+                </Button>
+                <div className="text-center" style={{ minWidth: 160 }}>
+                  <strong style={{ fontSize: '1.1rem', color: '#7c3aed' }}>
+                    {MONTH_NAMES[resumenMonth.month]} {resumenMonth.year}
+                  </strong>
+                </div>
+                <Button
+                  variant="outline-secondary"
+                  size="sm"
+                  onClick={() => {
+                    const next = resumenMonth.month === 11
+                      ? { year: resumenMonth.year + 1, month: 0 }
+                      : { year: resumenMonth.year, month: resumenMonth.month + 1 };
+                    setResumenMonth(next);
+                    setResumenData(null);
+                  }}
+                  style={{ padding: '4px 10px' }}
+                >
+                  <Icon icon={faChevronRight} />
+                </Button>
+              </Col>
+              <Col xs="auto">
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={handleFetchResumen}
+                  disabled={resumenLoading}
+                >
+                  <Icon icon={faSyncAlt} className={resumenLoading ? 'fa-spin me-1' : 'me-1'} />
+                  Actualizar
+                </Button>
+              </Col>
+            </Row>
+
+            {resumenLoading && <p className="text-muted">Cargando resumen...</p>}
+
+            {resumenData && (
+              <>
+                {/* KPI Cards */}
+                <Row className="mb-4 g-3">
+                  {resumenData.secciones.map((sec) => (
+                    <Col key={sec.nombre} xs={6} md={3}>
+                      <div style={{
+                        background: '#fff',
+                        borderRadius: 8,
+                        padding: '16px 20px',
+                        border: '1px solid #e2e8f0',
+                        boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
+                      }}>
+                        <div style={{ fontSize: '0.75rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 600 }}>
+                          {sec.nombre}
+                        </div>
+                        <div style={{ fontSize: '1.4rem', fontWeight: 700, color: '#1e293b', marginTop: 4 }}>
+                          {sec.posiciones} <span style={{ fontSize: '0.8rem', fontWeight: 400, color: '#64748b' }}>posiciones</span>
+                        </div>
+                        {sec.valor_total != null && (
+                          <div style={{ fontSize: '0.85rem', color: '#475569', marginTop: 2 }}>
+                            ${Math.abs(sec.valor_total).toLocaleString('en-US', { maximumFractionDigits: 0 })}
+                          </div>
+                        )}
+                        {sec.pnl_mes != null && (
+                          <div style={{
+                            fontSize: '0.85rem',
+                            fontWeight: 600,
+                            color: sec.pnl_mes >= 0 ? '#16a34a' : '#dc2626',
+                            marginTop: 2,
+                          }}>
+                            {sec.pnl_mes >= 0 ? '+' : ''}{fmtUsd(sec.pnl_mes)}
+                          </div>
+                        )}
+                      </div>
+                    </Col>
+                  ))}
+                </Row>
+
+                {/* Consolidated Table */}
+                <div className="table-responsive">
+                  <table className="table table-sm table-bordered mb-0" style={{ fontSize: '0.85rem' }}>
+                    <thead>
+                      <tr style={{ background: '#1e293b', color: '#fff' }}>
+                        <th>Sección</th>
+                        <th className="text-center">Posiciones</th>
+                        <th className="text-end">Valor / Notional</th>
+                        <th className="text-end">P&L Mes</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {resumenData.secciones.map((sec) => (
+                        <React.Fragment key={sec.nombre}>
+                          {/* Section header row */}
+                          <tr style={{ background: '#f8fafc', fontWeight: 600 }}>
+                            <td>{sec.nombre}</td>
+                            <td className="text-center">{sec.posiciones}</td>
+                            <td className="text-end">
+                              {sec.valor_total != null ? `$${Math.abs(sec.valor_total).toLocaleString('en-US', { maximumFractionDigits: 0 })}` : '—'}
+                            </td>
+                            <td className={`text-end ${pnlClass(sec.pnl_mes)}`}>
+                              {sec.pnl_mes != null ? fmtUsd(sec.pnl_mes) : '—'}
+                            </td>
+                          </tr>
+                          {/* Detail sub-rows */}
+                          {sec.detalle.map((row, idx) => (
+                            <tr key={`${sec.nombre}-${idx.toString()}`} style={{ color: '#64748b', fontSize: '0.8rem' }}>
+                              <td style={{ paddingLeft: 28 }}>{row.nombre}</td>
+                              <td className="text-center">{row.posiciones > 0 ? row.posiciones : ''}</td>
+                              <td className="text-end">
+                                {row.valor != null ? `$${Math.abs(row.valor).toLocaleString('en-US', { maximumFractionDigits: 0 })}` : ''}
+                              </td>
+                              <td className={`text-end ${pnlClass(row.pnl)}`}>
+                                {row.pnl != null ? fmtUsd(row.pnl) : ''}
+                              </td>
+                            </tr>
+                          ))}
+                        </React.Fragment>
+                      ))}
+                      {/* Totals row */}
+                      <tr style={{ background: '#1e293b', color: '#fff', fontWeight: 700 }}>
+                        <td>TOTAL</td>
+                        <td className="text-center">{resumenData.totales.posiciones}</td>
+                        <td className="text-end">
+                          ${Math.abs(resumenData.totales.valor_total).toLocaleString('en-US', { maximumFractionDigits: 0 })}
+                        </td>
+                        <td className="text-end">
+                          {resumenData.totales.pnl_mes !== 0 ? fmtUsd(resumenData.totales.pnl_mes) : '—'}
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
+
+            {!resumenLoading && !resumenData && (
+              <p className="text-muted text-center mt-4">
+                Presione &quot;Actualizar&quot; para cargar el resumen del portafolio.
+              </p>
+            )}
+          </div>
+        )}
 
         {/* ─── BENCHMARK TAB ─── */}
         {activeTab === 'benchmark' && (
