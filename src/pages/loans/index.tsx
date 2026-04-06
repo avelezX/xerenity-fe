@@ -106,7 +106,8 @@ export default function LoansPage() {
     deleteMultipleLoans,
     loading,
     setCurrentSelection,
-    userProfile,
+    activeCompanyId,
+    selectedCompanyId,
   } = useAppStore();
 
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('Todos');
@@ -281,10 +282,10 @@ export default function LoansPage() {
   };
 
   useEffect(() => {
-    getLoanData([], userProfile?.company_id ?? undefined);
+    getLoanData([], activeCompanyId());
     return () => resetStore();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [getLoanData, resetStore]);
+  }, [getLoanData, resetStore, selectedCompanyId]);
 
   useEffect(() => { wakeServer(); }, [wakeServer]);
 

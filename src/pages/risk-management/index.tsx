@@ -36,7 +36,7 @@ import { fetchRollingVar, fetchBenchmarkFactors, fetchExposure, fetchFuturesPort
 import type { RollingVarResponse, BenchmarkFactorsResponse, ExposureParams, ExposureResponse, MarketPrice, FuturesPosition, NewFuturesPosition, ResumenData } from 'src/types/risk';
 import { fetchResumenData } from 'src/lib/risk/resumenCalculator';
 import useAppStore from 'src/store';
-import type { Company } from 'src/types/user';
+// Company type no longer needed — global selector in CoreLayout
 import RoleGuard from 'src/components/RoleGuard';
 import { fetchCompanyRiskConfig, getAssetsWithCurrency, getChartColors, saveCompanyRiskConfig, COMMODITY_TEMPLATES } from 'src/lib/risk/companyConfig';
 import type { RiskCompanyConfig } from 'src/lib/risk/companyConfig';
@@ -672,22 +672,15 @@ function CommoditySetup({ companyId, onSaved }: { companyId: string; onSaved: (c
 }
 
 function RiskManagement() {
-  const { userProfile, companies, isSuperAdmin, loadCompanies } = useAppStore();
-  const [selectedCompanyId, setSelectedCompanyId] = useState<string | undefined>(undefined);
+  const { userProfile, isSuperAdmin, selectedCompanyId, setSelectedCompanyId } = useAppStore();
 
-  // Load companies list for super_admin selector
-  useEffect(() => {
-    if (isSuperAdmin() && companies.length === 0) {
-      loadCompanies();
-    }
-  }, [isSuperAdmin, companies.length, loadCompanies]);
-
-  // Set default company to user's own company
+  // Set default company to user's own company (if not already selected by global selector)
   useEffect(() => {
     if (userProfile?.company_id && !selectedCompanyId) {
       setSelectedCompanyId(userProfile.company_id);
     }
-  }, [userProfile?.company_id, selectedCompanyId]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userProfile?.company_id]);
 
   // Company risk configuration (commodities, multipliers, exposure params)
   const [companyConfig, setCompanyConfig] = useState<RiskCompanyConfig | null>(null);
@@ -1110,25 +1103,12 @@ function RiskManagement() {
           <p className="text-muted">Tu cuenta no tiene una empresa asociada. Contacta a tu administrador para configurar el acceso al módulo de riesgos.</p>
         </Container>
       )}
-      {/* Super admin without company — show company selector prompt */}
+      {/* Super admin without company — prompt to use global selector */}
       {!selectedCompanyId && isSuperAdmin() && (
         <Container fluid className="p-4 text-center py-5">
           <Icon icon={faShieldAlt} size="3x" className="text-muted mb-3" />
           <h5>Selecciona una empresa</h5>
-          <p className="text-muted mb-3">Como super admin, selecciona una empresa del menú superior para ver su gestión de riesgos.</p>
-          {companies.length > 0 && (
-            <Form.Select
-              size="sm"
-              style={{ maxWidth: 300, margin: '0 auto' }}
-              value=""
-              onChange={(e) => setSelectedCompanyId(e.target.value || undefined)}
-            >
-              <option value="">Seleccionar empresa...</option>
-              {companies.map((c: Company) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </Form.Select>
-          )}
+          <p className="text-muted">Usa el selector de empresa en la barra superior para ver la gestión de riesgos.</p>
         </Container>
       )}
       {/* Show setup screen if company has no risk config */}
@@ -1142,30 +1122,6 @@ function RiskManagement() {
           <Icon icon={faShieldAlt} />
           <h4>{PAGE_TITLE}</h4>
         </PageTitle>
-
-        {/* Company selector — only visible to super_admin */}
-        {isSuperAdmin() && companies.length > 0 && (
-          <Row className="mb-3">
-            <Col xs="auto">
-              <Form.Group className="d-flex align-items-center gap-2">
-                <Form.Label className="mb-0 fw-bold" style={{ whiteSpace: 'nowrap' }}>
-                  Empresa:
-                </Form.Label>
-                <Form.Select
-                  size="sm"
-                  value={selectedCompanyId || ''}
-                  onChange={(e) => setSelectedCompanyId(e.target.value || undefined)}
-                  style={{ minWidth: 220 }}
-                >
-                  <option value="">Todas las empresas</option>
-                  {companies.map((c: Company) => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
-                  ))}
-                </Form.Select>
-              </Form.Group>
-            </Col>
-          </Row>
-        )}
 
         {/* Tabs */}
         <Tabs outlined className="mb-3">

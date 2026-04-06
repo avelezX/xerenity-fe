@@ -850,19 +850,21 @@ function TesPortfolioPage() {
     canEdit,
     loadUserRole,
     userRole,
-    userProfile,
+    activeCompanyId,
+    selectedCompanyId,
   } = useAppStore();
 
   // Mount: load positions + role + catalog
   useEffect(() => {
-    loadTesPositions(userProfile?.company_id ?? undefined);
+    loadTesPositions(activeCompanyId());
     loadUserRole();
     setCatalogLoading(true);
     getTesCatalog()
       .then(setCatalog)
       .catch(() => {})
       .finally(() => setCatalogLoading(false));
-  }, [loadTesPositions, loadUserRole]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loadTesPositions, loadUserRole, selectedCompanyId]);
 
   // Reprice when positions load
   useEffect(() => {

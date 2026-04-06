@@ -35,12 +35,9 @@ export const fetchXccyPositions = async (
     error: undefined,
   };
   try {
-    const params: Record<string, unknown> = {};
-    if (companyId) params.p_company_id = companyId;
-
     const { data, error } = await supabase
       .schema(SCHEMA)
-      .rpc('get_xccy_positions', params);
+      .rpc('get_xccy_positions', { p_company_id: companyId ?? null });
     if (error) {
       response.error = 'Error fetching XCCY positions';
       return response;
@@ -61,12 +58,9 @@ export const fetchNdfPositions = async (
     error: undefined,
   };
   try {
-    const params: Record<string, unknown> = {};
-    if (companyId) params.p_company_id = companyId;
-
     const { data, error } = await supabase
       .schema(SCHEMA)
-      .rpc('get_ndf_positions', params);
+      .rpc('get_ndf_positions', { p_company_id: companyId ?? null });
     if (error) {
       response.error = 'Error fetching NDF positions';
       return response;
@@ -87,12 +81,9 @@ export const fetchIbrSwapPositions = async (
     error: undefined,
   };
   try {
-    const params: Record<string, unknown> = {};
-    if (companyId) params.p_company_id = companyId;
-
     const { data, error } = await supabase
       .schema(SCHEMA)
-      .rpc('get_ibr_swap_positions', params);
+      .rpc('get_ibr_swap_positions', { p_company_id: companyId ?? null });
     if (error) {
       response.error = 'Error fetching IBR Swap positions';
       return response;
@@ -113,12 +104,9 @@ export const fetchTesPositions = async (
     error: undefined,
   };
   try {
-    const params: Record<string, unknown> = {};
-    if (companyId) params.p_company_id = companyId;
-
     const { data, error } = await supabase
       .schema(SCHEMA)
-      .rpc('get_tes_positions', params);
+      .rpc('get_tes_positions', { p_company_id: companyId ?? null });
     if (error) {
       response.error = 'Error fetching TES positions';
       return response;

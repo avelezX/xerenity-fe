@@ -20,12 +20,10 @@ export const fetchLoans = async (banks: Bank[], companyId?: string): Promise<Loa
     error: undefined,
   };
   try {
-    const params: Record<string, unknown> = {
+    const { data, error } = await supabase.schema(SCHEMA).rpc(LOANS.key, {
       bank_name_filter: banks.map((bck) => bck.bank_name),
-    };
-    if (companyId) params.p_company_id = companyId;
-
-    const { data, error } = await supabase.schema(SCHEMA).rpc(LOANS.key, params);
+      p_company_id: companyId ?? null,
+    });
 
     if (error) {
       response.error = LOANS.error;
