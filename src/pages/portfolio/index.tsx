@@ -1961,6 +1961,7 @@ function PortfolioPage() {
     updateMarketDataConfig,
     refPrices,
     loadReferencePrices,
+    userProfile,
   } = useAppStore();
 
   const handleBuild = useCallback(async (silent = false) => {
@@ -2010,9 +2011,10 @@ function PortfolioPage() {
       }
     };
     initCurves();
-    loadPositions();
+    loadPositions(userProfile?.company_id ?? undefined);
     loadUserRole();
     loadMarketDataConfig();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [handleBuild, loadPositions, loadUserRole, loadMarketDataConfig]);
 
 

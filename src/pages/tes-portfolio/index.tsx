@@ -850,11 +850,12 @@ function TesPortfolioPage() {
     canEdit,
     loadUserRole,
     userRole,
+    userProfile,
   } = useAppStore();
 
   // Mount: load positions + role + catalog
   useEffect(() => {
-    loadTesPositions();
+    loadTesPositions(userProfile?.company_id ?? undefined);
     loadUserRole();
     setCatalogLoading(true);
     getTesCatalog()
