@@ -19,16 +19,20 @@ const supabase = createClientComponentClient();
 const SCHEMA = 'xerenity';
 
 export const createNewLoan = async (
-  values: NewLoanValues
+  values: NewLoanValues,
+  companyId?: string
 ): Promise<CreateLoanResponse> => {
   const response: CreateLoanResponse = {
     data: undefined,
     error: undefined,
   };
   try {
+    const params = companyId
+      ? { ...values, p_company_id: companyId }
+      : values;
     const { data, error } = await supabase
       .schema(SCHEMA)
-      .rpc(CREATE_LOAN.key, values);
+      .rpc(CREATE_LOAN.key, params);
     if (error) {
       response.error = CREATE_LOAN.error;
       return response;
