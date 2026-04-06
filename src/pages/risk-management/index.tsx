@@ -131,6 +131,17 @@ const pnlClass = (v: number | null): string => {
   return '';
 };
 
+/** Format number with compact suffix: $13.4M, $453K, $15 */
+const fmtCompact = (v: number | null): string => {
+  if (v == null) return '—';
+  const abs = Math.abs(v);
+  const sign = v < 0 ? '-' : '';
+  if (abs >= 1_000_000_000) return `${sign}$${(abs / 1_000_000_000).toFixed(1)}B`;
+  if (abs >= 1_000_000) return `${sign}$${(abs / 1_000_000).toFixed(1)}M`;
+  if (abs >= 1_000) return `${sign}$${(abs / 1_000).toFixed(1)}K`;
+  return `${sign}$${abs.toFixed(0)}`;
+};
+
 const fmtUsd = (v: number): string => {
   if (v === 0) return '';
   const prefix = v < 0 ? '-$' : '$';
@@ -706,11 +717,9 @@ function RiskManagement() {
   // Resumen state
   const [resumenData, setResumenData] = useState<ResumenData | null>(null);
   const [resumenLoading, setResumenLoading] = useState(false);
-  const [resumenMonth, setResumenMonth] = useState(currentMonth());
 
-  // Access store data for loans and TES
-  const fullLoan = useAppStore((s) => (s as unknown as Record<string, unknown>).fullLoan) as { total_value: number; loan_count: number; accrued_interest: number } | undefined;
-  const pricedTesBonds = useAppStore((s) => (s as unknown as Record<string, unknown>).pricedTesBonds) as Array<{ bond_name: string; notional: number; npv?: number; pnl_mtm?: number }> | undefined;
+  // Access OTC summary from store (available after repricing in Portfolio OTC page)
+  const otcSummary = useAppStore((s) => (s as unknown as Record<string, unknown>).summary) as { total_npv_cop: number; total_npv_usd: number; total_carry_cop: number; total_pnl_rate_cop: number; total_pnl_fx_cop: number; fx_spot?: number } | undefined;
 
   // Methodology modal
   const [methModal, setMethModal] = useState<string | null>(null);
@@ -801,14 +810,42 @@ function RiskManagement() {
   };
 
   // ── Resumen handler ──
-  const resumenFilterDate = lastDayOfMonth(resumenMonth.year, resumenMonth.month);
-
   const handleFetchResumen = useCallback(async () => {
     setResumenLoading(true);
     try {
-      const data = await fetchResumenData(resumenFilterDate, selectedCompanyId, {
-        fullLoan,
-        pricedTesBonds: pricedTesBonds ?? [],
+      const today = defaultDate();
+
+      // Build commodities from benchmarkRows (same data as Benchmark tab)
+      const commodityRows = benchmarkRows
+        .filter((r) => r.asset && r.asset !== 'Total')
+        .map((r) => ({
+          asset: r.asset,
+          contract: benchmarkFactors?.contracts?.[r.asset] ?? null,
+          exposicion_natural: parseDisplayValue(r.position_super || '0'),
+          portafolio_gr: parseDisplayValue(r.position_gr || '0') || null,
+          total: parseDisplayValue(r.position_total || '0'),
+          pnl_super: parseDisplayValue(r.pnl_super || '0'),
+          pnl_gr: parseDisplayValue(r.pnl_gr || '0') || null,
+          pnl_total: parseDisplayValue(r.pnl_total || '0'),
+        }));
+      const totalRow = benchmarkRows.find((r) => r.asset === 'Total');
+      const commoditiesResumen = {
+        rows: commodityRows,
+        totals: {
+          asset: 'Total',
+          contract: null,
+          exposicion_natural: parseDisplayValue(totalRow?.position_super || '0'),
+          portafolio_gr: parseDisplayValue(totalRow?.position_gr || '0') || null,
+          total: parseDisplayValue(totalRow?.position_total || '0'),
+          pnl_super: parseDisplayValue(totalRow?.pnl_super || '0'),
+          pnl_gr: parseDisplayValue(totalRow?.pnl_gr || '0') || null,
+          pnl_total: parseDisplayValue(totalRow?.pnl_total || '0'),
+        },
+      };
+
+      const data = await fetchResumenData(today, selectedCompanyId, {
+        summary: otcSummary,
+        commoditiesOverride: commoditiesResumen,
       });
       setResumenData(data);
     } catch (e: unknown) {
@@ -817,7 +854,7 @@ function RiskManagement() {
       setResumenLoading(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [resumenFilterDate, selectedCompanyId]);
+  }, [selectedCompanyId, benchmarkRows, benchmarkFactors]);
 
   const handleFetchRolling = useCallback(async () => {
     setRollingLoading(true);
@@ -1035,20 +1072,12 @@ function RiskManagement() {
   }, [filterDate, editModal, editFields, handleFetchFutures]);
 
   useEffect(() => {
-    if (activeTab === 'resumen' && !resumenData) {
-      handleFetchResumen();
-    }
-    if (activeTab === 'rolling' && !rollingData) {
-      handleFetchRolling();
-    }
-    if (activeTab === 'benchmark' && !benchmarkFactors) {
-      handleFetchBenchmarkFactors();
-    }
-    if (activeTab === 'futures') {
-      handleFetchFutures();
-    }
+    if (activeTab === 'resumen') handleFetchResumen();
+    if (activeTab === 'rolling') handleFetchRolling();
+    if (activeTab === 'benchmark') handleFetchBenchmarkFactors();
+    if (activeTab === 'futures') handleFetchFutures();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, benchmarkFactors, futuresMonth, resumenData]);
+  }, [activeTab, futuresMonth]);
 
   // When exposure results change, update benchmark position_super
   useEffect(() => {
@@ -1140,43 +1169,7 @@ function RiskManagement() {
         {/* ─── RESUMEN TAB ─── */}
         {activeTab === 'resumen' && (
           <div>
-            {/* Month navigator */}
-            <Row className="mb-3 align-items-center">
-              <Col xs="auto" className="d-flex align-items-center gap-2">
-                <Button
-                  variant="outline-secondary"
-                  size="sm"
-                  onClick={() => {
-                    const prev = resumenMonth.month === 0
-                      ? { year: resumenMonth.year - 1, month: 11 }
-                      : { year: resumenMonth.year, month: resumenMonth.month - 1 };
-                    setResumenMonth(prev);
-                    setResumenData(null);
-                  }}
-                  style={{ padding: '4px 10px' }}
-                >
-                  <Icon icon={faChevronLeft} />
-                </Button>
-                <div className="text-center" style={{ minWidth: 160 }}>
-                  <strong style={{ fontSize: '1.1rem', color: '#7c3aed' }}>
-                    {MONTH_NAMES[resumenMonth.month]} {resumenMonth.year}
-                  </strong>
-                </div>
-                <Button
-                  variant="outline-secondary"
-                  size="sm"
-                  onClick={() => {
-                    const next = resumenMonth.month === 11
-                      ? { year: resumenMonth.year + 1, month: 0 }
-                      : { year: resumenMonth.year, month: resumenMonth.month + 1 };
-                    setResumenMonth(next);
-                    setResumenData(null);
-                  }}
-                  style={{ padding: '4px 10px' }}
-                >
-                  <Icon icon={faChevronRight} />
-                </Button>
-              </Col>
+            <Row className="mb-3">
               <Col xs="auto">
                 <Button
                   variant="primary"
@@ -1194,96 +1187,124 @@ function RiskManagement() {
 
             {resumenData && (
               <>
-                {/* KPI Cards */}
-                <Row className="mb-4 g-3">
-                  {resumenData.secciones.map((sec) => (
-                    <Col key={sec.nombre} xs={6} md={3}>
-                      <div style={{
-                        background: '#fff',
-                        borderRadius: 8,
-                        padding: '16px 20px',
-                        border: '1px solid #e2e8f0',
-                        boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
-                      }}>
-                        <div style={{ fontSize: '0.75rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 600 }}>
-                          {sec.nombre}
-                        </div>
-                        <div style={{ fontSize: '1.4rem', fontWeight: 700, color: '#1e293b', marginTop: 4 }}>
-                          {sec.posiciones} <span style={{ fontSize: '0.8rem', fontWeight: 400, color: '#64748b' }}>posiciones</span>
-                        </div>
-                        {sec.valor_total != null && (
-                          <div style={{ fontSize: '0.85rem', color: '#475569', marginTop: 2 }}>
-                            ${Math.abs(sec.valor_total).toLocaleString('en-US', { maximumFractionDigits: 0 })}
-                          </div>
-                        )}
-                        {sec.pnl_mes != null && (
+                {/* ── COMMODITIES ── */}
+                <div style={{ background: '#fff', borderRadius: 8, border: '1px solid #e2e8f0', padding: '20px', marginBottom: 20, boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }}>
+                  <h6 style={{ color: '#7c3aed', marginBottom: 16, fontWeight: 700 }}>
+                    <Icon icon={faChartPie} className="me-2" />Commodities
+                  </h6>
+                  <div className="table-responsive">
+                    <table className="table table-sm mb-0" style={{ fontSize: '0.8rem', borderCollapse: 'separate', borderSpacing: 0 }}>
+                      <thead>
+                        <tr>
+                          <th rowSpan={2} style={{ verticalAlign: 'middle', borderBottom: '2px solid #e2e8f0', color: '#64748b', fontSize: '0.7rem' }}>Activo</th>
+                          <th colSpan={3} className="text-center" style={{ borderBottom: '1px solid #e2e8f0', color: '#1e293b', fontWeight: 700, fontSize: '0.75rem' }}>Posiciones</th>
+                          <th colSpan={3} className="text-center" style={{ borderBottom: '1px solid #e2e8f0', color: '#1e293b', fontWeight: 700, fontSize: '0.75rem' }}>P&G</th>
+                        </tr>
+                        <tr style={{ fontSize: '0.7rem', color: '#64748b' }}>
+                          <th className="text-end" style={{ borderBottom: '2px solid #e2e8f0' }}>Exposición Natural</th>
+                          <th className="text-end" style={{ borderBottom: '2px solid #e2e8f0', color: '#d97706' }}>Portafolio GR</th>
+                          <th className="text-end" style={{ borderBottom: '2px solid #e2e8f0' }}>Total</th>
+                          <th className="text-end" style={{ borderBottom: '2px solid #e2e8f0' }}>Super</th>
+                          <th className="text-end" style={{ borderBottom: '2px solid #e2e8f0', color: '#d97706' }}>GR</th>
+                          <th className="text-end" style={{ borderBottom: '2px solid #e2e8f0' }}>Total</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {resumenData.commodities.rows.map((row) => (
+                          <tr key={row.asset} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                            <td style={{ padding: '8px 4px' }}>
+                              <span style={{ color: '#7c3aed', fontWeight: 600 }}>{row.asset}</span>
+                              {row.contract && <span style={{ color: '#94a3b8', fontSize: '0.65rem' }}> ({row.contract})</span>}
+                            </td>
+                            <td className="text-end" style={{ padding: '8px 4px' }}>{row.exposicion_natural != null ? fmtCompact(row.exposicion_natural) : '—'}</td>
+                            <td className="text-end" style={{ padding: '8px 4px' }}>{row.portafolio_gr != null ? fmtCompact(row.portafolio_gr) : '—'}</td>
+                            <td className="text-end" style={{ padding: '8px 4px', fontWeight: 600 }}>{row.total != null ? fmtCompact(row.total) : '—'}</td>
+                            <td className={`text-end ${pnlClass(row.pnl_super)}`} style={{ padding: '8px 4px' }}>{row.pnl_super != null ? fmtCompact(row.pnl_super) : '—'}</td>
+                            <td className={`text-end ${pnlClass(row.pnl_gr)}`} style={{ padding: '8px 4px' }}>{row.pnl_gr != null ? fmtCompact(row.pnl_gr) : '—'}</td>
+                            <td className={`text-end ${pnlClass(row.pnl_total)}`} style={{ padding: '8px 4px', fontWeight: 600 }}>{row.pnl_total != null ? fmtCompact(row.pnl_total) : '—'}</td>
+                          </tr>
+                        ))}
+                        <tr style={{ borderTop: '2px solid #1e293b' }}>
+                          <td style={{ padding: '8px 4px', fontWeight: 700 }}>Total</td>
+                          <td className="text-end" style={{ padding: '8px 4px', fontWeight: 700 }}>{resumenData.commodities.totals.exposicion_natural != null ? fmtCompact(resumenData.commodities.totals.exposicion_natural) : '—'}</td>
+                          <td className="text-end" style={{ padding: '8px 4px', fontWeight: 700 }}>{resumenData.commodities.totals.portafolio_gr != null ? fmtCompact(resumenData.commodities.totals.portafolio_gr) : '—'}</td>
+                          <td className="text-end" style={{ padding: '8px 4px', fontWeight: 700 }}>{resumenData.commodities.totals.total != null ? fmtCompact(resumenData.commodities.totals.total) : '—'}</td>
+                          <td className={`text-end ${pnlClass(resumenData.commodities.totals.pnl_super)}`} style={{ padding: '8px 4px', fontWeight: 700 }}>{resumenData.commodities.totals.pnl_super != null ? fmtCompact(resumenData.commodities.totals.pnl_super) : '—'}</td>
+                          <td className={`text-end ${pnlClass(resumenData.commodities.totals.pnl_gr)}`} style={{ padding: '8px 4px', fontWeight: 700 }}>{resumenData.commodities.totals.pnl_gr != null ? fmtCompact(resumenData.commodities.totals.pnl_gr) : '—'}</td>
+                          <td className={`text-end ${pnlClass(resumenData.commodities.totals.pnl_total)}`} style={{ padding: '8px 4px', fontWeight: 700 }}>{resumenData.commodities.totals.pnl_total != null ? fmtCompact(resumenData.commodities.totals.pnl_total) : '—'}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* ── DERIVADOS OTC ── */}
+                <div style={{ background: '#fff', borderRadius: 8, border: '1px solid #e2e8f0', padding: '20px', marginBottom: 20, boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }}>
+                  <h6 style={{ color: '#7c3aed', marginBottom: 16, fontWeight: 700 }}>
+                    <Icon icon={faBriefcase} className="me-2" />Derivados OTC — {resumenData.otc.posiciones} posiciones
+                  </h6>
+                  <Row className="g-2">
+                    {[
+                      { label: 'NPV COP', value: resumenData.otc.npv_cop, suffix: '' },
+                      { label: 'NPV USD', value: resumenData.otc.npv_usd, suffix: '' },
+                      { label: 'Carry COP', value: resumenData.otc.carry_cop, suffix: '' },
+                      { label: 'P&L Tasas', value: resumenData.otc.pnl_tasas, suffix: '' },
+                      { label: 'P&L FX', value: resumenData.otc.pnl_fx, suffix: '' },
+                      { label: 'Spot USD/COP', value: resumenData.otc.spot, suffix: '', plain: true },
+                    ].map((item) => (
+                      <Col key={item.label} xs={4} md={2}>
+                        <div style={{ textAlign: 'center', padding: '10px 6px', background: '#f8fafc', borderRadius: 6 }}>
+                          <div style={{ fontSize: '0.65rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 600 }}>{item.label}</div>
                           <div style={{
-                            fontSize: '0.85rem',
-                            fontWeight: 600,
-                            color: sec.pnl_mes >= 0 ? '#16a34a' : '#dc2626',
-                            marginTop: 2,
+                            fontSize: '1rem', fontWeight: 700, marginTop: 2,
+                            color: item.plain ? '#1e293b' : pnlClass(item.value).replace('text-', '').replace('success', '#16a34a').replace('danger', '#dc2626') || '#1e293b',
                           }}>
-                            {sec.pnl_mes >= 0 ? '+' : ''}{fmtUsd(sec.pnl_mes)}
+                            {/* eslint-disable-next-line no-nested-ternary */}
+                            {item.value != null ? (item.plain ? fmt(item.value, 2) : fmtCompact(item.value)) : '—'}
                           </div>
-                        )}
+                        </div>
+                      </Col>
+                    ))}
+                  </Row>
+                </div>
+
+                {/* ── CRÉDITOS ── */}
+                <div style={{ background: '#fff', borderRadius: 8, border: '1px solid #e2e8f0', padding: '20px', boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }}>
+                  <h6 style={{ color: '#7c3aed', marginBottom: 16, fontWeight: 700 }}>
+                    <Icon icon={faDollarSign} className="me-2" />Créditos
+                  </h6>
+                  <Row className="g-3">
+                    <Col xs={3}>
+                      <div style={{ textAlign: 'center', padding: '12px', background: '#f8fafc', borderRadius: 6 }}>
+                        <div style={{ fontSize: '0.7rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 600 }}># Créditos</div>
+                        <div style={{ fontSize: '1.4rem', fontWeight: 700, color: '#1e293b' }}>{resumenData.creditos.total_creditos}</div>
                       </div>
                     </Col>
-                  ))}
-                </Row>
-
-                {/* Consolidated Table */}
-                <div className="table-responsive">
-                  <table className="table table-sm table-bordered mb-0" style={{ fontSize: '0.85rem' }}>
-                    <thead>
-                      <tr style={{ background: '#1e293b', color: '#fff' }}>
-                        <th>Sección</th>
-                        <th className="text-center">Posiciones</th>
-                        <th className="text-end">Valor / Notional</th>
-                        <th className="text-end">P&L Mes</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {resumenData.secciones.map((sec) => (
-                        <React.Fragment key={sec.nombre}>
-                          {/* Section header row */}
-                          <tr style={{ background: '#f8fafc', fontWeight: 600 }}>
-                            <td>{sec.nombre}</td>
-                            <td className="text-center">{sec.posiciones}</td>
-                            <td className="text-end">
-                              {sec.valor_total != null ? `$${Math.abs(sec.valor_total).toLocaleString('en-US', { maximumFractionDigits: 0 })}` : '—'}
-                            </td>
-                            <td className={`text-end ${pnlClass(sec.pnl_mes)}`}>
-                              {sec.pnl_mes != null ? fmtUsd(sec.pnl_mes) : '—'}
-                            </td>
-                          </tr>
-                          {/* Detail sub-rows */}
-                          {sec.detalle.map((row, idx) => (
-                            <tr key={`${sec.nombre}-${idx.toString()}`} style={{ color: '#64748b', fontSize: '0.8rem' }}>
-                              <td style={{ paddingLeft: 28 }}>{row.nombre}</td>
-                              <td className="text-center">{row.posiciones > 0 ? row.posiciones : ''}</td>
-                              <td className="text-end">
-                                {row.valor != null ? `$${Math.abs(row.valor).toLocaleString('en-US', { maximumFractionDigits: 0 })}` : ''}
-                              </td>
-                              <td className={`text-end ${pnlClass(row.pnl)}`}>
-                                {row.pnl != null ? fmtUsd(row.pnl) : ''}
-                              </td>
-                            </tr>
-                          ))}
-                        </React.Fragment>
-                      ))}
-                      {/* Totals row */}
-                      <tr style={{ background: '#1e293b', color: '#fff', fontWeight: 700 }}>
-                        <td>TOTAL</td>
-                        <td className="text-center">{resumenData.totales.posiciones}</td>
-                        <td className="text-end">
-                          ${Math.abs(resumenData.totales.valor_total).toLocaleString('en-US', { maximumFractionDigits: 0 })}
-                        </td>
-                        <td className="text-end">
-                          {resumenData.totales.pnl_mes !== 0 ? fmtUsd(resumenData.totales.pnl_mes) : '—'}
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
+                    <Col xs={3}>
+                      <div style={{ textAlign: 'center', padding: '12px', background: '#f8fafc', borderRadius: 6 }}>
+                        <div style={{ fontSize: '0.7rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 600 }}>Deuda Total</div>
+                        <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#1e293b' }}>
+                          {resumenData.creditos.deuda_total != null ? fmtCompact(resumenData.creditos.deuda_total) : '—'}
+                        </div>
+                      </div>
+                    </Col>
+                    <Col xs={3}>
+                      <div style={{ textAlign: 'center', padding: '12px', background: '#dbeafe', borderRadius: 6 }}>
+                        <div style={{ fontSize: '0.7rem', color: '#3b82f6', textTransform: 'uppercase', fontWeight: 600 }}>IBR</div>
+                        <div style={{ fontSize: '1.2rem', fontWeight: 700, color: '#1e293b' }}>
+                          {resumenData.creditos.creditos_ibr} <span style={{ fontSize: '0.7rem', fontWeight: 400, color: '#64748b' }}>créditos</span>
+                        </div>
+                      </div>
+                    </Col>
+                    <Col xs={3}>
+                      <div style={{ textAlign: 'center', padding: '12px', background: '#fef3c7', borderRadius: 6 }}>
+                        <div style={{ fontSize: '0.7rem', color: '#d97706', textTransform: 'uppercase', fontWeight: 600 }}>Tasa Fija</div>
+                        <div style={{ fontSize: '1.2rem', fontWeight: 700, color: '#1e293b' }}>
+                          {resumenData.creditos.creditos_tasa_fija} <span style={{ fontSize: '0.7rem', fontWeight: 400, color: '#64748b' }}>créditos</span>
+                        </div>
+                      </div>
+                    </Col>
+                  </Row>
                 </div>
               </>
             )}

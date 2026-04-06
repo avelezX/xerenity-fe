@@ -167,27 +167,48 @@ export interface FuturesCloseParams {
 
 // ── Resumen (Dashboard) ──
 
-export interface ResumenRow {
-  nombre: string;
-  posiciones: number;
-  valor: number | null;
-  pnl: number | null;
-  isSubRow?: boolean;
+export interface CommodityRow {
+  asset: string;
+  contract: string | null;
+  exposicion_natural: number | null;
+  portafolio_gr: number | null;
+  total: number | null;
+  pnl_super: number | null;
+  pnl_gr: number | null;
+  pnl_total: number | null;
 }
 
-export interface ResumenSection {
-  nombre: string;
-  icon: string;
+export interface CommoditiesResumen {
+  rows: CommodityRow[];
+  totals: CommodityRow;
+}
+
+export interface OTCResumen {
   posiciones: number;
-  valor_total: number | null;
-  pnl_mes: number | null;
-  detalle: ResumenRow[];
+  npv_cop: number | null;
+  npv_usd: number | null;
+  carry_cop: number | null;
+  pnl_tasas: number | null;
+  pnl_fx: number | null;
+  spot: number | null;
+  dv01: number | null;
+  fx_delta: number | null;
+}
+
+export interface CreditosResumen {
+  total_creditos: number;
+  deuda_total: number | null;
+  creditos_ibr: number;
+  creditos_tasa_fija: number;
+  creditos_uvr: number;
+  tasa_promedio: number | null;
 }
 
 export interface ResumenData {
   fecha: string;
-  secciones: ResumenSection[];
-  totales: { posiciones: number; valor_total: number; pnl_mes: number };
+  commodities: CommoditiesResumen;
+  otc: OTCResumen;
+  creditos: CreditosResumen;
 }
 
 // ── Futures Edit ──
