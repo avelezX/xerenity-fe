@@ -58,6 +58,12 @@ export interface UserSlice {
   deleteCompany: (companyId: string) => Promise<{ success: boolean; error?: string }>;
   assignUserToCompany: (userId: string, companyId: string | null, accountType: string) => Promise<{ success: boolean; error?: string }>;
   resetUserStore: () => void;
+
+  // Global company selector (for super_admin viewing other companies)
+  selectedCompanyId: string | undefined;
+  setSelectedCompanyId: (id: string | undefined) => void;
+  /** Returns selectedCompanyId if set, otherwise userProfile.company_id */
+  activeCompanyId: () => string | undefined;
 }
 
 const initialUserState = {
@@ -69,6 +75,7 @@ const initialUserState = {
   invitations: [] as Invitation[],
   userLoading: false,
   userError: undefined as string | undefined,
+  selectedCompanyId: undefined as string | undefined,
 };
 
 const createUserSlice: StateCreator<UserSlice> = (set, get) => ({
@@ -257,6 +264,13 @@ const createUserSlice: StateCreator<UserSlice> = (set, get) => ({
   },
 
   resetUserStore: () => set(initialUserState),
+
+  selectedCompanyId: undefined,
+  setSelectedCompanyId: (id) => set({ selectedCompanyId: id }),
+  activeCompanyId: () => {
+    const { selectedCompanyId: selected, userProfile } = get();
+    return selected || userProfile?.company_id || undefined;
+  },
 });
 
 export default createUserSlice;

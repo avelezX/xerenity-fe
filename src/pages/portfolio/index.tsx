@@ -1961,7 +1961,8 @@ function PortfolioPage() {
     updateMarketDataConfig,
     refPrices,
     loadReferencePrices,
-    userProfile,
+    activeCompanyId,
+    selectedCompanyId,
   } = useAppStore();
 
   const handleBuild = useCallback(async (silent = false) => {
@@ -2011,11 +2012,11 @@ function PortfolioPage() {
       }
     };
     initCurves();
-    loadPositions(userProfile?.company_id ?? undefined);
+    loadPositions(activeCompanyId());
     loadUserRole();
     loadMarketDataConfig();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [handleBuild, loadPositions, loadUserRole, loadMarketDataConfig]);
+  }, [handleBuild, loadPositions, loadUserRole, loadMarketDataConfig, selectedCompanyId]);
 
 
   // Sync markFecha to curveStatus valuation_date once it loads
