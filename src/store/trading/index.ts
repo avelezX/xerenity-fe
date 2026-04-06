@@ -81,7 +81,7 @@ export interface TradingSlice {
 
   // Actions
   loadUserRole: () => Promise<void>;
-  loadPositions: () => Promise<void>;
+  loadPositions: (companyId?: string) => Promise<void>;
   repriceAll: () => Promise<void>;
   repriceAllWithMark: (fecha: string) => Promise<void>;
   addXccyPosition: (values: NewXccyPosition) => Promise<void>;
@@ -95,7 +95,7 @@ export interface TradingSlice {
   loadReferencePrices: (fechaMarca: string) => Promise<void>;
   resetTradingStore: () => void;
   // TES actions
-  loadTesPositions: () => Promise<void>;
+  loadTesPositions: (companyId?: string) => Promise<void>;
   repriceTes: () => Promise<void>;
   addTesPosition: (values: NewTesPosition) => Promise<void>;
   removeTesPositions: (ids: string[]) => Promise<void>;
@@ -136,13 +136,13 @@ const createTradingSlice: StateCreator<TradingSlice> = (set, get) => ({
     });
   },
 
-  loadPositions: async () => {
+  loadPositions: async (companyId?: string) => {
     set({ tradingLoading: true, tradingError: undefined });
     try {
       const [xccy, ndf, ibrSwap] = await Promise.all([
-        fetchXccyPositions(),
-        fetchNdfPositions(),
-        fetchIbrSwapPositions(),
+        fetchXccyPositions(companyId),
+        fetchNdfPositions(companyId),
+        fetchIbrSwapPositions(companyId),
       ]);
 
       // Only update from DB if at least one succeeded without error
@@ -453,10 +453,10 @@ const createTradingSlice: StateCreator<TradingSlice> = (set, get) => ({
 
   resetTradingStore: () => set(initialTradingState),
 
-  loadTesPositions: async () => {
+  loadTesPositions: async (companyId?: string) => {
     set({ tesLoading: true, tesError: undefined });
     try {
-      const res = await fetchTesPositions();
+      const res = await fetchTesPositions(companyId);
       if (res.error) {
         set({ tesLoading: false, tesError: res.error });
         return;

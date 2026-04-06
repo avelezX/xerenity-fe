@@ -47,7 +47,7 @@ export interface LoansSlice {
   showLoanDebtTable: boolean;
   fullLoan: LoanData | undefined;
   filterDate: string;
-  getLoanData: (bankFilter?: Bank[]) => void;
+  getLoanData: (bankFilter?: Bank[], companyId?: string) => void;
   setSelectedLoans: ({
     selectedCount,
     selectedRows,
@@ -126,7 +126,7 @@ const createLoansSlice: StateCreator<LoansSlice> = (set) => ({
     }
   },
 
-  getLoanData: async (bankFilter: Bank[] = []) => {
+  getLoanData: async (bankFilter: Bank[] = [], companyId?: string) => {
     // Set initial state before fetching data
     set({ loading: true, errorMessage: undefined, successMessage: undefined });
     const response: BankResponse = await fetchBanks();
@@ -136,7 +136,7 @@ const createLoansSlice: StateCreator<LoansSlice> = (set) => ({
       set({ errorMessage: response.error });
     } else if (response.data) {
       const banks: Bank[] = bankFilter.length > 0 ? bankFilter : response.data;
-      const loanResponse: LoanResponse = await fetchLoans(banks);
+      const loanResponse: LoanResponse = await fetchLoans(banks, companyId);
       set({ banks });
 
       if (loanResponse.error) {
