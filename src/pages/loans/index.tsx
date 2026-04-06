@@ -121,10 +121,13 @@ export default function LoansPage() {
 
   const cashflowsEmpty = mergedCashFlows.length === 0;
 
-  // ─── Computed: Deuda total from actual loans (not backend summary) ───
+  // ─── Computed: Deuda total — use backend valuation when available, fallback to original_balance ───
   const totalDeuda = useMemo(
-    () => loans.reduce((sum, l) => sum + l.original_balance, 0),
-    [loans],
+    () =>
+      fullLoan?.total_value
+        ? fullLoan.total_value
+        : loans.reduce((sum, l) => sum + l.original_balance, 0),
+    [loans, fullLoan],
   );
 
   // ─── Chart data (from merged cashflows of selected loans) ───

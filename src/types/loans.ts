@@ -1,5 +1,7 @@
 export interface Loan {
   id: string;
+  company_id?: string;
+  sociedad?: string;
   start_date: string;
   number_of_payments: number;
   original_balance: number;
