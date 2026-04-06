@@ -131,6 +131,24 @@ const pnlClass = (v: number | null): string => {
   return '';
 };
 
+/** Row style helper for futures table — total/subtotal/normal rows */
+function getRowStyle(isTotal: boolean, isSubtotal: boolean): React.CSSProperties {
+  if (isTotal) return { borderTop: '2px solid #1e293b' };
+  if (isSubtotal) return { borderTop: '1px solid #cbd5e1', background: '#f8fafc' };
+  return { borderBottom: '1px solid #f1f5f9' };
+}
+
+/** Format number with compact suffix: $13.4M, $453K, $15 */
+const fmtCompact = (v: number | null): string => {
+  if (v == null) return '—';
+  const abs = Math.abs(v);
+  const sign = v < 0 ? '-' : '';
+  if (abs >= 1_000_000_000) return `${sign}$${(abs / 1_000_000_000).toFixed(1)}B`;
+  if (abs >= 1_000_000) return `${sign}$${(abs / 1_000_000).toFixed(1)}M`;
+  if (abs >= 1_000) return `${sign}$${(abs / 1_000).toFixed(1)}K`;
+  return `${sign}$${abs.toFixed(0)}`;
+};
+
 const fmtUsd = (v: number): string => {
   if (v === 0) return '';
   const prefix = v < 0 ? '-$' : '$';
@@ -259,11 +277,15 @@ function recalcBenchmark(rows: BenchmarkRow[], varianceMap?: Record<string, numb
     // tracking_error = |sqrt(252/12) * sqrt(daily_variance) * position_gr|
     const { asset } = row;
     const dailyVar = varianceMap?.[asset] ?? null;
-    if (dailyVar != null && dailyVar > 0 && grPos !== 0 && pnlGr !== 0) {
+    if (dailyVar != null && dailyVar > 0 && grPos !== 0) {
       const volDaily = Math.sqrt(dailyVar);
       const trackingError = Math.abs(annualFactor * volDaily * grPos);
-      const infoRatio = trackingError !== 0 ? pnlGr / trackingError : null;
-      next[i].information_ratio = infoRatio != null ? String(Math.round(infoRatio * 100) / 100) : '';
+      if (trackingError !== 0) {
+        const infoRatio = pnlGr / trackingError;
+        next[i].information_ratio = infoRatio.toFixed(2);
+      } else {
+        next[i].information_ratio = '';
+      }
     } else {
       next[i].information_ratio = '';
     }
@@ -293,8 +315,8 @@ function recalcBenchmark(rows: BenchmarkRow[], varianceMap?: Record<string, numb
       totalTrackingError += Math.abs(annualFactor * Math.sqrt(dv) * grP);
     }
   });
-  next[totalIdx].information_ratio = totalTrackingError !== 0 && totalPnlGr !== 0
-    ? String(Math.round((totalPnlGr / totalTrackingError) * 100) / 100)
+  next[totalIdx].information_ratio = totalTrackingError !== 0
+    ? (totalPnlGr / totalTrackingError).toFixed(2)
     : '';
 
   return next;
@@ -706,11 +728,12 @@ function RiskManagement() {
   // Resumen state
   const [resumenData, setResumenData] = useState<ResumenData | null>(null);
   const [resumenLoading, setResumenLoading] = useState(false);
-  const [resumenMonth, setResumenMonth] = useState(currentMonth());
 
-  // Access store data for loans and TES
-  const fullLoan = useAppStore((s) => (s as unknown as Record<string, unknown>).fullLoan) as { total_value: number; loan_count: number; accrued_interest: number } | undefined;
-  const pricedTesBonds = useAppStore((s) => (s as unknown as Record<string, unknown>).pricedTesBonds) as Array<{ bond_name: string; notional: number; npv?: number; pnl_mtm?: number }> | undefined;
+  // Access OTC summary from store (available after repricing in Portfolio OTC page)
+  const otcSummary = useAppStore((s) => s.summary) as { total_npv_cop: number; total_npv_usd: number } | undefined;
+  const pricedXccyStore = useAppStore((s) => s.pricedXccy);
+  const pricedNdfStore = useAppStore((s) => s.pricedNdf);
+  const refPricesStore = useAppStore((s) => s.refPrices);
 
   // Methodology modal
   const [methModal, setMethModal] = useState<string | null>(null);
@@ -801,14 +824,58 @@ function RiskManagement() {
   };
 
   // ── Resumen handler ──
-  const resumenFilterDate = lastDayOfMonth(resumenMonth.year, resumenMonth.month);
-
   const handleFetchResumen = useCallback(async () => {
     setResumenLoading(true);
     try {
-      const data = await fetchResumenData(resumenFilterDate, selectedCompanyId, {
-        fullLoan,
-        pricedTesBonds: pricedTesBonds ?? [],
+      const today = defaultDate();
+
+      // Build commodities from benchmarkRows (same data as Benchmark tab)
+      const commodityRows = benchmarkRows
+        .filter((r) => r.asset && r.asset !== 'Total')
+        .map((r) => ({
+          asset: r.asset,
+          contract: benchmarkFactors?.contracts?.[r.asset] ?? null,
+          exposicion_natural: parseDisplayValue(r.position_super || '0'),
+          portafolio_gr: parseDisplayValue(r.position_gr || '0') || null,
+          total: parseDisplayValue(r.position_total || '0'),
+          pnl_super: parseDisplayValue(r.pnl_super || '0'),
+          pnl_gr: parseDisplayValue(r.pnl_gr || '0') || null,
+          pnl_total: parseDisplayValue(r.pnl_total || '0'),
+        }));
+      const totalRow = benchmarkRows.find((r) => r.asset === 'Total');
+      const commoditiesResumen = {
+        rows: commodityRows,
+        totals: {
+          asset: 'Total',
+          contract: null,
+          exposicion_natural: parseDisplayValue(totalRow?.position_super || '0'),
+          portafolio_gr: parseDisplayValue(totalRow?.position_gr || '0') || null,
+          total: parseDisplayValue(totalRow?.position_total || '0'),
+          pnl_super: parseDisplayValue(totalRow?.pnl_super || '0'),
+          pnl_gr: parseDisplayValue(totalRow?.pnl_gr || '0') || null,
+          pnl_total: parseDisplayValue(totalRow?.pnl_total || '0'),
+        },
+      };
+
+      // FX Delta total = sum of fx_delta from priced XCCY + NDF positions
+      const fxDeltaTotal = (pricedXccyStore ?? []).reduce((s, p) => s + (p.fx_delta ?? 0), 0)
+        + (pricedNdfStore ?? []).reduce((s, p) => s + (p.fx_delta ?? 0), 0);
+
+      // P&L MTD = current NPV - MTD reference NPV
+      const mtdRef = refPricesStore?.mtd;
+      const pnlMtdCop = (otcSummary && mtdRef)
+        ? otcSummary.total_npv_cop - mtdRef.summary.total_npv_cop
+        : undefined;
+      const pnlMtdUsd = (otcSummary && mtdRef)
+        ? otcSummary.total_npv_usd - mtdRef.summary.total_npv_usd
+        : undefined;
+
+      const data = await fetchResumenData(today, selectedCompanyId, {
+        summary: otcSummary,
+        fxDeltaTotal,
+        pnlMtdCop,
+        pnlMtdUsd,
+        commoditiesOverride: commoditiesResumen,
       });
       setResumenData(data);
     } catch (e: unknown) {
@@ -817,7 +884,7 @@ function RiskManagement() {
       setResumenLoading(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [resumenFilterDate, selectedCompanyId]);
+  }, [selectedCompanyId, benchmarkRows, benchmarkFactors, otcSummary, pricedXccyStore, pricedNdfStore, refPricesStore]);
 
   const handleFetchRolling = useCallback(async () => {
     setRollingLoading(true);
@@ -908,10 +975,11 @@ function RiskManagement() {
     setBenchmarkFactors(null); // trigger reload
   };
 
-  const handleFetchExposure = useCallback(async () => {
+  const handleFetchExposure = useCallback(async (overrideDate?: string) => {
     setExposureLoading(true);
     try {
-      const data = await fetchExposure(filterDate, exposureParams);
+      const dateToUse = overrideDate ?? filterDate;
+      const data = await fetchExposure(dateToUse, exposureParams);
       setExposureResult(data);
 
       // Update local params with DB prices
@@ -1035,20 +1103,36 @@ function RiskManagement() {
   }, [filterDate, editModal, editFields, handleFetchFutures]);
 
   useEffect(() => {
-    if (activeTab === 'resumen' && !resumenData) {
+    if (activeTab === 'resumen') {
+      // Resumen needs benchmark data to be loaded first
+      handleFetchBenchmarkFactors();
+      handleFetchFutures();
+      handleFetchExposure(benchmarkDateStr);
       handleFetchResumen();
     }
-    if (activeTab === 'rolling' && !rollingData) {
-      handleFetchRolling();
-    }
-    if (activeTab === 'benchmark' && !benchmarkFactors) {
+    if (activeTab === 'rolling') handleFetchRolling();
+    if (activeTab === 'benchmark') {
       handleFetchBenchmarkFactors();
-    }
-    if (activeTab === 'futures') {
       handleFetchFutures();
+      handleFetchExposure(benchmarkDateStr);
+    }
+    if (activeTab === 'futures') handleFetchFutures();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, futuresMonth, benchmarkDateStr]);
+
+  // Auto-refresh Resumen when benchmark rows change (so Resumen reflects latest Benchmark data)
+  useEffect(() => {
+    if (activeTab === 'resumen' && benchmarkRows.some((r) => r.position_super)) {
+      handleFetchResumen();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, benchmarkFactors, futuresMonth, resumenData]);
+  }, [benchmarkRows]);
+
+  // Sync futuresMonth with benchmarkMonth (both views show the same period)
+  useEffect(() => {
+    setFuturesMonth(benchmarkMonth);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [benchmarkMonth]);
 
   // When exposure results change, update benchmark position_super
   useEffect(() => {
@@ -1069,13 +1153,76 @@ function RiskManagement() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [exposureResult, varianceMap]);
 
-  const handleBenchmarkChange = (rowIdx: number, colKey: string, rawValue: string) => {
+  // When futures portfolio or benchmark month changes, auto-fill position_gr and pnl_gr
+  // Only positions opened ON or BEFORE the selected benchmark month are included
+  useEffect(() => {
+    // Use Px Inicio (price_start) and Px Fin (price_end) from benchmark factors for P&G
+    const factors = benchmarkFactors?.factors ?? {};
+
     setBenchmarkRows((prev) => {
       const next = prev.map((r) => ({ ...r }));
-      next[rowIdx][colKey] = rawValue.replace(/[$,]/g, '');
+
+      next.forEach((row, i) => {
+        if (row.asset === 'Total') return;
+
+        // ── USD row: fed from OTC store (FX Delta + P&L MTD USD) ──
+        if (row.asset === 'USD') {
+          const fxDeltaTotal = (pricedXccyStore ?? []).reduce((s, p) => s + (p.fx_delta ?? 0), 0)
+            + (pricedNdfStore ?? []).reduce((s, p) => s + (p.fx_delta ?? 0), 0);
+          const mtdRef = refPricesStore?.mtd;
+          const pnlMtdUsd = (otcSummary && mtdRef)
+            ? otcSummary.total_npv_usd - mtdRef.summary.total_npv_usd
+            : 0;
+          next[i].position_gr = fxDeltaTotal !== 0 ? String(Math.round(fxDeltaTotal)) : '0';
+          next[i].pnl_gr = pnlMtdUsd !== 0 ? String(Math.round(pnlMtdUsd)) : '0';
+          return;
+        }
+
+        // Filter positions: only those opened on or before the selected month
+        const positions = (futuresPortfolio ?? []).filter((p) =>
+          p.asset === row.asset
+          && p.entry_date != null
+          && p.entry_date !== ''
+          && p.entry_date <= benchmarkDateStr,
+        );
+
+        if (positions.length === 0) {
+          next[i].position_gr = '0';
+          next[i].pnl_gr = '0';
+          return;
+        }
+
+        // Position GR = sum of Valor Compra (entry_price × multiplier × nominal × toUsd)
+        const valorCompra = positions.reduce((s, p) => {
+          const toUsd = ({ MAIZ: 0.01, AZUCAR: 0.01, CACAO: 1 } as Record<string, number>)[p.asset] ?? 1;
+          return s + (p.entry_price ?? 0) * (p.multiplier ?? 1) * (p.nominal ?? 0) * toUsd;
+        }, 0);
+        next[i].position_gr = String(Math.round(valorCompra));
+
+        // P&G GR = sum of (price_end - price_start) × multiplier × nominal × dirSign × toUsd
+        // Use benchmark prices for the selected month
+        const f = factors[row.asset];
+        if (f?.price_start != null && f?.price_end != null) {
+          const pnlGr = positions.reduce((s, p) => {
+            const toUsd = ({ MAIZ: 0.01, AZUCAR: 0.01, CACAO: 1 } as Record<string, number>)[p.asset] ?? 1;
+            const dirSign = p.direction === 'LONG' ? 1 : -1;
+            // For positions opened in the current month: P&G = (price_end - entry_price) × ...
+            // For older positions: P&G = (price_end - price_start) × ...
+            const entryMonth = (p.entry_date ?? '').slice(0, 7);
+            const filterMonth = benchmarkDateStr.slice(0, 7);
+            const startPrice = entryMonth === filterMonth ? (p.entry_price ?? 0) : (f.price_start ?? 0);
+            return s + (f.price_end! - startPrice) * (p.multiplier ?? 1) * (p.nominal ?? 0) * dirSign * toUsd;
+          }, 0);
+          next[i].pnl_gr = String(Math.round(pnlGr));
+        } else {
+          next[i].pnl_gr = '0';
+        }
+      });
+
       return recalcBenchmark(next, varianceMap);
     });
-  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [futuresPortfolio, varianceMap, benchmarkDateStr, benchmarkFactors, otcSummary, pricedXccyStore, pricedNdfStore, refPricesStore]);
 
   // Build chart data for rolling var
   const buildChartData = (asset: string, field: 'prices' | 'rolling_var') => {
@@ -1140,43 +1287,7 @@ function RiskManagement() {
         {/* ─── RESUMEN TAB ─── */}
         {activeTab === 'resumen' && (
           <div>
-            {/* Month navigator */}
-            <Row className="mb-3 align-items-center">
-              <Col xs="auto" className="d-flex align-items-center gap-2">
-                <Button
-                  variant="outline-secondary"
-                  size="sm"
-                  onClick={() => {
-                    const prev = resumenMonth.month === 0
-                      ? { year: resumenMonth.year - 1, month: 11 }
-                      : { year: resumenMonth.year, month: resumenMonth.month - 1 };
-                    setResumenMonth(prev);
-                    setResumenData(null);
-                  }}
-                  style={{ padding: '4px 10px' }}
-                >
-                  <Icon icon={faChevronLeft} />
-                </Button>
-                <div className="text-center" style={{ minWidth: 160 }}>
-                  <strong style={{ fontSize: '1.1rem', color: '#7c3aed' }}>
-                    {MONTH_NAMES[resumenMonth.month]} {resumenMonth.year}
-                  </strong>
-                </div>
-                <Button
-                  variant="outline-secondary"
-                  size="sm"
-                  onClick={() => {
-                    const next = resumenMonth.month === 11
-                      ? { year: resumenMonth.year + 1, month: 0 }
-                      : { year: resumenMonth.year, month: resumenMonth.month + 1 };
-                    setResumenMonth(next);
-                    setResumenData(null);
-                  }}
-                  style={{ padding: '4px 10px' }}
-                >
-                  <Icon icon={faChevronRight} />
-                </Button>
-              </Col>
+            <Row className="mb-3">
               <Col xs="auto">
                 <Button
                   variant="primary"
@@ -1194,96 +1305,125 @@ function RiskManagement() {
 
             {resumenData && (
               <>
-                {/* KPI Cards */}
-                <Row className="mb-4 g-3">
-                  {resumenData.secciones.map((sec) => (
-                    <Col key={sec.nombre} xs={6} md={3}>
-                      <div style={{
-                        background: '#fff',
-                        borderRadius: 8,
-                        padding: '16px 20px',
-                        border: '1px solid #e2e8f0',
-                        boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
-                      }}>
-                        <div style={{ fontSize: '0.75rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 600 }}>
-                          {sec.nombre}
-                        </div>
-                        <div style={{ fontSize: '1.4rem', fontWeight: 700, color: '#1e293b', marginTop: 4 }}>
-                          {sec.posiciones} <span style={{ fontSize: '0.8rem', fontWeight: 400, color: '#64748b' }}>posiciones</span>
-                        </div>
-                        {sec.valor_total != null && (
-                          <div style={{ fontSize: '0.85rem', color: '#475569', marginTop: 2 }}>
-                            ${Math.abs(sec.valor_total).toLocaleString('en-US', { maximumFractionDigits: 0 })}
+                {/* ── COMMODITIES ── */}
+                <div style={{ background: '#fff', borderRadius: 8, border: '1px solid #e2e8f0', padding: '20px', marginBottom: 20, boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }}>
+                  <h6 style={{ color: '#7c3aed', marginBottom: 16, fontWeight: 700 }}>
+                    <Icon icon={faChartPie} className="me-2" />Commodities
+                  </h6>
+                  <div className="table-responsive">
+                    <table className="table table-sm mb-0" style={{ fontSize: '0.8rem', borderCollapse: 'separate', borderSpacing: 0 }}>
+                      <thead>
+                        <tr>
+                          <th rowSpan={2} style={{ verticalAlign: 'middle', borderBottom: '2px solid #e2e8f0', color: '#64748b', fontSize: '0.7rem' }}>Activo</th>
+                          <th colSpan={3} className="text-center" style={{ borderBottom: '1px solid #e2e8f0', color: '#1e293b', fontWeight: 700, fontSize: '0.75rem' }}>Posiciones</th>
+                          <th colSpan={3} className="text-center" style={{ borderBottom: '1px solid #e2e8f0', color: '#1e293b', fontWeight: 700, fontSize: '0.75rem' }}>P&G</th>
+                        </tr>
+                        <tr style={{ fontSize: '0.7rem', color: '#64748b' }}>
+                          <th className="text-end" style={{ borderBottom: '2px solid #e2e8f0' }}>Exposición Natural</th>
+                          <th className="text-end" style={{ borderBottom: '2px solid #e2e8f0', color: '#d97706' }}>Portafolio GR</th>
+                          <th className="text-end" style={{ borderBottom: '2px solid #e2e8f0' }}>Total</th>
+                          <th className="text-end" style={{ borderBottom: '2px solid #e2e8f0' }}>Super</th>
+                          <th className="text-end" style={{ borderBottom: '2px solid #e2e8f0', color: '#d97706' }}>GR</th>
+                          <th className="text-end" style={{ borderBottom: '2px solid #e2e8f0' }}>Total</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {resumenData.commodities.rows.map((row) => (
+                          <tr key={row.asset} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                            <td style={{ padding: '8px 4px' }}>
+                              <span style={{ color: '#7c3aed', fontWeight: 600 }}>{row.asset}</span>
+                              {row.contract && <span style={{ color: '#94a3b8', fontSize: '0.65rem' }}> ({row.contract})</span>}
+                            </td>
+                            <td className="text-end" style={{ padding: '8px 4px' }}>{row.exposicion_natural != null ? fmtCompact(row.exposicion_natural) : '—'}</td>
+                            <td className="text-end" style={{ padding: '8px 4px' }}>{row.portafolio_gr != null ? fmtCompact(row.portafolio_gr) : '—'}</td>
+                            <td className="text-end" style={{ padding: '8px 4px', fontWeight: 600 }}>{row.total != null ? fmtCompact(row.total) : '—'}</td>
+                            <td className={`text-end ${pnlClass(row.pnl_super)}`} style={{ padding: '8px 4px' }}>{row.pnl_super != null ? fmtCompact(row.pnl_super) : '—'}</td>
+                            <td className={`text-end ${pnlClass(row.pnl_gr)}`} style={{ padding: '8px 4px' }}>{row.pnl_gr != null ? fmtCompact(row.pnl_gr) : '—'}</td>
+                            <td className={`text-end ${pnlClass(row.pnl_total)}`} style={{ padding: '8px 4px', fontWeight: 600 }}>{row.pnl_total != null ? fmtCompact(row.pnl_total) : '—'}</td>
+                          </tr>
+                        ))}
+                        <tr style={{ borderTop: '2px solid #1e293b' }}>
+                          <td style={{ padding: '8px 4px', fontWeight: 700 }}>Total</td>
+                          <td className="text-end" style={{ padding: '8px 4px', fontWeight: 700 }}>{resumenData.commodities.totals.exposicion_natural != null ? fmtCompact(resumenData.commodities.totals.exposicion_natural) : '—'}</td>
+                          <td className="text-end" style={{ padding: '8px 4px', fontWeight: 700 }}>{resumenData.commodities.totals.portafolio_gr != null ? fmtCompact(resumenData.commodities.totals.portafolio_gr) : '—'}</td>
+                          <td className="text-end" style={{ padding: '8px 4px', fontWeight: 700 }}>{resumenData.commodities.totals.total != null ? fmtCompact(resumenData.commodities.totals.total) : '—'}</td>
+                          <td className={`text-end ${pnlClass(resumenData.commodities.totals.pnl_super)}`} style={{ padding: '8px 4px', fontWeight: 700 }}>{resumenData.commodities.totals.pnl_super != null ? fmtCompact(resumenData.commodities.totals.pnl_super) : '—'}</td>
+                          <td className={`text-end ${pnlClass(resumenData.commodities.totals.pnl_gr)}`} style={{ padding: '8px 4px', fontWeight: 700 }}>{resumenData.commodities.totals.pnl_gr != null ? fmtCompact(resumenData.commodities.totals.pnl_gr) : '—'}</td>
+                          <td className={`text-end ${pnlClass(resumenData.commodities.totals.pnl_total)}`} style={{ padding: '8px 4px', fontWeight: 700 }}>{resumenData.commodities.totals.pnl_total != null ? fmtCompact(resumenData.commodities.totals.pnl_total) : '—'}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* ── DERIVADOS OTC ── */}
+                <div style={{ background: '#fff', borderRadius: 8, border: '1px solid #e2e8f0', padding: '20px', marginBottom: 20, boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }}>
+                  <h6 style={{ color: '#7c3aed', marginBottom: 16, fontWeight: 700 }}>
+                    <Icon icon={faBriefcase} className="me-2" />Derivados OTC — {resumenData.otc.posiciones} posiciones
+                  </h6>
+                  <Row className="g-2">
+                    {[
+                      { label: 'NPV COP', value: resumenData.otc.npv_cop },
+                      { label: 'NPV USD', value: resumenData.otc.npv_usd },
+                      { label: 'FX Delta', value: resumenData.otc.fx_delta },
+                      { label: 'P&L MTD COP', value: resumenData.otc.pnl_mtd_cop },
+                      { label: 'P&L MTD USD', value: resumenData.otc.pnl_mtd_usd },
+                    ].map((item) => {
+                      const colorRaw = pnlClass(item.value);
+                      let color = '#1e293b';
+                      if (colorRaw.includes('success')) color = '#16a34a';
+                      else if (colorRaw.includes('danger')) color = '#dc2626';
+                      return (
+                        <Col key={item.label} xs={6} md>
+                          <div style={{ textAlign: 'center', padding: '10px 6px', background: '#f8fafc', borderRadius: 6 }}>
+                            <div style={{ fontSize: '0.65rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 600 }}>{item.label}</div>
+                            <div style={{ fontSize: '1rem', fontWeight: 700, marginTop: 2, color }}>
+                              {item.value != null ? fmtCompact(item.value) : '—'}
+                            </div>
                           </div>
-                        )}
-                        {sec.pnl_mes != null && (
-                          <div style={{
-                            fontSize: '0.85rem',
-                            fontWeight: 600,
-                            color: sec.pnl_mes >= 0 ? '#16a34a' : '#dc2626',
-                            marginTop: 2,
-                          }}>
-                            {sec.pnl_mes >= 0 ? '+' : ''}{fmtUsd(sec.pnl_mes)}
-                          </div>
-                        )}
+                        </Col>
+                      );
+                    })}
+                  </Row>
+                </div>
+
+                {/* ── CRÉDITOS ── */}
+                <div style={{ background: '#fff', borderRadius: 8, border: '1px solid #e2e8f0', padding: '20px', boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }}>
+                  <h6 style={{ color: '#7c3aed', marginBottom: 16, fontWeight: 700 }}>
+                    <Icon icon={faDollarSign} className="me-2" />Créditos
+                  </h6>
+                  <Row className="g-3">
+                    <Col xs={3}>
+                      <div style={{ textAlign: 'center', padding: '12px', background: '#f8fafc', borderRadius: 6 }}>
+                        <div style={{ fontSize: '0.7rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 600 }}># Créditos</div>
+                        <div style={{ fontSize: '1.4rem', fontWeight: 700, color: '#1e293b' }}>{resumenData.creditos.total_creditos}</div>
                       </div>
                     </Col>
-                  ))}
-                </Row>
-
-                {/* Consolidated Table */}
-                <div className="table-responsive">
-                  <table className="table table-sm table-bordered mb-0" style={{ fontSize: '0.85rem' }}>
-                    <thead>
-                      <tr style={{ background: '#1e293b', color: '#fff' }}>
-                        <th>Sección</th>
-                        <th className="text-center">Posiciones</th>
-                        <th className="text-end">Valor / Notional</th>
-                        <th className="text-end">P&L Mes</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {resumenData.secciones.map((sec) => (
-                        <React.Fragment key={sec.nombre}>
-                          {/* Section header row */}
-                          <tr style={{ background: '#f8fafc', fontWeight: 600 }}>
-                            <td>{sec.nombre}</td>
-                            <td className="text-center">{sec.posiciones}</td>
-                            <td className="text-end">
-                              {sec.valor_total != null ? `$${Math.abs(sec.valor_total).toLocaleString('en-US', { maximumFractionDigits: 0 })}` : '—'}
-                            </td>
-                            <td className={`text-end ${pnlClass(sec.pnl_mes)}`}>
-                              {sec.pnl_mes != null ? fmtUsd(sec.pnl_mes) : '—'}
-                            </td>
-                          </tr>
-                          {/* Detail sub-rows */}
-                          {sec.detalle.map((row, idx) => (
-                            <tr key={`${sec.nombre}-${idx.toString()}`} style={{ color: '#64748b', fontSize: '0.8rem' }}>
-                              <td style={{ paddingLeft: 28 }}>{row.nombre}</td>
-                              <td className="text-center">{row.posiciones > 0 ? row.posiciones : ''}</td>
-                              <td className="text-end">
-                                {row.valor != null ? `$${Math.abs(row.valor).toLocaleString('en-US', { maximumFractionDigits: 0 })}` : ''}
-                              </td>
-                              <td className={`text-end ${pnlClass(row.pnl)}`}>
-                                {row.pnl != null ? fmtUsd(row.pnl) : ''}
-                              </td>
-                            </tr>
-                          ))}
-                        </React.Fragment>
-                      ))}
-                      {/* Totals row */}
-                      <tr style={{ background: '#1e293b', color: '#fff', fontWeight: 700 }}>
-                        <td>TOTAL</td>
-                        <td className="text-center">{resumenData.totales.posiciones}</td>
-                        <td className="text-end">
-                          ${Math.abs(resumenData.totales.valor_total).toLocaleString('en-US', { maximumFractionDigits: 0 })}
-                        </td>
-                        <td className="text-end">
-                          {resumenData.totales.pnl_mes !== 0 ? fmtUsd(resumenData.totales.pnl_mes) : '—'}
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
+                    <Col xs={3}>
+                      <div style={{ textAlign: 'center', padding: '12px', background: '#f8fafc', borderRadius: 6 }}>
+                        <div style={{ fontSize: '0.7rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 600 }}>Deuda Total</div>
+                        <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#1e293b' }}>
+                          {resumenData.creditos.deuda_total != null ? fmtCompact(resumenData.creditos.deuda_total) : '—'}
+                        </div>
+                      </div>
+                    </Col>
+                    <Col xs={3}>
+                      <div style={{ textAlign: 'center', padding: '12px', background: '#dbeafe', borderRadius: 6 }}>
+                        <div style={{ fontSize: '0.7rem', color: '#3b82f6', textTransform: 'uppercase', fontWeight: 600 }}>IBR</div>
+                        <div style={{ fontSize: '1.2rem', fontWeight: 700, color: '#1e293b' }}>
+                          {resumenData.creditos.creditos_ibr} <span style={{ fontSize: '0.7rem', fontWeight: 400, color: '#64748b' }}>créditos</span>
+                        </div>
+                      </div>
+                    </Col>
+                    <Col xs={3}>
+                      <div style={{ textAlign: 'center', padding: '12px', background: '#fef3c7', borderRadius: 6 }}>
+                        <div style={{ fontSize: '0.7rem', color: '#d97706', textTransform: 'uppercase', fontWeight: 600 }}>Tasa Fija</div>
+                        <div style={{ fontSize: '1.2rem', fontWeight: 700, color: '#1e293b' }}>
+                          {resumenData.creditos.creditos_tasa_fija} <span style={{ fontSize: '0.7rem', fontWeight: 400, color: '#64748b' }}>créditos</span>
+                        </div>
+                      </div>
+                    </Col>
+                  </Row>
                 </div>
               </>
             )}
@@ -1369,41 +1509,50 @@ function RiskManagement() {
             </Row>
 
             <p className="small text-muted mb-3">
-              <span style={{ background: '#dbeafe', padding: '1px 6px', border: '1px solid #93c5fd', borderRadius: 3 }}>Exposición Natural</span> se llena automáticamente desde Exposición.
-              Ingresa <strong>Portafolio GR</strong> y <strong>P&G GR</strong> manualmente. Los demás campos se calculan automáticamente.
+              <span style={{ background: '#dbeafe', padding: '1px 6px', borderRadius: 3, color: '#1e40af' }}>Exposición Natural</span> desde Exposición ·
+              <span style={{ background: '#fefce8', padding: '1px 6px', borderRadius: 3, color: '#854d0e', marginLeft: 4 }}>Portafolio GR</span> y P&G GR desde Portafolio GR.
+              Los demás campos se calculan automáticamente.
             </p>
 
             {benchmarkLoading && <p className="text-muted">Cargando factores...</p>}
 
+            <div style={{ background: '#fff', borderRadius: 8, border: '1px solid #e2e8f0', padding: '16px', boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }}>
             <div className="table-responsive">
-              <table className="table table-sm table-bordered align-middle" style={{ fontSize: '0.82rem' }}>
-                <thead className="table-dark text-center">
+              <table className="table table-sm align-middle mb-0" style={{ fontSize: '0.78rem', borderCollapse: 'separate', borderSpacing: 0 }}>
+                <thead style={{ fontSize: '0.7rem', color: '#64748b' }}>
                   <tr>
-                    <th rowSpan={2}>Activo</th>
-                    <th colSpan={3}>Posiciones</th>
-                    <th colSpan={3}>VaR Diario</th>
-                    <th colSpan={2}>Factor VaR</th>
-                    <th rowSpan={2}>Portafolio</th>
-                    <th colSpan={2}>Precios</th>
-                    <th colSpan={3}>P&amp;G</th>
-                    <th rowSpan={2}>Info Ratio</th>
+                    <th rowSpan={2} style={{ verticalAlign: 'middle', borderBottom: '2px solid #e2e8f0', padding: '8px 6px' }}>Activo</th>
+                    <th colSpan={3} className="text-center" style={{ borderBottom: '1px solid #e2e8f0', padding: '6px', color: '#1e293b', fontWeight: 700 }}>Posiciones</th>
+                    <th colSpan={3} className="text-center" style={{ borderBottom: '1px solid #e2e8f0', padding: '6px', color: '#1e293b', fontWeight: 700 }}>VaR Diario</th>
+                    <th colSpan={2} className="text-center" style={{ borderBottom: '1px solid #e2e8f0', padding: '6px', color: '#1e293b', fontWeight: 700 }}>Factor VaR</th>
+                    <th rowSpan={2} className="text-end" style={{ verticalAlign: 'middle', borderBottom: '2px solid #e2e8f0', padding: '8px 6px' }}>Portafolio</th>
+                    <th colSpan={2} className="text-center" style={{ borderBottom: '1px solid #e2e8f0', padding: '6px', color: '#1e293b', fontWeight: 700 }}>Precios</th>
+                    <th colSpan={3} className="text-center" style={{ borderBottom: '1px solid #e2e8f0', padding: '6px', color: '#1e293b', fontWeight: 700 }}>P&amp;G</th>
+                    <th rowSpan={2} className="text-end" style={{ verticalAlign: 'middle', borderBottom: '2px solid #e2e8f0', padding: '8px 6px' }}>Info Ratio</th>
                   </tr>
                   <tr>
-                    <th>Exposición Natural</th><th>Portafolio GR</th><th>Total</th>
-                    <th>Super</th><th>GR</th><th>Total</th>
-                    <th>Diario %</th><th>Unidad</th>
-                    <th>Inicio</th><th>Fin</th>
-                    <th>Super</th><th>GR</th><th>Total</th>
+                    <th className="text-end" style={{ borderBottom: '2px solid #e2e8f0', padding: '6px 4px', color: '#1e40af' }}>Exp. Natural</th>
+                    <th className="text-end" style={{ borderBottom: '2px solid #e2e8f0', padding: '6px 4px', color: '#854d0e' }}>Portafolio GR</th>
+                    <th className="text-end" style={{ borderBottom: '2px solid #e2e8f0', padding: '6px 4px' }}>Total</th>
+                    <th className="text-end" style={{ borderBottom: '2px solid #e2e8f0', padding: '6px 4px' }}>Super</th>
+                    <th className="text-end" style={{ borderBottom: '2px solid #e2e8f0', padding: '6px 4px', color: '#854d0e' }}>GR</th>
+                    <th className="text-end" style={{ borderBottom: '2px solid #e2e8f0', padding: '6px 4px' }}>Total</th>
+                    <th className="text-end" style={{ borderBottom: '2px solid #e2e8f0', padding: '6px 4px' }}>Diario %</th>
+                    <th className="text-center" style={{ borderBottom: '2px solid #e2e8f0', padding: '6px 4px' }}>Unidad</th>
+                    <th className="text-end" style={{ borderBottom: '2px solid #e2e8f0', padding: '6px 4px' }}>Inicio</th>
+                    <th className="text-end" style={{ borderBottom: '2px solid #e2e8f0', padding: '6px 4px' }}>Fin</th>
+                    <th className="text-end" style={{ borderBottom: '2px solid #e2e8f0', padding: '6px 4px' }}>Super</th>
+                    <th className="text-end" style={{ borderBottom: '2px solid #e2e8f0', padding: '6px 4px', color: '#854d0e' }}>GR</th>
+                    <th className="text-end" style={{ borderBottom: '2px solid #e2e8f0', padding: '6px 4px' }}>Total</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {benchmarkRows.map((row, rowIdx) => {
+                  {benchmarkRows.map((row) => {
                     const isTotal = row.asset === 'Total';
                     return (
                       <tr
                         key={row.asset}
-                        className={isTotal ? 'fw-bold table-light' : ''}
-                        style={isTotal ? { borderTop: '2px solid #7c3aed' } : {}}
+                        style={isTotal ? { borderTop: '2px solid #1e293b', fontWeight: 700 } : { borderBottom: '1px solid #f1f5f9' }}
                       >
                         {BENCHMARK_COLUMNS.map((col) => {
                           const isManual = MANUAL_COLUMNS.has(col.key) && !isTotal;
@@ -1412,10 +1561,10 @@ function RiskManagement() {
 
                           if (col.key === 'asset') {
                             return (
-                              <td key={col.key} style={{ color: '#7c3aed', fontWeight: 600 }}>
+                              <td key={col.key} style={{ color: isTotal ? '#1e293b' : '#7c3aed', fontWeight: 600, padding: '8px 6px' }}>
                                 {row.asset}
                                 {row.contract && !isTotal && (
-                                  <span className="ms-1" style={{ fontSize: '0.68rem', color: '#6b7280', fontWeight: 400 }}>
+                                  <span className="ms-1" style={{ fontSize: '0.65rem', color: '#94a3b8', fontWeight: 400 }}>
                                     ({row.contract})
                                   </span>
                                 )}
@@ -1423,52 +1572,20 @@ function RiskManagement() {
                             );
                           }
 
-                          // position_super: auto-filled from exposure (read-only, blue bg)
+                          // position_super: auto-filled from exposure (read-only, blue accent)
                           if (col.key === 'position_super' && !isTotal) {
                             return (
-                              <td key={col.key} className="text-end" style={{ background: '#dbeafe', fontSize: '0.82rem' }}>
+                              <td key={col.key} className="text-end" style={{ padding: '6px 4px', color: '#1e40af', fontWeight: 500 }}>
                                 {isUsd && rawNum !== 0 ? fmtUsd(rawNum) : (row[col.key] || '—')}
                               </td>
                             );
                           }
 
-                          // Manual editable cells (position_gr, pnl_gr)
+                          // GR cells (position_gr, pnl_gr) — auto-filled from Portafolio GR (read-only)
                           if (isManual) {
                             return (
-                              <td key={col.key} className="p-0" style={{ background: '#fffbeb' }}>
-                                <Form.Control
-                                  type="text"
-                                  size="sm"
-                                  className="border-0 text-end"
-                                  style={{ fontSize: '0.82rem', background: 'transparent' }}
-                                  placeholder="—"
-                                  value={row[col.key]}
-                                  onChange={(e) =>
-                                    handleBenchmarkChange(rowIdx, col.key, e.target.value)
-                                  }
-                                  onBlur={() => {
-                                    if (isUsd && row[col.key]) {
-                                      const num = parseDisplayValue(row[col.key]);
-                                      if (num !== 0) {
-                                        setBenchmarkRows((prev) => {
-                                          const updated = prev.map((r) => ({ ...r }));
-                                          updated[rowIdx][col.key] = fmtUsd(num);
-                                          return updated;
-                                        });
-                                      }
-                                    }
-                                  }}
-                                  onFocus={() => {
-                                    if (isUsd && row[col.key]) {
-                                      const num = parseDisplayValue(row[col.key]);
-                                      setBenchmarkRows((prev) => {
-                                        const updated = prev.map((r) => ({ ...r }));
-                                        updated[rowIdx][col.key] = num !== 0 ? String(num) : '';
-                                        return updated;
-                                      });
-                                    }
-                                  }}
-                                />
+                              <td key={col.key} className="text-end" style={{ padding: '6px 4px', color: '#854d0e', fontWeight: 500 }}>
+                                {isUsd && rawNum !== 0 ? fmtUsd(rawNum) : (row[col.key] || '—')}
                               </td>
                             );
                           }
@@ -1477,6 +1594,8 @@ function RiskManagement() {
                           let displayVal = row[col.key] || '—';
                           if (col.key === 'factor_var_diario' && row[col.key]) {
                             displayVal = `${parseFloat(row[col.key]).toFixed(2)}%`;
+                          } else if (col.key === 'information_ratio' && row[col.key]) {
+                            displayVal = parseFloat(row[col.key]).toFixed(2);
                           } else if (DECIMAL_COLUMNS.has(col.key) && rawNum !== 0) {
                             // Prices keep decimals
                             displayVal = rawNum.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -1488,7 +1607,7 @@ function RiskManagement() {
                           }
 
                           return (
-                            <td key={col.key} className={`text-end ${isTotal ? '' : 'text-muted'}`}>
+                            <td key={col.key} className={`text-end ${isTotal ? '' : 'text-muted'}`} style={{ padding: '6px 4px' }}>
                               {displayVal}
                             </td>
                           );
@@ -1498,6 +1617,7 @@ function RiskManagement() {
                   })}
                 </tbody>
               </table>
+            </div>
             </div>
           </div>
         )}
@@ -1669,20 +1789,20 @@ function RiskManagement() {
 
         {/* ─── EXPOSICIÓN TAB ─── */}
         {activeTab === 'exposure' && (() => {
-          const inputStyle = { background: '#fffbeb', fontSize: '0.78rem' };
-          const calcStyle = { fontSize: '0.78rem' };
-          const headerStyle = { background: '#1e293b', color: '#fff', fontSize: '0.82rem', fontWeight: 700, padding: '6px 10px' };
-          const labelTd = { fontSize: '0.78rem', padding: '3px 8px' };
-          const valTd = { fontSize: '0.78rem', padding: '3px 8px', textAlign: 'right' as const };
-          const inputTd = { ...valTd, background: '#fffbeb', padding: 0 };
-          const resultTd = { ...valTd, background: '#dcfce7', fontWeight: 700 };
+          const inputStyle = { fontSize: '0.78rem' };
+          const calcStyle = { fontSize: '0.78rem', color: '#475569' };
+          const headerStyle = { color: '#7c3aed', fontSize: '0.85rem', fontWeight: 700, padding: '12px 14px', borderBottom: '1px solid #e2e8f0' };
+          const labelTd = { fontSize: '0.75rem', padding: '5px 10px', color: '#64748b', borderTop: '1px solid #f1f5f9' };
+          const valTd = { fontSize: '0.78rem', padding: '5px 10px', textAlign: 'right' as const, borderTop: '1px solid #f1f5f9' };
+          const inputTd = { ...valTd, padding: 0, background: '#f8fafc' };
+          const resultTd = { ...valTd, color: '#16a34a', fontWeight: 700, borderTop: '2px solid #e2e8f0', background: '#f0fdf4' };
 
           const numInput = (key: keyof ExposureParams, step = '1') => (
             <Form.Control
               type="number"
               size="sm"
               step={step}
-              style={{ ...inputStyle, border: 'none', textAlign: 'right', padding: '3px 6px' }}
+              style={{ ...inputStyle, border: 'none', textAlign: 'right', padding: '5px 8px', background: 'transparent' }}
               value={exposureParams[key] as number}
               onChange={(e) => setExposureParams((p) => ({ ...p, [key]: parseFloat(e.target.value) || 0 }))}
             />
@@ -1695,7 +1815,7 @@ function RiskManagement() {
             <Form.Control
               type="number"
               size="sm"
-              style={{ ...inputStyle, border: 'none', textAlign: 'right', padding: '3px 6px' }}
+              style={{ ...inputStyle, border: 'none', textAlign: 'right', padding: '5px 8px', background: 'transparent' }}
               value={projTotal(key)}
               onChange={(e) => {
                 const total = parseFloat(e.target.value) || 0;
@@ -1717,25 +1837,17 @@ function RiskManagement() {
             const dbPrice: MarketPrice | undefined = mp[paramKey];
             if (dbPrice) {
               return (
-                <>
-                  <tr>
-                    <td style={labelTd}>{label}</td>
-                    <td style={{ ...valTd, background: '#dbeafe', fontWeight: 600 }}>
-                      {n(dbPrice.value, step === '0.01' ? 2 : 0)}
-                    </td>
-                  </tr>
-                  <tr>
-                    <td style={{ ...labelTd, fontSize: '0.7rem', color: '#6b7280' }}>
-                      Fecha precio ({dbPrice.source})
-                      {dbPrice.contract && (
-                        <span className="ms-1" style={{ color: '#7c3aed', fontWeight: 600 }}>
-                          [{dbPrice.contract}]
-                        </span>
-                      )}
-                    </td>
-                    <td style={{ ...valTd, fontSize: '0.7rem', color: '#3b82f6' }}>{dbPrice.date}</td>
-                  </tr>
-                </>
+                <tr>
+                  <td style={labelTd}>
+                    {label}
+                    <div style={{ fontSize: '0.62rem', color: '#94a3b8', marginTop: 1 }}>
+                      {dbPrice.date}{dbPrice.contract ? ` · ${dbPrice.contract}` : ''}
+                    </div>
+                  </td>
+                  <td style={{ ...valTd, color: '#1e40af', fontWeight: 600 }}>
+                    {n(dbPrice.value, step === '0.01' ? 2 : 0)}
+                  </td>
+                </tr>
               );
             }
             return (
@@ -1781,42 +1893,43 @@ function RiskManagement() {
                   </div>
                 </Col>
                 <Col className="d-flex align-items-end gap-3">
-                  <span className="small text-muted">
-                    <span style={{ background: '#fffbeb', padding: '1px 6px', border: '1px solid #fbbf24', borderRadius: 3 }}>Amarillo</span> = input manual
-                  </span>
-                  <span className="small text-muted">
-                    <span style={{ background: '#dbeafe', padding: '1px 6px', border: '1px solid #93c5fd', borderRadius: 3 }}>Azul</span> = precio de mercado (DB)
+                  <span className="small" style={{ color: '#94a3b8', fontSize: '0.7rem' }}>
+                    Los campos editables tienen fondo gris claro · <span style={{ color: '#1e40af', fontWeight: 600 }}>azul</span> = precio de mercado
                   </span>
                 </Col>
               </Row>
 
               <div id="pdf-exposure">
               {/* Ventas Proyectadas - shared params */}
-              <div className="bg-white rounded mb-3 p-3" style={{ border: '1px solid #e2e8f0' }}>
-                <h6 style={{ color: '#7c3aed', fontWeight: 600, marginBottom: 10 }}>Ventas Proyectadas & Parámetros Globales</h6>
-                <Row className="g-2">
-                  {([
-                    { key: 'ventas_intl_usd', label: 'Ventas Intl. (USD)' },
-                    { key: 'ventas_co_usd', label: 'Ventas Colombia (USD)' },
-                    { key: 'ventas_pe_usd', label: 'Ventas Perú (USD)' },
-                    { key: 'trm', label: 'TRM (COP/USD)' },
-                  ] as { key: keyof ExposureParams; label: string }[]).map(({ key, label }) => (
-                    <Col xs={6} md={3} key={key}>
-                      <Form.Label className="small text-muted mb-0">{label}</Form.Label>
-                      <Form.Control type="number" size="sm" style={inputStyle}
-                        value={exposureParams[key] as number}
-                        onChange={(e) => setExposureParams((p) => ({ ...p, [key]: parseFloat(e.target.value) || 0 }))}
-                      />
-                    </Col>
-                  ))}
-                </Row>
+              <div className="rounded mb-3" style={{ background: '#fff', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+                <div style={{ padding: '12px 16px', borderBottom: '1px solid #e2e8f0' }}>
+                  <h6 style={{ color: '#7c3aed', fontWeight: 700, marginBottom: 0, fontSize: '0.85rem' }}>Ventas Proyectadas &amp; Parámetros Globales</h6>
+                </div>
+                <div style={{ padding: '14px 16px' }}>
+                  <Row className="g-3">
+                    {([
+                      { key: 'ventas_intl_usd', label: 'Ventas Intl. (USD)' },
+                      { key: 'ventas_co_usd', label: 'Ventas Colombia (USD)' },
+                      { key: 'ventas_pe_usd', label: 'Ventas Perú (USD)' },
+                      { key: 'trm', label: 'TRM (COP/USD)' },
+                    ] as { key: keyof ExposureParams; label: string }[]).map(({ key, label }) => (
+                      <Col xs={6} md={3} key={key}>
+                        <Form.Label className="small mb-1" style={{ color: '#94a3b8', fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 600 }}>{label}</Form.Label>
+                        <Form.Control type="number" size="sm" style={{ fontSize: '0.85rem', background: '#f8fafc', border: '1px solid #e2e8f0' }}
+                          value={exposureParams[key] as number}
+                          onChange={(e) => setExposureParams((p) => ({ ...p, [key]: parseFloat(e.target.value) || 0 }))}
+                        />
+                      </Col>
+                    ))}
+                  </Row>
+                </div>
               </div>
 
               {/* Commodity Cards */}
               <Row className="g-3 mb-4">
                 {/* AZUCAR */}
                 <Col md={6} lg={4}>
-                  <div className="rounded h-100" style={{ border: '1px solid #e2e8f0', overflow: 'hidden' }}>
+                  <div className="rounded h-100" style={{ border: '1px solid #e2e8f0', overflow: 'hidden', background: '#fff', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
                     <div style={headerStyle}>AZÚCAR <span className="fw-normal ms-2" style={{ fontSize: '0.7rem' }}>ICE - SB (Sugar #11)</span></div>
                     <table className="table table-sm mb-0" style={{ fontSize: '0.78rem' }}>
                       <tbody>
@@ -1838,7 +1951,7 @@ function RiskManagement() {
 
                 {/* MAIZ / GLUCOSA */}
                 <Col md={6} lg={4}>
-                  <div className="rounded h-100" style={{ border: '1px solid #e2e8f0', overflow: 'hidden' }}>
+                  <div className="rounded h-100" style={{ border: '1px solid #e2e8f0', overflow: 'hidden', background: '#fff', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
                     <div style={headerStyle}>MAÍZ / GLUCOSA <span className="fw-normal ms-2" style={{ fontSize: '0.7rem' }}>CME - ZC (Corn)</span></div>
                     <table className="table table-sm mb-0" style={{ fontSize: '0.78rem' }}>
                       <tbody>
@@ -1863,7 +1976,7 @@ function RiskManagement() {
 
                 {/* COCOA EN POLVO */}
                 <Col md={6} lg={4}>
-                  <div className="rounded h-100" style={{ border: '1px solid #e2e8f0', overflow: 'hidden' }}>
+                  <div className="rounded h-100" style={{ border: '1px solid #e2e8f0', overflow: 'hidden', background: '#fff', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
                     <div style={headerStyle}>COCOA EN POLVO <span className="fw-normal ms-2" style={{ fontSize: '0.7rem' }}>ICE - CC</span></div>
                     <table className="table table-sm mb-0" style={{ fontSize: '0.78rem' }}>
                       <tbody>
@@ -1884,7 +1997,7 @@ function RiskManagement() {
 
                 {/* MANTECA DE CACAO */}
                 <Col md={6} lg={4}>
-                  <div className="rounded h-100" style={{ border: '1px solid #e2e8f0', overflow: 'hidden' }}>
+                  <div className="rounded h-100" style={{ border: '1px solid #e2e8f0', overflow: 'hidden', background: '#fff', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
                     <div style={headerStyle}>MANTECA DE CACAO <span className="fw-normal ms-2" style={{ fontSize: '0.7rem' }}>ICE - CC</span></div>
                     <table className="table table-sm mb-0" style={{ fontSize: '0.78rem' }}>
                       <tbody>
@@ -1904,7 +2017,7 @@ function RiskManagement() {
 
                 {/* LICOR DE CACAO */}
                 <Col md={6} lg={4}>
-                  <div className="rounded h-100" style={{ border: '1px solid #e2e8f0', overflow: 'hidden' }}>
+                  <div className="rounded h-100" style={{ border: '1px solid #e2e8f0', overflow: 'hidden', background: '#fff', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
                     <div style={headerStyle}>LICOR DE CACAO <span className="fw-normal ms-2" style={{ fontSize: '0.7rem' }}>ICE - CC</span></div>
                     <table className="table table-sm mb-0" style={{ fontSize: '0.78rem' }}>
                       <tbody>
@@ -1924,7 +2037,7 @@ function RiskManagement() {
 
                 {/* EMPAQUE */}
                 <Col md={6} lg={4}>
-                  <div className="rounded h-100" style={{ border: '1px solid #e2e8f0', overflow: 'hidden' }}>
+                  <div className="rounded h-100" style={{ border: '1px solid #e2e8f0', overflow: 'hidden', background: '#fff', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
                     <div style={headerStyle}>BOLSA ROLLO + ENVOLTURA <span className="fw-normal ms-2" style={{ fontSize: '0.7rem' }}>Precio fijo</span></div>
                     <table className="table table-sm mb-0" style={{ fontSize: '0.78rem' }}>
                       <tbody>
@@ -1942,60 +2055,66 @@ function RiskManagement() {
               {/* Summary tables */}
               {exposureResult && (
                 <>
-                  <h6 style={{ color: '#7c3aed', fontWeight: 600 }}>Exposición por Commodity</h6>
-                  <div className="table-responsive mb-3">
-                    <table className="table table-sm table-bordered align-middle" style={{ fontSize: '0.82rem' }}>
-                      <thead className="table-dark text-center">
-                        <tr>
-                          <th>Commodity</th>
-                          <th>Exchange</th>
-                          <th>Unidad</th>
-                          <th>Precio Futuro</th>
-                          <th>TON Total</th>
-                          <th>Exposición USD</th>
-                          <th>Precio/TON</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {exposureResult.commodities.map((c) => (
-                          <tr key={c.nombre}>
-                            <td style={{ color: '#7c3aed', fontWeight: 600 }}>{c.nombre}</td>
-                            <td className="text-center">{c.exchange}</td>
-                            <td className="text-center small">{c.unidad_cotizacion}</td>
-                            <td className="text-end">{c.precio_futuro != null ? c.precio_futuro.toLocaleString('en-US') : '—'}</td>
-                            <td className="text-end">{c.ton_total != null ? c.ton_total.toLocaleString('en-US') : '—'}</td>
-                            <td className="text-end fw-bold">{fmtUsd(c.exposicion_usd)}</td>
-                            <td className="text-end">{c.precio_por_ton != null ? fmtUsd(c.precio_por_ton) : '—'}</td>
+                  <div className="rounded mb-3" style={{ background: '#fff', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+                    <div style={{ padding: '12px 16px', borderBottom: '1px solid #e2e8f0' }}>
+                      <h6 style={{ color: '#7c3aed', fontWeight: 700, marginBottom: 0, fontSize: '0.85rem' }}>Exposición por Commodity</h6>
+                    </div>
+                    <div className="table-responsive">
+                      <table className="table table-sm align-middle mb-0" style={{ fontSize: '0.78rem', borderCollapse: 'separate', borderSpacing: 0 }}>
+                        <thead style={{ fontSize: '0.7rem', color: '#64748b' }}>
+                          <tr>
+                            <th style={{ padding: '8px 12px', borderBottom: '2px solid #e2e8f0', textTransform: 'uppercase', fontWeight: 600 }}>Commodity</th>
+                            <th className="text-center" style={{ padding: '8px 12px', borderBottom: '2px solid #e2e8f0', textTransform: 'uppercase', fontWeight: 600 }}>Exchange</th>
+                            <th className="text-center" style={{ padding: '8px 12px', borderBottom: '2px solid #e2e8f0', textTransform: 'uppercase', fontWeight: 600 }}>Unidad</th>
+                            <th className="text-end" style={{ padding: '8px 12px', borderBottom: '2px solid #e2e8f0', textTransform: 'uppercase', fontWeight: 600 }}>Px Futuro</th>
+                            <th className="text-end" style={{ padding: '8px 12px', borderBottom: '2px solid #e2e8f0', textTransform: 'uppercase', fontWeight: 600 }}>TON Total</th>
+                            <th className="text-end" style={{ padding: '8px 12px', borderBottom: '2px solid #e2e8f0', textTransform: 'uppercase', fontWeight: 600 }}>Exposición USD</th>
+                            <th className="text-end" style={{ padding: '8px 12px', borderBottom: '2px solid #e2e8f0', textTransform: 'uppercase', fontWeight: 600 }}>Px/TON</th>
                           </tr>
-                        ))}
-                        <tr className="fw-bold table-light" style={{ borderTop: '2px solid #7c3aed' }}>
-                          <td colSpan={5} className="text-end">Total Commodities</td>
-                          <td className="text-end">{fmtUsd(exposureResult.total_commodities_usd)}</td>
-                          <td>{' '}</td>
-                        </tr>
-                      </tbody>
-                    </table>
+                        </thead>
+                        <tbody>
+                          {exposureResult.commodities.map((c) => (
+                            <tr key={c.nombre} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                              <td style={{ padding: '8px 12px', color: '#7c3aed', fontWeight: 600 }}>{c.nombre}</td>
+                              <td className="text-center" style={{ padding: '8px 12px', color: '#64748b' }}>{c.exchange}</td>
+                              <td className="text-center" style={{ padding: '8px 12px', color: '#94a3b8', fontSize: '0.7rem' }}>{c.unidad_cotizacion}</td>
+                              <td className="text-end" style={{ padding: '8px 12px' }}>{c.precio_futuro != null ? c.precio_futuro.toLocaleString('en-US') : '—'}</td>
+                              <td className="text-end" style={{ padding: '8px 12px' }}>{c.ton_total != null ? c.ton_total.toLocaleString('en-US') : '—'}</td>
+                              <td className="text-end" style={{ padding: '8px 12px', fontWeight: 700 }}>{fmtUsd(c.exposicion_usd)}</td>
+                              <td className="text-end" style={{ padding: '8px 12px' }}>{c.precio_por_ton != null ? fmtUsd(c.precio_por_ton) : '—'}</td>
+                            </tr>
+                          ))}
+                          <tr style={{ borderTop: '2px solid #1e293b', fontWeight: 700 }}>
+                            <td colSpan={5} className="text-end" style={{ padding: '10px 12px' }}>Total Commodities</td>
+                            <td className="text-end" style={{ padding: '10px 12px' }}>{fmtUsd(exposureResult.total_commodities_usd)}</td>
+                            <td>{' '}</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
 
-                  <h6 style={{ color: '#7c3aed', fontWeight: 600 }}>Resumen Exposición Compañía</h6>
-                  <div className="table-responsive" style={{ maxWidth: 500 }}>
-                    <table className="table table-sm table-bordered" style={{ fontSize: '0.85rem' }}>
+                  <div className="rounded" style={{ background: '#fff', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', maxWidth: 500 }}>
+                    <div style={{ padding: '12px 16px', borderBottom: '1px solid #e2e8f0' }}>
+                      <h6 style={{ color: '#7c3aed', fontWeight: 700, marginBottom: 0, fontSize: '0.85rem' }}>Resumen Exposición Compañía</h6>
+                    </div>
+                    <table className="table table-sm mb-0" style={{ fontSize: '0.85rem', borderCollapse: 'separate', borderSpacing: 0 }}>
                       <tbody>
                         <tr>
-                          <td>Total Commodities</td>
-                          <td className="text-end fw-bold">{fmtUsd(exposureResult.total_commodities_usd)}</td>
+                          <td style={{ padding: '8px 16px', color: '#64748b' }}>Total Commodities</td>
+                          <td className="text-end" style={{ padding: '8px 16px', fontWeight: 700 }}>{fmtUsd(exposureResult.total_commodities_usd)}</td>
                         </tr>
-                        <tr>
-                          <td>Exposición Ventas Intl.</td>
-                          <td className="text-end fw-bold">{fmtUsd(exposureResult.exposicion_ventas_intl)}</td>
+                        <tr style={{ borderTop: '1px solid #f1f5f9' }}>
+                          <td style={{ padding: '8px 16px', color: '#64748b' }}>Exposición Ventas Intl.</td>
+                          <td className="text-end" style={{ padding: '8px 16px', fontWeight: 700 }}>{fmtUsd(exposureResult.exposicion_ventas_intl)}</td>
                         </tr>
-                        <tr style={{ background: '#dcfce7' }}>
-                          <td className="fw-bold">Exposición Real USD</td>
-                          <td className="text-end fw-bold">{fmtUsd(exposureResult.exposicion_real_usd)}</td>
+                        <tr style={{ borderTop: '2px solid #16a34a' }}>
+                          <td style={{ padding: '10px 16px', fontWeight: 700, color: '#16a34a' }}>Exposición Real USD</td>
+                          <td className="text-end" style={{ padding: '10px 16px', fontWeight: 700, color: '#16a34a' }}>{fmtUsd(exposureResult.exposicion_real_usd)}</td>
                         </tr>
-                        <tr>
-                          <td>Exposición PEN (Perú)</td>
-                          <td className="text-end">{fmtUsd(exposureResult.exposicion_pen)}</td>
+                        <tr style={{ borderTop: '1px solid #f1f5f9' }}>
+                          <td style={{ padding: '8px 16px', color: '#64748b' }}>Exposición PEN (Perú)</td>
+                          <td className="text-end" style={{ padding: '8px 16px' }}>{fmtUsd(exposureResult.exposicion_pen)}</td>
                         </tr>
                       </tbody>
                     </table>
@@ -2234,7 +2353,12 @@ function RiskManagement() {
                     <Form.Control size="sm" type="number" min={1} value={newPosition.nominal} onChange={(e) => setNewPosition({ ...newPosition, nominal: parseInt(e.target.value, 10) || 1 })} />
                   </Col>
                   <Col xs={2}>
-                    <Form.Label className="small mb-1">Precio Compra</Form.Label>
+                    <Form.Label className="small mb-1">
+                      Precio Compra
+                      <span style={{ color: '#94a3b8', fontSize: '0.65rem', marginLeft: 4 }}>
+                        {({ MAIZ: '(cents/bu)', AZUCAR: '(cents/lb)', CACAO: '(USD/ton)' }[newPosition.asset] ?? '')}
+                      </span>
+                    </Form.Label>
                     <Form.Control size="sm" type="number" step="0.01" value={newPosition.entry_price || ''} onChange={(e) => setNewPosition({ ...newPosition, entry_price: parseFloat(e.target.value) || 0 })} />
                   </Col>
                   <Col xs={2}>
@@ -2256,101 +2380,81 @@ function RiskManagement() {
               <p className="text-muted">No hay posiciones de futuros registradas.</p>
             )}
             {!futuresLoading && futuresPortfolio.length > 0 && (
-              <div className="table-responsive">
-                <table className="table table-sm table-bordered table-hover mb-0" style={{ fontSize: '0.8rem' }}>
+              <div style={{ background: '#fff', borderRadius: 8, border: '1px solid #e2e8f0', padding: '16px', boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }}>
+                <div className="table-responsive">
+                <table className="table table-sm mb-0" style={{ fontSize: '0.8rem', borderCollapse: 'separate', borderSpacing: 0 }}>
                   <thead>
-                    <tr style={{ background: '#1e293b', color: '#fff', fontSize: '0.75rem' }}>
-                      <th>Activo</th>
-                      <th>Contrato</th>
-                      <th>Dir.</th>
-                      <th className="text-center">Nom.</th>
-                      <th>Fecha Apertura</th>
-                      <th className="text-end">Precio Compra</th>
-                      <th className="text-end">Precio Previo</th>
-                      <th className="text-end">Precio Actual</th>
-                      <th className="text-end" style={{ background: '#334155' }}>Valor T</th>
-                      <th className="text-end" style={{ background: '#334155' }}>Valor T-1</th>
-                      <th className="text-end" style={{ background: '#0f766e', color: '#fff' }}>P&G Mes</th>
-                      <th className="text-end" style={{ background: '#0f766e', color: '#fff' }}>P&G Inicio</th>
-                      <th className="text-center">Acciones</th>
+                    <tr style={{ fontSize: '0.7rem', color: '#64748b' }}>
+                      <th style={{ borderBottom: '2px solid #e2e8f0', padding: '8px 6px' }}>Activo</th>
+                      <th style={{ borderBottom: '2px solid #e2e8f0', padding: '8px 6px' }}>Contrato</th>
+                      <th style={{ borderBottom: '2px solid #e2e8f0', padding: '8px 6px' }}>Dir.</th>
+                      <th className="text-center" style={{ borderBottom: '2px solid #e2e8f0', padding: '8px 6px' }}>Nom.</th>
+                      <th style={{ borderBottom: '2px solid #e2e8f0', padding: '8px 6px' }}>Fecha</th>
+                      <th className="text-center" style={{ borderBottom: '2px solid #e2e8f0', padding: '8px 6px' }}>Mult.</th>
+                      <th className="text-end" style={{ borderBottom: '2px solid #e2e8f0', padding: '8px 6px' }}>
+                        Px Compra
+                        {futuresPortfolio[0]?.entry_date && <div style={{ fontSize: '0.6rem', color: '#94a3b8', fontWeight: 400 }}>({futuresPortfolio[0].entry_date})</div>}
+                      </th>
+                      <th className="text-end" style={{ borderBottom: '2px solid #e2e8f0', padding: '8px 6px' }}>
+                        Px Actual
+                        {futuresPortfolio[0]?.current_price_date && <div style={{ fontSize: '0.6rem', color: '#94a3b8', fontWeight: 400 }}>({futuresPortfolio[0].current_price_date})</div>}
+                      </th>
+                      <th className="text-end" style={{ borderBottom: '2px solid #e2e8f0', padding: '8px 6px' }}>
+                        Px Previo
+                        {futuresPortfolio[0]?.precio_previo_date && <div style={{ fontSize: '0.6rem', color: '#94a3b8', fontWeight: 400 }}>({futuresPortfolio[0].precio_previo_date})</div>}
+                      </th>
+                      <th className="text-end" style={{ borderBottom: '2px solid #e2e8f0', padding: '8px 6px', color: '#475569' }}>Valor Compra</th>
+                      <th className="text-end" style={{ borderBottom: '2px solid #e2e8f0', padding: '8px 6px', color: '#475569' }}>Valor T</th>
+                      <th className="text-end" style={{ borderBottom: '2px solid #e2e8f0', padding: '8px 6px', color: '#475569' }}>Valor T-1</th>
+                      <th className="text-end" style={{ borderBottom: '2px solid #e2e8f0', padding: '8px 6px', color: '#0f766e', fontWeight: 700 }}>P&G Mes</th>
+                      <th className="text-end" style={{ borderBottom: '2px solid #e2e8f0', padding: '8px 6px', color: '#0f766e', fontWeight: 700 }}>P&G Inicio</th>
+                      <th style={{ borderBottom: '2px solid #e2e8f0', padding: '8px 6px', width: 120 }}><span className="visually-hidden">Acciones</span></th>
                     </tr>
                   </thead>
                   <tbody>
                     {futuresPortfolio.map((pos, idx) => {
                       const isTotal = pos.asset === 'Total';
-                      const rowStyle = isTotal ? { background: '#f1f5f9', fontWeight: 700 } : {};
+                      const isSubtotal = pos.asset?.startsWith('Total ') && !isTotal;
+                      const isSummaryRow = isTotal || isSubtotal;
                       const dirColor = pos.direction === 'LONG' ? '#059669' : '#dc2626';
                       return (
-                        <tr key={pos.id ?? `total-${idx}`} style={rowStyle as React.CSSProperties}>
-                          <td>
-                            <strong>{pos.asset}</strong>
-                            {!isTotal && pos.current_price_date && (
-                              <span className="text-muted ms-1" style={{ fontSize: '0.7rem' }}>({pos.current_price_date})</span>
-                            )}
+                        <tr key={pos.id ?? `row-${idx}`} style={getRowStyle(isTotal, isSubtotal)}>
+                          <td style={{ padding: '8px 6px', fontWeight: isSummaryRow ? 700 : 400 }}>
+                            {/* eslint-disable-next-line no-nested-ternary */}
+                            <span style={{ color: isTotal ? '#1e293b' : (isSubtotal ? '#475569' : '#7c3aed'), fontWeight: 600 }}>{pos.asset}</span>
                           </td>
-                          <td>{pos.contract ?? ''}</td>
-                          <td style={{ color: dirColor, fontWeight: 600 }}>{pos.direction ?? ''}</td>
-                          <td className="text-center">{pos.nominal ?? ''}</td>
-                          <td>{pos.entry_date ?? ''}</td>
-                          <td className="text-end">{pos.entry_price != null ? fmt(pos.entry_price, 2) : ''}</td>
-                          <td className="text-end">
-                            {pos.precio_previo != null ? fmt(pos.precio_previo, 2) : ''}
-                            {!isTotal && pos.precio_previo_date && (
-                              <span className="text-muted ms-1" style={{ fontSize: '0.65rem' }}>({pos.precio_previo_date})</span>
-                            )}
+                          <td style={{ padding: '8px 6px', color: '#64748b' }}>{isSummaryRow ? '' : (pos.contract ?? '')}</td>
+                          <td style={{ padding: '8px 6px', color: dirColor, fontWeight: 600, fontSize: '0.75rem' }}>{isSummaryRow ? '' : (pos.direction ?? '')}</td>
+                          <td className="text-center" style={{ padding: '8px 6px', fontWeight: isSummaryRow ? 700 : 400 }}>{pos.nominal || ''}</td>
+                          <td style={{ padding: '8px 6px', color: '#64748b', fontSize: '0.75rem' }}>{isSummaryRow ? '' : (pos.entry_date ?? '')}</td>
+                          <td className="text-center" style={{ padding: '8px 6px', fontSize: '0.65rem', color: '#94a3b8' }}>
+                            {!isSummaryRow && pos.asset ? ({ MAIZ: '5,000 bu', AZUCAR: '112,000 lbs', CACAO: '10 ton' }[pos.asset] ?? '') : ''}
                           </td>
-                          <td className="text-end">{pos.current_price != null ? fmt(pos.current_price, 2) : ''}</td>
-                          <td className="text-end">{pos.valor_t != null ? fmtUsd(pos.valor_t) : ''}</td>
-                          <td className="text-end">{pos.valor_t1 != null ? fmtUsd(pos.valor_t1) : ''}</td>
-                          <td className={`text-end ${pnlClass(pos.pnl_month)}`}>{pos.pnl_month != null ? fmtUsd(pos.pnl_month) : ''}</td>
-                          <td className={`text-end ${pnlClass(pos.pnl_inception)}`}>{pos.pnl_inception != null ? fmtUsd(pos.pnl_inception) : ''}</td>
-                          <td className="text-center">
-                            {!isTotal && pos.id && (
-                              <div className="d-flex gap-1 justify-content-center">
-                                <button
-                                  type="button"
-                                  className="btn btn-outline-secondary btn-sm"
-                                  style={{ fontSize: '0.7rem', padding: '1px 6px' }}
-                                  onClick={() => {
-                                    setEditModal(pos);
-                                    setEditFields({
-                                      asset: pos.asset,
-                                      contract: pos.contract ?? '',
-                                      direction: (pos.direction as 'LONG' | 'SHORT') ?? 'SHORT',
-                                      nominal: pos.nominal ?? 1,
-                                      entry_price: pos.entry_price ?? 0,
-                                      entry_date: pos.entry_date ?? '',
-                                    });
-                                  }}
-                                  title="Editar posición"
-                                >
+                          <td className="text-end" style={{ padding: '8px 6px' }}>{!isSummaryRow && pos.entry_price != null ? fmt(pos.entry_price, 2) : ''}</td>
+                          <td className="text-end" style={{ padding: '8px 6px', fontWeight: 600 }}>{!isSummaryRow && pos.current_price != null ? fmt(pos.current_price, 2) : ''}</td>
+                          <td className="text-end" style={{ padding: '8px 6px' }}>{!isSummaryRow && pos.precio_previo != null ? fmt(pos.precio_previo, 2) : ''}</td>
+                          <td className="text-end" style={{ padding: '8px 6px' }}>{!isSummaryRow && pos.entry_price != null && pos.nominal != null ? fmtUsd(Math.round(pos.entry_price * (pos.multiplier ?? 1) * pos.nominal * ({ MAIZ: 0.01, AZUCAR: 0.01, CACAO: 1 }[pos.asset] ?? 1))) : ''}</td>
+                          <td className="text-end" style={{ padding: '8px 6px' }}>{pos.valor_t != null ? fmtUsd(pos.valor_t) : ''}</td>
+                          <td className="text-end" style={{ padding: '8px 6px' }}>{pos.valor_t1 != null ? fmtUsd(pos.valor_t1) : ''}</td>
+                          <td className={`text-end ${pnlClass(pos.pnl_month)}`} style={{ padding: '8px 6px', fontWeight: 600 }}>{pos.pnl_month != null ? fmtUsd(pos.pnl_month) : ''}</td>
+                          <td className={`text-end ${pnlClass(pos.pnl_inception)}`} style={{ padding: '8px 6px', fontWeight: 600 }}>{pos.pnl_inception != null ? fmtUsd(pos.pnl_inception) : ''}</td>
+                          <td style={{ padding: '8px 6px' }}>
+                            {!isSummaryRow && pos.id && (
+                              <div className="d-flex gap-1 justify-content-end">
+                                <button type="button" className="btn btn-sm" style={{ fontSize: '0.65rem', padding: '2px 8px', color: '#64748b', border: '1px solid #e2e8f0', borderRadius: 4 }}
+                                  onClick={() => { setEditModal(pos); setEditFields({ asset: pos.asset, contract: pos.contract ?? '', direction: (pos.direction as 'LONG' | 'SHORT') ?? 'SHORT', nominal: pos.nominal ?? 1, entry_price: pos.entry_price ?? 0, entry_date: pos.entry_date ?? '' }); }}>
                                   Editar
                                 </button>
-                                <button
-                                  type="button"
-                                  className="btn btn-outline-primary btn-sm"
-                                  style={{ fontSize: '0.7rem', padding: '1px 6px' }}
-                                  onClick={() => { setRollModal(pos); setRollContract(''); setRollPrice(''); setRollEntryPrice(''); }}
-                                  title="Roll de contrato"
-                                >
+                                <button type="button" className="btn btn-sm" style={{ fontSize: '0.65rem', padding: '2px 8px', color: '#3b82f6', border: '1px solid #bfdbfe', borderRadius: 4 }}
+                                  onClick={() => { setRollModal(pos); setRollContract(''); setRollPrice(''); setRollEntryPrice(''); }}>
                                   Roll
                                 </button>
-                                <button
-                                  type="button"
-                                  className="btn btn-outline-danger btn-sm"
-                                  style={{ fontSize: '0.7rem', padding: '1px 6px' }}
-                                  onClick={() => { setCloseModal(pos); setClosePrice(pos.current_price?.toString() ?? ''); }}
-                                  title="Cerrar posición"
-                                >
+                                <button type="button" className="btn btn-sm" style={{ fontSize: '0.65rem', padding: '2px 8px', color: '#dc2626', border: '1px solid #fecaca', borderRadius: 4 }}
+                                  onClick={() => { setCloseModal(pos); setClosePrice(pos.current_price?.toString() ?? ''); }}>
                                   Cerrar
                                 </button>
-                                <button
-                                  type="button"
-                                  className="btn btn-outline-danger btn-sm"
-                                  style={{ fontSize: '0.7rem', padding: '1px 6px' }}
-                                  onClick={() => handleDelete(pos)}
-                                  title="Eliminar posición"
-                                >
+                                <button type="button" className="btn btn-sm" style={{ fontSize: '0.65rem', padding: '2px 6px', color: '#94a3b8' }}
+                                  onClick={() => handleDelete(pos)} title="Eliminar" aria-label="Eliminar posición">
                                   &times;
                                 </button>
                               </div>
@@ -2361,12 +2465,13 @@ function RiskManagement() {
                     })}
                   </tbody>
                 </table>
+                </div>
               </div>
             )}
 
             {/* Multiplier reference */}
             {futuresPortfolio.length > 0 && (
-              <div className="mt-2" style={{ fontSize: '0.72rem', color: '#64748b' }}>
+              <div className="mt-2" style={{ fontSize: '0.72rem', color: '#94a3b8' }}>
                 Multiplicadores: MAIZ = 5,000 bu/contrato · AZUCAR = 112,000 lbs/contrato · CACAO = 10 ton/contrato
               </div>
             )}
