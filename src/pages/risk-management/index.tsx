@@ -734,6 +734,51 @@ function RiskManagement() {
   const pricedXccyStore = useAppStore((s) => s.pricedXccy);
   const pricedNdfStore = useAppStore((s) => s.pricedNdf);
   const refPricesStore = useAppStore((s) => s.refPrices);
+  const tradingLoading = useAppStore((s) => s.tradingLoading);
+  const loadOtcPositions = useAppStore((s) => s.loadPositions);
+  const repriceOtc = useAppStore((s) => s.repriceAll);
+  const loadOtcRefPrices = useAppStore((s) => s.loadReferencePrices);
+  const refPricesForDate = useAppStore((s) => s.refPricesForDate);
+
+  // Global "Actualizar todo" — loads OTC positions, reprices them and loads MTD ref prices,
+  // then re-runs benchmark/futures/exposure for the current month.
+  const [globalRefreshing, setGlobalRefreshing] = useState(false);
+  const handleGlobalRefresh = useCallback(async (force = false) => {
+    setGlobalRefreshing(true);
+    try {
+      // 1) Load OTC positions from Supabase (skip if already loaded unless forced)
+      const hasOtcPositions = (pricedXccyStore?.length ?? 0) + (pricedNdfStore?.length ?? 0) > 0;
+      if (force || !hasOtcPositions) {
+        await loadOtcPositions(selectedCompanyId);
+      }
+      // 2) Reprice with current curves
+      await repriceOtc();
+      // 3) Load MTD reference prices (last business day of previous month)
+      const now = new Date();
+      const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      // Step back to last day of previous month, then to last weekday
+      const lastPrev = new Date(firstOfMonth.getTime() - 24 * 60 * 60 * 1000);
+      while (lastPrev.getDay() === 0 || lastPrev.getDay() === 6) {
+        lastPrev.setDate(lastPrev.getDate() - 1);
+      }
+      const fechaMtd = lastPrev.toISOString().slice(0, 10);
+      if (force || refPricesForDate !== fechaMtd) {
+        await loadOtcRefPrices(fechaMtd);
+      }
+    } catch (e) {
+      toast.error((e as Error)?.message || 'Error actualizando datos OTC');
+    } finally {
+      setGlobalRefreshing(false);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedCompanyId, refPricesForDate]);
+
+  // Auto-load OTC data when entering the risk-management page (once per session/company).
+  useEffect(() => {
+    if (!selectedCompanyId) return;
+    handleGlobalRefresh(false);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedCompanyId]);
 
   // Methodology modal
   const [methModal, setMethModal] = useState<string | null>(null);
@@ -1265,10 +1310,22 @@ function RiskManagement() {
       {/* Show main content only when company has config */}
       {companyConfig && (
       <Container fluid className="p-4">
-        <PageTitle>
-          <Icon icon={faShieldAlt} />
-          <h4>{PAGE_TITLE}</h4>
-        </PageTitle>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+          <PageTitle>
+            <Icon icon={faShieldAlt} />
+            <h4>{PAGE_TITLE}</h4>
+          </PageTitle>
+          <Button
+            variant="outline-primary"
+            size="sm"
+            onClick={() => handleGlobalRefresh(true)}
+            disabled={globalRefreshing || tradingLoading}
+            title="Recarga posiciones OTC, repricing y precios MTD"
+          >
+            <Icon icon={faSyncAlt} className={(globalRefreshing || tradingLoading) ? 'fa-spin me-1' : 'me-1'} />
+            Actualizar todo
+          </Button>
+        </div>
 
         {/* Tabs */}
         <Tabs outlined className="mb-3">
