@@ -730,7 +730,10 @@ function RiskManagement() {
   const [resumenLoading, setResumenLoading] = useState(false);
 
   // Access OTC summary from store (available after repricing in Portfolio OTC page)
-  const otcSummary = useAppStore((s) => (s as unknown as Record<string, unknown>).summary) as { total_npv_cop: number; total_npv_usd: number; total_carry_cop: number; total_pnl_rate_cop: number; total_pnl_fx_cop: number; fx_spot?: number } | undefined;
+  const otcSummary = useAppStore((s) => s.summary) as { total_npv_cop: number; total_npv_usd: number } | undefined;
+  const pricedXccyStore = useAppStore((s) => s.pricedXccy);
+  const pricedNdfStore = useAppStore((s) => s.pricedNdf);
+  const refPricesStore = useAppStore((s) => s.refPrices);
 
   // Methodology modal
   const [methModal, setMethModal] = useState<string | null>(null);
@@ -854,8 +857,24 @@ function RiskManagement() {
         },
       };
 
+      // FX Delta total = sum of fx_delta from priced XCCY + NDF positions
+      const fxDeltaTotal = (pricedXccyStore ?? []).reduce((s, p) => s + (p.fx_delta ?? 0), 0)
+        + (pricedNdfStore ?? []).reduce((s, p) => s + (p.fx_delta ?? 0), 0);
+
+      // P&L MTD = current NPV - MTD reference NPV
+      const mtdRef = refPricesStore?.mtd;
+      const pnlMtdCop = (otcSummary && mtdRef)
+        ? otcSummary.total_npv_cop - mtdRef.summary.total_npv_cop
+        : undefined;
+      const pnlMtdUsd = (otcSummary && mtdRef)
+        ? otcSummary.total_npv_usd - mtdRef.summary.total_npv_usd
+        : undefined;
+
       const data = await fetchResumenData(today, selectedCompanyId, {
         summary: otcSummary,
+        fxDeltaTotal,
+        pnlMtdCop,
+        pnlMtdUsd,
         commoditiesOverride: commoditiesResumen,
       });
       setResumenData(data);
@@ -865,7 +884,7 @@ function RiskManagement() {
       setResumenLoading(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedCompanyId, benchmarkRows, benchmarkFactors]);
+  }, [selectedCompanyId, benchmarkRows, benchmarkFactors, otcSummary, pricedXccyStore, pricedNdfStore, refPricesStore]);
 
   const handleFetchRolling = useCallback(async () => {
     setRollingLoading(true);
@@ -1137,8 +1156,6 @@ function RiskManagement() {
   // When futures portfolio or benchmark month changes, auto-fill position_gr and pnl_gr
   // Only positions opened ON or BEFORE the selected benchmark month are included
   useEffect(() => {
-    if (!futuresPortfolio || futuresPortfolio.length === 0) return;
-
     // Use Px Inicio (price_start) and Px Fin (price_end) from benchmark factors for P&G
     const factors = benchmarkFactors?.factors ?? {};
 
@@ -1148,8 +1165,21 @@ function RiskManagement() {
       next.forEach((row, i) => {
         if (row.asset === 'Total') return;
 
+        // ── USD row: fed from OTC store (FX Delta + P&L MTD USD) ──
+        if (row.asset === 'USD') {
+          const fxDeltaTotal = (pricedXccyStore ?? []).reduce((s, p) => s + (p.fx_delta ?? 0), 0)
+            + (pricedNdfStore ?? []).reduce((s, p) => s + (p.fx_delta ?? 0), 0);
+          const mtdRef = refPricesStore?.mtd;
+          const pnlMtdUsd = (otcSummary && mtdRef)
+            ? otcSummary.total_npv_usd - mtdRef.summary.total_npv_usd
+            : 0;
+          next[i].position_gr = fxDeltaTotal !== 0 ? String(Math.round(fxDeltaTotal)) : '0';
+          next[i].pnl_gr = pnlMtdUsd !== 0 ? String(Math.round(pnlMtdUsd)) : '0';
+          return;
+        }
+
         // Filter positions: only those opened on or before the selected month
-        const positions = futuresPortfolio.filter((p) =>
+        const positions = (futuresPortfolio ?? []).filter((p) =>
           p.asset === row.asset
           && p.entry_date != null
           && p.entry_date !== ''
@@ -1157,8 +1187,8 @@ function RiskManagement() {
         );
 
         if (positions.length === 0) {
-          next[i].position_gr = '';
-          next[i].pnl_gr = '';
+          next[i].position_gr = '0';
+          next[i].pnl_gr = '0';
           return;
         }
 
@@ -1185,14 +1215,14 @@ function RiskManagement() {
           }, 0);
           next[i].pnl_gr = String(Math.round(pnlGr));
         } else {
-          next[i].pnl_gr = '';
+          next[i].pnl_gr = '0';
         }
       });
 
       return recalcBenchmark(next, varianceMap);
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [futuresPortfolio, varianceMap, benchmarkDateStr, benchmarkFactors]);
+  }, [futuresPortfolio, varianceMap, benchmarkDateStr, benchmarkFactors, otcSummary, pricedXccyStore, pricedNdfStore, refPricesStore]);
 
   // Build chart data for rolling var
   const buildChartData = (asset: string, field: 'prices' | 'rolling_var') => {
@@ -1333,26 +1363,27 @@ function RiskManagement() {
                   </h6>
                   <Row className="g-2">
                     {[
-                      { label: 'NPV COP', value: resumenData.otc.npv_cop, suffix: '' },
-                      { label: 'NPV USD', value: resumenData.otc.npv_usd, suffix: '' },
-                      { label: 'Carry COP', value: resumenData.otc.carry_cop, suffix: '' },
-                      { label: 'P&L Tasas', value: resumenData.otc.pnl_tasas, suffix: '' },
-                      { label: 'P&L FX', value: resumenData.otc.pnl_fx, suffix: '' },
-                      { label: 'Spot USD/COP', value: resumenData.otc.spot, suffix: '', plain: true },
-                    ].map((item) => (
-                      <Col key={item.label} xs={4} md={2}>
-                        <div style={{ textAlign: 'center', padding: '10px 6px', background: '#f8fafc', borderRadius: 6 }}>
-                          <div style={{ fontSize: '0.65rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 600 }}>{item.label}</div>
-                          <div style={{
-                            fontSize: '1rem', fontWeight: 700, marginTop: 2,
-                            color: item.plain ? '#1e293b' : pnlClass(item.value).replace('text-', '').replace('success', '#16a34a').replace('danger', '#dc2626') || '#1e293b',
-                          }}>
-                            {/* eslint-disable-next-line no-nested-ternary */}
-                            {item.value != null ? (item.plain ? fmt(item.value, 2) : fmtCompact(item.value)) : '—'}
+                      { label: 'NPV COP', value: resumenData.otc.npv_cop },
+                      { label: 'NPV USD', value: resumenData.otc.npv_usd },
+                      { label: 'FX Delta', value: resumenData.otc.fx_delta },
+                      { label: 'P&L MTD COP', value: resumenData.otc.pnl_mtd_cop },
+                      { label: 'P&L MTD USD', value: resumenData.otc.pnl_mtd_usd },
+                    ].map((item) => {
+                      const colorRaw = pnlClass(item.value);
+                      let color = '#1e293b';
+                      if (colorRaw.includes('success')) color = '#16a34a';
+                      else if (colorRaw.includes('danger')) color = '#dc2626';
+                      return (
+                        <Col key={item.label} xs={6} md>
+                          <div style={{ textAlign: 'center', padding: '10px 6px', background: '#f8fafc', borderRadius: 6 }}>
+                            <div style={{ fontSize: '0.65rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 600 }}>{item.label}</div>
+                            <div style={{ fontSize: '1rem', fontWeight: 700, marginTop: 2, color }}>
+                              {item.value != null ? fmtCompact(item.value) : '—'}
+                            </div>
                           </div>
-                        </div>
-                      </Col>
-                    ))}
+                        </Col>
+                      );
+                    })}
                   </Row>
                 </div>
 

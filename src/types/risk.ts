@@ -187,12 +187,9 @@ export interface OTCResumen {
   posiciones: number;
   npv_cop: number | null;
   npv_usd: number | null;
-  carry_cop: number | null;
-  pnl_tasas: number | null;
-  pnl_fx: number | null;
-  spot: number | null;
-  dv01: number | null;
   fx_delta: number | null;
+  pnl_mtd_cop: number | null;
+  pnl_mtd_usd: number | null;
 }
 
 export interface CreditosResumen {

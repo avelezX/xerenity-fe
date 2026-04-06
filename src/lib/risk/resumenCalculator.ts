@@ -79,20 +79,16 @@ async function fetchOTCResumen(companyId?: string): Promise<OTCResumen> {
 
     const totalPositions = xccy.length + ndf.length + ibr.length;
 
-    // Aggregate notionals as basic value (pricing data comes from repricing which needs Fly.io)
     return {
       posiciones: totalPositions,
-      npv_cop: null, // Requires repricing
+      npv_cop: null,
       npv_usd: null,
-      carry_cop: null,
-      pnl_tasas: null,
-      pnl_fx: null,
-      spot: null,
-      dv01: null,
       fx_delta: null,
+      pnl_mtd_cop: null,
+      pnl_mtd_usd: null,
     };
   } catch {
-    return { posiciones: 0, npv_cop: null, npv_usd: null, carry_cop: null, pnl_tasas: null, pnl_fx: null, spot: null, dv01: null, fx_delta: null };
+    return { posiciones: 0, npv_cop: null, npv_usd: null, fx_delta: null, pnl_mtd_cop: null, pnl_mtd_usd: null };
   }
 }
 
@@ -132,11 +128,17 @@ async function fetchCreditosResumen(companyId?: string): Promise<CreditosResumen
 
 // ── Main ──
 
+interface OTCStoreData {
+  summary?: { total_npv_cop: number; total_npv_usd: number };
+  fxDeltaTotal?: number;
+  pnlMtdCop?: number;
+  pnlMtdUsd?: number;
+}
+
 export async function fetchResumenData(
   filterDate: string,
   companyId?: string,
-  storeData?: {
-    summary?: { total_npv_cop: number; total_npv_usd: number; total_carry_cop: number; total_pnl_rate_cop: number; total_pnl_fx_cop: number; fx_spot?: number };
+  storeData?: OTCStoreData & {
     commoditiesOverride?: CommoditiesResumen;
   },
 ): Promise<ResumenData> {
@@ -149,14 +151,19 @@ export async function fetchResumenData(
   // Use benchmark data if available, otherwise fetch from scratch
   const commodities = storeData?.commoditiesOverride ?? await fetchCommoditiesResumen(filterDate);
 
-  // If OTC summary from store is available (after repricing), use it
+  // Fill OTC metrics from store (after repricing in Portafolio OTC page)
   if (storeData?.summary) {
     otc.npv_cop = storeData.summary.total_npv_cop;
     otc.npv_usd = storeData.summary.total_npv_usd;
-    otc.carry_cop = storeData.summary.total_carry_cop;
-    otc.pnl_tasas = storeData.summary.total_pnl_rate_cop;
-    otc.pnl_fx = storeData.summary.total_pnl_fx_cop;
-    otc.spot = storeData.summary.fx_spot ?? null;
+  }
+  if (storeData?.fxDeltaTotal != null) {
+    otc.fx_delta = storeData.fxDeltaTotal;
+  }
+  if (storeData?.pnlMtdCop != null) {
+    otc.pnl_mtd_cop = storeData.pnlMtdCop;
+  }
+  if (storeData?.pnlMtdUsd != null) {
+    otc.pnl_mtd_usd = storeData.pnlMtdUsd;
   }
 
   return { fecha: filterDate, commodities, otc, creditos };
