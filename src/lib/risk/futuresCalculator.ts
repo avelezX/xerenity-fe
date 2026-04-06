@@ -29,6 +29,13 @@ const DEFAULT_PRICE_UNITS: Record<string, string> = {
   CACAO: 'USD/ton',
 };
 
+// Price-to-USD conversion: cents → dollars (divide by 100)
+const PRICE_TO_USD: Record<string, number> = {
+  MAIZ: 0.01,     // cents/bu → USD/bu
+  AZUCAR: 0.01,   // cents/lb → USD/lb
+  CACAO: 1,        // USD/ton → USD/ton (no conversion)
+};
+
 // ── Helpers ──
 
 /**
@@ -85,6 +92,12 @@ export function calculateFuturesPortfolio(
   const prevMonthLastBD = lastBusinessDayOfPrevMonth(refDate);
   const prevMonthStr = toDateStr(prevMonthLastBD);
 
+  // Filter positions: only those opened on or before the selected filter date
+  // (same logic as Benchmark — don't show positions that didn't exist yet)
+  const filteredPositions = positions.filter((p) =>
+    p.entry_date != null && p.entry_date !== '' && p.entry_date <= filterDate,
+  );
+
   const result: FuturesPosition[] = [];
 
   let totalValorT = 0;
@@ -92,7 +105,7 @@ export function calculateFuturesPortfolio(
   let totalPnlMonth = 0;
   let totalPnlInception = 0;
 
-  for (const pos of positions) {
+  for (const pos of filteredPositions) {
     const multiplier = multipliers[pos.asset] ?? 1;
     const dirSign = DIRECTION_SIGN[pos.direction] ?? 1;
     const assetPrices = prices[pos.asset];
@@ -124,19 +137,21 @@ export function calculateFuturesPortfolio(
 
     const currentPrice = current.price;
     const entryPrice = pos.entry_price;
+    // Convert cents to USD for assets quoted in cents (MAIZ, AZUCAR)
+    const toUsd = PRICE_TO_USD[pos.asset] ?? 1;
 
-    // Calculations
-    const valorT = currentPrice != null ? pos.nominal * multiplier * currentPrice : null;
-    const valorT1 = precioPrevio != null ? pos.nominal * multiplier * precioPrevio : null;
+    // Calculations — all values in USD
+    const valorT = currentPrice != null ? pos.nominal * multiplier * currentPrice * toUsd : null;
+    const valorT1 = precioPrevio != null ? pos.nominal * multiplier * precioPrevio * toUsd : null;
 
     const pnlInception =
       currentPrice != null
-        ? (currentPrice - entryPrice) * pos.nominal * multiplier * dirSign
+        ? (currentPrice - entryPrice) * pos.nominal * multiplier * dirSign * toUsd
         : null;
 
     const pnlMonth =
       currentPrice != null && precioPrevio != null
-        ? (currentPrice - precioPrevio) * pos.nominal * multiplier * dirSign
+        ? (currentPrice - precioPrevio) * pos.nominal * multiplier * dirSign * toUsd
         : null;
 
     if (valorT != null) totalValorT += valorT;
@@ -169,13 +184,63 @@ export function calculateFuturesPortfolio(
     });
   }
 
-  // Totals row
-  result.push({
+  // Group by asset for subtotals
+  const assetGroups = new Map<string, { nominal: number; valorT: number; valorT1: number; pnlMonth: number; pnlInception: number; valorCompra: number }>();
+  let totalNominal = 0;
+
+  for (const pos of result) {
+    const group = assetGroups.get(pos.asset) ?? { nominal: 0, valorT: 0, valorT1: 0, pnlMonth: 0, pnlInception: 0, valorCompra: 0 };
+    group.nominal += pos.nominal ?? 0;
+    group.valorT += pos.valor_t ?? 0;
+    group.valorT1 += pos.valor_t1 ?? 0;
+    group.pnlMonth += pos.pnl_month ?? 0;
+    group.pnlInception += pos.pnl_inception ?? 0;
+    const toUsdFactor = PRICE_TO_USD[pos.asset] ?? 1;
+    group.valorCompra += (pos.entry_price ?? 0) * (pos.multiplier ?? 1) * (pos.nominal ?? 0) * toUsdFactor;
+    assetGroups.set(pos.asset, group);
+    totalNominal += pos.nominal ?? 0;
+  }
+
+  // Sort result: group positions by asset, then add subtotal after each group
+  const sorted: FuturesPosition[] = [];
+  const assets = Array.from(assetGroups.keys()).sort();
+  for (const asset of assets) {
+    const assetPositions = result.filter((p) => p.asset === asset);
+    sorted.push(...assetPositions);
+    const group = assetGroups.get(asset)!;
+    // Subtotal row per asset
+    sorted.push({
+      id: `subtotal-${asset}`,
+      asset: `Total ${asset}`,
+      contract: '',
+      direction: '' as 'LONG',
+      nominal: group.nominal,
+      multiplier: 0,
+      entry_price: 0,
+      entry_date: '',
+      current_price: null,
+      current_price_date: null,
+      precio_previo: null,
+      precio_previo_date: null,
+      valor_t: Math.round(group.valorT),
+      valor_t1: Math.round(group.valorT1),
+      pnl_inception: Math.round(group.pnlInception),
+      pnl_month: Math.round(group.pnlMonth),
+      price_unit: '',
+      active: true,
+      closed_date: null,
+      closed_price: null,
+      rolled_to: null,
+    });
+  }
+
+  // Grand total row
+  sorted.push({
     id: '',
     asset: 'Total',
     contract: '',
     direction: '' as 'LONG',
-    nominal: 0,
+    nominal: totalNominal,
     multiplier: 0,
     entry_price: 0,
     entry_date: '',
@@ -194,7 +259,7 @@ export function calculateFuturesPortfolio(
     rolled_to: null,
   });
 
-  return result;
+  return sorted;
 }
 
 /**
