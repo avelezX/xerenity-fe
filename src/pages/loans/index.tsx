@@ -154,8 +154,7 @@ export default function LoansPage() {
     let totalValue = 0;
     let weightedRateSum = 0;
     let weightedTenorSum = 0;
-    let weightedDurationSum = 0;
-    let loanCount = 0;
+    // count tracks processed loans (used for validation)
 
     const periodYears: Record<string, number> = {
       Mensual: 1 / 12, Trimestral: 0.25, Semestral: 0.5, Anual: 1,
@@ -177,9 +176,6 @@ export default function LoansPage() {
       // Average rate from cashflows
       const avgRate = cf.flows.reduce((s, f) => s + (f.rate_tot ?? 0), 0) / cf.flows.length;
 
-      // Tenor in years
-      const tenor = loan.number_of_payments * (periodYears[loan.periodicity] ?? 0.25);
-
       // Remaining periods
       const remainingFlows = cf.flows.filter((f) => f.date.split(' ')[0] > today);
       const remainingTenor = remainingFlows.length * (periodYears[loan.periodicity] ?? 0.25);
@@ -187,7 +183,7 @@ export default function LoansPage() {
       totalValue += outstanding;
       weightedRateSum += avgRate * outstanding;
       weightedTenorSum += remainingTenor * outstanding;
-      loanCount += 1;
+      // loan processed
     });
 
     if (totalValue <= 0) return null;
