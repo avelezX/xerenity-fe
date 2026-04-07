@@ -182,6 +182,7 @@ const createLoansSlice: StateCreator<LoansSlice> = (set) => ({
             return Number.isNaN(numberValue);
           }),
         }));
+      }
     }
     set((state) => {
       const newSelections: string[] = [];
