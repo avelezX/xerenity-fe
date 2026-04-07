@@ -53,12 +53,6 @@ function lastDayOfMonth(year: number, month: number): string {
   return lastBusinessDay(d).toISOString().slice(0, 10);
 }
 
-function lastBusinessDayPrevMonth(year: number, month: number): string {
-  // Last business day of (month - 1)
-  if (month === 0) return lastDayOfMonth(year - 1, 11);
-  return lastDayOfMonth(year, month - 1);
-}
-
 function currentMonth(): { year: number; month: number } {
   const now = new Date();
   return { year: now.getFullYear(), month: now.getMonth() };
@@ -235,10 +229,6 @@ function RiskResumenPage() {
     () => lastDayOfMonth(resumenMonth.year, resumenMonth.month),
     [resumenMonth],
   );
-  const prevMonthDate = useMemo(
-    () => lastBusinessDayPrevMonth(resumenMonth.year, resumenMonth.month),
-    [resumenMonth],
-  );
 
   const goToPrevMonth = () => {
     setResumenMonth((prev) => {
@@ -265,13 +255,18 @@ function RiskResumenPage() {
       const commodityCfg = companyConfig?.commodities ?? [];
 
       // 1) OTC: load positions if missing, reprice with the selected mark date,
-      //    then load MTD reference prices for the prev month.
+      //    then load reference prices ANCHORED a filterDate (no a prevMonthDate).
+      //    loadReferencePrices internamente computa via computePnlRefDates las
+      //    3 fechas de referencia: daily = D-1, mtd = ult dia habil mes anterior,
+      //    ytd = ult dia habil diciembre anterior. Si le pasamos prevMonthDate
+      //    queda todo desfasado un mes y P&L MTD termina dando = NPV (porque la
+      //    referencia mtd queda apuntando al mes equivocado / sin marca).
       const hasOtc = (pricedXccyStore?.length ?? 0) + (pricedNdfStore?.length ?? 0) > 0;
       if (!hasOtc) {
         await loadOtcPositions(selectedCompanyId);
       }
       await repriceWithMark(filterDate);
-      await loadOtcRefPrices(prevMonthDate);
+      await loadOtcRefPrices(filterDate);
 
       // 2) Commodities: benchmark factors (precios fin de mes) + futures (Portafolio GR) + exposicion
       //    fetchExposure llama a Supabase con filterDate y trae automaticamente
@@ -322,7 +317,7 @@ function RiskResumenPage() {
       setLoading(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedCompanyId, companyConfig, filterDate, prevMonthDate, dynamicAssets]);
+  }, [selectedCompanyId, companyConfig, filterDate, dynamicAssets]);
 
   // Auto-fetch on month change / company change
   useEffect(() => {
