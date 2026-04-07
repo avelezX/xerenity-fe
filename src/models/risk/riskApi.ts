@@ -11,6 +11,7 @@ import type {
 } from 'src/types/risk';
 import {
   fetchRiskPrices, pivotPrices,
+  fetchRiskPricesAllContracts, pivotPricesByContract,
   fetchFuturesPositionsFromDB, upsertFuturesPositionsDB,
   closeFuturesPositionDB, deleteFuturesPositionDB, editFuturesPositionDB,
 } from 'src/lib/risk/supabaseRisk';
@@ -205,10 +206,31 @@ export async function fetchFuturesPortfolio(
   if (positions.length === 0) return { portfolio: [] };
 
   const startDate = getStartDate(filterDate, 90);
-  const rows = await fetchRiskPrices(startDate, filterDate);
-  const { dates, prices } = pivotPrices(rows);
 
-  const portfolio = calculateFuturesPortfolio(positions, dates, prices, filterDate, commodityConfig);
+  // Cargamos:
+  // 1) precios per-contrato desde risk_prices_all_contracts (fuente principal
+  //    para mark-to-market — cada contrato tiene su propio precio).
+  // 2) precios del front contract desde risk_prices como FALLBACK por si
+  //    algun contrato del Portafolio GR no tiene datos en
+  //    risk_prices_all_contracts (ej. recien creado, sin collector corrido).
+  const uniqueContracts = Array.from(new Set(positions.map((p) => p.contract).filter(Boolean)));
+  const [allContractRows, frontRows] = await Promise.all([
+    fetchRiskPricesAllContracts(startDate, filterDate, uniqueContracts).catch(() => []),
+    fetchRiskPrices(startDate, filterDate),
+  ]);
+
+  const { dates: contractDates, pricesByContract } = pivotPricesByContract(allContractRows);
+  const { dates: frontDates, prices: frontPrices } = pivotPrices(frontRows);
+
+  const portfolio = calculateFuturesPortfolio(
+    positions,
+    contractDates.length > 0 ? contractDates : frontDates,
+    frontPrices,
+    filterDate,
+    commodityConfig,
+    pricesByContract,
+    contractDates,
+  );
   return { portfolio };
 }
 

@@ -73,6 +73,78 @@ export function pivotPrices(rows: RiskPriceRow[]): {
   return { dates, prices, contracts };
 }
 
+// ── Risk Prices ALL Contracts (per-contract close price) ──
+//
+// risk_prices stores SOLO el front contract por activo, asi que todos
+// los contratos del mismo activo terminaban tomando el mismo precio
+// (bug: el Portafolio GR mostraba 457.75 para ZCN26, ZCU26, ZCZ26, etc.).
+//
+// risk_prices_all_contracts almacena el close price por (date, asset, contract).
+// Para mark-to-market del Portafolio GR usamos esta tabla, con fallback al
+// front contract si no hay datos para un contrato especifico.
+
+export interface RiskPriceContractRow {
+  date: string;
+  asset: string;
+  contract: string;
+  close: number;
+}
+
+export async function fetchRiskPricesAllContracts(
+  startDate: string,
+  endDate: string,
+  contracts?: string[],
+): Promise<RiskPriceContractRow[]> {
+  let query = supabase
+    .schema(SCHEMA)
+    .from('risk_prices_all_contracts')
+    .select('date, asset, contract, close')
+    .gte('date', startDate)
+    .lte('date', endDate);
+
+  if (contracts && contracts.length > 0) {
+    query = query.in('contract', contracts);
+  }
+
+  const { data, error } = await query.order('date', { ascending: true });
+
+  if (error) throw new Error(`Failed to fetch risk_prices_all_contracts: ${error.message}`);
+  return (data ?? []) as RiskPriceContractRow[];
+}
+
+/**
+ * Pivot per-contract rows into a date-indexed structure keyed by contract.
+ * Returns { dates: string[], pricesByContract: { ZCN26: [...], SBV26: [...], ... } }
+ *
+ * Si un contrato no tiene datos para una fecha, queda null en esa posicion.
+ */
+export function pivotPricesByContract(rows: RiskPriceContractRow[]): {
+  dates: string[];
+  pricesByContract: Record<string, (number | null)[]>;
+} {
+  const dateSet = new Set<string>();
+  const contractSet = new Set<string>();
+  // (date, contract) → close
+  const priceMap = new Map<string, Map<string, number>>();
+
+  for (const row of rows) {
+    dateSet.add(row.date);
+    contractSet.add(row.contract);
+    if (!priceMap.has(row.date)) priceMap.set(row.date, new Map());
+    priceMap.get(row.date)!.set(row.contract, row.close);
+  }
+
+  const dates = Array.from(dateSet).sort();
+  const contracts = Array.from(contractSet).sort();
+
+  const pricesByContract: Record<string, (number | null)[]> = {};
+  for (const contract of contracts) {
+    pricesByContract[contract] = dates.map((d) => priceMap.get(d)?.get(contract) ?? null);
+  }
+
+  return { dates, pricesByContract };
+}
+
 /**
  * Fetch distinct assets available in risk_prices (for onboarding).
  */
