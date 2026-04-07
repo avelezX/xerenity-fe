@@ -108,6 +108,7 @@ export default function LoansPage() {
     setCurrentSelection,
     activeCompanyId,
     selectedCompanyId,
+    calculationProgress,
   } = useAppStore();
 
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('Todos');
@@ -332,12 +333,28 @@ export default function LoansPage() {
         }}>
           <SummaryItem label="# Créditos" value={loans.length.toString()} />
           <SummaryItem label="Deuda Total" value={fmtMM(totalDeuda)} />
-          {fullLoan && (
+          {fullLoan && !calculationProgress.calculating && (
             <>
               <SummaryItem label="CPD" value={`${((fullLoan.average_irr ?? 0) * 100).toFixed(2)}%`} />
               <SummaryItem label="Tenor (Años)" value={(fullLoan.average_tenor ?? 0).toFixed(1)} />
               <SummaryItem label="Duración (Años)" value={(fullLoan.average_duration ?? 0).toFixed(2)} />
             </>
+          )}
+          {calculationProgress.calculating && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{
+                width: 120, height: 6, background: '#dee2e6', borderRadius: 3, overflow: 'hidden',
+              }}>
+                <div style={{
+                  width: `${calculationProgress.total > 0 ? (calculationProgress.completed / calculationProgress.total) * 100 : 0}%`,
+                  height: '100%', background: '#0d6efd', borderRadius: 3,
+                  transition: 'width 0.3s ease',
+                }} />
+              </div>
+              <span style={{ fontSize: 11, color: '#6c757d', fontWeight: 600 }}>
+                Calculando {calculationProgress.completed}/{calculationProgress.total}
+              </span>
+            </div>
           )}
           {typeCounts.ibr > 0 && <SummaryItem label="IBR" value={`${typeCounts.ibr} créditos`} color="#856404" />}
           {typeCounts.uvr > 0 && <SummaryItem label="UVR" value={`${typeCounts.uvr} créditos`} color="#6f42c1" />}
