@@ -18,16 +18,17 @@ import PageTitle from '@components/PageTitle';
 import Button from '@components/UI/Button';
 import RoleGuard from 'src/components/RoleGuard';
 import useAppStore from 'src/store';
-import { fetchBenchmarkFactors, fetchFuturesPortfolio } from 'src/models/risk/riskApi';
+import { fetchBenchmarkFactors, fetchFuturesPortfolio, fetchExposure } from 'src/models/risk/riskApi';
 import type {
   BenchmarkFactorsResponse,
   FuturesPosition,
+  ExposureResponse,
   ResumenData,
   CommoditiesResumen,
   CommodityRow,
 } from 'src/types/risk';
 import { fetchResumenData } from 'src/lib/risk/resumenCalculator';
-import { fetchCompanyRiskConfig, getAssetsWithCurrency } from 'src/lib/risk/companyConfig';
+import { fetchCompanyRiskConfig, getAssetsWithCurrency, DEFAULT_EXPOSURE_PARAMS } from 'src/lib/risk/companyConfig';
 import type { RiskCompanyConfig } from 'src/lib/risk/companyConfig';
 
 const PAGE_TITLE = 'Resumen — Gestión de Riesgos';
@@ -79,37 +80,57 @@ function pnlClass(v: number | null | undefined): string {
   return '';
 }
 
-/** Build the Commodities section of the Resumen from raw inputs.
- *  Mirrors the Benchmark tab calculations for Portafolio GR + P&G.
- *  Exposición Natural se omite en el Resumen porque depende de parámetros de
- *  proyección por empresa (ver tab Exposición). Aquí solo mostramos GR y P&G.
+/** Map benchmark asset → exposicion natural en USD desde fetchExposure.
+ *  Misma logica que /risk-management. Los precios vienen del fin de mes
+ *  porque fetchExposure se llama con la filterDate del Resumen.
+ */
+function getExposureForAsset(asset: string, result: ExposureResponse | null): number | null {
+  if (!result?.commodities) return null;
+  const find = (name: string) => result.commodities.find((c) => c.nombre === name)?.exposicion_usd ?? 0;
+  switch (asset) {
+    case 'AZUCAR': return -Math.abs(find('AZUCAR'));
+    case 'MAIZ': return -Math.abs(find('MAIZ'));
+    case 'CACAO': return -Math.abs(find('COCOA_POLVO') + find('MANTECA_CACAO') + find('LICOR_CACAO'));
+    case 'USD': return Math.abs(result.exposicion_real_usd ?? 0);
+    default: return null;
+  }
+}
+
+/** Build the Commodities section of the Resumen.
+ *  Replica la logica del Benchmark + auto-fill desde Portafolio GR (futuros) +
+ *  fila USD desde el store OTC (FX delta + P&L MTD USD).
  */
 function buildCommoditiesResumen(
   assets: string[],
   factors: BenchmarkFactorsResponse | null,
   futures: FuturesPosition[],
+  exposure: ExposureResponse | null,
+  otcFxDelta: number,
+  otcPnlMtdUsd: number | null,
   filterDate: string,
 ): CommoditiesResumen {
   const PRICE_TO_USD: Record<string, number> = { MAIZ: 0.01, AZUCAR: 0.01, CACAO: 1 };
   const filterMonth = filterDate.slice(0, 7);
 
-  const rows: CommodityRow[] = assets
-    .filter((a) => a !== 'USD') // USD goes from OTC store, not from futures
-    .map((asset) => {
-      const f = factors?.factors?.[asset];
-      const expNat: number | null = null; // omitted from Resumen — see Benchmark/Exposición tab
+  const rows: CommodityRow[] = assets.map((asset) => {
+    const f = factors?.factors?.[asset];
+    const expNat = getExposureForAsset(asset, exposure);
+    const pStart = f?.price_start ?? null;
+    const pEnd = f?.price_end ?? null;
 
-      // Position GR = sum of Valor Compra (entry_price × multiplier × nominal × toUsd)
-      // Use only positions whose entry_date <= filterDate AND that match this asset
+    let positionGr = 0;
+    let pnlGr = 0;
+
+    if (asset === 'USD') {
+      // USD row: Portafolio GR = FX Delta total, P&G GR = P&L MTD USD
+      positionGr = otcFxDelta;
+      pnlGr = otcPnlMtdUsd ?? 0;
+    } else {
+      // Commodity rows: from futures portfolio (entry_price × multiplier × nominal × toUsd)
       const positions = futures.filter(
         (p) => p.asset === asset && p.entry_date != null && p.entry_date <= filterDate,
       );
-
       const toUsd = PRICE_TO_USD[asset] ?? 1;
-      let positionGr = 0;
-      let pnlGr = 0;
-      const pStart = f?.price_start ?? null;
-      const pEnd = f?.price_end ?? null;
 
       positions.forEach((p) => {
         const mult = p.multiplier ?? 1;
@@ -124,29 +145,30 @@ function buildCommoditiesResumen(
           pnlGr += (pEnd - startPx) * mult * nom * dirSign * toUsd;
         }
       });
+    }
 
-      // P&G Super = (price_end - price_start) * super / price_start  (USD)
-      let pnlSuper = 0;
-      if (pStart != null && pEnd != null && pStart !== 0 && expNat != null) {
-        pnlSuper = ((pEnd - pStart) * expNat) / pStart;
-      }
+    // P&G Super = (price_end - price_start) * super / price_start  (USD)
+    let pnlSuper = 0;
+    if (pStart != null && pEnd != null && pStart !== 0 && expNat != null) {
+      pnlSuper = ((pEnd - pStart) * expNat) / pStart;
+    }
 
-      const total = (expNat ?? 0) + positionGr;
-      const pnlTotal = pnlSuper + pnlGr;
+    const total = (expNat ?? 0) + positionGr;
+    const pnlTotal = pnlSuper + pnlGr;
 
-      return {
-        asset,
-        contract: f?.contract ?? null,
-        exposicion_natural: expNat,
-        portafolio_gr: positionGr !== 0 ? positionGr : null,
-        total: total !== 0 ? total : null,
-        pnl_super: pnlSuper !== 0 ? pnlSuper : null,
-        pnl_gr: pnlGr !== 0 ? pnlGr : null,
-        pnl_total: pnlTotal !== 0 ? pnlTotal : null,
-      };
-    });
+    return {
+      asset,
+      contract: f?.contract ?? null,
+      exposicion_natural: expNat,
+      portafolio_gr: positionGr !== 0 ? positionGr : null,
+      total: total !== 0 ? total : null,
+      pnl_super: pnlSuper !== 0 ? pnlSuper : null,
+      pnl_gr: pnlGr !== 0 ? pnlGr : null,
+      pnl_total: pnlTotal !== 0 ? pnlTotal : null,
+    };
+  });
 
-  // Totals (sum across non-USD asset rows)
+  // Totals (sum across all asset rows)
   const sum = (key: keyof CommodityRow): number => rows.reduce((s, r) => {
     const v = r[key];
     return s + (typeof v === 'number' ? v : 0);
@@ -249,21 +271,17 @@ function RiskResumenPage() {
       await repriceWithMark(filterDate);
       await loadOtcRefPrices(prevMonthDate);
 
-      // 2) Commodities: benchmark factors (precios) + futures (Portafolio GR)
-      const [factors, futResp] = await Promise.all([
+      // 2) Commodities: benchmark factors (precios fin de mes) + futures (Portafolio GR) + exposicion
+      //    fetchExposure llama a Supabase con filterDate y trae automaticamente
+      //    los precios del fin del mes seleccionado (precio_azucar_cent_lb,
+      //    precio_maiz_cent_bu, etc se sobreescriben con los precios reales).
+      const [factors, futResp, exposure] = await Promise.all([
         fetchBenchmarkFactors(filterDate, 0.99, companyConfig).catch(() => null),
         fetchFuturesPortfolio(filterDate, true, selectedCompanyId, commodityCfg).catch(() => ({ portfolio: [] as FuturesPosition[] })),
+        fetchExposure(filterDate, DEFAULT_EXPOSURE_PARAMS).catch(() => null as ExposureResponse | null),
       ]);
 
-      const commodities = buildCommoditiesResumen(
-        dynamicAssets,
-        factors,
-        futResp.portfolio,
-        filterDate,
-      );
-
-      // 3) FX delta + P&L MTD from store (now reflect the chosen month)
-      // Snapshot the latest state after reprice/refprice promises resolved.
+      // 3) FX delta + P&L MTD from store (refresh after reprice/refprice resolved)
       const state = useAppStore.getState();
       const fxDeltaTotal = (state.pricedXccy ?? []).reduce((s, p) => s + (p.fx_delta ?? 0), 0)
         + (state.pricedNdf ?? []).reduce((s, p) => s + (p.fx_delta ?? 0), 0);
@@ -276,7 +294,18 @@ function RiskResumenPage() {
         ? summary.total_npv_usd - mtdRef.summary.total_npv_usd
         : undefined;
 
-      // 4) Compose the Resumen via the existing helper (handles credits)
+      // 4) Build the commodities table — feeds USD row from OTC store
+      const commodities = buildCommoditiesResumen(
+        dynamicAssets,
+        factors,
+        futResp.portfolio,
+        exposure,
+        fxDeltaTotal,
+        pnlMtdUsd ?? null,
+        filterDate,
+      );
+
+      // 5) Compose the Resumen via the existing helper (handles credits)
       const data = await fetchResumenData(filterDate, selectedCompanyId, {
         summary: summary ?? undefined,
         fxDeltaTotal,

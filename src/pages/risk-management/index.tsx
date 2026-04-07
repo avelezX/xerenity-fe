@@ -36,7 +36,7 @@ import type { RollingVarResponse, BenchmarkFactorsResponse, ExposureParams, Expo
 import useAppStore from 'src/store';
 // Company type no longer needed — global selector in CoreLayout
 import RoleGuard from 'src/components/RoleGuard';
-import { fetchCompanyRiskConfig, getAssetsWithCurrency, getChartColors, saveCompanyRiskConfig, COMMODITY_TEMPLATES } from 'src/lib/risk/companyConfig';
+import { fetchCompanyRiskConfig, getAssetsWithCurrency, getChartColors, saveCompanyRiskConfig, COMMODITY_TEMPLATES, DEFAULT_EXPOSURE_PARAMS } from 'src/lib/risk/companyConfig';
 import type { RiskCompanyConfig } from 'src/lib/risk/companyConfig';
 
 const PAGE_TITLE = 'Gestión de Riesgos';
@@ -758,33 +758,9 @@ function RiskManagement() {
   const [rollingLoading, setRollingLoading] = useState(false);
   const [selectedAsset, setSelectedAsset] = useState('MAIZ');
 
-  // Exposure state
-  const [exposureParams, setExposureParams] = useState<ExposureParams>({
-    proyeccion_azucar: [3157, 3157, 3157, 3157, 3157, 3157, 3157, 3157, 3157, 3157, 3157, 3157],
-    precio_azucar_cent_lb: 13.89,
-    factor_crudo_refinado: 1.05,
-    proyeccion_glucosa: [2277, 2277, 2277, 2277, 2277, 2277, 2277, 2277, 2277, 2277, 2277, 2277],
-    precio_maiz_cent_bu: 442,
-    base_maiz_cent_bu: 80,
-    flete_usd_ton: 46,
-    processing_fee_usd: 263,
-    proc_fee_cop_kg: 668,
-    trm: 3800,
-    factor_maiz_glucosa: 1.495,
-    proyeccion_cocoa_polvo: [24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24],
-    factor_cocoa_polvo: 1.22,
-    proyeccion_manteca: [13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13],
-    factor_manteca: 1.95,
-    proyeccion_licor: [4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4],
-    factor_licor: 1.53,
-    precio_cocoa_usd_ton: 2798,
-    proyeccion_bolsa: [151, 151, 151, 151, 151, 151, 151, 151, 151, 151, 151, 151],
-    proyeccion_envoltura: [138, 138, 138, 138, 138, 138, 138, 138, 138, 138, 138, 138],
-    precio_empaque_fijo: 21610000,
-    ventas_intl_usd: 130025826,
-    ventas_co_usd: 0,
-    ventas_pe_usd: 42827644,
-  });
+  // Exposure state — defaults extraidos a companyConfig.ts para que /risk-resumen
+  // pueda usar los mismos parametros sin duplicar el hardcode.
+  const [exposureParams, setExposureParams] = useState<ExposureParams>(DEFAULT_EXPOSURE_PARAMS);
   const [exposureResult, setExposureResult] = useState<ExposureResponse | null>(null);
   const [exposureLoading, setExposureLoading] = useState(false);
 
