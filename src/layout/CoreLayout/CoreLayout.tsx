@@ -15,7 +15,7 @@ import MobileWarning from './MobileWarning';
 
 const LOGIN_PATH = '/login';
 
-const RISK_PATHS = ['/risk-management', '/loans', '/portfolio', '/ndf-pricer', '/ibr-swap', '/xccy-swap', '/coltes-calculator', '/tes-portfolio'];
+const RISK_PATHS = ['/risk-resumen', '/risk-management', '/loans', '/portfolio', '/ndf-pricer', '/ibr-swap', '/xccy-swap', '/coltes-calculator', '/tes-portfolio'];
 
 function isRiskSection(path: string): boolean {
   return RISK_PATHS.some((p) => path.includes(p));
