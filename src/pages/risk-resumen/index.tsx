@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import Link from 'next/link';
 import { CoreLayout } from '@layout';
 import { Container, Row, Col } from 'react-bootstrap';
 import { FontAwesomeIcon as Icon } from '@fortawesome/react-fontawesome';
@@ -192,11 +193,12 @@ function buildCommoditiesResumen(
 function RiskResumenPage() {
   const { userProfile, isSuperAdmin, selectedCompanyId, setSelectedCompanyId } = useAppStore();
 
-  // OTC store handles
-  const otcSummary = useAppStore((s) => s.summary) as { total_npv_cop: number; total_npv_usd: number } | undefined;
+  // OTC store handles — used to detect whether positions are loaded.
+  // Reads of summary / fx_delta / refPrices.mtd are done after the reprice
+  // promise resolves via useAppStore.getState() inside handleFetch (so we
+  // always see the freshest values, not the snapshot at render time).
   const pricedXccyStore = useAppStore((s) => s.pricedXccy);
   const pricedNdfStore = useAppStore((s) => s.pricedNdf);
-  const refPricesStore = useAppStore((s) => s.refPrices);
   const tradingLoading = useAppStore((s) => s.tradingLoading);
   const loadOtcPositions = useAppStore((s) => s.loadPositions);
   const repriceWithMark = useAppStore((s) => s.repriceAllWithMark);
@@ -355,7 +357,7 @@ function RiskResumenPage() {
             <h5>Configuración pendiente</h5>
             <p className="text-muted">
               Esta empresa aún no tiene configurados los commodities. Ve a{' '}
-              <a href="/risk-management">Commodities</a> para configurarlos.
+              <Link href="/risk-management">Commodities</Link> para configurarlos.
             </p>
           </Container>
         )}

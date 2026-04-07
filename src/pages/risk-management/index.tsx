@@ -135,17 +135,6 @@ function getRowStyle(isTotal: boolean, isSubtotal: boolean): React.CSSProperties
   return { borderBottom: '1px solid #f1f5f9' };
 }
 
-/** Format number with compact suffix: $13.4M, $453K, $15 */
-const fmtCompact = (v: number | null): string => {
-  if (v == null) return '—';
-  const abs = Math.abs(v);
-  const sign = v < 0 ? '-' : '';
-  if (abs >= 1_000_000_000) return `${sign}$${(abs / 1_000_000_000).toFixed(1)}B`;
-  if (abs >= 1_000_000) return `${sign}$${(abs / 1_000_000).toFixed(1)}M`;
-  if (abs >= 1_000) return `${sign}$${(abs / 1_000).toFixed(1)}K`;
-  return `${sign}$${abs.toFixed(0)}`;
-};
-
 const fmtUsd = (v: number): string => {
   if (v === 0) return '';
   const prefix = v < 0 ? '-$' : '$';
