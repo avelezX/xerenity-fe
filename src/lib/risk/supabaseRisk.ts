@@ -184,12 +184,17 @@ export async function fetchFuturesPositionsFromDB(
 export async function upsertFuturesPositionsDB(
   records: Partial<FuturesPositionRow>[],
 ): Promise<void> {
+  // Insert puro (no upsert): se elimino el unique constraint
+  // uq_futures_position en risk_futures_portfolio para permitir multiples
+  // entradas al mismo contrato a diferentes precios. Si dejaramos .upsert
+  // con onConflict apuntando a una constraint inexistente, PostgREST
+  // retorna 400 y el "Crear" del Portafolio GR falla en silencio.
   const { error } = await supabase
     .schema(SCHEMA)
     .from('risk_futures_portfolio')
-    .upsert(records, { onConflict: 'company_id,asset,contract,entry_date,direction' });
+    .insert(records);
 
-  if (error) throw new Error(`Failed to upsert futures positions: ${error.message}`);
+  if (error) throw new Error(`Failed to insert futures positions: ${error.message}`);
 }
 
 export async function closeFuturesPositionDB(
