@@ -400,7 +400,7 @@ const createLoansSlice: StateCreator<LoansSlice> = (set) => ({
       fullLoan,
       loanDebtData,
       loading: false,
-      calculationProgress: { total, completed, calculating: false },
+      calculationProgress: { total, completed: completedCount, calculating: false },
     });
   },
 
