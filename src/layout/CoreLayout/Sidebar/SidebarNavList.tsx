@@ -10,6 +10,7 @@ import {
   faBriefcase,
   faScaleBalanced,
   faChartArea,
+  faChartPie,
   faCog,
   faUsers,
 } from '@fortawesome/free-solid-svg-icons';
@@ -63,6 +64,7 @@ const NAV_ITEMS: NavItemProps[] = [
 ];
 
 const RIESGOS_SUBNAV: NavItemProps[] = [
+  { name: 'Resumen', path: '/risk-resumen', icon: faChartPie, active: false },
   { name: 'Commodities', path: '/risk-management', icon: faChartArea, active: false },
   { name: 'Créditos', path: '/loans', icon: faLandmark, active: false },
   { name: 'Portafolio OTC', path: '/portfolio', icon: faBriefcase, active: false },
