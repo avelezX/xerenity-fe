@@ -239,7 +239,7 @@ function buildPortfolioSummary(
   return { fullLoan, loanDebtData };
 }
 
-const createLoansSlice: StateCreator<LoansSlice> = (set, get) => ({
+const createLoansSlice: StateCreator<LoansSlice> = (set) => ({
   ...initialState,
   // Store Actions
   createLoan: async (values: NewLoanValues) => {
@@ -324,10 +324,12 @@ const createLoansSlice: StateCreator<LoansSlice> = (set, get) => ({
     // Calculate each loan individually (batches of 5 in parallel)
     const batchSize = 5;
     const allCashFlows: CashFlowItem[] = [];
-    let completed = 0;
-
+    const batches: Loan[][] = [];
     for (let i = 0; i < total; i += batchSize) {
-      const batch = selectedRows.slice(i, i + batchSize);
+      batches.push(selectedRows.slice(i, i + batchSize));
+    }
+
+    const processBatch = async (batch: Loan[]): Promise<CashFlowItem[]> => {
       const promises = batch.map(async (loan) => {
         const response: CashflowResponse = await fetchCashFlows(
           loan.id,
@@ -339,15 +341,18 @@ const createLoansSlice: StateCreator<LoansSlice> = (set, get) => ({
         }
         return null;
       });
-
       const results = await Promise.all(promises);
-      results.forEach((r) => {
-        if (r) allCashFlows.push(r);
-        completed += 1;
-      });
+      return results.filter((r): r is CashFlowItem => r !== null);
+    };
 
-      // Update progress after each batch
-      set({ calculationProgress: { total, completed, calculating: true } });
+    let completedCount = 0;
+    // eslint-disable-next-line no-restricted-syntax
+    for (const batch of batches) {
+      // eslint-disable-next-line no-await-in-loop
+      const batchResults = await processBatch(batch);
+      batchResults.forEach((r) => allCashFlows.push(r));
+      completedCount += batch.length;
+      set({ calculationProgress: { total, completed: completedCount, calculating: true } });
     }
 
     // Build merged cashflows
