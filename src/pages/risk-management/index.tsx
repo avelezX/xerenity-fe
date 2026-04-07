@@ -38,6 +38,7 @@ import useAppStore from 'src/store';
 import RoleGuard from 'src/components/RoleGuard';
 import { fetchCompanyRiskConfig, getAssetsWithCurrency, getChartColors, saveCompanyRiskConfig, COMMODITY_TEMPLATES, DEFAULT_EXPOSURE_PARAMS } from 'src/lib/risk/companyConfig';
 import type { RiskCompanyConfig } from 'src/lib/risk/companyConfig';
+import { parseContractMaturity } from 'src/lib/risk/futuresCalculator';
 
 const PAGE_TITLE = 'Gestión de Riesgos';
 
@@ -2152,7 +2153,18 @@ function RiskManagement() {
                             {/* eslint-disable-next-line no-nested-ternary */}
                             <span style={{ color: isTotal ? '#1e293b' : (isSubtotal ? '#475569' : '#7c3aed'), fontWeight: 600 }}>{pos.asset}</span>
                           </td>
-                          <td style={{ padding: '8px 6px', color: '#64748b' }}>{isSummaryRow ? '' : (pos.contract ?? '')}</td>
+                          <td style={{ padding: '8px 6px', color: '#64748b' }}>
+                            {isSummaryRow ? '' : (
+                              <>
+                                <span style={{ fontWeight: 600 }}>{pos.contract ?? ''}</span>
+                                {pos.contract && parseContractMaturity(pos.contract) && (
+                                  <span style={{ color: '#94a3b8', fontSize: '0.7rem', marginLeft: 4 }}>
+                                    ({parseContractMaturity(pos.contract)})
+                                  </span>
+                                )}
+                              </>
+                            )}
+                          </td>
                           <td style={{ padding: '8px 6px', color: dirColor, fontWeight: 600, fontSize: '0.75rem' }}>{isSummaryRow ? '' : (pos.direction ?? '')}</td>
                           <td className="text-center" style={{ padding: '8px 6px', fontWeight: isSummaryRow ? 700 : 400 }}>{pos.nominal || ''}</td>
                           <td style={{ padding: '8px 6px', color: '#64748b', fontSize: '0.75rem' }}>{isSummaryRow ? '' : (pos.entry_date ?? '')}</td>

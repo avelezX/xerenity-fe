@@ -39,6 +39,34 @@ const PRICE_TO_USD: Record<string, number> = {
 // ── Helpers ──
 
 /**
+ * Parse a futures contract code (e.g. ZCN26, SBV27) into its expiry month/year.
+ * Returns a short label like "Jul 26" or "Oct 27", or null if the code is malformed.
+ *
+ * Month codes (CME/CBOT/ICE convention):
+ *   F=Jan G=Feb H=Mar J=Apr K=May M=Jun N=Jul Q=Aug U=Sep V=Oct X=Nov Z=Dec
+ *
+ * Soporta dos formatos de año:
+ *   - 2 digitos: ZCN26 → "Jul 26"
+ *   - 1 digito:  ZCN6  → "Jul 26" (el collector ocasionalmente guarda asi;
+ *     asumimos decada actual 202X)
+ */
+const FUTURES_MONTH_CODES: Record<string, string> = {
+  F: 'Jan', G: 'Feb', H: 'Mar', J: 'Apr', K: 'May', M: 'Jun',
+  N: 'Jul', Q: 'Aug', U: 'Sep', V: 'Oct', X: 'Nov', Z: 'Dec',
+};
+
+export function parseContractMaturity(contract: string | null | undefined): string | null {
+  if (!contract) return null;
+  // Format: <ROOT 1-3 letters><MONTH 1 letter><YEAR 1-2 digits>
+  const match = contract.match(/^([A-Z]{1,3})([FGHJKMNQUVXZ])(\d{1,2})$/);
+  if (!match) return null;
+  const month = FUTURES_MONTH_CODES[match[2]];
+  if (!month) return null;
+  const year = match[3].length === 1 ? `2${match[3]}` : match[3];
+  return `${month} ${year}`;
+}
+
+/**
  * Last business day of the previous month (skip weekends).
  */
 export function lastBusinessDayOfPrevMonth(refDate: Date): Date {
@@ -78,6 +106,13 @@ export function calculateFuturesPortfolio(
   prices: Record<string, (number | null)[]>,
   filterDate: string,
   commodityConfig?: CommodityConfig[],
+  // Per-contract prices from risk_prices_all_contracts. Si esta presente,
+  // se usa para cada posicion (lookup por pos.contract). Si el contrato no
+  // tiene datos en pricesByContract, cae al front contract de `prices` (el
+  // comportamiento legacy donde todos los contratos del activo tomaban el
+  // mismo precio).
+  pricesByContract?: Record<string, (number | null)[]>,
+  contractDates?: string[],
 ): FuturesPosition[] {
   // Build multipliers and price units from config or use defaults
   const multipliers: Record<string, number> = { ...DEFAULT_MULTIPLIERS };
@@ -108,12 +143,25 @@ export function calculateFuturesPortfolio(
   for (const pos of filteredPositions) {
     const multiplier = multipliers[pos.asset] ?? 1;
     const dirSign = DIRECTION_SIGN[pos.direction] ?? 1;
-    const assetPrices = prices[pos.asset];
 
-    if (!assetPrices) continue;
+    // Series de precios para ESTE contrato.
+    // Prioridad:
+    //   1. risk_prices_all_contracts → pricesByContract[pos.contract] (precio
+    //      especifico del contrato — lo correcto para mark-to-market).
+    //   2. Fallback: front contract de risk_prices → prices[pos.asset] (puede
+    //      dar resultados incorrectos cuando hay multiples contratos abiertos
+    //      del mismo activo, pero es mejor que mostrar nada).
+    const contractPrices = pos.contract && pricesByContract
+      ? pricesByContract[pos.contract]
+      : undefined;
+    const useContractSeries = contractPrices != null && (contractDates?.length ?? 0) > 0;
+    const seriesDates = useContractSeries ? contractDates! : dates;
+    const seriesPrices = useContractSeries ? contractPrices! : prices[pos.asset];
+
+    if (!seriesPrices) continue;
 
     // Current price: last available on or before filterDate
-    const current = findPrice(dates, assetPrices, filterDate);
+    const current = findPrice(seriesDates, seriesPrices, filterDate);
 
     // Precio previo logic:
     // If position opened in the current month → use entry_price
@@ -130,7 +178,7 @@ export function calculateFuturesPortfolio(
       precioPrevioDate = pos.entry_date;
     } else {
       // Older position — previo = last BD of prev month
-      const prev = findPrice(dates, assetPrices, prevMonthStr);
+      const prev = findPrice(seriesDates, seriesPrices, prevMonthStr);
       precioPrevio = prev.price;
       precioPrevioDate = prev.date;
     }
