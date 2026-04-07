@@ -121,80 +121,14 @@ export default function LoansPage() {
 
   const cashflowsEmpty = mergedCashFlows.length === 0;
 
-  // ─── Computed: Deuda total — use backend valuation, or cashflow-derived, or original_balance ───
-  const totalDeuda = useMemo(() => {
-    if (fullLoan?.total_value) return fullLoan.total_value;
-    // Derive from individual cashflows: sum of last ending_balance per loan
-    if (cashFlows.length > 0) {
-      const today = new Date().toISOString().slice(0, 10);
-      let total = 0;
-      cashFlows.forEach((cf) => {
-        if (cf.flows.length > 0) {
-          // Find the last flow before or on today (current outstanding)
-          const pastFlows = cf.flows.filter((f) => f.date.split(' ')[0] <= today);
-          if (pastFlows.length > 0) {
-            total += pastFlows[pastFlows.length - 1].ending_balance;
-          } else {
-            // Loan hasn't started yet, use first beginning_balance
-            total += cf.flows[0].beginning_balance;
-          }
-        }
-      });
-      if (total > 0) return total;
-    }
-    return loans.reduce((sum, l) => sum + l.original_balance, 0);
-  }, [loans, fullLoan, cashFlows]);
-
-  // ─── Computed: Portfolio summary from individual cashflows (when fullLoan not available) ───
-  const derivedSummary = useMemo(() => {
-    if (fullLoan) return null;
-    if (cashFlows.length === 0) return null;
-
-    const today = new Date().toISOString().slice(0, 10);
-    let totalValue = 0;
-    let weightedRateSum = 0;
-    let weightedTenorSum = 0;
-    // count tracks processed loans (used for validation)
-
-    const periodYears: Record<string, number> = {
-      Mensual: 1 / 12, Trimestral: 0.25, Semestral: 0.5, Anual: 1,
-    };
-
-    cashFlows.forEach((cf) => {
-      if (cf.flows.length === 0) return;
-      const loan = loans.find((l) => l.id === cf.loanId);
-      if (!loan) return;
-
-      // Current outstanding balance
-      const pastFlows = cf.flows.filter((f) => f.date.split(' ')[0] <= today);
-      const outstanding = pastFlows.length > 0
-        ? pastFlows[pastFlows.length - 1].ending_balance
-        : cf.flows[0].beginning_balance;
-
-      if (outstanding <= 0) return;
-
-      // Average rate from cashflows
-      const avgRate = cf.flows.reduce((s, f) => s + (f.rate_tot ?? 0), 0) / cf.flows.length;
-
-      // Remaining periods
-      const remainingFlows = cf.flows.filter((f) => f.date.split(' ')[0] > today);
-      const remainingTenor = remainingFlows.length * (periodYears[loan.periodicity] ?? 0.25);
-
-      totalValue += outstanding;
-      weightedRateSum += avgRate * outstanding;
-      weightedTenorSum += remainingTenor * outstanding;
-      // loan processed
-    });
-
-    if (totalValue <= 0) return null;
-
-    return {
-      average_irr: weightedRateSum / totalValue / 100,
-      average_tenor: weightedTenorSum / totalValue,
-      average_duration: weightedTenorSum / totalValue * 0.9, // approximation
-      total_value: totalValue,
-    };
-  }, [cashFlows, loans, fullLoan]);
+  // ─── Computed: Deuda total — use backend valuation when available, fallback to original_balance ───
+  const totalDeuda = useMemo(
+    () =>
+      fullLoan?.total_value
+        ? fullLoan.total_value
+        : loans.reduce((sum, l) => sum + l.original_balance, 0),
+    [loans, fullLoan],
+  );
 
   // ─── Chart data (from merged cashflows of selected loans) ───
   const safeDate = (d: string | undefined) => (d ? d.split(' ')[0] : '');
@@ -398,11 +332,11 @@ export default function LoansPage() {
         }}>
           <SummaryItem label="# Créditos" value={loans.length.toString()} />
           <SummaryItem label="Deuda Total" value={fmtMM(totalDeuda)} />
-          {(fullLoan || derivedSummary) && (
+          {fullLoan && (
             <>
-              <SummaryItem label="CPD" value={`${(((fullLoan?.average_irr ?? derivedSummary?.average_irr ?? 0)) * 100).toFixed(2)}%`} />
-              <SummaryItem label="Tenor (Años)" value={(fullLoan?.average_tenor ?? derivedSummary?.average_tenor ?? 0).toFixed(1)} />
-              <SummaryItem label="Duración (Años)" value={(fullLoan?.average_duration ?? derivedSummary?.average_duration ?? 0).toFixed(2)} />
+              <SummaryItem label="CPD" value={`${((fullLoan.average_irr ?? 0) * 100).toFixed(2)}%`} />
+              <SummaryItem label="Tenor (Años)" value={(fullLoan.average_tenor ?? 0).toFixed(1)} />
+              <SummaryItem label="Duración (Años)" value={(fullLoan.average_duration ?? 0).toFixed(2)} />
             </>
           )}
           {typeCounts.ibr > 0 && <SummaryItem label="IBR" value={`${typeCounts.ibr} créditos`} color="#856404" />}

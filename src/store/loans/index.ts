@@ -158,8 +158,31 @@ const createLoansSlice: StateCreator<LoansSlice> = (set) => ({
   }: SelectedLoansDate<Loan>) => {
     set({ loading: true, errorMessage: undefined, successMessage: undefined });
     const loanIds = selectedRows.map((item) => item.id);
+    if (loanIds.length > 0) {
+      const response: FullLoanResponse = await fetchLoansIbrs(
+        loanIds,
+        filterDate
+      );
+      set({ loading: false });
+      if (!response.error) {
+        const loanD = response.data as LoanData[];
 
-    // 1. Start individual cashflow calculations immediately (don't wait for bulk)
+        const summary = loanD.filter((value) => {
+          const numberValue = Number(value.bank);
+          return !Number.isNaN(numberValue) && numberValue === 0;
+        });
+
+        if (summary.length > 0) {
+          set(() => ({ fullLoan: summary[0] }));
+        }
+
+        set(() => ({
+          loanDebtData: loanD.filter((value) => {
+            const numberValue = Number(value.bank);
+            return Number.isNaN(numberValue);
+          }),
+        }));
+    }
     set((state) => {
       const newSelections: string[] = [];
       const currentCashflow = state.cashFlows;
@@ -185,37 +208,6 @@ const createLoansSlice: StateCreator<LoansSlice> = (set) => ({
 
       return { selectedLoans: newSelections, loading: false };
     });
-
-    // 2. Try bulk calculation in background (for fullLoan summary)
-    if (loanIds.length > 0) {
-      try {
-        const response: FullLoanResponse = await fetchLoansIbrs(
-          loanIds,
-          filterDate
-        );
-        if (!response.error) {
-          const loanD = response.data as LoanData[];
-
-          const summary = loanD.filter((value) => {
-            const numberValue = Number(value.bank);
-            return !Number.isNaN(numberValue) && numberValue === 0;
-          });
-
-          if (summary.length > 0) {
-            set(() => ({ fullLoan: summary[0] }));
-          }
-
-          set(() => ({
-            loanDebtData: loanD.filter((value) => {
-              const numberValue = Number(value.bank);
-              return Number.isNaN(numberValue);
-            }),
-          }));
-        }
-      } catch {
-        // Bulk failed — individual cashflows + derivedSummary handle it
-      }
-    }
   },
   setSelectedBanks: (selections: Bank[]) =>
     set((state) => {
