@@ -365,10 +365,10 @@ function ColTip({ label, tip }: { label: string; tip: string }) {
 // PortfolioRow is imported from BlotterTable component (includes P&L fields)
 
 
-function resolveEstado(maturityDate: string, stored?: string): string {
+function resolveEstado(maturityDate: string, stored?: string, valuationDate?: string): string {
   if (stored && stored !== 'Activo') return stored; // Cancelado u otro valor explícito
-  const today = new Date().toISOString().slice(0, 10);
-  return maturityDate < today ? 'Vencido' : 'Activo';
+  const cutoff = valuationDate || new Date().toISOString().slice(0, 10);
+  return maturityDate < cutoff ? 'Vencido' : 'Activo';
 }
 
 function buildPortfolioRows(
@@ -380,7 +380,8 @@ function buildPortfolioRows(
     daily: PortfolioRepriceResponse | null;
     mtd: PortfolioRepriceResponse | null;
     ytd: PortfolioRepriceResponse | null;
-  }
+  },
+  valuationDate?: string,
 ): PortfolioRow[] {
   // Mapas de lookup por id para cada periodo de referencia
   const toMap = <T extends { id: string }>(arr: T[]): Record<string, T> =>
@@ -426,7 +427,7 @@ function buildPortfolioRows(
       dv01: r.dv01_ibr, dv01_label: 'IBR',
       dv01_2: r.dv01_sofr, dv01_2_label: 'SOFR',
       fx_delta: r.fx_delta, error: r.error,
-      id_operacion: r.id_operacion, trade_date: r.trade_date, sociedad: r.sociedad, id_banco: r.id_banco, estado: resolveEstado(r.maturity_date, r.estado),
+      id_operacion: r.id_operacion, trade_date: r.trade_date, sociedad: r.sociedad, id_banco: r.id_banco, estado: resolveEstado(r.maturity_date, r.estado, valuationDate),
       _xccy: r,
       pnl_1d_cop:  pnlFrom(r.npv_cop, dailyXccy, r.id, (x) => x.npv_cop),
       pnl_mtd_cop: pnlFrom(r.npv_cop, mtdXccy,   r.id, (x) => x.npv_cop),
@@ -438,7 +439,7 @@ function buildPortfolioRows(
   }
 
   for (const r of ndf) {
-    const estado = resolveEstado(r.maturity_date, r.estado);
+    const estado = resolveEstado(r.maturity_date, r.estado, valuationDate);
     const settlementEntry = settlementMap[r.id];
     const settlement = settlementEntry != null && settlementEntry !== 'error' ? settlementEntry : null;
     const isSettled = estado === 'Vencido' && settlement != null;
@@ -482,7 +483,7 @@ function buildPortfolioRows(
       carry_cop: r.carry_daily_cop, carry_label: '/dia',
       dv01: r.dv01, dv01_label: 'IBR',
       error: r.error,
-      id_operacion: r.id_operacion, trade_date: r.trade_date, sociedad: r.sociedad, id_banco: r.id_banco, estado: resolveEstado(r.maturity_date, r.estado),
+      id_operacion: r.id_operacion, trade_date: r.trade_date, sociedad: r.sociedad, id_banco: r.id_banco, estado: resolveEstado(r.maturity_date, r.estado, valuationDate),
       _ibr: r,
       pnl_1d_cop:  pnlFrom(todayNpvCop, dailyIbr, r.id, (x) => x.npv),
       pnl_mtd_cop: pnlFrom(todayNpvCop, mtdIbr,   r.id, (x) => x.npv),
@@ -2097,7 +2098,7 @@ function PortfolioPage() {
     ? pricedIbrSwap
     : ibrSwapPositions.map((p) => ({ ...p, npv: 0, fair_rate: 0, dv01: 0, fixed_leg_npv: 0, floating_leg_npv: 0, ibr_overnight_pct: 0, carry_daily_cop: 0, carry_daily_diff_bps: 0, ibr_fwd_period_pct: 0, carry_period_cop: 0, carry_period_diff_bps: 0, error: 'Sin pricear' } as PricedIbrSwap));
 
-  const portfolioRows = buildPortfolioRows(xccyRows, ndfRows, ibrRows, settlementMap, refPrices);
+  const portfolioRows = buildPortfolioRows(xccyRows, ndfRows, ibrRows, settlementMap, refPrices, markFecha);
 
   // Totales de P&L para la SummaryBar
   const pnlTotals = (() => {
