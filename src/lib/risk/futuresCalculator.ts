@@ -39,6 +39,34 @@ const PRICE_TO_USD: Record<string, number> = {
 // ── Helpers ──
 
 /**
+ * Parse a futures contract code (e.g. ZCN26, SBV27) into its expiry month/year.
+ * Returns a short label like "Jul 26" or "Oct 27", or null if the code is malformed.
+ *
+ * Month codes (CME/CBOT/ICE convention):
+ *   F=Jan G=Feb H=Mar J=Apr K=May M=Jun N=Jul Q=Aug U=Sep V=Oct X=Nov Z=Dec
+ *
+ * Soporta dos formatos de año:
+ *   - 2 digitos: ZCN26 → "Jul 26"
+ *   - 1 digito:  ZCN6  → "Jul 26" (el collector ocasionalmente guarda asi;
+ *     asumimos decada actual 202X)
+ */
+const FUTURES_MONTH_CODES: Record<string, string> = {
+  F: 'Jan', G: 'Feb', H: 'Mar', J: 'Apr', K: 'May', M: 'Jun',
+  N: 'Jul', Q: 'Aug', U: 'Sep', V: 'Oct', X: 'Nov', Z: 'Dec',
+};
+
+export function parseContractMaturity(contract: string | null | undefined): string | null {
+  if (!contract) return null;
+  // Format: <ROOT 1-3 letters><MONTH 1 letter><YEAR 1-2 digits>
+  const match = contract.match(/^([A-Z]{1,3})([FGHJKMNQUVXZ])(\d{1,2})$/);
+  if (!match) return null;
+  const month = FUTURES_MONTH_CODES[match[2]];
+  if (!month) return null;
+  const year = match[3].length === 1 ? `2${match[3]}` : match[3];
+  return `${month} ${year}`;
+}
+
+/**
  * Last business day of the previous month (skip weekends).
  */
 export function lastBusinessDayOfPrevMonth(refDate: Date): Date {
