@@ -310,6 +310,25 @@ export default function LoansPage() {
             <h4>{PAGE_TITLE}</h4>
           </PageTitle>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <button
+              type="button"
+              disabled={calculationProgress.calculating || loans.length === 0}
+              onClick={() => {
+                setSelectedIds(new Set(loans.map((l) => l.id)));
+              }}
+              style={{
+                padding: '6px 16px', fontSize: 12, fontWeight: 700, borderRadius: 6,
+                border: 'none', cursor: 'pointer',
+                background: calculationProgress.calculating ? '#6c757d' : '#198754',
+                color: '#fff',
+                opacity: calculationProgress.calculating || loans.length === 0 ? 0.7 : 1,
+              }}
+            >
+              {calculationProgress.calculating
+                ? `Calculando ${calculationProgress.completed}/${calculationProgress.total}...`
+                : `Calcular Todos (${loans.length})`
+              }
+            </button>
             <ToolbarBtn disabled={cashflowsEmpty} onClick={() => onShowCashFlowTable(true)}>Ver Flujos</ToolbarBtn>
             <ToolbarBtn disabled={cashflowsEmpty} onClick={onDownloadSeries}>
               <Icon icon={faFileCsv} style={{ marginRight: 4 }} />CSV
