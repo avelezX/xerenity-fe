@@ -293,6 +293,14 @@ export default function LoansPage() {
 
   useEffect(() => { wakeServer(); }, [wakeServer]);
 
+  // Auto-select all loans and start calculation when loans load
+  useEffect(() => {
+    if (loans.length > 0 && selectedIds.size === 0 && !calculationProgress.calculating) {
+      setSelectedIds(new Set(loans.map((l) => l.id)));
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loans]);
+
   useEffect(() => {
     if (errorMessage) toast.error(errorMessage, { position: toast.POSITION.BOTTOM_RIGHT });
     else if (successMessage) toast.success(successMessage, { position: toast.POSITION.BOTTOM_RIGHT });
