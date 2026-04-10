@@ -12,15 +12,30 @@ interface ChatChartProps {
   spec: ChartSpec;
 }
 
+function renderChart(
+  chartType: string,
+  chartData: Record<string, unknown>[],
+  margin: { top: number; right: number; left: number; bottom: number },
+  children: React.ReactNode,
+) {
+  if (chartType === 'bar') {
+    return <BarChart data={chartData} margin={margin}>{children}</BarChart>;
+  }
+  if (chartType === 'area') {
+    return <AreaChart data={chartData} margin={margin}>{children}</AreaChart>;
+  }
+  return <LineChart data={chartData} margin={margin}>{children}</LineChart>;
+}
+
 export default function ChatChart({ spec }: ChatChartProps) {
-  const { chart_type, title, x_axis_key, series, data } = spec;
+  const { chart_type: chartType, title, x_axis_key: xAxisKey, series, data } = spec;
 
   const renderSeries = () =>
     series.map((s, i) => {
       const color = s.color || DEFAULT_COLORS[i % DEFAULT_COLORS.length];
       const key = `${s.data_key}-${i}`;
 
-      switch (chart_type) {
+      switch (chartType) {
         case 'bar':
           return <Bar key={key} dataKey={s.data_key} name={s.name} fill={color} />;
         case 'area':
@@ -31,12 +46,12 @@ export default function ChatChart({ spec }: ChatChartProps) {
       }
     });
 
-  const commonProps = { data, margin: { top: 5, right: 5, left: 0, bottom: 5 } };
+  const margin = { top: 5, right: 5, left: 0, bottom: 5 };
 
   const chartContent = (
     <>
       <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-      <XAxis dataKey={x_axis_key} tick={{ fontSize: 10 }} />
+      <XAxis dataKey={xAxisKey} tick={{ fontSize: 10 }} />
       <YAxis tick={{ fontSize: 10 }} />
       <Tooltip contentStyle={{ fontSize: 12 }} />
       <Legend wrapperStyle={{ fontSize: 11 }} />
@@ -53,13 +68,7 @@ export default function ChatChart({ spec }: ChatChartProps) {
       )}
       <div style={{ width: '100%', height: 200 }}>
         <ResponsiveContainer width="100%" height="100%">
-          {chart_type === 'bar' ? (
-            <BarChart {...commonProps}>{chartContent}</BarChart>
-          ) : chart_type === 'area' ? (
-            <AreaChart {...commonProps}>{chartContent}</AreaChart>
-          ) : (
-            <LineChart {...commonProps}>{chartContent}</LineChart>
-          )}
+          {renderChart(chartType, data, margin, chartContent)}
         </ResponsiveContainer>
       </div>
     </div>

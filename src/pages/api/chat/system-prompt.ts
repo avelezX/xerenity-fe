@@ -1,3 +1,4 @@
+// eslint-disable-next-line import/prefer-default-export
 export function buildSystemPrompt(userName?: string): string {
   const greeting = userName ? `El usuario actual es ${userName}.` : '';
 

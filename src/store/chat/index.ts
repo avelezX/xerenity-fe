@@ -132,6 +132,9 @@ const createChatSlice: StateCreator<ChatSlice> = (set, get) => ({
 
             case 'done':
               break;
+
+            default:
+              break;
           }
         },
         abortController.signal
