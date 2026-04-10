@@ -1,0 +1,217 @@
+import React, { useRef, useEffect, useState } from 'react';
+import styled from 'styled-components';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faPaperPlane, faTimes, faTrash, faStop } from '@fortawesome/free-solid-svg-icons';
+import useAppStore from 'src/store';
+import { useRouter } from 'next/router';
+import ChatMessageComponent from './ChatMessage';
+
+const PanelOverlay = styled.div`
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 400px;
+  max-width: 100vw;
+  background: white;
+  box-shadow: -4px 0 24px rgba(0, 0, 0, 0.12);
+  z-index: 1049;
+  display: flex;
+  flex-direction: column;
+  animation: slideIn 0.25s ease-out;
+
+  @keyframes slideIn {
+    from { transform: translateX(100%); }
+    to { transform: translateX(0); }
+  }
+`;
+
+const Header = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid #e2e8f0;
+  background: #f8fafc;
+`;
+
+const Title = styled.div`
+  font-weight: 700;
+  font-size: 15px;
+  color: #1e293b;
+`;
+
+const HeaderActions = styled.div`
+  display: flex;
+  gap: 8px;
+`;
+
+const IconBtn = styled.button`
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #64748b;
+  padding: 4px 6px;
+  border-radius: 4px;
+  font-size: 14px;
+  &:hover { background: #f1f5f9; color: #1e293b; }
+`;
+
+const MessagesArea = styled.div`
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 8px;
+`;
+
+const EmptyState = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: #94a3b8;
+  font-size: 13px;
+  text-align: center;
+  padding: 24px;
+  gap: 8px;
+`;
+
+const InputArea = styled.form`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  border-top: 1px solid #e2e8f0;
+  background: #f8fafc;
+`;
+
+const Input = styled.input`
+  flex: 1;
+  padding: 10px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font-size: 13px;
+  outline: none;
+  &:focus { border-color: #4F46E5; box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.1); }
+`;
+
+const SendBtn = styled.button<{ $loading?: boolean }>`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  border: none;
+  background: ${(p) => (p.$loading ? '#94a3b8' : '#4F46E5')};
+  color: white;
+  cursor: ${(p) => (p.$loading ? 'not-allowed' : 'pointer')};
+  font-size: 14px;
+  &:hover:not(:disabled) { background: ${(p) => (p.$loading ? '#94a3b8' : '#4338ca')}; }
+`;
+
+const ErrorBanner = styled.div`
+  padding: 8px 16px;
+  background: #fef2f2;
+  color: #dc2626;
+  font-size: 12px;
+  border-bottom: 1px solid #fecaca;
+`;
+
+export default function ChatPanel() {
+  const router = useRouter();
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [input, setInput] = useState('');
+
+  const {
+    chatMessages,
+    chatLoading,
+    chatError,
+    closeChat,
+    sendMessage,
+    clearChat,
+    stopGeneration,
+  } = useAppStore();
+
+  // Auto-scroll to bottom
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [chatMessages]);
+
+  // Focus input on open
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmed = input.trim();
+    if (!trimmed || chatLoading) return;
+    setInput('');
+    sendMessage(trimmed);
+  };
+
+  const handleNavigate = (path: string) => {
+    router.push(path);
+    closeChat();
+  };
+
+  return (
+    <PanelOverlay>
+      <Header>
+        <Title>Xerenity AI</Title>
+        <HeaderActions>
+          <IconBtn onClick={clearChat} title="Limpiar chat">
+            <FontAwesomeIcon icon={faTrash} />
+          </IconBtn>
+          <IconBtn onClick={closeChat} title="Cerrar">
+            <FontAwesomeIcon icon={faTimes} />
+          </IconBtn>
+        </HeaderActions>
+      </Header>
+
+      {chatError && <ErrorBanner>{chatError}</ErrorBanner>}
+
+      <MessagesArea>
+        {chatMessages.length === 0 ? (
+          <EmptyState>
+            <div style={{ fontSize: 28 }}>🤖</div>
+            <div>Soy el asistente de Xerenity</div>
+            <div style={{ fontSize: 11, color: '#b0b8c4' }}>
+              Puedo consultar datos, generar graficos, navegar la app y crear posiciones.
+            </div>
+          </EmptyState>
+        ) : (
+          chatMessages.map((msg) => (
+            <ChatMessageComponent
+              key={msg.id}
+              message={msg}
+              onNavigate={handleNavigate}
+            />
+          ))
+        )}
+        <div ref={messagesEndRef} />
+      </MessagesArea>
+
+      <InputArea onSubmit={handleSubmit}>
+        <Input
+          ref={inputRef}
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          placeholder="Preguntame algo..."
+          disabled={chatLoading}
+        />
+        {chatLoading ? (
+          <SendBtn type="button" $loading onClick={stopGeneration} title="Detener">
+            <FontAwesomeIcon icon={faStop} />
+          </SendBtn>
+        ) : (
+          <SendBtn type="submit" title="Enviar">
+            <FontAwesomeIcon icon={faPaperPlane} />
+          </SendBtn>
+        )}
+      </InputArea>
+    </PanelOverlay>
+  );
+}

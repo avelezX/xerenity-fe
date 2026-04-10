@@ -9,9 +9,10 @@ import createMarketDashboardSlice, {
 import createTradingSlice, { TradingSlice } from './trading';
 import createCurveSlice, { CurveSlice } from './curve';
 import createUserSlice, { UserSlice } from './user';
+import createChatSlice, { ChatSlice } from './chat';
 
 const useAppStore = create<
-  LoansSlice & DashboardSlice & SeriesSlice & MarketDashboardSlice & TradingSlice & CurveSlice & UserSlice
+  LoansSlice & DashboardSlice & SeriesSlice & MarketDashboardSlice & TradingSlice & CurveSlice & UserSlice & ChatSlice
 >()(
   devtools((...args) => ({
     ...createLoansSlice(...args),
@@ -21,6 +22,7 @@ const useAppStore = create<
     ...createTradingSlice(...args),
     ...createCurveSlice(...args),
     ...createUserSlice(...args),
+    ...createChatSlice(...args),
   }))
 );
 

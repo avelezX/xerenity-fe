@@ -12,6 +12,7 @@ import { useRouter } from 'next/router';
 import useAppStore from 'src/store';
 import type { Company } from 'src/types/user';
 import MobileWarning from './MobileWarning';
+import ChatContainer from '@components/chat/ChatContainer';
 
 const LOGIN_PATH = '/login';
 
@@ -143,6 +144,7 @@ export default function CoreLayout({ children }: PropsWithChildren) {
           </div>
         </div>
       )}
+      <ChatContainer />
     </>
   );
 }
