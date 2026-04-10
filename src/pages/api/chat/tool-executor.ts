@@ -9,7 +9,7 @@ function getServiceClient() {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { db: { schema: SCHEMA } }
+    { db: { schema: SCHEMA } },
   );
 }
 
@@ -22,27 +22,6 @@ export interface ToolResult {
   error?: string;
   chartData?: unknown;
   navigationTarget?: string;
-}
-
-export async function executeTool(
-  toolName: string,
-  toolInput: Record<string, unknown>,
-  userSupabase?: AnySupabaseClient
-): Promise<ToolResult> {
-  switch (toolName) {
-    case 'query_database':
-      return executeQuery(toolInput);
-    case 'generate_chart':
-      return executeChart(toolInput);
-    case 'navigate_to':
-      return executeNavigate(toolInput);
-    case 'create_position':
-      return executeCreatePosition(toolInput, userSupabase);
-    case 'create_loan':
-      return executeCreateLoan(toolInput, userSupabase);
-    default:
-      return { success: false, error: `Tool desconocido: ${toolName}` };
-  }
 }
 
 async function executeQuery(input: Record<string, unknown>): Promise<ToolResult> {
@@ -73,18 +52,18 @@ async function executeQuery(input: Record<string, unknown>): Promise<ToolResult>
 
     return {
       success: true,
-      data: { rows, row_count: rowCount },
+      data: { rows, rowCount },
     };
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Error desconocido';
-    return { success: false, error: `Error ejecutando query: ${message}` };
+    const msg = err instanceof Error ? err.message : 'Error desconocido';
+    return { success: false, error: `Error ejecutando query: ${msg}` };
   }
 }
 
 function executeChart(input: Record<string, unknown>): ToolResult {
-  const { chart_type, title, x_axis_key, series, data } = input;
+  const { chart_type: chartType, title, x_axis_key: xAxisKey, series, data } = input;
 
-  if (!chart_type || !title || !x_axis_key || !series || !data) {
+  if (!chartType || !title || !xAxisKey || !series || !data) {
     return { success: false, error: 'Parametros incompletos para generar grafico' };
   }
 
@@ -94,7 +73,7 @@ function executeChart(input: Record<string, unknown>): ToolResult {
 
   return {
     success: true,
-    chartData: { chart_type, title, x_axis_key, series, data },
+    chartData: { chart_type: chartType, title, x_axis_key: xAxisKey, series, data },
   };
 }
 
@@ -117,7 +96,7 @@ function executeNavigate(input: Record<string, unknown>): ToolResult {
 
 async function executeCreatePosition(
   input: Record<string, unknown>,
-  userSupabase?: AnySupabaseClient
+  userSupabase?: AnySupabaseClient,
 ): Promise<ToolResult> {
   if (!userSupabase) {
     return { success: false, error: 'Se requiere sesion de usuario para crear posiciones' };
@@ -238,14 +217,14 @@ async function executeCreatePosition(
 
     return { success: true, data };
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Error desconocido';
-    return { success: false, error: `Error creando posicion: ${message}` };
+    const msg = err instanceof Error ? err.message : 'Error desconocido';
+    return { success: false, error: `Error creando posicion: ${msg}` };
   }
 }
 
 async function executeCreateLoan(
   input: Record<string, unknown>,
-  userSupabase?: AnySupabaseClient
+  userSupabase?: AnySupabaseClient,
 ): Promise<ToolResult> {
   if (!userSupabase) {
     return { success: false, error: 'Se requiere sesion de usuario para crear prestamos' };
@@ -266,7 +245,29 @@ async function executeCreateLoan(
 
     return { success: true, data };
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Error desconocido';
-    return { success: false, error: `Error creando prestamo: ${message}` };
+    const msg = err instanceof Error ? err.message : 'Error desconocido';
+    return { success: false, error: `Error creando prestamo: ${msg}` };
+  }
+}
+
+// eslint-disable-next-line import/prefer-default-export
+export async function executeTool(
+  toolName: string,
+  toolInput: Record<string, unknown>,
+  userSupabase?: AnySupabaseClient,
+): Promise<ToolResult> {
+  switch (toolName) {
+    case 'query_database':
+      return executeQuery(toolInput);
+    case 'generate_chart':
+      return executeChart(toolInput);
+    case 'navigate_to':
+      return executeNavigate(toolInput);
+    case 'create_position':
+      return executeCreatePosition(toolInput, userSupabase);
+    case 'create_loan':
+      return executeCreateLoan(toolInput, userSupabase);
+    default:
+      return { success: false, error: `Tool desconocido: ${toolName}` };
   }
 }

@@ -94,8 +94,8 @@ export default function ChatMessageComponent({ message, onNavigate }: Props) {
         {message.content}
 
         {/* Inline charts */}
-        {!isUser && message.charts?.map((chart, i) => (
-          <ChatChart key={`chart-${i}`} spec={chart} />
+        {!isUser && message.charts?.map((chart) => (
+          <ChatChart key={`chart-${chart.title}-${chart.chart_type}`} spec={chart} />
         ))}
 
         {/* Navigation link */}

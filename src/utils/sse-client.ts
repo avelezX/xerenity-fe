@@ -1,83 +1,80 @@
 import type { SSEEvent } from 'src/types/chat';
 
-export function streamChat(
+function parseSseLine(line: string): SSEEvent | null {
+  const trimmed = line.trim();
+  if (!trimmed.startsWith('data: ')) return null;
+
+  const jsonStr = trimmed.slice(6);
+  try {
+    return JSON.parse(jsonStr) as SSEEvent;
+  } catch {
+    return null;
+  }
+}
+
+function processBuffer(buffer: string, onEvent: (event: SSEEvent) => void): string {
+  const lines = buffer.split('\n');
+  const remaining = lines.pop() || '';
+
+  lines.forEach((line) => {
+    const event = parseSseLine(line);
+    if (event) onEvent(event);
+  });
+
+  return remaining;
+}
+
+// eslint-disable-next-line import/prefer-default-export
+export async function streamChat(
   messages: Array<{ role: 'user' | 'assistant'; content: string }>,
   onEvent: (event: SSEEvent) => void,
-  signal?: AbortSignal
+  signal?: AbortSignal,
 ): Promise<void> {
-  return new Promise(async (resolve, reject) => {
-    try {
-      const response = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages }),
-        signal,
-      });
+  let response: Response;
 
-      if (!response.ok) {
-        const errorBody = await response.json().catch(() => ({}));
-        onEvent({
-          type: 'error',
-          error: errorBody.error || `Error ${response.status}`,
-        });
-        resolve();
-        return;
-      }
+  try {
+    response = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messages }),
+      signal,
+    });
+  } catch (err) {
+    if (signal?.aborted) return;
+    const msg = err instanceof Error ? err.message : 'Error de conexion';
+    onEvent({ type: 'error', error: msg });
+    return;
+  }
 
-      const reader = response.body?.getReader();
-      if (!reader) {
-        onEvent({ type: 'error', error: 'No se pudo leer la respuesta' });
-        resolve();
-        return;
-      }
+  if (!response.ok) {
+    const errorBody = await response.json().catch(() => ({}));
+    onEvent({
+      type: 'error',
+      error: (errorBody as Record<string, string>).error || `Error ${response.status}`,
+    });
+    return;
+  }
 
-      const decoder = new TextDecoder();
-      let buffer = '';
+  const reader = response.body?.getReader();
+  if (!reader) {
+    onEvent({ type: 'error', error: 'No se pudo leer la respuesta' });
+    return;
+  }
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let done = false;
 
-        buffer += decoder.decode(value, { stream: true });
-
-        const lines = buffer.split('\n');
-        // Keep the last incomplete line in the buffer
-        buffer = lines.pop() || '';
-
-        for (const line of lines) {
-          const trimmed = line.trim();
-          if (!trimmed.startsWith('data: ')) continue;
-
-          const jsonStr = trimmed.slice(6);
-          try {
-            const event = JSON.parse(jsonStr) as SSEEvent;
-            onEvent(event);
-          } catch {
-            // Ignore malformed JSON lines
-          }
-        }
-      }
-
-      // Process any remaining data in the buffer
-      if (buffer.trim().startsWith('data: ')) {
-        const jsonStr = buffer.trim().slice(6);
-        try {
-          const event = JSON.parse(jsonStr) as SSEEvent;
-          onEvent(event);
-        } catch {
-          // Ignore
-        }
-      }
-
-      resolve();
-    } catch (err) {
-      if (signal?.aborted) {
-        resolve();
-        return;
-      }
-      const message = err instanceof Error ? err.message : 'Error de conexion';
-      onEvent({ type: 'error', error: message });
-      reject(err);
+  while (!done) {
+    // eslint-disable-next-line no-await-in-loop
+    const chunk = await reader.read();
+    done = chunk.done;
+    if (chunk.value) {
+      buffer += decoder.decode(chunk.value, { stream: true });
+      buffer = processBuffer(buffer, onEvent);
     }
-  });
+  }
+
+  const finalEvent = parseSseLine(buffer);
+  if (finalEvent) onEvent(finalEvent);
 }

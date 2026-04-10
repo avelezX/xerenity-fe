@@ -11,8 +11,8 @@ import { deleteCookie, getCookie } from 'cookies-next';
 import { useRouter } from 'next/router';
 import useAppStore from 'src/store';
 import type { Company } from 'src/types/user';
-import MobileWarning from './MobileWarning';
 import ChatContainer from '@components/chat/ChatContainer';
+import MobileWarning from './MobileWarning';
 
 const LOGIN_PATH = '/login';
 
