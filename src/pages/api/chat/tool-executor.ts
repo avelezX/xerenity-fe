@@ -1,0 +1,272 @@
+import { createClient } from '@supabase/supabase-js';
+import { VALID_PATHS } from './tools';
+
+const SCHEMA = 'xerenity';
+
+const FORBIDDEN_SQL = /^\s*(INSERT|UPDATE|DELETE|DROP|ALTER|CREATE|TRUNCATE|GRANT|REVOKE|COPY|EXEC)\b/i;
+
+function getServiceClient() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { db: { schema: SCHEMA } }
+  );
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type AnySupabaseClient = ReturnType<typeof createClient> | any;
+
+export interface ToolResult {
+  success: boolean;
+  data?: unknown;
+  error?: string;
+  chartData?: unknown;
+  navigationTarget?: string;
+}
+
+export async function executeTool(
+  toolName: string,
+  toolInput: Record<string, unknown>,
+  userSupabase?: AnySupabaseClient
+): Promise<ToolResult> {
+  switch (toolName) {
+    case 'query_database':
+      return executeQuery(toolInput);
+    case 'generate_chart':
+      return executeChart(toolInput);
+    case 'navigate_to':
+      return executeNavigate(toolInput);
+    case 'create_position':
+      return executeCreatePosition(toolInput, userSupabase);
+    case 'create_loan':
+      return executeCreateLoan(toolInput, userSupabase);
+    default:
+      return { success: false, error: `Tool desconocido: ${toolName}` };
+  }
+}
+
+async function executeQuery(input: Record<string, unknown>): Promise<ToolResult> {
+  const sql = (input.sql as string || '').trim();
+
+  if (!sql) {
+    return { success: false, error: 'SQL query vacia' };
+  }
+
+  if (FORBIDDEN_SQL.test(sql)) {
+    return { success: false, error: 'Solo queries SELECT son permitidas' };
+  }
+
+  if (!sql.toUpperCase().trimStart().startsWith('SELECT')) {
+    return { success: false, error: 'La query debe comenzar con SELECT' };
+  }
+
+  try {
+    const serviceClient = getServiceClient();
+    const { data, error } = await serviceClient.rpc('agent_query', { p_sql: sql });
+
+    if (error) {
+      return { success: false, error: `Error ejecutando query: ${error.message}` };
+    }
+
+    const rows = data ?? [];
+    const rowCount = Array.isArray(rows) ? rows.length : 0;
+
+    return {
+      success: true,
+      data: { rows, row_count: rowCount },
+    };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Error desconocido';
+    return { success: false, error: `Error ejecutando query: ${message}` };
+  }
+}
+
+function executeChart(input: Record<string, unknown>): ToolResult {
+  const { chart_type, title, x_axis_key, series, data } = input;
+
+  if (!chart_type || !title || !x_axis_key || !series || !data) {
+    return { success: false, error: 'Parametros incompletos para generar grafico' };
+  }
+
+  if (!Array.isArray(data) || data.length === 0) {
+    return { success: false, error: 'Data del grafico esta vacia' };
+  }
+
+  return {
+    success: true,
+    chartData: { chart_type, title, x_axis_key, series, data },
+  };
+}
+
+function executeNavigate(input: Record<string, unknown>): ToolResult {
+  const path = input.path as string;
+
+  if (!VALID_PATHS.includes(path)) {
+    return {
+      success: false,
+      error: `Path invalido: ${path}. Paths validos: ${VALID_PATHS.join(', ')}`,
+    };
+  }
+
+  return {
+    success: true,
+    navigationTarget: path,
+    data: { path, description: input.description },
+  };
+}
+
+async function executeCreatePosition(
+  input: Record<string, unknown>,
+  userSupabase?: AnySupabaseClient
+): Promise<ToolResult> {
+  if (!userSupabase) {
+    return { success: false, error: 'Se requiere sesion de usuario para crear posiciones' };
+  }
+
+  const positionType = input.position_type as string;
+  const params = input.params as Record<string, unknown>;
+
+  if (!params) {
+    return { success: false, error: 'Parametros de posicion requeridos' };
+  }
+
+  try {
+    let rpcName: string;
+    let rpcParams: Record<string, unknown>;
+
+    switch (positionType) {
+      case 'ndf':
+        rpcName = 'create_ndf_position';
+        rpcParams = {
+          p_label: params.label ?? null,
+          p_counterparty: params.counterparty ?? null,
+          p_notional_usd: params.notional_usd,
+          p_strike: params.strike,
+          p_maturity_date: params.maturity_date,
+          p_direction: params.direction ?? 'buy',
+          p_id_operacion: params.id_operacion ?? null,
+          p_trade_date: params.trade_date ?? null,
+          p_sociedad: params.sociedad ?? null,
+          p_id_banco: params.id_banco ?? null,
+          p_modalidad: params.modalidad ?? null,
+          p_settlement_date: params.settlement_date ?? null,
+          p_tipo_divisa: params.tipo_divisa ?? null,
+          p_estado: params.estado ?? null,
+          p_doc_sap: params.doc_sap ?? null,
+        };
+        break;
+
+      case 'xccy':
+        rpcName = 'create_xccy_position';
+        rpcParams = {
+          p_label: params.label ?? null,
+          p_counterparty: params.counterparty ?? null,
+          p_notional_usd: params.notional_usd,
+          p_start_date: params.start_date,
+          p_maturity_date: params.maturity_date,
+          p_usd_spread_bps: params.usd_spread_bps ?? 0,
+          p_cop_spread_bps: params.cop_spread_bps ?? 0,
+          p_pay_usd: params.pay_usd ?? true,
+          p_fx_initial: params.fx_initial,
+          p_payment_frequency: params.payment_frequency ?? '3M',
+          p_amortization_type: params.amortization_type ?? 'bullet',
+          p_amortization_schedule: params.amortization_schedule ?? null,
+          p_id_operacion: params.id_operacion ?? null,
+          p_trade_date: params.trade_date ?? null,
+          p_sociedad: params.sociedad ?? null,
+          p_id_banco: params.id_banco ?? null,
+          p_modalidad: params.modalidad ?? null,
+          p_settlement_date: params.settlement_date ?? null,
+          p_tipo_divisa: params.tipo_divisa ?? null,
+          p_estado: params.estado ?? null,
+          p_doc_sap: params.doc_sap ?? null,
+        };
+        break;
+
+      case 'ibr_swap':
+        rpcName = 'create_ibr_swap_position';
+        rpcParams = {
+          p_label: params.label ?? null,
+          p_counterparty: params.counterparty ?? null,
+          p_notional: params.notional,
+          p_start_date: params.start_date,
+          p_maturity_date: params.maturity_date,
+          p_fixed_rate: params.fixed_rate,
+          p_pay_fixed: params.pay_fixed ?? true,
+          p_spread_bps: params.spread_bps ?? 0,
+          p_payment_frequency: params.payment_frequency ?? '3M',
+          p_id_operacion: params.id_operacion ?? null,
+          p_trade_date: params.trade_date ?? null,
+          p_sociedad: params.sociedad ?? null,
+          p_id_banco: params.id_banco ?? null,
+          p_modalidad: params.modalidad ?? null,
+          p_settlement_date: params.settlement_date ?? null,
+          p_tipo_divisa: params.tipo_divisa ?? null,
+          p_estado: params.estado ?? null,
+          p_doc_sap: params.doc_sap ?? null,
+        };
+        break;
+
+      case 'tes':
+        rpcName = 'create_tes_position';
+        rpcParams = {
+          p_bond_name: params.bond_name,
+          p_issue_date: params.issue_date ?? null,
+          p_maturity_date: params.maturity_date ?? null,
+          p_coupon_rate: params.coupon_rate ?? null,
+          p_notional: params.notional,
+          p_face_value: params.face_value ?? 100,
+          p_purchase_price: params.purchase_price ?? null,
+          p_purchase_ytm: params.purchase_ytm ?? null,
+          p_trade_date: params.trade_date ?? null,
+          p_sociedad: params.sociedad ?? null,
+          p_estado: params.estado ?? 'Activo',
+          p_label: params.label ?? null,
+          p_counterparty: params.counterparty ?? null,
+        };
+        break;
+
+      default:
+        return { success: false, error: `Tipo de posicion invalido: ${positionType}` };
+    }
+
+    const { data, error } = await userSupabase.schema(SCHEMA).rpc(rpcName, rpcParams);
+
+    if (error) {
+      return { success: false, error: `Error creando posicion ${positionType}: ${error.message}` };
+    }
+
+    return { success: true, data };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Error desconocido';
+    return { success: false, error: `Error creando posicion: ${message}` };
+  }
+}
+
+async function executeCreateLoan(
+  input: Record<string, unknown>,
+  userSupabase?: AnySupabaseClient
+): Promise<ToolResult> {
+  if (!userSupabase) {
+    return { success: false, error: 'Se requiere sesion de usuario para crear prestamos' };
+  }
+
+  const params = input.params as Record<string, unknown>;
+
+  if (!params) {
+    return { success: false, error: 'Parametros de prestamo requeridos' };
+  }
+
+  try {
+    const { data, error } = await userSupabase.schema(SCHEMA).rpc('create_credit', params);
+
+    if (error) {
+      return { success: false, error: `Error creando prestamo: ${error.message}` };
+    }
+
+    return { success: true, data };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Error desconocido';
+    return { success: false, error: `Error creando prestamo: ${message}` };
+  }
+}
