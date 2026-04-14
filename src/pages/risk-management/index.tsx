@@ -17,6 +17,7 @@ import {
   faBookOpen,
   faFilePdf,
   faBriefcase,
+  faMugHot,
 } from '@fortawesome/free-solid-svg-icons';
 import { toast } from 'react-toastify';
 import PageTitle from '@components/PageTitle';
@@ -30,8 +31,11 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
+  Legend,
 } from 'recharts';
 import { fetchRollingVar, fetchBenchmarkFactors, fetchExposure, fetchFuturesPortfolio, upsertFuturesPositions, rollFuturesPosition, closeFuturesPosition, deleteFuturesPosition, editFuturesPosition } from 'src/models/risk/riskApi';
+import { fetchCoffeePrices } from 'src/lib/risk/supabaseRisk';
+import type { CoffeePriceRow } from 'src/lib/risk/supabaseRisk';
 import type { RollingVarResponse, BenchmarkFactorsResponse, ExposureParams, ExposureResponse, MarketPrice, FuturesPosition, NewFuturesPosition } from 'src/types/risk';
 import useAppStore from 'src/store';
 // Company type no longer needed — global selector in CoreLayout
@@ -708,8 +712,26 @@ function RiskManagement() {
   const dynamicAssets = companyConfig ? getAssetsWithCurrency(companyConfig) : DEFAULT_ASSETS;
   const dynamicColors = companyConfig ? getChartColors(companyConfig) : CHART_COLORS;
 
+  // Check if this company has CAFE in its commodities (for conditional tabs)
+  const hasCafe = companyConfig?.commodities?.some((c) => c.asset === 'CAFE') ?? false;
+
   const [activeTab, setActiveTab] = useState('benchmark');
+  // Build tabs dynamically: add "Precios Locales" if company has CAFE
   const [pageTabs, setPageTabs] = useState<TabItemType[]>(TAB_ITEMS);
+  useEffect(() => {
+    const baseTabs = [...TAB_ITEMS];
+    if (hasCafe) {
+      baseTabs.push({ name: 'Precios Locales', property: 'coffee', icon: faMugHot, active: false });
+    }
+    setPageTabs(baseTabs.map((t) => ({ ...t, active: t.property === activeTab })));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasCafe]);
+
+  // Coffee prices state (only used when hasCafe)
+  const [coffeePrices, setCoffeePrices] = useState<CoffeePriceRow[]>([]);
+  const [coffeeLoading, setCoffeeLoading] = useState(false);
+  const [fncDateFrom, setFncDateFrom] = useState('');
+  const [fncDateTo, setFncDateTo] = useState('');
   const [filterDate, setFilterDate] = useState(defaultDate());
 
   // OTC store handles — used by Benchmark USD row auto-fill
@@ -1025,6 +1047,18 @@ function RiskManagement() {
     }
   }, [filterDate, editModal, editFields, handleFetchFutures]);
 
+  const handleFetchCoffeePrices = useCallback(async () => {
+    setCoffeeLoading(true);
+    try {
+      const data = await fetchCoffeePrices();
+      setCoffeePrices(data);
+    } catch (e: unknown) {
+      toast.error((e as Error)?.message || 'Error cargando precios de café');
+    } finally {
+      setCoffeeLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     if (!companyConfig) return; // guard: esperar a que config cargue
     if (activeTab === 'rolling') handleFetchRolling();
@@ -1034,6 +1068,7 @@ function RiskManagement() {
       handleFetchExposure(benchmarkDateStr);
     }
     if (activeTab === 'futures') handleFetchFutures();
+    if (activeTab === 'coffee') handleFetchCoffeePrices();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, futuresMonth, benchmarkDateStr, companyConfig]);
 
@@ -2348,6 +2383,228 @@ function RiskManagement() {
           </Button>
         </Modal.Body>
       </Modal>
+
+      {/* ─── PRECIOS LOCALES TAB (solo si empresa tiene CAFE) ─── */}
+        {activeTab === 'coffee' && (
+          <div>
+            <Row className="mb-3 align-items-center">
+              <Col xs="auto">
+                <Button variant="primary" size="sm" onClick={handleFetchCoffeePrices} disabled={coffeeLoading}>
+                  <Icon icon={faSyncAlt} className={coffeeLoading ? 'fa-spin me-1' : 'me-1'} />
+                  Actualizar
+                </Button>
+              </Col>
+            </Row>
+
+            {coffeeLoading && <p className="text-muted">Cargando precios...</p>}
+
+            {!coffeeLoading && coffeePrices.length === 0 && (
+              <p className="text-muted text-center mt-4">Sin datos de precios locales de café.</p>
+            )}
+
+            {coffeePrices.length > 0 && (() => {
+              const TIPO_LABELS: Record<string, string> = {
+                precio_interno_carga: 'Precio Interno Carga',
+                precio_base_f90: 'Base F90',
+                precio_ref_f94: 'Referencia F94',
+                precio_nespresso_f90: 'Nespresso F90',
+                precio_cp_creciente_f90: 'CP Creciente F90',
+                precio_humedo_cereza: 'Húmedo Cereza',
+              };
+              const ANSERMA_COLORS: Record<string, string> = {
+                precio_base_f90: '#2563eb',
+                precio_ref_f94: '#7c3aed',
+                precio_nespresso_f90: '#059669',
+                precio_cp_creciente_f90: '#d97706',
+                precio_humedo_cereza: '#0891b2',
+              };
+              const fmtCOP = (v: number) => `$${v.toLocaleString('es-CO')}`;
+
+              // ── Separate data by fuente ──
+              const ansermaRows = coffeePrices.filter((r) => r.fuente === 'ANSERMA');
+              const fncRows = coffeePrices.filter((r) => r.fuente === 'FNC');
+
+              // ── ANSERMA chart data ──
+              const ansermaTipos = Array.from(new Set(ansermaRows.map((r) => r.tipo_precio))).sort();
+              const ansermaFechas = Array.from(new Set(ansermaRows.map((r) => r.fecha))).sort();
+              const ansermaChartData = ansermaFechas.map((fecha) => {
+                const point: Record<string, string | number | null> = { fecha };
+                ansermaTipos.forEach((tipo) => {
+                  const row = ansermaRows.find((r) => r.fecha === fecha && r.tipo_precio === tipo);
+                  point[tipo] = row ? parseFloat(row.valor) : null;
+                });
+                return point;
+              });
+
+              // ── FNC chart data (with date filter) ──
+              const fncTipos = Array.from(new Set(fncRows.map((r) => r.tipo_precio))).sort();
+              const filteredFnc = fncRows.filter((r) => {
+                if (fncDateFrom && r.fecha < fncDateFrom) return false;
+                if (fncDateTo && r.fecha > fncDateTo) return false;
+                return true;
+              });
+              const fncFechas = Array.from(new Set(filteredFnc.map((r) => r.fecha))).sort();
+              const fncChartData = fncFechas.map((fecha) => {
+                const point: Record<string, string | number | null> = { fecha };
+                fncTipos.forEach((tipo) => {
+                  const row = filteredFnc.find((r) => r.fecha === fecha && r.tipo_precio === tipo);
+                  point[tipo] = row ? parseFloat(row.valor) : null;
+                });
+                return point;
+              });
+
+              // Date range for FNC (min/max from data)
+              const allFncFechas = Array.from(new Set(fncRows.map((r) => r.fecha))).sort();
+              const fncMinDate = allFncFechas[0] ?? '';
+              const fncMaxDate = allFncFechas[allFncFechas.length - 1] ?? '';
+
+              const cardStyle = { background: '#fff', borderRadius: 10, border: '1px solid #e2e8f0', padding: '24px', marginBottom: 24, boxShadow: '0 1px 4px rgba(0,0,0,0.06)' };
+              const headerStyle = { color: '#7c3aed', fontWeight: 700 as const, marginBottom: 20, display: 'flex' as const, alignItems: 'center' as const, gap: 8 };
+
+              return (
+                <>
+                  {/* ══════════ COOPERATIVA DE ANSERMA ══════════ */}
+                  {ansermaRows.length > 0 && (
+                    <div style={cardStyle}>
+                      <div style={headerStyle}>
+                        <span style={{ background: '#f0fdf4', color: '#059669', padding: '4px 10px', borderRadius: 6, fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase' as const }}>Anserma</span>
+                        <h6 style={{ margin: 0, color: '#1e293b', fontWeight: 700 }}>Cooperativa de Caficultores de Anserma</h6>
+                      </div>
+                      <ResponsiveContainer width="100%" height={340}>
+                        <LineChart data={ansermaChartData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                          <XAxis dataKey="fecha" tick={{ fontSize: 11, fill: '#94a3b8' }} tickLine={false} axisLine={{ stroke: '#e2e8f0' }} />
+                          <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} tickFormatter={(v: number) => fmtCOP(v)} width={100} tickLine={false} axisLine={{ stroke: '#e2e8f0' }} domain={['dataMin - 5000', 'dataMax + 5000']} />
+                          <Tooltip
+                            formatter={(value: number, name: string) => [fmtCOP(value), TIPO_LABELS[name] ?? name]}
+                            labelStyle={{ fontWeight: 700, color: '#1e293b' }}
+                            contentStyle={{ borderRadius: 8, border: '1px solid #e2e8f0', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}
+                          />
+                          <Legend formatter={(value: string) => TIPO_LABELS[value] ?? value} wrapperStyle={{ fontSize: '0.75rem', paddingTop: 12 }} />
+                          {ansermaTipos.map((tipo) => (
+                            <Line key={tipo} type="monotone" dataKey={tipo} stroke={ANSERMA_COLORS[tipo] ?? '#64748b'} strokeWidth={2.5} dot={{ r: 3, strokeWidth: 2 }} activeDot={{ r: 5 }} connectNulls />
+                          ))}
+                        </LineChart>
+                      </ResponsiveContainer>
+
+                      {/* Table */}
+                      <div className="table-responsive mt-3">
+                        <table className="table table-sm mb-0" style={{ fontSize: '0.78rem' }}>
+                          <thead>
+                            <tr style={{ borderBottom: '2px solid #e2e8f0' }}>
+                              <th style={{ color: '#94a3b8', fontSize: '0.7rem', fontWeight: 600 }}>Fecha</th>
+                              {ansermaTipos.map((t) => (
+                                <th key={t} className="text-end" style={{ color: ANSERMA_COLORS[t] ?? '#64748b', fontSize: '0.7rem', fontWeight: 600 }}>
+                                  {TIPO_LABELS[t] ?? t}
+                                </th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {ansermaFechas.slice(-10).reverse().map((fecha) => (
+                              <tr key={fecha} style={{ borderBottom: '1px solid #f8fafc' }}>
+                                <td style={{ padding: '7px 8px', color: '#475569', fontWeight: 500 }}>{fecha}</td>
+                                {ansermaTipos.map((tipo) => {
+                                  const row = ansermaRows.find((r) => r.fecha === fecha && r.tipo_precio === tipo);
+                                  return (
+                                    <td key={tipo} className="text-end" style={{ padding: '7px 8px', fontWeight: 600, color: '#1e293b' }}>
+                                      {row ? fmtCOP(parseFloat(row.valor)) : '—'}
+                                    </td>
+                                  );
+                                })}
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ══════════ FONDO NACIONAL DE CAFETEROS ══════════ */}
+                  {fncRows.length > 0 && (
+                    <div style={cardStyle}>
+                      <div style={{ ...headerStyle, justifyContent: 'space-between', flexWrap: 'wrap' as const }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span style={{ background: '#fef2f2', color: '#dc2626', padding: '4px 10px', borderRadius: 6, fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase' as const }}>FNC</span>
+                          <h6 style={{ margin: 0, color: '#1e293b', fontWeight: 700 }}>Fondo Nacional de Cafeteros</h6>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span style={{ fontSize: '0.75rem', color: '#94a3b8', fontWeight: 500 }}>Desde</span>
+                          <Form.Control
+                            type="date"
+                            size="sm"
+                            value={fncDateFrom || fncMinDate}
+                            min={fncMinDate}
+                            max={fncMaxDate}
+                            onChange={(e) => setFncDateFrom(e.target.value)}
+                            style={{ width: 150, fontSize: '0.78rem' }}
+                          />
+                          <span style={{ fontSize: '0.75rem', color: '#94a3b8', fontWeight: 500 }}>Hasta</span>
+                          <Form.Control
+                            type="date"
+                            size="sm"
+                            value={fncDateTo || fncMaxDate}
+                            min={fncMinDate}
+                            max={fncMaxDate}
+                            onChange={(e) => setFncDateTo(e.target.value)}
+                            style={{ width: 150, fontSize: '0.78rem' }}
+                          />
+                        </div>
+                      </div>
+
+                      <ResponsiveContainer width="100%" height={340}>
+                        <LineChart data={fncChartData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                          <XAxis dataKey="fecha" tick={{ fontSize: 11, fill: '#94a3b8' }} tickLine={false} axisLine={{ stroke: '#e2e8f0' }} />
+                          <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} tickFormatter={(v: number) => `$${(v / 1000000).toFixed(1)}M`} width={70} tickLine={false} axisLine={{ stroke: '#e2e8f0' }} domain={['auto', 'auto']} />
+                          <Tooltip
+                            formatter={(value: number, name: string) => [fmtCOP(value), TIPO_LABELS[name] ?? name]}
+                            labelStyle={{ fontWeight: 700, color: '#1e293b' }}
+                            contentStyle={{ borderRadius: 8, border: '1px solid #e2e8f0', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}
+                          />
+                          {fncTipos.map((tipo) => (
+                            <Line key={tipo} type="monotone" dataKey={tipo} stroke="#dc2626" strokeWidth={2.5} dot={{ r: 4, fill: '#dc2626', strokeWidth: 0 }} activeDot={{ r: 6, stroke: '#dc2626', strokeWidth: 2, fill: '#fff' }} connectNulls />
+                          ))}
+                        </LineChart>
+                      </ResponsiveContainer>
+
+                      {/* Table */}
+                      <div className="table-responsive mt-3">
+                        <table className="table table-sm mb-0" style={{ fontSize: '0.78rem' }}>
+                          <thead>
+                            <tr style={{ borderBottom: '2px solid #e2e8f0' }}>
+                              <th style={{ color: '#94a3b8', fontSize: '0.7rem', fontWeight: 600 }}>Fecha</th>
+                              {fncTipos.map((t) => (
+                                <th key={t} className="text-end" style={{ color: '#dc2626', fontSize: '0.7rem', fontWeight: 600 }}>
+                                  {TIPO_LABELS[t] ?? t}
+                                </th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {fncFechas.slice(-10).reverse().map((fecha) => (
+                              <tr key={fecha} style={{ borderBottom: '1px solid #f8fafc' }}>
+                                <td style={{ padding: '7px 8px', color: '#475569', fontWeight: 500 }}>{fecha}</td>
+                                {fncTipos.map((tipo) => {
+                                  const row = filteredFnc.find((r) => r.fecha === fecha && r.tipo_precio === tipo);
+                                  return (
+                                    <td key={tipo} className="text-end" style={{ padding: '7px 8px', fontWeight: 600, color: '#1e293b' }}>
+                                      {row ? fmtCOP(parseFloat(row.valor)) : '—'}
+                                    </td>
+                                  );
+                                })}
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+                </>
+              );
+            })()}
+          </div>
+        )}
 
       {/* Methodology Modal */}
       <Modal show={methModal != null} onHide={() => setMethModal(null)} size="lg" scrollable>

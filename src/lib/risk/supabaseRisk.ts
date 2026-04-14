@@ -319,3 +319,36 @@ export async function editFuturesPositionDB(
 
   if (error) throw new Error(`Failed to edit futures position: ${error.message}`);
 }
+
+// ── Coffee Prices (precios locales de café) ──
+
+export interface CoffeePriceRow {
+  id: string;
+  fecha: string;
+  fuente: string;       // 'FNC' | 'ANSERMA'
+  tipo_precio: string;  // 'precio_interno_carga', 'precio_base_f90', etc.
+  valor: string;        // COP como string — parsear a number
+  unidad: string;       // 'COP'
+}
+
+/**
+ * Fetch coffee prices from xerenity.coffee_prices.
+ * Returns rows sorted by fecha ascending for charting.
+ */
+export async function fetchCoffeePrices(
+  startDate?: string,
+  endDate?: string,
+): Promise<CoffeePriceRow[]> {
+  let query = supabase
+    .schema(SCHEMA)
+    .from('coffee_prices')
+    .select('id, fecha, fuente, tipo_precio, valor, unidad')
+    .order('fecha', { ascending: true });
+
+  if (startDate) query = query.gte('fecha', startDate);
+  if (endDate) query = query.lte('fecha', endDate);
+
+  const { data, error } = await query;
+  if (error) throw new Error(`Failed to fetch coffee_prices: ${error.message}`);
+  return (data ?? []) as CoffeePriceRow[];
+}
