@@ -57,10 +57,44 @@ export async function fetchBenchmarkFactors(
   const units = companyConfig ? getUnits(companyConfig) : DEFAULT_UNITS;
   const startDate = getStartDate(filterDate, 400); // ~13 months for 180d rolling + prices
   const rows = await fetchRiskPrices(startDate, filterDate);
-  const { dates, prices, contracts } = pivotPrices(rows);
+  const { dates, prices: allPrices, contracts: allContracts } = pivotPrices(rows);
+
+  // ── Filtrar por commodities de la empresa ──
+  // risk_prices es global (tiene MAIZ, AZUCAR, CACAO, USD para todos), pero
+  // cada empresa solo "ve" los activos que selecciono en risk_company_config.
+  // Si no se filtra, una empresa nueva ve los datos de los demas (data leak).
+  let prices = allPrices;
+  let contracts = allContracts;
+  if (companyConfig) {
+    const allowedAssets = new Set<string>([
+      ...companyConfig.commodities.map((c) => c.asset),
+      companyConfig.currency_asset, // siempre incluir USD/currency
+    ]);
+    prices = Object.fromEntries(
+      Object.entries(allPrices).filter(([asset]) => allowedAssets.has(asset)),
+    );
+    contracts = Object.fromEntries(
+      Object.entries(allContracts).filter(([asset]) => allowedAssets.has(asset)),
+    );
+  }
   const assets = Object.keys(prices);
 
-  if (assets.length === 0) throw new Error('No hay precios disponibles');
+  if (assets.length === 0) {
+    // No hay precios para los commodities de esta empresa. Retornamos respuesta
+    // vacia en vez de lanzar error: las empresas nuevas con commodities sin
+    // data en risk_prices deben ver el dashboard vacio, no un toast de error.
+    return {
+      factors: {},
+      covariance_matrix: {},
+      correlation_matrix: {},
+      assets: [],
+      contracts: {},
+      period: { start: filterDate, end: filterDate },
+      covariance_period: { start: filterDate, end: filterDate, observations: {} },
+      confidence_level: confidenceLevel,
+      z_score: Math.round(getZScore(confidenceLevel) * 10000) / 10000,
+    };
+  }
 
   const { varFactors, returns } = calculateVarSeries(prices, 180, confidenceLevel);
   const latestFactors = getLatestVarFactors(varFactors);
@@ -125,12 +159,31 @@ export async function fetchBenchmarkFactors(
 export async function fetchRollingVar(
   filterDate: string,
   confidenceLevel = 0.99,
+  companyConfig?: RiskCompanyConfig | null,
 ): Promise<RollingVarResponse> {
   const startDate = getStartDate(filterDate, 365);
   const rows = await fetchRiskPrices(startDate, filterDate);
-  const { dates, prices, contracts } = pivotPrices(rows);
+  const { dates, prices: allPrices, contracts: allContracts } = pivotPrices(rows);
 
-  if (dates.length === 0) throw new Error('No hay precios disponibles');
+  // Filtrar por commodities de la empresa (ver fetchBenchmarkFactors).
+  let prices = allPrices;
+  let contracts = allContracts;
+  if (companyConfig) {
+    const allowedAssets = new Set<string>([
+      ...companyConfig.commodities.map((c) => c.asset),
+      companyConfig.currency_asset,
+    ]);
+    prices = Object.fromEntries(
+      Object.entries(allPrices).filter(([asset]) => allowedAssets.has(asset)),
+    );
+    contracts = Object.fromEntries(
+      Object.entries(allContracts).filter(([asset]) => allowedAssets.has(asset)),
+    );
+  }
+
+  if (dates.length === 0 || Object.keys(prices).length === 0) {
+    return { dates: [], prices: {}, rolling_var: {}, contracts: {} };
+  }
 
   const { varFactors } = calculateVarSeries(prices, 180, confidenceLevel);
 
