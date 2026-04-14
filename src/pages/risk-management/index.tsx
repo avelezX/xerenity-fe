@@ -785,14 +785,14 @@ function RiskManagement() {
   const handleFetchRolling = useCallback(async () => {
     setRollingLoading(true);
     try {
-      const data = await fetchRollingVar(filterDate, confidenceLevel);
+      const data = await fetchRollingVar(filterDate, confidenceLevel, companyConfig);
       setRollingData(data);
     } catch (e: unknown) {
       toast.error((e as Error)?.message || 'Error obteniendo rolling VaR');
     } finally {
       setRollingLoading(false);
     }
-  }, [filterDate, confidenceLevel]);
+  }, [filterDate, confidenceLevel, companyConfig]);
 
   const benchmarkDateStr = lastDayOfMonth(benchmarkMonth.year, benchmarkMonth.month);
   const benchmarkMonthKey = monthKey(benchmarkMonth.year, benchmarkMonth.month);
@@ -800,11 +800,13 @@ function RiskManagement() {
   const handleFetchBenchmarkFactors = useCallback(async () => {
     setBenchmarkLoading(true);
     try {
-      const data = await fetchBenchmarkFactors(benchmarkDateStr, confidenceLevel);
+      const data = await fetchBenchmarkFactors(benchmarkDateStr, confidenceLevel, companyConfig);
       setBenchmarkFactors(data);
 
-      // Use assets from backend response
-      const backendAssets = data.assets || DEFAULT_ASSETS;
+      // Use assets filtrados por la empresa (companyConfig). Fallback al
+      // dynamicAssets que viene del config (no a DEFAULT_ASSETS, que son los
+      // de Super de Alimentos).
+      const backendAssets = data.assets && data.assets.length > 0 ? data.assets : dynamicAssets;
       setAssets(backendAssets);
 
       // Check if we have cached positions for this month
@@ -838,14 +840,18 @@ function RiskManagement() {
       Object.entries(data.factors).forEach(([a, f]) => { freshVariance[a] = f.daily_variance ?? null; });
       setBenchmarkRows(recalcBenchmark(newRows, freshVariance));
 
-      toast.success(`${MONTH_NAMES[benchmarkMonth.month]} ${benchmarkMonth.year} (${data.period.start} → ${data.period.end})`);
+      if (data.assets.length > 0) {
+        toast.success(`${MONTH_NAMES[benchmarkMonth.month]} ${benchmarkMonth.year} (${data.period.start} → ${data.period.end})`);
+      } else {
+        toast.info(`Sin datos de mercado para los commodities de esta empresa`);
+      }
     } catch (e: unknown) {
       toast.error((e as Error)?.message || 'Error obteniendo factores');
     } finally {
       setBenchmarkLoading(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [benchmarkDateStr, benchmarkMonthKey, confidenceLevel]);
+  }, [benchmarkDateStr, benchmarkMonthKey, confidenceLevel, companyConfig, dynamicAssets]);
 
   // Save current rows to cache when they change
   const saveBenchmarkToCache = useCallback(() => {
@@ -872,6 +878,22 @@ function RiskManagement() {
   };
 
   const handleFetchExposure = useCallback(async (overrideDate?: string) => {
+    // Si la empresa no tiene parametros de proyeccion configurados, NO calculamos
+    // exposicion. Los DEFAULT_EXPOSURE_PARAMS son hardcodeados con valores
+    // especificos de Super de Alimentos (toneladas, fletes, processing fees, etc),
+    // y aplicarlos a cualquier otra empresa = mostrar datos incorrectos / data leak.
+    //
+    // Para empresas nuevas que aun no tienen exposure_defaults poblados en
+    // risk_company_config, dejamos exposureResult = null. position_super queda
+    // en blanco en el Benchmark hasta que se implemente un formulario generico
+    // de exposicion por empresa.
+    const hasExposureConfig = companyConfig?.exposure_defaults
+      && Object.keys(companyConfig.exposure_defaults).length > 0;
+    if (!hasExposureConfig) {
+      setExposureResult(null);
+      return;
+    }
+
     setExposureLoading(true);
     try {
       const dateToUse = overrideDate ?? filterDate;
@@ -897,12 +919,17 @@ function RiskManagement() {
       setExposureLoading(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filterDate, exposureParams]);
+  }, [filterDate, exposureParams, companyConfig]);
 
+  // Solo cargar datos cuando el companyConfig este listo (para filtrar por
+  // los commodities de la empresa). Si se dispara con companyConfig=null,
+  // fetchBenchmarkFactors trae TODOS los assets de risk_prices (data leak).
   useEffect(() => {
+    if (!companyConfig) return;
     handleFetchBenchmarkFactors();
+    handleFetchExposure(benchmarkDateStr);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [companyConfig]);
 
   // ── Futures Portfolio handlers ──
   const futuresFilterDate = lastDayOfMonth(futuresMonth.year, futuresMonth.month);
@@ -910,14 +937,14 @@ function RiskManagement() {
   const handleFetchFutures = useCallback(async () => {
     setFuturesLoading(true);
     try {
-      const data = await fetchFuturesPortfolio(futuresFilterDate, !futuresShowClosed, selectedCompanyId);
+      const data = await fetchFuturesPortfolio(futuresFilterDate, !futuresShowClosed, selectedCompanyId, companyConfig?.commodities);
       setFuturesPortfolio(data.portfolio);
     } catch (e: unknown) {
       toast.error((e as Error)?.message || 'Error cargando portafolio de futuros');
     } finally {
       setFuturesLoading(false);
     }
-  }, [futuresFilterDate, futuresShowClosed]);
+  }, [futuresFilterDate, futuresShowClosed, selectedCompanyId, companyConfig]);
 
   const handleAddPosition = useCallback(async () => {
     if (!newPosition.contract || !newPosition.entry_price) {
@@ -999,6 +1026,7 @@ function RiskManagement() {
   }, [filterDate, editModal, editFields, handleFetchFutures]);
 
   useEffect(() => {
+    if (!companyConfig) return; // guard: esperar a que config cargue
     if (activeTab === 'rolling') handleFetchRolling();
     if (activeTab === 'benchmark') {
       handleFetchBenchmarkFactors();
@@ -1007,7 +1035,7 @@ function RiskManagement() {
     }
     if (activeTab === 'futures') handleFetchFutures();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, futuresMonth, benchmarkDateStr]);
+  }, [activeTab, futuresMonth, benchmarkDateStr, companyConfig]);
 
   // Sync futuresMonth with benchmarkMonth (both views show the same period)
   useEffect(() => {
@@ -1518,7 +1546,18 @@ function RiskManagement() {
         )}
 
         {/* ─── EXPOSICIÓN TAB ─── */}
-        {activeTab === 'exposure' && (() => {
+        {activeTab === 'exposure' && !companyConfig?.exposure_defaults && (
+          <div className="text-center py-5">
+            <Icon icon={faShieldAlt} size="2x" className="text-muted mb-3" />
+            <h5 className="text-muted">Exposición no configurada</h5>
+            <p className="text-muted" style={{ maxWidth: 500, margin: '0 auto' }}>
+              Esta empresa aún no tiene parámetros de proyección de exposición configurados.
+              Los cuadros de conversión (toneladas, fletes, processing fees, etc.) se configuran
+              por empresa según sus materias primas específicas.
+            </p>
+          </div>
+        )}
+        {activeTab === 'exposure' && companyConfig?.exposure_defaults && Object.keys(companyConfig.exposure_defaults).length > 0 && (() => {
           const inputStyle = { fontSize: '0.78rem' };
           const calcStyle = { fontSize: '0.78rem', color: '#475569' };
           const headerStyle = { color: '#7c3aed', fontSize: '0.85rem', fontWeight: 700, padding: '12px 14px', borderBottom: '1px solid #e2e8f0' };
