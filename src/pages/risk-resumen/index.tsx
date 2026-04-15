@@ -268,14 +268,20 @@ function RiskResumenPage() {
       await repriceWithMark(filterDate);
       await loadOtcRefPrices(filterDate);
 
-      // 2) Commodities: benchmark factors (precios fin de mes) + futures (Portafolio GR) + exposicion
-      //    fetchExposure llama a Supabase con filterDate y trae automaticamente
-      //    los precios del fin del mes seleccionado (precio_azucar_cent_lb,
-      //    precio_maiz_cent_bu, etc se sobreescriben con los precios reales).
+      // 2) Commodities: benchmark factors + futures + exposicion (condicional)
+      //    Solo llamar fetchExposure si la empresa tiene exposure_defaults
+      //    configurados. DEFAULT_EXPOSURE_PARAMS son especificos de Super de
+      //    Alimentos — si se llaman para otra empresa, muestra datos incorrectos
+      //    ($82.7M de exposicion USD que es de Super, no del Embrujo).
+      const hasExposureConfig = companyConfig?.exposure_defaults
+        && Object.keys(companyConfig.exposure_defaults).length > 0;
+
       const [factors, futResp, exposure] = await Promise.all([
         fetchBenchmarkFactors(filterDate, 0.99, companyConfig).catch(() => null),
         fetchFuturesPortfolio(filterDate, true, selectedCompanyId, commodityCfg).catch(() => ({ portfolio: [] as FuturesPosition[] })),
-        fetchExposure(filterDate, DEFAULT_EXPOSURE_PARAMS).catch(() => null as ExposureResponse | null),
+        hasExposureConfig
+          ? fetchExposure(filterDate, DEFAULT_EXPOSURE_PARAMS).catch(() => null as ExposureResponse | null)
+          : Promise.resolve(null as ExposureResponse | null),
       ]);
 
       // 3) FX delta + P&L MTD from store (refresh after reprice/refprice resolved)
