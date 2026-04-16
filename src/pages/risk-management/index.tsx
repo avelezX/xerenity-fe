@@ -622,10 +622,9 @@ function CommoditySetup({ companyId, onSaved }: { companyId: string; onSaved: (c
   };
 
   const handleSave = async () => {
-    if (selected.size === 0) {
-      toast.error('Selecciona al menos un commodity');
-      return;
-    }
+    // USD siempre se incluye por defecto via currency_asset. No forzamos la
+    // seleccion de un commodity adicional — puede haber empresas que solo
+    // gestionen FX (TRM/USDCOP) sin materias primas.
     setSaving(true);
     try {
       const commodities = COMMODITY_TEMPLATES.filter((c) => selected.has(c.asset));
@@ -633,7 +632,11 @@ function CommoditySetup({ companyId, onSaved }: { companyId: string; onSaved: (c
       toast.success('Configuración guardada');
       onSaved(cfg);
     } catch (e: unknown) {
-      toast.error((e as Error)?.message || 'Error guardando configuración');
+      const msg = (e as Error)?.message || 'Error guardando configuración';
+      // Log detallado para diagnostico (e.g. FK violation a trading.company)
+      // eslint-disable-next-line no-console
+      console.error('saveCompanyRiskConfig failed:', e);
+      toast.error(msg, { autoClose: 8000 });
     } finally {
       setSaving(false);
     }
@@ -648,7 +651,30 @@ function CommoditySetup({ companyId, onSaved }: { companyId: string; onSaved: (c
           Selecciona los commodities que tu empresa desea gestionar.
           Podrás modificar esta selección más adelante.
         </p>
-        <Row className="justify-content-center mb-4">
+        <Row className="justify-content-center mb-2">
+          {/* Fixed USD card — always included as currency_asset */}
+          <Col xs="auto" className="mb-2">
+            <div
+              title="USD se incluye automáticamente en todas las empresas como activo de divisa (TRM)"
+              style={{
+                padding: '12px 24px',
+                borderRadius: 8,
+                border: '2px solid #3b82f6',
+                background: '#3b82f615',
+                minWidth: 120,
+                textAlign: 'center' as const,
+                opacity: 0.9,
+              }}
+            >
+              <div style={{ fontWeight: 600, color: '#3b82f6' }}>
+                USD
+                <span style={{ fontSize: '0.65rem', color: '#94a3b8', marginLeft: 4 }}>(fijo)</span>
+              </div>
+              <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>
+                BanRep — TRM
+              </div>
+            </div>
+          </Col>
           {COMMODITY_TEMPLATES.map((c) => (
             <Col key={c.asset} xs="auto" className="mb-2">
               <div
@@ -677,13 +703,25 @@ function CommoditySetup({ companyId, onSaved }: { companyId: string; onSaved: (c
             </Col>
           ))}
         </Row>
-        <Button
-          variant="primary"
-          onClick={handleSave}
-          disabled={saving || selected.size === 0}
-        >
-          {saving ? 'Guardando...' : `Configurar ${selected.size} commodity${selected.size !== 1 ? 's' : ''}`}
-        </Button>
+        <p className="text-muted mb-4" style={{ fontSize: '0.8rem' }}>
+          USD/COP (TRM) se incluye automáticamente. Puedes continuar sin commodities
+          si tu empresa solo gestiona FX.
+        </p>
+        {/* Button con display:flex (del styled wrapper) no se centra con text-align,
+            asi que lo envolvemos en un flex container centrado. */}
+        <div className="d-flex justify-content-center">
+          <Button
+            variant="primary"
+            onClick={handleSave}
+            disabled={saving}
+          >
+            {(() => {
+              if (saving) return 'Guardando...';
+              if (selected.size === 0) return 'Continuar solo con USD';
+              return `Configurar ${selected.size} commodity${selected.size !== 1 ? 's' : ''} + USD`;
+            })()}
+          </Button>
+        </div>
       </div>
     </Container>
   );
@@ -781,7 +819,24 @@ function RiskManagement() {
   // Rolling VaR state
   const [rollingData, setRollingData] = useState<RollingVarResponse | null>(null);
   const [rollingLoading, setRollingLoading] = useState(false);
-  const [selectedAsset, setSelectedAsset] = useState('MAIZ');
+  // selectedAsset arranca vacio; se auto-selecciona el primer commodity del
+  // config via useEffect abajo. Asi empresas que NO tienen MAIZ (e.g. El
+  // Embrujo con CAFE, Los Coches con solo USD) no muestran el placeholder
+  // "MAIZ" vacio por defecto.
+  const [selectedAsset, setSelectedAsset] = useState('');
+
+  // Auto-seleccionar el primer asset disponible cuando cambian los assets
+  // de la empresa o cuando el asset actual ya no esta en la lista.
+  useEffect(() => {
+    if (assets.length === 0) {
+      if (selectedAsset) setSelectedAsset('');
+      return;
+    }
+    if (!selectedAsset || !assets.includes(selectedAsset)) {
+      setSelectedAsset(assets[0]);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [assets]);
 
   // Exposure state — defaults extraidos a companyConfig.ts para que /risk-resumen
   // pueda usar los mismos parametros sin duplicar el hardcode.
