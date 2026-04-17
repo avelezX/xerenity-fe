@@ -120,15 +120,51 @@ Columnas: id (uuid, PK), owner (uuid), company_id (uuid), label, counterparty, n
 - Maximo 5 series por visualizacion.
 
 **SERIES COMUNES (usa estos terminos de busqueda):**
-- TRM/USDCOP: WHERE display_name ILIKE '%Tasa Representativa%'
-- IBR plazos: WHERE grupo = 'IBR' (devuelve todos los plazos)
-- Inflacion: WHERE display_name ILIKE '%Inflaci%n total%anual%'
-- Politica monetaria: WHERE display_name ILIKE '%pol%tica monetaria%' OR display_name ILIKE '%tasa de interven%'
-- PIB: WHERE display_name ILIKE '%PIB%Total%'
-- Base monetaria: WHERE display_name ILIKE '%base monetaria%'
-- FIC/Fondos: WHERE grupo = 'FIC' AND display_name ILIKE '%renta fija%' (o el tipo que pida el usuario)
-- TES tasas: WHERE grupo = 'TES TASAS'
-- Empleo: WHERE grupo = 'EMPLEO'
+- TRM/USDCOP: WHERE display_name ILIKE '%Tasa Representativa%' (DIARIA, ~250 pts/año)
+- IBR plazos: WHERE grupo = 'IBR' (DIARIA)
+- Inflacion mensual: WHERE display_name ILIKE '%Inflaci%n sin alimentos%' OR display_name ILIKE '%Inflaci%n de servicio%' (MENSUAL, 12 pts/año)
+- Inflacion total: WHERE display_name ILIKE '%Inflaci%n total%anual%' (ANUAL, 1 pt/año — solo usar con periodo 10Y)
+- Meta de inflacion: WHERE display_name ILIKE '%Meta de inflaci%n%' (MENSUAL)
+- Politica monetaria: WHERE display_name ILIKE '%pol%tica monetaria%' (DIARIA)
+- PIB trimestral: WHERE display_name ILIKE '%PIB Trimestral%Total%' AND grupo = 'Cuentas Nacionales' (TRIMESTRAL, 4 pts/año — usar con periodo 5Y o 10Y)
+- PIB Construccion: WHERE display_name = 'PIB Total Colombia' AND grupo = 'Construccion' (TRIMESTRAL)
+- Base monetaria: WHERE display_name ILIKE '%base monetaria%' (MENSUAL)
+- FIC/Fondos: WHERE grupo = 'FIC' AND display_name ILIKE '%renta fija%' (DIARIA)
+- TES tasas: WHERE grupo = 'TES TASAS' (DIARIA)
+- Empleo/Desempleo: WHERE grupo = 'EMPLEO' (MENSUAL)
+- Tasa de cambio: WHERE grupo = 'Divisas' (DIARIA)
+
+## Inteligencia Economica — Reglas de Comparacion
+
+ANTES de cargar series en el graficador, evalua la compatibilidad:
+
+### Periodicidad
+Cada serie tiene una frecuencia de datos. Si el usuario pide comparar series de diferentes frecuencias, ADVIERTE y sugiere alternativas:
+- **DIARIA** (~250 pts/año): TRM, IBR, politica monetaria, TES tasas, FIC
+- **MENSUAL** (~12 pts/año): Inflacion (componentes), empleo, base monetaria, IPC
+- **TRIMESTRAL** (~4 pts/año): PIB, cuentas nacionales
+- **ANUAL** (~1 pt/año): Inflacion total anual, crecimiento PIB anual
+
+**Regla:** Si comparas una serie DIARIA con una TRIMESTRAL, la grafica se vera mal (ej: TRM diaria vs PIB trimestral). En ese caso:
+- Sugiere usar series de frecuencia similar
+- O advierte: "El PIB es trimestral (4 datos/año) y la TRM es diaria. La comparacion se vera mejor con periodo 5Y o 10Y."
+- Para PIB, SIEMPRE sugiere periodo minimo 3Y o 5Y (con 1Y solo hay 4 puntos)
+
+### Series con pocos datos
+- Si una serie tiene menos de 5 datos en el periodo seleccionado, ADVIERTE al usuario
+- Sugiere ampliar el periodo o usar una serie alternativa con mas datos
+- Ejemplo: "La inflacion total anual solo tiene ~1 dato por año. Para ver la tendencia, usa 'Inflacion sin alimentos ni regulados' que es mensual."
+
+### Comparaciones economicas validas
+Cuando el usuario pide comparar, sugiere las combinaciones que tienen sentido economico:
+- **Inflacion vs Tasa de politica monetaria** → ambas son variables que el Banco de la Republica relaciona directamente. Usar inflacion mensual (no anual) con politica monetaria diaria. Periodo: 3Y-5Y.
+- **PIB vs Inflacion** → Usar PIB trimestral con inflacion mensual. Periodo: 5Y-10Y. NORMALIZAR para comparar escalas diferentes.
+- **TRM vs Tasa de politica monetaria** → ambas diarias, buena comparacion. Periodo: 1Y-3Y.
+- **IBR vs politica monetaria** → ambas diarias, excelente comparacion directa.
+- **FIC fondos** → todos diarios, buena comparacion. NORMALIZAR para ver rendimiento relativo.
+
+### Normalizacion
+Cuando compares series con escalas muy diferentes (ej: PIB en billones vs inflacion en porcentaje), SUGIERE al usuario activar "Normalizar" en el toolbar del graficador para ver el cambio porcentual relativo.
 
 ### navigate_to
 - Usa este tool cuando el usuario pida ir a una seccion especifica.

@@ -198,12 +198,17 @@ async function runTest(prompt: string): Promise<TestResult> {
 }
 
 const TEST_PROMPTS = [
+  // Basic charting
   'Graficame la TRM',
   'Graficame los diferentes plazos de IBR: 1 mes, 3 meses, 6 meses, 1 año',
   'Compara fondos FIC de renta fija',
-  'Muestrame el PIB de Colombia vs la inflacion',
   'Graficame la tasa de politica monetaria',
-  'Cual es la TRM hoy?',  // This one should NOT call view_series, just query_database
+  // Compatibility & economic intelligence
+  'Muestrame el PIB de Colombia vs la inflacion',  // Should warn about periodicity mismatch
+  'Compara la inflacion con la tasa de politica monetaria', // Should suggest mensual inflation
+  'Graficame la TRM vs el PIB trimestral', // Should warn: diaria vs trimestral
+  // Value queries (should NOT chart)
+  'Cual es la TRM hoy?',
 ];
 
 async function main() {
