@@ -90,7 +90,7 @@ const MONEDAS_SUBNAV: NavItemProps[] = [
   },
 ];
 
-const SERIES_DASHBOARDS_PREFIX = ['/suameca', '/tasas', '/monedas-dashboard', '/fic', '/par-monedas'];
+const SERIES_DASHBOARDS_PREFIX = ['/suameca', '/tasas', '/monedas-dashboard', '/fic', '/par-monedas', '/cds-sovereign'];
 
 const MONEDAS_PREFIX = '/currency';
 
