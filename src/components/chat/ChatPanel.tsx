@@ -118,6 +118,44 @@ const ErrorBanner = styled.div`
   border-bottom: 1px solid #fecaca;
 `;
 
+const SuggestionsGrid = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+`;
+
+const SuggestionBtn = styled.button`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 13px;
+  color: #334155;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.15s ease;
+  &:hover {
+    background: #f0f0ff;
+    border-color: #4F46E5;
+    color: #4F46E5;
+  }
+`;
+
+const ChartContext = styled.div`
+  padding: 8px 16px;
+  background: #f0fdf4;
+  color: #166534;
+  font-size: 12px;
+  border-bottom: 1px solid #bbf7d0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+`;
+
 export default function ChatPanel() {
   const router = useRouter();
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -133,6 +171,8 @@ export default function ChatPanel() {
     clearChat,
     stopGeneration,
     addTickerToChart,
+    chartSelections,
+    chartPeriod,
   } = useAppStore();
 
   const lastNavTarget = useRef<string | null>(null);
@@ -181,6 +221,24 @@ export default function ChatPanel() {
     inputRef.current?.focus();
   }, []);
 
+  const SUGGESTIONS = [
+    { icon: '📈', text: 'Graficame las tasas IBR por plazo (3m, 6m, 1y)' },
+    { icon: '💹', text: 'Compara la inflacion con la tasa de politica monetaria' },
+    { icon: '🏦', text: 'Muestrame fondos FIC de renta fija' },
+    { icon: '💱', text: 'Cual es la TRM hoy?' },
+    { icon: '📊', text: 'Graficame el PIB vs la inflacion' },
+  ];
+
+  // Build chart context string for the agent
+  const chartContextText = chartSelections.length > 0
+    ? `${chartSelections.map((s) => s.display_name).join(', ')} | Periodo: ${chartPeriod}`
+    : null;
+
+  const handleSuggestion = (text: string) => {
+    if (chatLoading) return;
+    sendMessage(text);
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const trimmed = input.trim();
@@ -209,6 +267,11 @@ export default function ChatPanel() {
       </Header>
 
       {chatError && <ErrorBanner>{chatError}</ErrorBanner>}
+      {chartContextText && (
+        <ChartContext>
+          📊 En grafico: {chartContextText}
+        </ChartContext>
+      )}
 
       <MessagesArea>
         {chatMessages.length === 0 ? (
@@ -216,8 +279,16 @@ export default function ChatPanel() {
             <div style={{ fontSize: 28 }}>🤖</div>
             <div>Soy el asistente de Xerenity</div>
             <div style={{ fontSize: 13, color: '#b0b8c4' }}>
-              Puedo consultar datos, generar graficos, navegar la app y crear posiciones.
+              Puedo consultar datos, graficar series y crear posiciones.
             </div>
+            <SuggestionsGrid>
+              {SUGGESTIONS.map((s) => (
+                <SuggestionBtn key={s.text} onClick={() => handleSuggestion(s.text)}>
+                  <span>{s.icon}</span>
+                  <span>{s.text}</span>
+                </SuggestionBtn>
+              ))}
+            </SuggestionsGrid>
           </EmptyState>
         ) : (
           chatMessages.map((msg) => (

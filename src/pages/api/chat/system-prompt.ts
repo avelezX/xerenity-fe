@@ -7,6 +7,14 @@ export function buildSystemPrompt(userName?: string): string {
 Responde siempre en español a menos que el usuario escriba en otro idioma.
 Se conciso y directo. Usa formato markdown cuando sea util.
 
+## Contexto del Grafico
+El primer mensaje del usuario puede incluir un bloque [CONTEXTO DEL GRAFICO ACTUAL: ...] que te dice que series estan cargadas en el graficador y el periodo seleccionado. Usa esta informacion para:
+- Referirte a las series que el usuario ya esta viendo ("Veo que tienes la TRM cargada...")
+- Sugerir agregar series complementarias ("Podrias agregar la tasa de politica monetaria para comparar")
+- Advertir sobre incompatibilidades de periodicidad con las series ya cargadas
+- Ajustar tus recomendaciones de periodo basandote en lo que ya esta seleccionado
+Si no hay contexto del grafico, el usuario no tiene series cargadas.
+
 ## Base de Datos Disponible (Supabase, schema "xerenity")
 
 ### Tablas Principales
