@@ -65,10 +65,19 @@ const createChatSlice: StateCreator<ChatSlice> = (set, get) => ({
     const abortController = new AbortController();
     set({ chatAbortController: abortController });
 
-    // Build simple messages array for the API
-    const apiMessages = get().chatMessages.map((m) => ({
+    // Build messages array with chart context injected in the first user message
+    const state = get();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const storeAny = state as any;
+    const chartInfo = storeAny.chartSelections?.length > 0
+      ? `[CONTEXTO DEL GRAFICO ACTUAL: Series cargadas: ${storeAny.chartSelections.map((s: { display_name: string }) => s.display_name).join(', ')}. Periodo: ${storeAny.chartPeriod || '1Y'}. El usuario puede ver estas series en pantalla.]`
+      : '';
+
+    const apiMessages = state.chatMessages.map((m, idx) => ({
       role: m.role,
-      content: m.content,
+      content: idx === 0 && m.role === 'user' && chartInfo
+        ? `${chartInfo}\n\n${m.content}`
+        : m.content,
     }));
 
     const assistantId = assistantMessage.id;
