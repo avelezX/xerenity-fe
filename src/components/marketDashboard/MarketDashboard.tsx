@@ -119,6 +119,8 @@ export default function MarketDashboard({ config }: MarketDashboardProps) {
     []
   );
 
+  const urlSeriesLoaded = React.useRef(false);
+
   useEffect(() => {
     fetchWatchlistSnapshot(config);
     return () => {
@@ -126,6 +128,24 @@ export default function MarketDashboard({ config }: MarketDashboardProps) {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Auto-load series from URL query params (e.g., /suameca?series=ticker1,ticker2)
+  useEffect(() => {
+    if (urlSeriesLoaded.current || watchlistEntries.length === 0) return;
+    const seriesParam = router.query.series;
+    if (!seriesParam) return;
+
+    const tickers = (typeof seriesParam === 'string' ? seriesParam : seriesParam[0]).split(',');
+    urlSeriesLoaded.current = true;
+
+    tickers.forEach((ticker) => {
+      const trimmed = ticker.trim();
+      const found = watchlistEntries.find((e) => e.ticker === trimmed);
+      if (found) {
+        addToChart(found);
+      }
+    });
+  }, [watchlistEntries, router.query.series, addToChart]);
 
   // Unique entidades for the filter dropdown
   const uniqueEntidades = useMemo(() => {
