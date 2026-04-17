@@ -37,7 +37,7 @@ const Header = styled.div`
 
 const Title = styled.div`
   font-weight: 700;
-  font-size: 15px;
+  font-size: 16px;
   color: #1e293b;
 `;
 
@@ -70,7 +70,7 @@ const EmptyState = styled.div`
   justify-content: center;
   height: 100%;
   color: #94a3b8;
-  font-size: 13px;
+  font-size: 15px;
   text-align: center;
   padding: 24px;
   gap: 8px;
@@ -90,7 +90,7 @@ const Input = styled.input`
   padding: 10px 12px;
   border: 1px solid #cbd5e1;
   border-radius: 8px;
-  font-size: 13px;
+  font-size: 15px;
   outline: none;
   &:focus { border-color: #4F46E5; box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.1); }
 `;
@@ -114,7 +114,7 @@ const ErrorBanner = styled.div`
   padding: 8px 16px;
   background: #fef2f2;
   color: #dc2626;
-  font-size: 12px;
+  font-size: 14px;
   border-bottom: 1px solid #fecaca;
 `;
 
@@ -178,7 +178,7 @@ export default function ChatPanel() {
           <EmptyState>
             <div style={{ fontSize: 28 }}>🤖</div>
             <div>Soy el asistente de Xerenity</div>
-            <div style={{ fontSize: 11, color: '#b0b8c4' }}>
+            <div style={{ fontSize: 13, color: '#b0b8c4' }}>
               Puedo consultar datos, generar graficos, navegar la app y crear posiciones.
             </div>
           </EmptyState>

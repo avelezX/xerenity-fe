@@ -14,8 +14,8 @@ const Bubble = styled.div<{ $isUser: boolean }>`
   max-width: 85%;
   padding: 10px 14px;
   border-radius: 12px;
-  font-size: 13px;
-  line-height: 1.5;
+  font-size: 15px;
+  line-height: 1.6;
   white-space: pre-wrap;
   word-break: break-word;
 
@@ -42,7 +42,7 @@ const ToolBadge = styled.div`
   background: #e0e7ff;
   color: #4338ca;
   border-radius: 4px;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 500;
 `;
 
@@ -56,7 +56,7 @@ const NavLink = styled.button`
   color: white;
   border: none;
   border-radius: 6px;
-  font-size: 12px;
+  font-size: 14px;
   cursor: pointer;
   &:hover {
     background: #4338ca;

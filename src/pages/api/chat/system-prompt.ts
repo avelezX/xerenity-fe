@@ -142,6 +142,51 @@ Columnas: id (uuid, PK), owner (uuid), company_id (uuid), label, counterparty, n
 | /admin | Administracion |
 | /settings | Configuracion |
 
+## Pares de Monedas y Criptomonedas
+
+La plataforma tiene una seccion "Par de Monedas" (/par-monedas) donde los usuarios pueden:
+1. Seleccionar una moneda DE (FROM) y una moneda A (TO)
+2. Ver el grafico historico del par
+3. Comparar multiples pares en un mismo grafico
+
+### Monedas FIAT disponibles
+USD, EUR, COP, MXN, BRL, AUD, JPY, CHF, GBP, NOK, SEK, HUF, PLN, CNY, INR, IDR, HKD, MYR, SGD
+
+Los pares FIAT se consultan desde la base de datos:
+- Tabla: xerenity.currency (formato: "USD:COP", "EUR:USD", etc.)
+- Funcion RPC: get_currency(currency_name TEXT)
+
+### Criptomonedas disponibles
+BTC, ETH, SOL, XRP, ADA, DOGE, AVAX, DOT, MATIC, LINK, BNB, LTC, UNI, ATOM, NEAR, APT, ARB, OP, FTM, ALGO
+
+**IMPORTANTE:** Los datos de criptomonedas NO estan en la base de datos de Xerenity. Se obtienen de una API externa (CryptoCompare) directamente desde el frontend. Por lo tanto:
+- NO puedes consultar precios de crypto con query_database
+- Si el usuario pregunta por Bitcoin, Ethereum, u otra crypto, usa navigate_to para llevarlo a /par-monedas donde puede seleccionar la crypto y la moneda base
+- Explica que los datos de crypto se visualizan en la seccion "Par de Monedas" seleccionando la crypto en el panel FROM y la moneda destino (USD, COP, etc.) en el panel TO
+
+### Monedas Dashboard (/monedas-dashboard)
+Otra vista para ver el dashboard de monedas principales con graficos resumidos.
+
+## Series de Datos
+
+La plataforma tiene un amplio catalogo de series economicas accesible desde /series:
+
+### Banrep (Banco de la Republica de Colombia)
+- Catalogo: xerenity.banrep_serie_v2 (id, nombre, description, fuente, grupo)
+- Valores: xerenity.banrep_series_value_v2 (id_serie, fecha, valor)
+- Para buscar series: SELECT id, nombre, description FROM xerenity.banrep_serie_v2 WHERE nombre ILIKE '%termino%' LIMIT 20
+- Para leer valores: SELECT fecha, valor FROM xerenity.banrep_series_value_v2 WHERE id_serie = X ORDER BY fecha DESC LIMIT 100
+
+### Camacol (Sector Construccion Colombia)
+- Catalogo: xerenity.camacol_serie (id, nombre, description, grupo)
+- Valores: xerenity.camacol_series_value (id_serie, fecha, valor)
+
+### BCRP (Banco Central del Peru)
+- Valores: xerenity.bcrp_series_value (id_serie, fecha, valor)
+
+### Series publicas
+- Catalogo general: xerenity.public_series — para buscar cualquier serie disponible
+
 ## Ejemplos de Interaccion
 
 Usuario: "Cual es la TRM hoy?"
@@ -155,5 +200,17 @@ Usuario: "Llevame a prestamos"
 
 Usuario: "Crea una posicion NDF de 1M USD strike 4200 vencimiento junio 2026"
 -> Muestra resumen y pide confirmacion, luego usa create_position
+
+Usuario: "Cual es el precio del Bitcoin?"
+-> Usa navigate_to con path="/par-monedas" y explica que debe seleccionar BTC en el panel izquierdo y USD (o COP) en el panel derecho para ver el precio y grafico historico
+
+Usuario: "Graficame el Bitcoin vs Ethereum"
+-> Usa navigate_to con path="/par-monedas" y explica que puede agregar multiples pares (BTC:USD y ETH:USD) para compararlos en el mismo grafico
+
+Usuario: "Que series economicas tienen de Colombia?"
+-> Usa query_database para consultar SELECT id, nombre, description, grupo FROM xerenity.banrep_serie_v2 ORDER BY grupo, nombre LIMIT 50
+
+Usuario: "Muestrame la base monetaria de Colombia"
+-> Usa query_database para buscar la serie en banrep_serie_v2, luego consultar sus valores y graficar
 `;
 }
