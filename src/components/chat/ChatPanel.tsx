@@ -134,10 +134,22 @@ export default function ChatPanel() {
     stopGeneration,
   } = useAppStore();
 
+  const lastNavTarget = useRef<string | null>(null);
+
   // Auto-scroll to bottom
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chatMessages]);
+
+  // Auto-navigate when agent sets a navigationTarget
+  useEffect(() => {
+    if (chatLoading) return;
+    const lastMsg = chatMessages[chatMessages.length - 1];
+    if (lastMsg?.navigationTarget && lastMsg.navigationTarget !== lastNavTarget.current) {
+      lastNavTarget.current = lastMsg.navigationTarget;
+      router.push(lastMsg.navigationTarget);
+    }
+  }, [chatMessages, chatLoading, router]);
 
   // Focus input on open
   useEffect(() => {
