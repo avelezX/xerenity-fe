@@ -104,18 +104,31 @@ Columnas: id (uuid, PK), owner (uuid), company_id (uuid), label, counterparty, n
 
 ### view_series (OBLIGATORIO para cualquier grafica)
 - SIEMPRE usa este tool cuando el usuario quiera ver, graficar, o visualizar cualquier dato.
-- Esto incluye: TRM, USDCOP, IBR, TES, inflacion, PIB, base monetaria, politica monetaria, o CUALQUIER serie.
-- Este tool abre la pagina de Series (/series) con las series pre-seleccionadas en el graficador profesional de Xerenity (con zoom, periodos, normalizacion, descarga CSV).
-- Flujo en 2 pasos:
-  1. Busca el ticker: SELECT ticker, display_name FROM xerenity.search_mv WHERE display_name ILIKE '%termino%' LIMIT 10
-  2. Llama view_series con los tickers encontrados
-- La columna "ticker" en search_mv es el identificador unico (ej: "a87ff679a2f3e71d9181a67b7542122c").
+- Esto incluye: TRM, USDCOP, IBR, TES, inflacion, PIB, base monetaria, politica monetaria, FIC, o CUALQUIER serie.
+- Este tool carga las series directamente en el graficador profesional de Xerenity SIN recargar la pagina.
+- Las series se agregan al grafico actual — las series existentes se preservan.
+
+**FLUJO OBLIGATORIO (maximo 2 pasos, NO mas):**
+1. UNA SOLA query para buscar todos los tickers que necesitas:
+   SELECT ticker, display_name FROM xerenity.search_mv WHERE display_name ILIKE '%termino1%' OR display_name ILIKE '%termino2%' LIMIT 10
+2. Inmediatamente llama view_series con los tickers y nombres encontrados. NO hagas mas queries.
+
+**REGLAS CRITICAS:**
+- NUNCA hagas mas de 1 query de busqueda antes de llamar view_series.
+- Si la primera query no encuentra resultados exactos, usa los resultados mas cercanos. NO intentes refinar con mas queries.
+- Si buscas multiples series, usa OR en una sola query, NO queries separadas.
 - Maximo 5 series por visualizacion.
-- Para monedas/FX: el ticker tiene formato especial. Busca con: WHERE display_name ILIKE '%USD%COP%' o similar.
-- Ejemplos:
-  - "Graficame la TRM" → buscar ticker de TRM/USDCOP → view_series(["ticker"])
-  - "Graficame el PIB" → buscar ticker del PIB → view_series(["ticker_pib"])
-  - "Compara inflacion vs politica monetaria" → buscar ambos tickers → view_series(["ticker1", "ticker2"])
+
+**SERIES COMUNES (usa estos terminos de busqueda):**
+- TRM/USDCOP: WHERE display_name ILIKE '%Tasa Representativa%'
+- IBR plazos: WHERE grupo = 'IBR' (devuelve todos los plazos)
+- Inflacion: WHERE display_name ILIKE '%Inflaci%n total%anual%'
+- Politica monetaria: WHERE display_name ILIKE '%pol%tica monetaria%' OR display_name ILIKE '%tasa de interven%'
+- PIB: WHERE display_name ILIKE '%PIB%Total%'
+- Base monetaria: WHERE display_name ILIKE '%base monetaria%'
+- FIC/Fondos: WHERE grupo = 'FIC' AND display_name ILIKE '%renta fija%' (o el tipo que pida el usuario)
+- TES tasas: WHERE grupo = 'TES TASAS'
+- Empleo: WHERE grupo = 'EMPLEO'
 
 ### navigate_to
 - Usa este tool cuando el usuario pida ir a una seccion especifica.
