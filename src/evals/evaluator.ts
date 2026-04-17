@@ -1,5 +1,6 @@
 import type {
   TestTurn,
+  TextExpectation,
   ToolCallCapture,
   ToolExpectation,
   ToolValidationResult,
