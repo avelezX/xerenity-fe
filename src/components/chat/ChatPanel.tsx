@@ -132,16 +132,18 @@ export default function ChatPanel() {
     sendMessage,
     clearChat,
     stopGeneration,
+    addTickerToChart,
   } = useAppStore();
 
   const lastNavTarget = useRef<string | null>(null);
+  const lastSeriesAction = useRef<string | null>(null);
 
   // Auto-scroll to bottom
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chatMessages]);
 
-  // Auto-navigate when agent sets a navigationTarget
+  // Auto-navigate when agent sets a navigationTarget (for navigate_to tool)
   useEffect(() => {
     if (chatLoading) return;
     const lastMsg = chatMessages[chatMessages.length - 1];
@@ -150,6 +152,29 @@ export default function ChatPanel() {
       router.push(lastMsg.navigationTarget);
     }
   }, [chatMessages, chatLoading, router]);
+
+  // Auto-load series into current chart when agent calls view_series
+  useEffect(() => {
+    if (chatLoading) return;
+    const lastMsg = chatMessages[chatMessages.length - 1];
+    if (!lastMsg?.seriesAction) return;
+
+    const actionKey = lastMsg.seriesAction.tickers.join(',');
+    if (actionKey === lastSeriesAction.current) return;
+    lastSeriesAction.current = actionKey;
+
+    // Navigate to SUAMECA if not already there, then load series
+    const isSuamecaPage = router.pathname === '/suameca';
+    if (!isSuamecaPage) {
+      router.push('/suameca');
+    }
+
+    // Load each ticker into the chart with its display name
+    lastMsg.seriesAction.tickers.forEach((ticker, idx) => {
+      const displayName = lastMsg.seriesAction?.names?.[idx] || ticker;
+      addTickerToChart(ticker, displayName);
+    });
+  }, [chatMessages, chatLoading, router, addTickerToChart]);
 
   // Focus input on open
   useEffect(() => {

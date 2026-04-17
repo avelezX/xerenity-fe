@@ -252,6 +252,7 @@ async function executeCreateLoan(
 
 function executeViewSeries(input: Record<string, unknown>): ToolResult {
   const tickers = input.tickers as string[];
+  const names = (input.names as string[]) || tickers;
 
   if (!Array.isArray(tickers) || tickers.length === 0) {
     return { success: false, error: 'Se requiere al menos un ticker de serie' };
@@ -261,12 +262,10 @@ function executeViewSeries(input: Record<string, unknown>): ToolResult {
     return { success: false, error: 'Maximo 5 series a la vez' };
   }
 
-  const path = `/suameca?series=${tickers.join(',')}`;
-
   return {
     success: true,
-    navigationTarget: path,
-    data: { path, description: input.description, tickers },
+    navigationTarget: '_series_action',
+    data: { description: input.description, tickers, names },
   };
 }
 

@@ -158,24 +158,29 @@ export const tools: Anthropic.Tool[] = [
   {
     name: 'view_series',
     description:
-      'Abre la pagina de Series con series pre-seleccionadas para visualizar en el graficador profesional. ' +
-      'Usa este tool cuando el usuario quiera VER o GRAFICAR series economicas. ' +
-      'Primero busca los tickers de las series con query_database en xerenity.banrep_serie_v2 o xerenity.public_series, ' +
-      'luego usa este tool con los tickers encontrados.',
+      'Carga series en el graficador profesional de Xerenity (SUAMECA). ' +
+      'Las series se agregan al grafico actual sin perder las que ya estan. ' +
+      'Primero busca tickers con query_database en xerenity.search_mv, ' +
+      'luego usa este tool con los tickers y nombres encontrados.',
     input_schema: {
       type: 'object' as const,
       properties: {
         tickers: {
           type: 'array',
           items: { type: 'string' },
-          description: 'Array de tickers de series a visualizar (ej: ["banrep_5", "banrep_12"]). Maximo 5 series.',
+          description: 'Array de tickers de series (ej: ["a87ff679a2f3e71d9181a67b7542122c"]). Maximo 5.',
+        },
+        names: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Array de display_name correspondientes a cada ticker (ej: ["PIB Total"]). Mismo orden que tickers.',
         },
         description: {
           type: 'string',
           description: 'Descripcion breve de que series se van a mostrar.',
         },
       },
-      required: ['tickers', 'description'],
+      required: ['tickers', 'names', 'description'],
     },
   },
 ];

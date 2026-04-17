@@ -73,6 +73,7 @@ export interface MarketDashboardSlice {
 
   fetchWatchlistSnapshot: (config: DashboardConfig) => Promise<void>;
   addToChart: (entry: WatchlistEntry) => Promise<void>;
+  addTickerToChart: (ticker: string, displayName: string) => Promise<void>;
   addFundToChart: (compartimentos: WatchlistEntry[]) => Promise<void>;
   addCurrencyPairToChart: (pair: string) => Promise<void>;
   removeFromChart: (ticker: string) => void;
@@ -312,6 +313,45 @@ const createMarketDashboardSlice: StateCreator<MarketDashboardSlice> = (
           {
             ticker: entry.ticker,
             display_name: entry.display_name,
+            color,
+            fullData: fullSerieData,
+            data: filteredData,
+          },
+        ],
+        chartLoading: false,
+      }));
+    } else {
+      set({ chartLoading: false });
+    }
+  },
+
+  addTickerToChart: async (ticker: string, displayName: string) => {
+    const state = get();
+    if (state.chartSelections.find((s) => s.ticker === ticker)) {
+      return;
+    }
+
+    set({ chartLoading: true });
+    const color = getHexColor(state.chartSelections.length);
+
+    const response = await fetchSeriesData({
+      idSerie: ticker,
+      newColor: color,
+    });
+
+    if (response.data) {
+      const fullSerieData = response.data.serie as LightSerieValue[];
+      const cutoff = getPeriodCutoff(state.chartPeriod);
+      const filteredData = cutoff
+        ? fullSerieData.filter((d) => d.time >= cutoff)
+        : fullSerieData;
+
+      set((prev) => ({
+        chartSelections: [
+          ...prev.chartSelections,
+          {
+            ticker,
+            display_name: displayName,
             color,
             fullData: fullSerieData,
             data: filteredData,
