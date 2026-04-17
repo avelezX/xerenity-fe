@@ -1,5 +1,5 @@
 import { StateCreator } from 'zustand';
-import type { ChatMessage, ChartSpec, SeriesAction, SSEEvent } from 'src/types/chat';
+import type { ChatMessage, ChartSpec, SSEEvent } from 'src/types/chat';
 import { streamChat } from 'src/utils/sse-client';
 
 export interface ChatSlice {
