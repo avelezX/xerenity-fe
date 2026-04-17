@@ -310,7 +310,7 @@ function executeControlChart(input: Record<string, unknown>): ToolResult {
   return {
     success: true,
     chartAction,
-    data: { action, ...chartAction },
+    data: { ...chartAction },
   };
 }
 
