@@ -261,7 +261,7 @@ function executeViewSeries(input: Record<string, unknown>): ToolResult {
     return { success: false, error: 'Maximo 5 series a la vez' };
   }
 
-  const path = `/series?series=${tickers.join(',')}`;
+  const path = `/suameca?series=${tickers.join(',')}`;
 
   return {
     success: true,
