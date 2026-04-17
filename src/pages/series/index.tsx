@@ -11,7 +11,8 @@ import {
   Toast,
   Badge,
 } from 'react-bootstrap';
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useRouter } from 'next/router';
 import { LightSerieEntry, lightSerieValueArray } from 'src/types/lightserie';
 import { FontAwesomeIcon as Icon } from '@fortawesome/react-fontawesome';
 import {
@@ -42,8 +43,10 @@ const PAGE_TITLE = 'Series';
 const NORMALIZE_SINCE = 'Normalizar desde:';
 
 export default function Dashboard() {
+  const router = useRouter();
   const normalizeDate = useRef<string>('');
   const searchByName = useRef<string>('');
+  const urlSeriesLoaded = useRef<boolean>(false);
 
   const {
     filteredSeries,
@@ -81,6 +84,30 @@ export default function Dashboard() {
     searchSeries({});
     return () => resetStore(); // Reset when component unmount
   }, [resetStore, searchSeries]);
+
+  // Auto-load series from URL query params (e.g., /series?series=ticker1,ticker2)
+  const loadSeriesFromUrl = useCallback(() => {
+    if (urlSeriesLoaded.current || allSeries.length === 0) return;
+
+    const seriesParam = router.query.series;
+    if (!seriesParam) return;
+
+    const tickers = (typeof seriesParam === 'string' ? seriesParam : seriesParam[0]).split(',');
+    urlSeriesLoaded.current = true;
+
+    tickers.forEach((ticker) => {
+      const trimmed = ticker.trim();
+      const found = allSeries.find((s) => s.ticker === trimmed);
+      if (found) {
+        const color = getGroupColor(found.grupo);
+        addSelectedSerie(found.ticker, color, found.display_name);
+      }
+    });
+  }, [allSeries, router.query.series, addSelectedSerie]);
+
+  useEffect(() => {
+    loadSeriesFromUrl();
+  }, [loadSeriesFromUrl]);
 
   function arrayDifference<T>(array1: T[], array2: T[]): T {
     return array1.filter((item) => !array2.includes(item))[0];

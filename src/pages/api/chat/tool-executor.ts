@@ -250,6 +250,26 @@ async function executeCreateLoan(
   }
 }
 
+function executeViewSeries(input: Record<string, unknown>): ToolResult {
+  const tickers = input.tickers as string[];
+
+  if (!Array.isArray(tickers) || tickers.length === 0) {
+    return { success: false, error: 'Se requiere al menos un ticker de serie' };
+  }
+
+  if (tickers.length > 5) {
+    return { success: false, error: 'Maximo 5 series a la vez' };
+  }
+
+  const path = `/series?series=${tickers.join(',')}`;
+
+  return {
+    success: true,
+    navigationTarget: path,
+    data: { path, description: input.description, tickers },
+  };
+}
+
 // eslint-disable-next-line import/prefer-default-export
 export async function executeTool(
   toolName: string,
@@ -267,6 +287,8 @@ export async function executeTool(
       return executeCreatePosition(toolInput, userSupabase);
     case 'create_loan':
       return executeCreateLoan(toolInput, userSupabase);
+    case 'view_series':
+      return executeViewSeries(toolInput);
     default:
       return { success: false, error: `Tool desconocido: ${toolName}` };
   }
