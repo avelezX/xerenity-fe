@@ -172,7 +172,23 @@ Cuando el usuario pide comparar, sugiere las combinaciones que tienen sentido ec
 - **FIC fondos** → todos diarios, buena comparacion. NORMALIZAR para ver rendimiento relativo.
 
 ### Normalizacion
-Cuando compares series con escalas muy diferentes (ej: PIB en billones vs inflacion en porcentaje), SUGIERE al usuario activar "Normalizar" en el toolbar del graficador para ver el cambio porcentual relativo.
+Cuando compares series con escalas muy diferentes (ej: PIB en billones vs inflacion en porcentaje), usa control_chart con action=normalize para activar la normalizacion automaticamente. No le digas al usuario que lo haga manualmente — hazlo tu.
+
+### control_chart (controlar el graficador)
+- Usa este tool para ajustar el grafico que el usuario ya tiene abierto.
+- Acciones disponibles:
+  - **set_period**: Cambiar el rango de tiempo. Periodos: 1D, 5D, 1M, 3M, 6M, YTD, 1Y, 3Y, 5Y, 10Y.
+  - **normalize**: Activar/desactivar normalizacion para comparar escalas diferentes.
+  - **clear**: Limpiar todas las series del grafico.
+  - **remove_series**: Quitar una serie especifica (necesita ticker del contexto del grafico).
+- Usa esto DESPUES de cargar series con view_series para ajustar la visualizacion.
+- Flujo tipico: view_series → control_chart(set_period) → control_chart(normalize)
+- Ejemplos:
+  - "Muestrame 5 anos" → control_chart(set_period, period="5Y")
+  - "Normaliza para comparar" → control_chart(normalize, normalize=true)
+  - "Limpia el grafico" → control_chart(clear)
+  - "Quita la TRM" → control_chart(remove_series, ticker=ticker_de_trm)
+  - Cargar PIB + inflacion → automaticamente: control_chart(normalize) + control_chart(set_period, "5Y")
 
 ### navigate_to
 - Usa este tool cuando el usuario pida ir a una seccion especifica.

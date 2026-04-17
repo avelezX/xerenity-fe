@@ -173,10 +173,15 @@ export default function ChatPanel() {
     addTickerToChart,
     chartSelections,
     chartPeriod,
+    setChartPeriod,
+    setNormalizeChart,
+    clearChart,
+    removeFromChart,
   } = useAppStore();
 
   const lastNavTarget = useRef<string | null>(null);
   const lastSeriesAction = useRef<string | null>(null);
+  const lastChartAction = useRef<string | null>(null);
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -215,6 +220,36 @@ export default function ChatPanel() {
       addTickerToChart(ticker, displayName);
     });
   }, [chatMessages, chatLoading, router, addTickerToChart]);
+
+  // Execute chart control actions (period, normalize, clear, remove)
+  useEffect(() => {
+    if (chatLoading) return;
+    const lastMsg = chatMessages[chatMessages.length - 1];
+    if (!lastMsg?.chartControlAction) return;
+
+    const actionKey = JSON.stringify(lastMsg.chartControlAction);
+    if (actionKey === lastChartAction.current) return;
+    lastChartAction.current = actionKey;
+
+    const { action, period, normalize, ticker } = lastMsg.chartControlAction;
+
+    switch (action) {
+      case 'set_period':
+        if (period) setChartPeriod(period as Parameters<typeof setChartPeriod>[0]);
+        break;
+      case 'normalize':
+        setNormalizeChart(normalize !== false);
+        break;
+      case 'clear':
+        clearChart();
+        break;
+      case 'remove_series':
+        if (ticker) removeFromChart(ticker);
+        break;
+      default:
+        break;
+    }
+  }, [chatMessages, chatLoading, setChartPeriod, setNormalizeChart, clearChart, removeFromChart]);
 
   // Focus input on open
   useEffect(() => {

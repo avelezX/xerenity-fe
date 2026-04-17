@@ -16,12 +16,20 @@ function getServiceClient() {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnySupabaseClient = ReturnType<typeof createClient> | any;
 
+export interface ChartAction {
+  action: 'set_period' | 'normalize' | 'clear' | 'remove_series';
+  period?: string;
+  normalize?: boolean;
+  ticker?: string;
+}
+
 export interface ToolResult {
   success: boolean;
   data?: unknown;
   error?: string;
   chartData?: unknown;
   navigationTarget?: string;
+  chartAction?: ChartAction;
 }
 
 async function executeQuery(input: Record<string, unknown>): Promise<ToolResult> {
@@ -269,6 +277,43 @@ function executeViewSeries(input: Record<string, unknown>): ToolResult {
   };
 }
 
+function executeControlChart(input: Record<string, unknown>): ToolResult {
+  const action = input.action as string;
+  const validActions = ['set_period', 'normalize', 'clear', 'remove_series'];
+
+  if (!validActions.includes(action)) {
+    return { success: false, error: `Accion invalida: ${action}` };
+  }
+
+  const chartAction: ChartAction = { action: action as ChartAction['action'] };
+
+  if (action === 'set_period') {
+    const period = input.period as string;
+    const validPeriods = ['1D', '5D', '1M', '3M', '6M', 'YTD', '1Y', '3Y', '5Y', '10Y'];
+    if (!period || !validPeriods.includes(period)) {
+      return { success: false, error: `Periodo invalido: ${period}. Validos: ${validPeriods.join(', ')}` };
+    }
+    chartAction.period = period;
+  }
+
+  if (action === 'normalize') {
+    chartAction.normalize = input.normalize !== false;
+  }
+
+  if (action === 'remove_series') {
+    if (!input.ticker) {
+      return { success: false, error: 'Se requiere el ticker de la serie a quitar' };
+    }
+    chartAction.ticker = input.ticker as string;
+  }
+
+  return {
+    success: true,
+    chartAction,
+    data: { action, ...chartAction },
+  };
+}
+
 // eslint-disable-next-line import/prefer-default-export
 export async function executeTool(
   toolName: string,
@@ -288,6 +333,8 @@ export async function executeTool(
       return executeCreateLoan(toolInput, userSupabase);
     case 'view_series':
       return executeViewSeries(toolInput);
+    case 'control_chart':
+      return executeControlChart(toolInput);
     default:
       return { success: false, error: `Tool desconocido: ${toolName}` };
   }

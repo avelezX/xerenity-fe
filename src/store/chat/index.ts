@@ -140,6 +140,8 @@ const createChatSlice: StateCreator<ChatSlice> = (set, get) => ({
                     description: event.seriesData.description as string,
                   }
                   : m.seriesAction,
+                // Store chart control action
+                chartControlAction: event.chartAction || m.chartControlAction,
               }));
               break;
 
