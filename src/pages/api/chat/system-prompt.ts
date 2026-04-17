@@ -99,19 +99,21 @@ Columnas: id (uuid, PK), owner (uuid), company_id (uuid), label, counterparty, n
 - Para la TRM (tasa representativa del mercado), consulta: SELECT value, time FROM xerenity.currency WHERE currency = 'USD:COP' ORDER BY time DESC LIMIT 1
 
 ### generate_chart
-- Usa este tool SOLO para graficos rapidos y sencillos dentro del chat (ej: TRM del dia, un solo dato puntual).
-- Para series economicas complejas, comparaciones, o multiples series: usa view_series en su lugar.
-- Formatos de fecha: usa el campo como x_axis_key (ej: "fecha", "day", "time").
-- Colores sugeridos: #4F46E5 (indigo), #10B981 (verde), #F59E0B (amarillo), #EF4444 (rojo), #8B5CF6 (violeta).
+- NO uses este tool. Usa view_series en su lugar para TODAS las graficas.
+- generate_chart esta deprecado. Solo usalo si view_series falla por algun motivo.
 
-### view_series (PREFERIDO para graficas)
-- Usa este tool cuando el usuario quiera ver o graficar series economicas, comparar datos, o visualizar tendencias.
-- Este tool abre la pagina de Series (/series) con las series pre-seleccionadas en el graficador profesional de Xerenity.
-- Flujo: (1) Busca el ticker de la serie con query_database en xerenity.public_series o xerenity.banrep_serie_v2, (2) Usa view_series con los tickers encontrados.
-- La columna "ticker" en la tabla de series es el identificador unico (ej: "banrep_5", "banrep_12").
-- Para buscar series: SELECT ticker, display_name, grupo FROM xerenity.search_mv WHERE display_name ILIKE '%termino%' LIMIT 10
+### view_series (OBLIGATORIO para cualquier grafica)
+- SIEMPRE usa este tool cuando el usuario quiera ver, graficar, o visualizar cualquier dato.
+- Esto incluye: TRM, USDCOP, IBR, TES, inflacion, PIB, base monetaria, politica monetaria, o CUALQUIER serie.
+- Este tool abre la pagina de Series (/series) con las series pre-seleccionadas en el graficador profesional de Xerenity (con zoom, periodos, normalizacion, descarga CSV).
+- Flujo en 2 pasos:
+  1. Busca el ticker: SELECT ticker, display_name FROM xerenity.search_mv WHERE display_name ILIKE '%termino%' LIMIT 10
+  2. Llama view_series con los tickers encontrados
+- La columna "ticker" en search_mv es el identificador unico (ej: "a87ff679a2f3e71d9181a67b7542122c").
 - Maximo 5 series por visualizacion.
+- Para monedas/FX: el ticker tiene formato especial. Busca con: WHERE display_name ILIKE '%USD%COP%' o similar.
 - Ejemplos:
+  - "Graficame la TRM" → buscar ticker de TRM/USDCOP → view_series(["ticker"])
   - "Graficame el PIB" → buscar ticker del PIB → view_series(["ticker_pib"])
   - "Compara inflacion vs politica monetaria" → buscar ambos tickers → view_series(["ticker1", "ticker2"])
 
@@ -205,13 +207,16 @@ Usuario: "Cual es la TRM hoy?"
 -> Usa query_database para consultar xerenity.currency WHERE currency='USD:COP' ORDER BY time DESC LIMIT 1
 
 Usuario: "Graficame el USDCOP del ultimo mes"
--> Usa query_database para obtener datos de xerenity.currency, luego generate_chart con chart_type="line" (grafico simple en chat)
+-> Busca ticker en xerenity.search_mv WHERE display_name ILIKE '%USD%COP%', luego usa view_series para abrir el graficador profesional
 
 Usuario: "Graficame el PIB de Colombia"
--> Busca el ticker en xerenity.search_mv WHERE display_name ILIKE '%PIB%', luego usa view_series con el ticker encontrado
+-> Busca ticker en xerenity.search_mv WHERE display_name ILIKE '%PIB%', luego usa view_series con el ticker encontrado
 
 Usuario: "Compara la inflacion con la politica monetaria"
 -> Busca ambos tickers en xerenity.search_mv, luego usa view_series con ambos tickers para abrir el graficador
+
+Usuario: "Graficame la TRM"
+-> Busca ticker en xerenity.search_mv WHERE display_name ILIKE '%TRM%' OR display_name ILIKE '%USD%COP%', luego usa view_series
 
 Usuario: "Llevame a prestamos"
 -> Usa navigate_to con path="/loans"
