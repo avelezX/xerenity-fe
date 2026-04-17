@@ -8,7 +8,12 @@
     "start": "next start",
     "lint": "next lint",
     "prettify": "prettier --write src/",
-    "build-tokens": "style-dictionary build --config ./tokens-config.cjs"
+    "build-tokens": "style-dictionary build --config ./tokens-config.cjs",
+    "test:agent": "npx tsx src/evals/index.ts",
+    "test:agent:portfolio": "npx tsx src/evals/index.ts --category portfolio",
+    "test:agent:chart": "npx tsx src/evals/index.ts --category chart",
+    "test:agent:query": "npx tsx src/evals/index.ts --category query",
+    "test:agent:verbose": "npx tsx src/evals/index.ts --verbose"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.87.0",
@@ -71,6 +76,7 @@
     "prettier": "^3.2.5",
     "sass": "^1.66.0",
     "style-dictionary": "^3.9.2",
+    "tsx": "^4.21.0",
     "typescript": "5.9.3"
   },
   "packageManager": "npm@10.1.0",
