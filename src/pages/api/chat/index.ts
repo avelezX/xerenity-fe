@@ -68,6 +68,15 @@ async function executeToolCalls(
         }
       }
 
+      if (result.chartAction) {
+        sendSSE(res, {
+          type: 'tool_result',
+          tool: toolBlock.name,
+          toolCallId: toolBlock.id,
+          chartAction: result.chartAction,
+        });
+      }
+
       return {
         type: 'tool_result' as const,
         tool_use_id: toolBlock.id,

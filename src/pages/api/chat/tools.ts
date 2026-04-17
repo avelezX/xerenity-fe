@@ -183,4 +183,39 @@ export const tools: Anthropic.Tool[] = [
       required: ['tickers', 'names', 'description'],
     },
   },
+  {
+    name: 'control_chart',
+    description:
+      'Controla el graficador actual: cambiar periodo, normalizar, limpiar, o quitar series. ' +
+      'Usa este tool para ajustar la visualizacion del grafico que el usuario ya tiene abierto.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        action: {
+          type: 'string',
+          enum: ['set_period', 'normalize', 'clear', 'remove_series'],
+          description:
+            'Accion a ejecutar:\n' +
+            '- set_period: Cambiar el rango de tiempo del grafico\n' +
+            '- normalize: Activar/desactivar normalizacion (util para comparar series de escalas diferentes)\n' +
+            '- clear: Limpiar todas las series del grafico\n' +
+            '- remove_series: Quitar una serie especifica del grafico',
+        },
+        period: {
+          type: 'string',
+          enum: ['1D', '5D', '1M', '3M', '6M', 'YTD', '1Y', '3Y', '5Y', '10Y'],
+          description: 'Periodo de tiempo (solo para action=set_period).',
+        },
+        normalize: {
+          type: 'boolean',
+          description: 'true para activar, false para desactivar (solo para action=normalize).',
+        },
+        ticker: {
+          type: 'string',
+          description: 'Ticker de la serie a quitar (solo para action=remove_series).',
+        },
+      },
+      required: ['action'],
+    },
+  },
 ];

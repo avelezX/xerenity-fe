@@ -4,6 +4,13 @@ export interface SeriesAction {
   description: string;
 }
 
+export interface ChartControlAction {
+  action: 'set_period' | 'normalize' | 'clear' | 'remove_series';
+  period?: string;
+  normalize?: boolean;
+  ticker?: string;
+}
+
 export interface ChatMessage {
   id: string;
   role: 'user' | 'assistant';
@@ -13,6 +20,7 @@ export interface ChatMessage {
   charts?: ChartSpec[];
   navigationTarget?: string;
   seriesAction?: SeriesAction;
+  chartControlAction?: ChartControlAction;
 }
 
 export interface ToolCallResult {
@@ -47,6 +55,7 @@ export interface SSEEvent {
   chartData?: ChartSpec;
   navigationTarget?: string;
   seriesData?: { tickers: string[]; names: string[]; description: string };
+  chartAction?: ChartControlAction;
   error?: string;
 }
 
