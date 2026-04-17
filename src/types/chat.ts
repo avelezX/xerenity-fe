@@ -1,3 +1,9 @@
+export interface SeriesAction {
+  tickers: string[];
+  names: string[];
+  description: string;
+}
+
 export interface ChatMessage {
   id: string;
   role: 'user' | 'assistant';
@@ -6,6 +12,7 @@ export interface ChatMessage {
   toolCalls?: ToolCallResult[];
   charts?: ChartSpec[];
   navigationTarget?: string;
+  seriesAction?: SeriesAction;
 }
 
 export interface ToolCallResult {
@@ -39,6 +46,7 @@ export interface SSEEvent {
   result?: Record<string, unknown>;
   chartData?: ChartSpec;
   navigationTarget?: string;
+  seriesData?: { tickers: string[]; names: string[]; description: string };
   error?: string;
 }
 

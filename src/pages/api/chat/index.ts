@@ -45,12 +45,27 @@ async function executeToolCalls(
       }
 
       if (result.navigationTarget) {
-        sendSSE(res, {
-          type: 'tool_result',
-          tool: toolBlock.name,
-          toolCallId: toolBlock.id,
-          navigationTarget: result.navigationTarget,
-        });
+        // view_series returns tickers in data — send as seriesData for in-page loading
+        const resultData = result.data as Record<string, unknown> | undefined;
+        if (toolBlock.name === 'view_series' && resultData?.tickers) {
+          sendSSE(res, {
+            type: 'tool_result',
+            tool: toolBlock.name,
+            toolCallId: toolBlock.id,
+            seriesData: {
+              tickers: resultData.tickers,
+              names: resultData.names,
+              description: resultData.description || '',
+            },
+          });
+        } else {
+          sendSSE(res, {
+            type: 'tool_result',
+            tool: toolBlock.name,
+            toolCallId: toolBlock.id,
+            navigationTarget: result.navigationTarget,
+          });
+        }
       }
 
       return {

@@ -1,5 +1,5 @@
 import { StateCreator } from 'zustand';
-import type { ChatMessage, ChartSpec, SSEEvent } from 'src/types/chat';
+import type { ChatMessage, ChartSpec, SeriesAction, SSEEvent } from 'src/types/chat';
 import { streamChat } from 'src/utils/sse-client';
 
 export interface ChatSlice {
@@ -123,6 +123,14 @@ const createChatSlice: StateCreator<ChatSlice> = (set, get) => ({
                   : m.charts,
                 // Store navigation target
                 navigationTarget: event.navigationTarget || m.navigationTarget,
+                // Store series action for in-page chart loading
+                seriesAction: event.seriesData
+                  ? {
+                    tickers: event.seriesData.tickers as string[],
+                    names: (event.seriesData.names as string[]) || event.seriesData.tickers as string[],
+                    description: event.seriesData.description as string,
+                  }
+                  : m.seriesAction,
               }));
               break;
 
