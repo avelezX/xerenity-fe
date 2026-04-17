@@ -43,6 +43,7 @@ const DASHBOARD_TABS = [
   { label: 'FIC', path: '/fic' },
   { label: 'Peru', path: '/peru' },
   { label: 'Chile', path: '/chile' },
+  { label: 'CDS Sovereign', path: '/cds-sovereign' },
   { label: 'Par de Monedas', path: '/par-monedas' },
 ];
 
