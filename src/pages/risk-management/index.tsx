@@ -1844,15 +1844,19 @@ function RiskManagement() {
                         {priceField('precio_maiz_cent_bu', 'Precio Maíz (¢/bu)')}
                         <tr><td style={labelTd}>Base (¢/bu)</td><td style={inputTd}>{numInput('base_maiz_cent_bu')}</td></tr>
                         <tr><td style={labelTd}>Conversión bu/ton</td><td style={{ ...valTd, ...calcStyle }}>0.3937</td></tr>
-                        <tr><td style={labelTd}>Precio Maíz (¢/ton)</td><td style={{ ...valTd, ...calcStyle, fontWeight: 600 }}>{mz ? n(mz.precio_cent_ton as number) : '—'}</td></tr>
-                        <tr><td style={labelTd}>Precio Maíz (USD/ton)</td><td style={{ ...valTd, ...calcStyle, fontWeight: 600 }}>{mz ? n(mz.precio_usd_ton as number, 4) : '—'}</td></tr>
+                        <tr><td style={labelTd}>Precio Maíz (¢/ton)</td><td style={{ ...valTd, ...calcStyle, fontWeight: 600 }}>{mz ? n((mz.detalle as Record<string, number>).precio_cent_ton) : '—'}</td></tr>
+                        <tr><td style={labelTd}>Precio Maíz (USD/ton)</td><td style={{ ...valTd, ...calcStyle, fontWeight: 600 }}>{mz ? n((mz.detalle as Record<string, number>).precio_usd_ton, 4) : '—'}</td></tr>
                         <tr><td style={labelTd}>Flete Oceánico (USD/ton)</td><td style={inputTd}>{numInput('flete_usd_ton')}</td></tr>
-                        <tr><td style={labelTd}>Crédito Subproductos</td><td style={{ ...valTd, ...calcStyle }}>{mz ? n(mz.credito_subproductos as number) : '—'}</td></tr>
+                        <tr><td style={labelTd}>Crédito Subproductos</td><td style={{ ...valTd, ...calcStyle }}>{mz ? n((mz.detalle as Record<string, number>).credito_subproductos) : '—'}</td></tr>
                         <tr><td style={labelTd}>Factor Maíz→Glucosa</td><td style={inputTd}>{numInput('factor_maiz_glucosa', '0.001')}</td></tr>
-                        <tr><td style={labelTd}>Glucosa Materia (USD/ton)</td><td style={{ ...valTd, ...calcStyle, fontWeight: 600 }}>{mz ? n(mz.glucosa_materia as number) : '—'}</td></tr>
+                        <tr><td style={labelTd}>Glucosa Materia (USD/ton)</td><td style={{ ...valTd, ...calcStyle, fontWeight: 600 }}>{mz ? n((mz.detalle as Record<string, number>).glucosa_materia) : '—'}</td></tr>
                         <tr><td style={labelTd}>Processing Fee (USD/ton)</td><td style={inputTd}>{numInput('processing_fee_usd')}</td></tr>
                         <tr><td style={labelTd}>Processing Fee (COP/kg)</td><td style={inputTd}>{numInput('proc_fee_cop_kg')}</td></tr>
-                        <tr><td style={labelTd}>Precio Glucosa (USD/ton)</td><td style={{ ...valTd, ...calcStyle, fontWeight: 600 }}>{mz ? n(mz.precio_glucosa as number) : '—'}</td></tr>
+                        <tr><td style={labelTd}>Precio Glucosa (USD/ton)</td><td style={{ ...valTd, ...calcStyle, fontWeight: 600 }}>{mz ? n((mz.detalle as Record<string, number>).precio_glucosa) : '—'}</td></tr>
+                        {/* ── Contratos de maiz CBOT ZC ── */}
+                        <tr><td style={labelTd}>TON Contrato (CBOT ZC)</td><td style={{ ...valTd, ...calcStyle }}>{mz ? n((mz.detalle as Record<string, number>).ton_contrato, 0) : '—'}</td></tr>
+                        <tr><td style={labelTd}>TON Maíz reales</td><td style={{ ...valTd, ...calcStyle }}>{mz ? n(mz.tons_reales as number, 0) : '—'}</td></tr>
+                        <tr><td style={labelTd}># Contratos</td><td style={{ ...valTd, ...calcStyle, fontWeight: 600 }}>{mz ? n(mz.num_contratos as number, 2) : '—'}</td></tr>
                         <tr><td style={{ ...labelTd, fontWeight: 700 }}>Exposición USD</td><td style={resultTd}>{mz ? fmtUsd(mz.exposicion_usd) : '—'}</td></tr>
                       </tbody>
                     </table>

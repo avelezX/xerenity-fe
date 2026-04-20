@@ -241,8 +241,14 @@ export async function fetchExposure(
   return {
     ...result,
     market_prices: marketPrices,
-    exposicion_ventas_intl: result.exposicion_real_usd,
-    exposicion_pen: 0,
+    // exposicion_ventas_intl es el INPUT de Ventas Internacionales (USD),
+    // no el resultado de Exposicion Real. Bug anterior: asignaba
+    // result.exposicion_real_usd, lo que hacia que "Ventas Intl" y "Real USD"
+    // mostraran el mismo numero en el resumen (ambos 82.6M) aunque el input
+    // era 130M.
+    exposicion_ventas_intl: result.ventas_intl_usd,
+    // exposicion_pen = input de Ventas Peru (no hardcode 0).
+    exposicion_pen: result.ventas_pe_usd,
   } as unknown as ExposureResponse;
 }
 

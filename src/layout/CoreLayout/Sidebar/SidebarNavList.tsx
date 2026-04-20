@@ -65,7 +65,7 @@ const NAV_ITEMS: NavItemProps[] = [
 
 const RIESGOS_SUBNAV: NavItemProps[] = [
   { name: 'Resumen', path: '/risk-resumen', icon: faChartPie, active: false },
-  { name: 'Commodities', path: '/risk-management', icon: faChartArea, active: false },
+  { name: 'Exposición', path: '/risk-management', icon: faChartArea, active: false },
   { name: 'Créditos', path: '/loans', icon: faLandmark, active: false },
   { name: 'Portafolio OTC', path: '/portfolio', icon: faBriefcase, active: false },
   { name: 'NDF Pricer', path: '/ndf-pricer', icon: faCalculator, active: false },
