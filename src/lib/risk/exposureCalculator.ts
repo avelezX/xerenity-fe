@@ -11,7 +11,10 @@ import type { ExposureParams } from 'src/types/risk';
 
 const LIBRAS_CONTRATO = 112_000; // lbs per sugar contract
 const LBS_PER_TON = 2204.62;
-const CONV_BU_TON = 0.3936825; // bushels to tons conversion
+const CONV_BU_TON = 0.3936825; // combined factor: cents/bu → USD/ton (= 1/(100×0.0254))
+const TON_PER_BUSHEL = 0.0254; // 1 bushel de maiz = 0.0254 toneladas
+const CORN_BUSHELS_CONTRATO = 5000; // CBOT Corn futures: 5,000 bushels per contract
+const CORN_TON_CONTRATO = CORN_BUSHELS_CONTRATO * TON_PER_BUSHEL; // = 127 tons
 const CREDITO_PCT = 0.26; // corn byproduct credit percentage
 const COCOA_TON_CONTRATO = 10; // tons per cocoa contract
 
@@ -64,33 +67,44 @@ function calcularAzucar(params: ExposureParams): CommodityExposure {
 // ── Corn/Glucose (Maíz CME ZC) ──
 
 function calcularMaiz(params: ExposureParams): CommodityExposure {
-  const tonTotal = (params.proyeccion_glucosa ?? []).reduce((a: number, b: number) => a + b, 0);
+  const tonTotalGlucosa = (params.proyeccion_glucosa ?? []).reduce((a: number, b: number) => a + b, 0);
+  const factorMaizGlucosa = params.factor_maiz_glucosa ?? 1.495;
   const precioCentBu = (params.precio_maiz_cent_bu ?? 0) + (params.base_maiz_cent_bu ?? 0);
-  const precioCentTon = precioCentBu * CONV_BU_TON;
-  const precioUsdTon = precioCentTon / 100;
+  const precioUsdTon = precioCentBu * CONV_BU_TON; // CONV_BU_TON ya combina cents→USD × bu→ton
+  const precioCentTon = precioUsdTon * 100;
   const precioNet = (params.flete_usd_ton ?? 0) + precioUsdTon;
   const creditoSubproductos = precioNet * CREDITO_PCT;
   const precioNeto = precioUsdTon + creditoSubproductos;
-  const glucosaMateria = (params.factor_maiz_glucosa ?? 1.495) * precioNeto;
+  const glucosaMateria = factorMaizGlucosa * precioNeto;
   const procFeeUsdTon = ((params.proc_fee_cop_kg ?? 0) / (params.trm ?? 1)) * 1000;
   const precioGlucosa = procFeeUsdTon + (params.processing_fee_usd ?? 0) + glucosaMateria;
-  const exposicionUsd = tonTotal * precioGlucosa;
+  const exposicionUsd = tonTotalGlucosa * precioGlucosa;
+
+  // # Contratos de maiz (CBOT ZC): se calcula a partir de las toneladas de
+  // MAIZ necesarias (no glucosa) = tons_glucosa × factor_maiz_glucosa.
+  // Contrato estandar CBOT = 5,000 bushels = 127 toneladas.
+  const tonsMaizReales = tonTotalGlucosa * factorMaizGlucosa;
+  const numContratos = tonsMaizReales / CORN_TON_CONTRATO;
 
   return {
     nombre: 'MAIZ',
-    proyeccion_tons: tonTotal,
-    tons_reales: tonTotal,
-    num_contratos: tonTotal * CONV_BU_TON,
+    proyeccion_tons: tonTotalGlucosa,
+    tons_reales: tonsMaizReales,
+    num_contratos: numContratos,
     precio_unitario: precioGlucosa,
     exposicion_usd: exposicionUsd,
     detalle: {
       precio_cent_bu: precioCentBu,
+      precio_cent_ton: precioCentTon,
       precio_usd_ton: precioUsdTon,
       flete_usd_ton: params.flete_usd_ton ?? 0,
       credito_subproductos: creditoSubproductos,
       glucosa_materia: glucosaMateria,
       proc_fee_usd_ton: procFeeUsdTon,
       processing_fee_usd: params.processing_fee_usd ?? 0,
+      precio_glucosa: precioGlucosa,
+      ton_contrato: CORN_TON_CONTRATO,
+      factor_maiz_glucosa: factorMaizGlucosa,
     },
   };
 }
