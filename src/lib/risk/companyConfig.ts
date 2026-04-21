@@ -205,6 +205,7 @@ export const COMMODITY_TEMPLATES: CommodityConfig[] = [
   { asset: 'AZUCAR', unit: 'TONS', price_unit: 'cents/lb', contract_multiplier: 112000, chart_color: '#10b981', exchange: 'ICE', symbol: 'SB' },
   { asset: 'CACAO', unit: 'TONS', price_unit: 'USD/ton', contract_multiplier: 10, chart_color: '#8b5cf6', exchange: 'ICE', symbol: 'CC' },
   { asset: 'CAFE', unit: 'TONS', price_unit: 'cents/lb', contract_multiplier: 37500, chart_color: '#78350f', exchange: 'ICE', symbol: 'KC' },
+  { asset: 'ACEITE_PALMA', unit: 'TONS', price_unit: 'MYR/ton', contract_multiplier: 25, chart_color: '#dc2626', exchange: 'MDEX', symbol: 'FCPO' },
   { asset: 'PETROLEO', unit: 'BBL', price_unit: 'USD/bbl', contract_multiplier: 1000, chart_color: '#1e293b', exchange: 'NYMEX', symbol: 'CL' },
   { asset: 'TRIGO', unit: 'TONS', price_unit: 'cents/bu', contract_multiplier: 5000, chart_color: '#d97706', exchange: 'CME', symbol: 'ZW' },
   { asset: 'SOYA', unit: 'TONS', price_unit: 'cents/bu', contract_multiplier: 5000, chart_color: '#059669', exchange: 'CME', symbol: 'ZS' },
