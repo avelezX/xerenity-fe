@@ -26,6 +26,12 @@ export interface CommodityExposure {
   precio_unitario: number;
   exposicion_usd: number;
   detalle: Record<string, number>;
+  // Opcionales para las formulaciones Super (AKOMEL/CEBES/ALMIDON)
+  exchange?: string;
+  unidad_cotizacion?: string;
+  ton_total?: number;
+  precio_por_ton?: number;
+  precio_futuro?: number | null;
 }
 
 export interface ExposureResult {
@@ -169,9 +175,297 @@ function calcularEmpaque(params: ExposureParams): CommodityExposure {
   };
 }
 
+// ── AKOMEL COP (Super de Alimentos: aceite de palma de Malasia) ──
+// Port fiel del instructivo Python. Expone TODOS los intermedios por producto
+// para auditoria contra la hoja de calculo (referencias de celda en comentarios).
+
+export interface AkomelResult {
+  // Precio crudo puesto puerto
+  tariff_aak_my: number;             // USD/TON — D10
+  precio_crudo_cop_ton: number;      // COP/TON — D13
+  precio_crudo_cop_kg: number;       // COP/KG  — D14
+  // Base proceso
+  materia_prima: number;             // COP/KG  — D16
+  bonificacion_calidad: number;      // COP/KG  — D17
+  precio_mp_puesto_planta: number;   // COP/KG  — D20
+  // AKOMEL NH Granel
+  paso1_granel: number;              // D27 (tras rend. impurezas+humedad)
+  paso2_granel: number;              // D28 (tras rend. acidez+AAK)
+  precio_akomel_nh_granel: number;   // D30 (PRECIO FINAL)
+  // AKOMEL NH Sin Lecitina Caja 15Kg
+  paso1_sl: number;                  // D33
+  paso2_sl: number;                  // D34
+  precio_akomel_nh_sl_caja15: number; // D37 (PRECIO FINAL)
+  // AKOMEL NH Saborizado Caja 15Kg
+  paso1_sab: number;                 // D40
+  paso2_sab: number;                 // D41
+  precio_akomel_nh_sab_caja15: number; // D44 (PRECIO FINAL)
+}
+
+export function calcularAkomelCop(p: ExposureParams): AkomelResult {
+  const fob = p.akomel_fob_malasya ?? 0;
+  const flete = p.akomel_international_freight ?? 0;
+  const riskFee = p.akomel_risk_futures_fee ?? 0;
+  // TRM = TRM global de Xerenity (alimentada de BanRep via market_prices).
+  // Antes era un campo independiente; se sincronizo para evitar inconsistencias.
+  const trm = p.trm ?? 0;
+  const primaAbast = p.akomel_prima_abastecimiento ?? 0;
+  const fleteExt = p.akomel_flete_extractora_fabrica ?? 0;
+  // Constantes con default
+  const tariffPct = p.akomel_tariff_aak_my_pct ?? 0.0004;
+  const bonifPct = p.akomel_bonificacion_calidad_pct ?? 0.025;
+  // Rendimientos por producto (defaults identicos a la hoja actual)
+  const rendIhG = p.akomel_rend_impurezas_humedad_granel ?? 0.99;
+  const rendAaG = p.akomel_rend_acidez_aak_granel ?? 0.96;
+  const costG = p.akomel_costos_transf_granel ?? 0;
+  const rendIhSL = p.akomel_rend_impurezas_humedad_sl ?? 0.99;
+  const rendAaSL = p.akomel_rend_acidez_aak_sl ?? 0.96;
+  const costSL = p.akomel_costos_transf_sl ?? 0;
+  const empSL = p.akomel_material_empaque_sl ?? 0;
+  const rendIhSab = p.akomel_rend_impurezas_humedad_sab ?? 0.99;
+  const rendAaSab = p.akomel_rend_acidez_aak_sab ?? 0.96;
+  const costSab = p.akomel_costos_transf_sab ?? 0;
+  const empSab = p.akomel_material_empaque_sab ?? 0;
+
+  // Precio crudo puesto puerto (D10/D13/D14)
+  const tariffAakMy = (fob + flete) * tariffPct;
+  const precioCrudoCopTon = (fob + flete + tariffAakMy + riskFee) * trm;
+  const precioCrudoCopKg = precioCrudoCopTon / 1000;
+
+  // BASE PROCESO (D16/D17/D20)
+  const materiaPrima = precioCrudoCopKg;
+  const bonificacion = bonifPct * materiaPrima;
+  const precioMpPlanta = materiaPrima + bonificacion + primaAbast + fleteExt;
+
+  // AKOMEL NH Granel (D27/D28/D30)
+  const paso1Granel = precioMpPlanta / rendIhG;
+  const paso2Granel = paso1Granel / rendAaG;
+  const precioGranel = paso2Granel + costG;
+
+  // AKOMEL NH Sin Lecitina (D33/D34/D37)
+  const paso1SL = precioMpPlanta / rendIhSL;
+  const paso2SL = paso1SL / rendAaSL;
+  const precioSL = paso2SL + costSL + empSL;
+
+  // AKOMEL NH Saborizado (D40/D41/D44)
+  const paso1Sab = precioMpPlanta / rendIhSab;
+  const paso2Sab = paso1Sab / rendAaSab;
+  const precioSab = paso2Sab + costSab + empSab;
+
+  return {
+    tariff_aak_my: tariffAakMy,
+    precio_crudo_cop_ton: precioCrudoCopTon,
+    precio_crudo_cop_kg: precioCrudoCopKg,
+    materia_prima: materiaPrima,
+    bonificacion_calidad: bonificacion,
+    precio_mp_puesto_planta: precioMpPlanta,
+    paso1_granel: paso1Granel,
+    paso2_granel: paso2Granel,
+    precio_akomel_nh_granel: precioGranel,
+    paso1_sl: paso1SL,
+    paso2_sl: paso2SL,
+    precio_akomel_nh_sl_caja15: precioSL,
+    paso1_sab: paso1Sab,
+    paso2_sab: paso2Sab,
+    precio_akomel_nh_sab_caja15: precioSab,
+  };
+}
+
+// ── CEBES MC 35 (Super de Alimentos: Palmiste) ──
+// risk_futures_fee_palmiste y prima_rspo_mb se reciben para trazabilidad
+// pero NO entran en la formula vigente de la hoja (D58). Estan en 0.
+
+export interface CebesResult {
+  arancel: number;                // USD/TON — D54
+  precio_palmiste_cop_kg: number; // COP/KG  — D58
+  materia_prima: number;          // COP/KG  — D60
+  precio_mp_planta: number;       // COP/KG  — D63
+  paso1_cebes: number;            // COP/KG  — D67 (tras rend. impurezas+humedad)
+  paso2_cebes: number;            // COP/KG  — D68 (tras rend. acidez+AAK)
+  precio_cebes_mc35: number;      // COP/KG  — D72 (PRECIO FINAL)
+}
+
+export function calcularCebesMc35(p: ExposureParams): CebesResult {
+  const cif = p.cebes_precio_palmiste_cif ?? 0;
+  const fleteCol = p.cebes_flete_malasia_colombia ?? 0;
+  const fleteEur = p.cebes_flete_malasia_europa ?? 0;
+  // Misma TRM global de Xerenity
+  const trm = p.trm ?? 0;
+  const primaAbast = p.cebes_prima_abastecimiento ?? 0;
+  const fleteExt = p.cebes_flete_extractora_fabrica ?? 0;
+  const costT = p.cebes_costos_transformacion ?? 0;
+  const empaque = p.cebes_material_empaque ?? 0;
+  const financ = p.cebes_financiamiento ?? 0;
+  // Constantes con default
+  const arancelPct = p.cebes_arancel_pct ?? 0.001;
+  const rendIh = p.cebes_rend_impurezas_humedad ?? 0.994;
+  const rendAa = p.cebes_rend_acidez_aak ?? 0.94;
+  // Informativos (no afectan formula vigente pero se reciben)
+  // const _riskFee = p.cebes_risk_futures_fee_palmiste ?? 0;
+  // const _primaRspo = p.cebes_prima_rspo_mb ?? 0;
+
+  // D54
+  const arancel = (cif + fleteCol + fleteEur) * arancelPct;
+  // D58
+  const precioPalmisteCopKg = ((cif + fleteCol + fleteEur + arancel) * trm) / 1000;
+  // D60 / D63
+  const materiaPrima = precioPalmisteCopKg;
+  const precioMpPlanta = materiaPrima + primaAbast + fleteExt;
+  // D67 / D68 / D72
+  const paso1 = precioMpPlanta / rendIh;
+  const paso2 = paso1 / rendAa;
+  const precioCebes = paso2 + costT + empaque + financ;
+
+  return {
+    arancel,
+    precio_palmiste_cop_kg: precioPalmisteCopKg,
+    materia_prima: materiaPrima,
+    precio_mp_planta: precioMpPlanta,
+    paso1_cebes: paso1,
+    paso2_cebes: paso2,
+    precio_cebes_mc35: precioCebes,
+  };
+}
+
+// ── ALMIDON (Super de Alimentos: maiz → almidon) ──
+// Referencias de celda H8-H18 del instructivo.
+
+export interface AlmidonResult {
+  precio_fob_usc_bu: number;      // USc/Bush — H10
+  precio_fob_usd_ton: number;     // USD/TON  — H12
+  precio_maiz_usd_ton: number;    // USD/TON  — H14
+  credito_subproductos: number;   // USD/TON  — H15
+  precio_neto_maiz: number;       // USD/TON  — H16
+  precio_almidon_usd_ton: number; // USD/TON  — H17/H18 (PRECIO FINAL)
+}
+
+export function calcularAlmidon(p: ExposureParams): AlmidonResult {
+  const precioFut = p.precio_maiz_cent_bu ?? 0;   // H8 (reusa precio futuro ZC CBOT)
+  const base = p.base_maiz_cent_bu ?? 0;          // H9 (reusa base USD)
+  const fleteMaritimo = p.almidon_flete_maritimo ?? 0; // H13
+  // Constantes con default (H11, G15, G17)
+  const conv = p.almidon_factor_conversion_bush_ton ?? 0.3936825;
+  const creditoPct = p.almidon_credito_subproductos_pct ?? 0.26;
+  const factorMaizAlmidon = p.almidon_factor_conversion_maiz_almidon ?? 1.6;
+
+  const precioFobUsc = precioFut + base;
+  const precioFobUsdTon = precioFobUsc * conv;
+  const precioMaizUsdTon = precioFobUsdTon + fleteMaritimo;
+  const credito = creditoPct * precioMaizUsdTon;
+  const precioNeto = precioMaizUsdTon - credito;
+  const precioAlmidon = precioNeto * factorMaizAlmidon;
+
+  return {
+    precio_fob_usc_bu: precioFobUsc,
+    precio_fob_usd_ton: precioFobUsdTon,
+    precio_maiz_usd_ton: precioMaizUsdTon,
+    credito_subproductos: credito,
+    precio_neto_maiz: precioNeto,
+    precio_almidon_usd_ton: precioAlmidon,
+  };
+}
+
+// ── Exposicion Natural USD de las formulaciones Super (AKOMEL/CEBES/ALMIDON) ──
+// Requiere KG anual manual del usuario. Formula:
+//   AKOMEL/CEBES (precio en COP/KG): USD = KG × precio_cop_kg / TRM_global
+//   ALMIDON (precio en USD/TON):     USD = KG × precio_usd_ton / 1000
+// TRM a usar: params.trm (Xerenity global, se sincroniza con BanRep via
+// market_prices al correr fetchExposure).
+
+export function buildSuperFormulaCommodities(params: ExposureParams): CommodityExposure[] {
+  const trm = params.trm ?? 1;
+
+  const akomelRes = calcularAkomelCop(params);
+  const cebesRes = calcularCebesMc35(params);
+  const almidonRes = calcularAlmidon(params);
+
+  const kgGranel = params.kg_akomel_granel_anual ?? 0;
+  const kgSL = params.kg_akomel_sl_anual ?? 0;
+  const kgSab = params.kg_akomel_sab_anual ?? 0;
+  const kgCebes = params.kg_cebes_anual ?? 0;
+  const kgAlmidon = params.kg_almidon_anual ?? 0;
+
+  // AKOMEL — suma de los 3 productos derivados
+  const expGranel = (kgGranel * akomelRes.precio_akomel_nh_granel) / trm;
+  const expSL = (kgSL * akomelRes.precio_akomel_nh_sl_caja15) / trm;
+  const expSab = (kgSab * akomelRes.precio_akomel_nh_sab_caja15) / trm;
+  const expAkomelTotal = expGranel + expSL + expSab;
+  const kgAkomelTotal = kgGranel + kgSL + kgSab;
+
+  // CEBES
+  const expCebes = (kgCebes * cebesRes.precio_cebes_mc35) / trm;
+
+  // ALMIDON (precio ya en USD/TON, no necesita TRM)
+  const expAlmidon = (kgAlmidon * almidonRes.precio_almidon_usd_ton) / 1000;
+
+  return [
+    {
+      nombre: 'AKOMEL',
+      exchange: 'Formulación',
+      unidad_cotizacion: 'COP/KG',
+      proyeccion_tons: kgAkomelTotal / 1000,
+      tons_reales: kgAkomelTotal / 1000,
+      num_contratos: 0,
+      precio_unitario: kgAkomelTotal > 0 ? (expAkomelTotal * trm) / kgAkomelTotal : 0,
+      exposicion_usd: expAkomelTotal,
+      ton_total: kgAkomelTotal / 1000,
+      precio_por_ton: kgAkomelTotal > 0 ? (expAkomelTotal / (kgAkomelTotal / 1000)) : 0,
+      precio_futuro: null,
+      detalle: {
+        kg_granel: kgGranel,
+        kg_sl: kgSL,
+        kg_sab: kgSab,
+        exp_granel: expGranel,
+        exp_sl: expSL,
+        exp_sab: expSab,
+        precio_granel: akomelRes.precio_akomel_nh_granel,
+        precio_sl: akomelRes.precio_akomel_nh_sl_caja15,
+        precio_sab: akomelRes.precio_akomel_nh_sab_caja15,
+      },
+    },
+    {
+      nombre: 'CEBES_MC35',
+      exchange: 'Formulación',
+      unidad_cotizacion: 'COP/KG',
+      proyeccion_tons: kgCebes / 1000,
+      tons_reales: kgCebes / 1000,
+      num_contratos: 0,
+      precio_unitario: cebesRes.precio_cebes_mc35,
+      exposicion_usd: expCebes,
+      ton_total: kgCebes / 1000,
+      precio_por_ton: kgCebes > 0 ? expCebes / (kgCebes / 1000) : 0,
+      precio_futuro: null,
+      detalle: {
+        kg: kgCebes,
+        precio_cop_kg: cebesRes.precio_cebes_mc35,
+      },
+    },
+    {
+      nombre: 'ALMIDON',
+      exchange: 'Formulación',
+      unidad_cotizacion: 'USD/TON',
+      proyeccion_tons: kgAlmidon / 1000,
+      tons_reales: kgAlmidon / 1000,
+      num_contratos: 0,
+      precio_unitario: almidonRes.precio_almidon_usd_ton,
+      exposicion_usd: expAlmidon,
+      ton_total: kgAlmidon / 1000,
+      precio_por_ton: almidonRes.precio_almidon_usd_ton,
+      precio_futuro: null,
+      detalle: {
+        kg: kgAlmidon,
+        precio_usd_ton: almidonRes.precio_almidon_usd_ton,
+      },
+    },
+  ];
+}
+
 // ── Total Exposure ──
 
-export function calcularExposicionTotal(params: ExposureParams): ExposureResult {
+export function calcularExposicionTotal(
+  params: ExposureParams,
+  opts?: { includeSuperFormulas?: boolean },
+): ExposureResult {
   const precioCocoa = params.precio_cocoa_usd_ton ?? 0;
 
   const azucar = calcularAzucar(params);
@@ -192,7 +486,14 @@ export function calcularExposicionTotal(params: ExposureParams): ExposureResult 
 
   const empaque = calcularEmpaque(params);
 
-  const commodities = [azucar, maiz, cocoaPolvo, manteca, licor, empaque];
+  const commodities: CommodityExposure[] = [azucar, maiz, cocoaPolvo, manteca, licor, empaque];
+
+  // Super de Alimentos: agregar las 3 formulaciones nuevas (AKOMEL, CEBES, ALMIDON)
+  // con sus exposiciones USD basadas en KG anuales del usuario.
+  if (opts?.includeSuperFormulas) {
+    commodities.push(...buildSuperFormulaCommodities(params));
+  }
+
   const totalCommoditiesUsd = commodities.reduce((s, c) => s + c.exposicion_usd, 0);
 
   const ventasIntl = params.ventas_intl_usd ?? 0;

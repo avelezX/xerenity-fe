@@ -141,6 +141,61 @@ export const DEFAULT_EXPOSURE_PARAMS: ExposureParams = {
   ventas_intl_usd: 130025826,
   ventas_co_usd: 0,
   ventas_pe_usd: 42827644,
+
+  // Defaults de las 3 tablas nuevas de Super de Alimentos (tomados del
+  // instructivo Python — ejemplo con valores actuales de la hoja).
+  // AKOMEL — inputs de mercado
+  akomel_fob_malasya: 1138,
+  akomel_international_freight: 94.8,
+  akomel_risk_futures_fee: 0,
+  akomel_trm: 3716.74,
+  akomel_prima_abastecimiento: 0,
+  akomel_flete_extractora_fabrica: 212,
+  akomel_tariff_aak_my_pct: 0.0004,
+  akomel_bonificacion_calidad_pct: 0.025,
+  // AKOMEL Granel
+  akomel_rend_impurezas_humedad_granel: 0.99,
+  akomel_rend_acidez_aak_granel: 0.96,
+  akomel_costos_transf_granel: 1214,
+  // AKOMEL Sin Lecitina
+  akomel_rend_impurezas_humedad_sl: 0.99,
+  akomel_rend_acidez_aak_sl: 0.96,
+  akomel_costos_transf_sl: 1636,
+  akomel_material_empaque_sl: 180,
+  // AKOMEL Saborizado
+  akomel_rend_impurezas_humedad_sab: 0.99,
+  akomel_rend_acidez_aak_sab: 0.96,
+  akomel_costos_transf_sab: 1739,
+  akomel_material_empaque_sab: 180,
+
+  // CEBES MC 35
+  cebes_precio_palmiste_cif: 1826,
+  cebes_flete_malasia_colombia: 94.8,
+  cebes_flete_malasia_europa: -70.3,
+  cebes_trm: 3698.75,
+  cebes_arancel_pct: 0.001,
+  cebes_risk_futures_fee_palmiste: 0,
+  cebes_prima_rspo_mb: 0,
+  cebes_prima_abastecimiento: 0,
+  cebes_flete_extractora_fabrica: 212,
+  cebes_rend_impurezas_humedad: 0.994,
+  cebes_rend_acidez_aak: 0.94,
+  cebes_costos_transformacion: 3879,
+  cebes_material_empaque: 450,
+  cebes_financiamiento: 278,
+
+  // ALMIDON
+  almidon_flete_maritimo: 50.3,
+  almidon_factor_conversion_bush_ton: 0.3936825,
+  almidon_credito_subproductos_pct: 0.26,
+  almidon_factor_conversion_maiz_almidon: 1.6,
+
+  // KG anual (input manual por el usuario — empieza en 0)
+  kg_akomel_granel_anual: 0,
+  kg_akomel_sl_anual: 0,
+  kg_akomel_sab_anual: 0,
+  kg_cebes_anual: 0,
+  kg_almidon_anual: 0,
 };
 
 // ── Predefined commodity templates ──

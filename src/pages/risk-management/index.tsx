@@ -41,6 +41,7 @@ import { fetchCoffeePrices } from 'src/lib/risk/supabaseRisk';
 import type { CoffeePriceRow } from 'src/lib/risk/supabaseRisk';
 import { fetchUsdCopCalculator } from 'src/models/risk/usdcopCalculator';
 import type { UsdCopData } from 'src/models/risk/usdcopCalculator';
+import { calcularAkomelCop, calcularCebesMc35, calcularAlmidon, buildSuperFormulaCommodities } from 'src/lib/risk/exposureCalculator';
 import type { RollingVarResponse, BenchmarkFactorsResponse, ExposureParams, ExposureResponse, MarketPrice, FuturesPosition, NewFuturesPosition } from 'src/types/risk';
 import useAppStore from 'src/store';
 // Company type no longer needed — global selector in CoreLayout
@@ -567,6 +568,52 @@ const METHODOLOGY: Record<string, { title: string; content: React.ReactNode }> =
 
         <p style={methH}>Precios de Mercado</p>
         <p>Los precios de los futuros se actualizan automáticamente. Los campos con fondo azul indican precios de mercado no editables, mostrando la fecha de cotización y el contrato utilizado. Los demás campos son editables y permiten ajustar manualmente los parámetros de cálculo.</p>
+
+        <p style={methH}>Formulaciones Super de Alimentos (AKOMEL, CEBES, ALMIDÓN)</p>
+        <p>Las 3 tarjetas adicionales calculan el precio unitario de cada materia prima transformada partiendo del mercado internacional (FOB/CIF + flete + arancel + TRM) y aplicando rendimientos de proceso y costos operativos. La TRM en cada tarjeta es no editable y se sincroniza con la TRM global de Xerenity (BanRep).</p>
+
+        <p><strong>AKOMEL NH (aceite de palma Malasia → 3 productos):</strong></p>
+        <div style={methFormula}>
+          Paso 1 = Materia Prima (COP/KG) ÷ Rend. Impurezas+Humedad<br />
+          Paso 2 = Paso 1 ÷ Rend. Acidez AAK<br />
+          Precio Granel = Paso 2 + Costos Transf.<br />
+          Precio SL / Sab = Paso 2 + Costos Transf. + Material Empaque
+        </div>
+
+        <p><strong>CEBES MC 35 (palmiste):</strong></p>
+        <div style={methFormula}>
+          Precio MP Planta = Materia Prima + (Prima Abast. / 1000) + Flete Extractora→Fábrica<br />
+          Paso 1 = Precio MP Planta ÷ Rend. Impurezas+Humedad<br />
+          Paso 2 = Paso 1 ÷ Rend. Acidez AAK<br />
+          Precio CEBES = Paso 2 + Costos Transf. + Empaque + Financiamiento
+        </div>
+
+        <p><strong>ALMIDÓN (maíz CBOT ZC → almidón):</strong></p>
+        <div style={methFormula}>
+          Precio FOB (¢/bu) = Precio Futuro + Base<br />
+          Precio FOB (USD/TON) = Precio FOB (¢/bu) × 0.01 ÷ 0.3937<br />
+          Precio Maíz = Precio FOB + Flete Marítimo<br />
+          Precio Neto Maíz = Precio Maíz × (1 − 26%) {/* crédito subproductos */}<br />
+          Precio Almidón = Precio Neto Maíz × 1.60 {/* factor conversión */}
+        </div>
+
+        <p style={methH}>Exposición Natural USD (3 tarjetas nuevas)</p>
+        <p>Cada tarjeta incluye un campo <strong>KG anual (compra)</strong> — el volumen que la compañía planea adquirir durante el año. La Exposición USD se calcula así:</p>
+        <div style={methFormula}>
+          AKOMEL / CEBES: Exp. USD = KG anual × Precio (COP/KG) ÷ TRM<br />
+          ALMIDÓN:       Exp. USD = KG anual × Precio (USD/TON) ÷ 1000
+        </div>
+        <p>Para AKOMEL se muestra una fila <strong>Total Exposición AKOMEL USD</strong> que suma los 3 sub-productos (Granel + Sin Lecitina + Saborizado).</p>
+
+        <p style={methH}>Conexión con la tabla "Exposición por Commodity"</p>
+        <p>Los valores calculados dentro de cada tarjeta alimentan la tabla de resumen en tiempo real:</p>
+        <ul>
+          <li><strong>AKOMEL</strong> → una sola fila con el total de los 3 sub-productos.</li>
+          <li><strong>CEBES_MC35</strong> → fila con la exposición del único producto.</li>
+          <li><strong>ALMIDON</strong> → fila con la exposición del único producto.</li>
+        </ul>
+        <p>Estas 3 filas se suman al <strong>Total Commodities</strong> junto con AZÚCAR, MAÍZ, CACAO y EMPAQUE. Al editar cualquier KG o parámetro de las formulaciones, la tabla se actualiza inmediatamente sin necesidad de hacer clic en "Actualizar".</p>
+        <p>La <strong>Exposición Real USD</strong> también se recalcula en vivo: <code>Ventas Intl. − Total Commodities</code>.</p>
       </div>
     ),
   },
@@ -987,7 +1034,11 @@ function RiskManagement() {
     setExposureLoading(true);
     try {
       const dateToUse = overrideDate ?? filterDate;
-      const data = await fetchExposure(dateToUse, exposureParams);
+      // Super de Alimentos: incluir las 3 formulaciones (AKOMEL, CEBES, ALMIDON)
+      // en el calculo total. Para otras empresas no se incluyen (exposicion_usd = 0).
+      const SUPER_ID = 'e8516f19-7286-4e04-a63e-24ca9364d807';
+      const isSuper = selectedCompanyId === SUPER_ID;
+      const data = await fetchExposure(dateToUse, exposureParams, { includeSuperFormulas: isSuper });
       setExposureResult(data);
 
       // Update local params with DB prices
@@ -1752,6 +1803,15 @@ function RiskManagement() {
           const lc = getComm('LICOR_CACAO');
           const emp = getComm('EMPAQUE');
 
+          // ── Super de Alimentos: tablas especificas (AKOMEL, CEBES MC35, Almidon) ──
+          // Se calculan inline en el render porque NO dependen del fetch a Supabase,
+          // solo de los inputs locales de exposureParams.
+          const SUPER_ALIMENTOS_ID = 'e8516f19-7286-4e04-a63e-24ca9364d807';
+          const isSuperAlimentos = selectedCompanyId === SUPER_ALIMENTOS_ID;
+          const akomel = isSuperAlimentos ? calcularAkomelCop(exposureParams) : null;
+          const cebes = isSuperAlimentos ? calcularCebesMc35(exposureParams) : null;
+          const almidon = isSuperAlimentos ? calcularAlmidon(exposureParams) : null;
+
           return (
             <>
               <Row className="mb-3 align-items-center">
@@ -1941,8 +2001,145 @@ function RiskManagement() {
                 </Col>
               </Row>
 
+              {/* ═════════ TABLAS ADICIONALES — SOLO SUPER DE ALIMENTOS ═════════ */}
+              {isSuperAlimentos && (
+                <Row className="g-3 mb-4 mt-1">
+                    {/* ── AKOMEL COP ── */}
+                    <Col md={6} lg={4}>
+                      <div className="rounded h-100" style={{ border: '1px solid #e2e8f0', overflow: 'hidden', background: '#fff', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+                        <div style={headerStyle}>AKOMEL COP <span className="fw-normal ms-2" style={{ fontSize: '0.7rem' }}>Aceite de palma — Malasia</span></div>
+                        <table className="table table-sm mb-0" style={{ fontSize: '0.78rem' }}>
+                          <tbody>
+                            {/* Inputs — precio crudo puesto puerto */}
+                            <tr><td style={labelTd}>FOB Malasia (USD/TON)</td><td style={inputTd}>{numInput('akomel_fob_malasya', '0.01')}</td></tr>
+                            <tr><td style={labelTd}>International Freight (USD/TON)</td><td style={inputTd}>{numInput('akomel_international_freight', '0.01')}</td></tr>
+                            <tr><td style={labelTd}>Tariff AAK MY (0.04%)</td><td style={{ ...valTd, ...calcStyle }}>{akomel ? n(akomel.tariff_aak_my, 4) : '—'}</td></tr>
+                            <tr><td style={labelTd}>Risk Futures Fee (USD/TON)</td><td style={inputTd}>{numInput('akomel_risk_futures_fee', '0.01')}</td></tr>
+                            <tr><td style={labelTd}>TRM (USD/COP) <span style={{ fontSize: '0.65rem', color: '#94a3b8' }}>(Xerenity)</span></td><td style={{ ...valTd, ...calcStyle }}>{n(exposureParams.trm, 2)}</td></tr>
+                            <tr><td style={labelTd}>Precio Crudo (COP/TON)</td><td style={{ ...valTd, ...calcStyle }}>{akomel ? n(akomel.precio_crudo_cop_ton, 2) : '—'}</td></tr>
+                            <tr><td style={labelTd}>Precio Crudo (COP/KG)</td><td style={{ ...valTd, ...calcStyle, fontWeight: 600 }}>{akomel ? n(akomel.precio_crudo_cop_kg, 2) : '—'}</td></tr>
+                            {/* Base proceso */}
+                            <tr><td style={{ ...labelTd, padding: '8px 12px', fontSize: '0.75rem', color: '#1e293b', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', background: '#f1f5f9', borderTop: '1px solid #e2e8f0', borderBottom: '1px solid #e2e8f0' }} colSpan={2}>Base Proceso</td></tr>
+                            <tr><td style={labelTd}>Materia Prima (COP/KG)</td><td style={{ ...valTd, ...calcStyle }}>{akomel ? n(akomel.materia_prima, 2) : '—'}</td></tr>
+                            <tr><td style={labelTd}>Bonif. Calidad (2.5%)</td><td style={{ ...valTd, ...calcStyle }}>{akomel ? n(akomel.bonificacion_calidad, 2) : '—'}</td></tr>
+                            <tr><td style={labelTd}>Prima Abastecimiento (COP/KG)</td><td style={inputTd}>{numInput('akomel_prima_abastecimiento', '0.01')}</td></tr>
+                            <tr><td style={labelTd}>Flete Extractora→Fábrica (COP/KG)</td><td style={inputTd}>{numInput('akomel_flete_extractora_fabrica', '0.01')}</td></tr>
+                            <tr><td style={labelTd}>Precio MP puesto planta (COP/KG)</td><td style={{ ...valTd, ...calcStyle, fontWeight: 600 }}>{akomel ? n(akomel.precio_mp_puesto_planta, 2) : '—'}</td></tr>
+                            {/* AKOMEL NH Granel */}
+                            <tr><td style={{ ...labelTd, padding: '8px 12px', fontSize: '0.75rem', color: '#1e293b', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', background: '#f1f5f9', borderTop: '1px solid #e2e8f0', borderBottom: '1px solid #e2e8f0' }} colSpan={2}>AKOMEL NH Granel</td></tr>
+                            <tr><td style={labelTd}>Rend. Impurezas + Humedad</td><td style={inputTd}>{numInput('akomel_rend_impurezas_humedad_granel', '0.001')}</td></tr>
+                            <tr><td style={labelTd}>Paso 1 (÷ rend. imp+hum)</td><td style={{ ...valTd, ...calcStyle }}>{akomel ? n(akomel.paso1_granel, 2) : '—'}</td></tr>
+                            <tr><td style={labelTd}>Rend. Acidez AAK</td><td style={inputTd}>{numInput('akomel_rend_acidez_aak_granel', '0.001')}</td></tr>
+                            <tr><td style={labelTd}>Paso 2 (÷ rend. acidez)</td><td style={{ ...valTd, ...calcStyle }}>{akomel ? n(akomel.paso2_granel, 2) : '—'}</td></tr>
+                            <tr><td style={labelTd}>Costos Transformación</td><td style={inputTd}>{numInput('akomel_costos_transf_granel', '1')}</td></tr>
+                            <tr><td style={{ ...labelTd, fontWeight: 700 }}>Akomel NH Granel (COP/KG)</td><td style={resultTd}>{akomel ? n(akomel.precio_akomel_nh_granel, 2) : '—'}</td></tr>
+                            <tr><td style={labelTd}>KG anual (compra)</td><td style={inputTd}>{numInput('kg_akomel_granel_anual', '1')}</td></tr>
+                            <tr><td style={{ ...labelTd, fontWeight: 700 }}>Exposición USD</td><td style={resultTd}>{akomel ? fmtUsd(((exposureParams.kg_akomel_granel_anual ?? 0) * akomel.precio_akomel_nh_granel) / (exposureParams.trm || 1)) : '—'}</td></tr>
+                            {/* AKOMEL NH Sin Lecitina */}
+                            <tr><td style={{ ...labelTd, padding: '8px 12px', fontSize: '0.75rem', color: '#1e293b', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', background: '#f1f5f9', borderTop: '1px solid #e2e8f0', borderBottom: '1px solid #e2e8f0' }} colSpan={2}>AKOMEL NH Sin Lecitina Caja 15Kg</td></tr>
+                            <tr><td style={labelTd}>Rend. Impurezas + Humedad</td><td style={inputTd}>{numInput('akomel_rend_impurezas_humedad_sl', '0.001')}</td></tr>
+                            <tr><td style={labelTd}>Paso 1</td><td style={{ ...valTd, ...calcStyle }}>{akomel ? n(akomel.paso1_sl, 2) : '—'}</td></tr>
+                            <tr><td style={labelTd}>Rend. Acidez AAK</td><td style={inputTd}>{numInput('akomel_rend_acidez_aak_sl', '0.001')}</td></tr>
+                            <tr><td style={labelTd}>Paso 2</td><td style={{ ...valTd, ...calcStyle }}>{akomel ? n(akomel.paso2_sl, 2) : '—'}</td></tr>
+                            <tr><td style={labelTd}>Costos Transformación</td><td style={inputTd}>{numInput('akomel_costos_transf_sl', '1')}</td></tr>
+                            <tr><td style={labelTd}>Material Empaque</td><td style={inputTd}>{numInput('akomel_material_empaque_sl', '1')}</td></tr>
+                            <tr><td style={{ ...labelTd, fontWeight: 700 }}>Akomel NH SL Caja 15Kg (COP/KG)</td><td style={resultTd}>{akomel ? n(akomel.precio_akomel_nh_sl_caja15, 2) : '—'}</td></tr>
+                            <tr><td style={labelTd}>KG anual (compra)</td><td style={inputTd}>{numInput('kg_akomel_sl_anual', '1')}</td></tr>
+                            <tr><td style={{ ...labelTd, fontWeight: 700 }}>Exposición USD</td><td style={resultTd}>{akomel ? fmtUsd(((exposureParams.kg_akomel_sl_anual ?? 0) * akomel.precio_akomel_nh_sl_caja15) / (exposureParams.trm || 1)) : '—'}</td></tr>
+                            {/* AKOMEL NH Saborizado */}
+                            <tr><td style={{ ...labelTd, padding: '8px 12px', fontSize: '0.75rem', color: '#1e293b', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', background: '#f1f5f9', borderTop: '1px solid #e2e8f0', borderBottom: '1px solid #e2e8f0' }} colSpan={2}>AKOMEL NH Saborizado Caja 15Kg</td></tr>
+                            <tr><td style={labelTd}>Rend. Impurezas + Humedad</td><td style={inputTd}>{numInput('akomel_rend_impurezas_humedad_sab', '0.001')}</td></tr>
+                            <tr><td style={labelTd}>Paso 1</td><td style={{ ...valTd, ...calcStyle }}>{akomel ? n(akomel.paso1_sab, 2) : '—'}</td></tr>
+                            <tr><td style={labelTd}>Rend. Acidez AAK</td><td style={inputTd}>{numInput('akomel_rend_acidez_aak_sab', '0.001')}</td></tr>
+                            <tr><td style={labelTd}>Paso 2</td><td style={{ ...valTd, ...calcStyle }}>{akomel ? n(akomel.paso2_sab, 2) : '—'}</td></tr>
+                            <tr><td style={labelTd}>Costos Transformación</td><td style={inputTd}>{numInput('akomel_costos_transf_sab', '1')}</td></tr>
+                            <tr><td style={labelTd}>Material Empaque</td><td style={inputTd}>{numInput('akomel_material_empaque_sab', '1')}</td></tr>
+                            <tr><td style={{ ...labelTd, fontWeight: 700 }}>Akomel NH Sab Caja 15Kg (COP/KG)</td><td style={resultTd}>{akomel ? n(akomel.precio_akomel_nh_sab_caja15, 2) : '—'}</td></tr>
+                            <tr><td style={labelTd}>KG anual (compra)</td><td style={inputTd}>{numInput('kg_akomel_sab_anual', '1')}</td></tr>
+                            <tr><td style={{ ...labelTd, fontWeight: 700 }}>Exposición USD</td><td style={resultTd}>{akomel ? fmtUsd(((exposureParams.kg_akomel_sab_anual ?? 0) * akomel.precio_akomel_nh_sab_caja15) / (exposureParams.trm || 1)) : '—'}</td></tr>
+                            {/* Total AKOMEL USD */}
+                            <tr><td style={{ ...labelTd, padding: '8px 12px', fontSize: '0.75rem', color: '#1e293b', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', background: '#f1f5f9', borderTop: '1px solid #e2e8f0', borderBottom: '1px solid #e2e8f0' }} colSpan={2}>Total</td></tr>
+                            <tr><td style={{ ...labelTd, fontWeight: 700 }}>Total Exposición AKOMEL USD</td><td style={{ ...resultTd, background: '#faf5ff', color: '#7c3aed' }}>{akomel ? fmtUsd((((exposureParams.kg_akomel_granel_anual ?? 0) * akomel.precio_akomel_nh_granel) + ((exposureParams.kg_akomel_sl_anual ?? 0) * akomel.precio_akomel_nh_sl_caja15) + ((exposureParams.kg_akomel_sab_anual ?? 0) * akomel.precio_akomel_nh_sab_caja15)) / (exposureParams.trm || 1)) : '—'}</td></tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </Col>
+
+                    {/* ── CEBES MC 35 ── */}
+                    <Col md={6} lg={4}>
+                      <div className="rounded h-100" style={{ border: '1px solid #e2e8f0', overflow: 'hidden', background: '#fff', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+                        <div style={headerStyle}>CEBES MC 35 <span className="fw-normal ms-2" style={{ fontSize: '0.7rem' }}>Palmiste — Malasia</span></div>
+                        <table className="table table-sm mb-0" style={{ fontSize: '0.78rem' }}>
+                          <tbody>
+                            <tr><td style={labelTd}>Precio Palmiste CIF (USD/TON)</td><td style={inputTd}>{numInput('cebes_precio_palmiste_cif', '0.01')}</td></tr>
+                            <tr><td style={labelTd}>Flete Malasia→Colombia (USD/TON)</td><td style={inputTd}>{numInput('cebes_flete_malasia_colombia', '0.01')}</td></tr>
+                            <tr><td style={labelTd}>Flete Malasia→Europa (USD/TON)</td><td style={inputTd}>{numInput('cebes_flete_malasia_europa', '0.01')}</td></tr>
+                            <tr><td style={labelTd}>Arancel (0.1%)</td><td style={{ ...valTd, ...calcStyle }}>{cebes ? n(cebes.arancel, 4) : '—'}</td></tr>
+                            <tr><td style={labelTd}>Risk Futures Fee (USD/TON)</td><td style={inputTd}>{numInput('cebes_risk_futures_fee_palmiste', '0.01')}</td></tr>
+                            <tr><td style={labelTd}>TRM (USD/COP) <span style={{ fontSize: '0.65rem', color: '#94a3b8' }}>(Xerenity)</span></td><td style={{ ...valTd, ...calcStyle }}>{n(exposureParams.trm, 2)}</td></tr>
+                            <tr><td style={labelTd}>Prima RSPO MB (USD/TON)</td><td style={inputTd}>{numInput('cebes_prima_rspo_mb', '0.01')}</td></tr>
+                            <tr><td style={labelTd}>Precio Palmiste (COP/KG)</td><td style={{ ...valTd, ...calcStyle, fontWeight: 600 }}>{cebes ? n(cebes.precio_palmiste_cop_kg, 2) : '—'}</td></tr>
+                            {/* Base proceso */}
+                            <tr><td style={{ ...labelTd, padding: '8px 12px', fontSize: '0.75rem', color: '#1e293b', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', background: '#f1f5f9', borderTop: '1px solid #e2e8f0', borderBottom: '1px solid #e2e8f0' }} colSpan={2}>Base Proceso</td></tr>
+                            <tr><td style={labelTd}>Materia Prima (COP/KG)</td><td style={{ ...valTd, ...calcStyle }}>{cebes ? n(cebes.materia_prima, 2) : '—'}</td></tr>
+                            <tr><td style={labelTd}>Prima Abastecimiento (COP)</td><td style={inputTd}>{numInput('cebes_prima_abastecimiento', '1')}</td></tr>
+                            <tr><td style={labelTd}>Flete Extractora→Fábrica (COP/KG)</td><td style={inputTd}>{numInput('cebes_flete_extractora_fabrica', '0.01')}</td></tr>
+                            <tr><td style={labelTd}>Precio MP puesto planta (COP/KG)</td><td style={{ ...valTd, ...calcStyle, fontWeight: 600 }}>{cebes ? n(cebes.precio_mp_planta, 2) : '—'}</td></tr>
+                            {/* CEBES MC 35 */}
+                            <tr><td style={{ ...labelTd, padding: '8px 12px', fontSize: '0.75rem', color: '#1e293b', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', background: '#f1f5f9', borderTop: '1px solid #e2e8f0', borderBottom: '1px solid #e2e8f0' }} colSpan={2}>CEBES MC 35</td></tr>
+                            <tr><td style={labelTd}>Rend. Impurezas + Humedad</td><td style={inputTd}>{numInput('cebes_rend_impurezas_humedad', '0.001')}</td></tr>
+                            <tr><td style={labelTd}>Paso 1</td><td style={{ ...valTd, ...calcStyle }}>{cebes ? n(cebes.paso1_cebes, 2) : '—'}</td></tr>
+                            <tr><td style={labelTd}>Rend. Acidez AAK</td><td style={inputTd}>{numInput('cebes_rend_acidez_aak', '0.001')}</td></tr>
+                            <tr><td style={labelTd}>Paso 2</td><td style={{ ...valTd, ...calcStyle }}>{cebes ? n(cebes.paso2_cebes, 2) : '—'}</td></tr>
+                            <tr><td style={labelTd}>Costos Transformación</td><td style={inputTd}>{numInput('cebes_costos_transformacion', '1')}</td></tr>
+                            <tr><td style={labelTd}>Material Empaque</td><td style={inputTd}>{numInput('cebes_material_empaque', '1')}</td></tr>
+                            <tr><td style={labelTd}>Financiamiento (60 días)</td><td style={inputTd}>{numInput('cebes_financiamiento', '1')}</td></tr>
+                            <tr><td style={{ ...labelTd, fontWeight: 700 }}>CEBES MC 35 (COP/KG)</td><td style={resultTd}>{cebes ? n(cebes.precio_cebes_mc35, 2) : '—'}</td></tr>
+                            <tr><td style={labelTd}>KG anual (compra)</td><td style={inputTd}>{numInput('kg_cebes_anual', '1')}</td></tr>
+                            <tr><td style={{ ...labelTd, fontWeight: 700 }}>Exposición USD</td><td style={{ ...resultTd, background: '#faf5ff', color: '#7c3aed' }}>{cebes ? fmtUsd(((exposureParams.kg_cebes_anual ?? 0) * cebes.precio_cebes_mc35) / (exposureParams.trm || 1)) : '—'}</td></tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </Col>
+
+                    {/* ── ALMIDÓN ── */}
+                    <Col md={6} lg={4}>
+                      <div className="rounded h-100" style={{ border: '1px solid #e2e8f0', overflow: 'hidden', background: '#fff', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+                        <div style={headerStyle}>ALMIDÓN <span className="fw-normal ms-2" style={{ fontSize: '0.7rem' }}>Maíz CBOT ZC → Almidón</span></div>
+                        <table className="table table-sm mb-0" style={{ fontSize: '0.78rem' }}>
+                          <tbody>
+                            <tr><td style={labelTd}>Precio Futuro Maíz (¢/bu)</td><td style={inputTd}>{numInput('precio_maiz_cent_bu', '0.01')}</td></tr>
+                            <tr><td style={labelTd}>Base Maíz (¢/bu)</td><td style={inputTd}>{numInput('base_maiz_cent_bu', '0.01')}</td></tr>
+                            <tr><td style={labelTd}>Flete Marítimo (USD/TON)</td><td style={inputTd}>{numInput('almidon_flete_maritimo', '0.01')}</td></tr>
+                            <tr><td style={labelTd}>Conversión bu/ton</td><td style={{ ...valTd, ...calcStyle }}>0.3937</td></tr>
+                            <tr><td style={labelTd}>Precio FOB (¢/bu)</td><td style={{ ...valTd, ...calcStyle }}>{almidon ? n(almidon.precio_fob_usc_bu, 2) : '—'}</td></tr>
+                            <tr><td style={labelTd}>Precio FOB (USD/TON)</td><td style={{ ...valTd, ...calcStyle }}>{almidon ? n(almidon.precio_fob_usd_ton, 2) : '—'}</td></tr>
+                            <tr><td style={labelTd}>Precio Maíz (USD/TON)</td><td style={{ ...valTd, ...calcStyle, fontWeight: 600 }}>{almidon ? n(almidon.precio_maiz_usd_ton, 2) : '—'}</td></tr>
+                            <tr><td style={labelTd}>Crédito Subproductos (26%)</td><td style={{ ...valTd, ...calcStyle }}>{almidon ? n(almidon.credito_subproductos, 2) : '—'}</td></tr>
+                            <tr><td style={labelTd}>Precio Neto Maíz (USD/TON)</td><td style={{ ...valTd, ...calcStyle, fontWeight: 600 }}>{almidon ? n(almidon.precio_neto_maiz, 2) : '—'}</td></tr>
+                            <tr><td style={labelTd}>Factor Maíz→Almidón</td><td style={{ ...valTd, ...calcStyle }}>1.60</td></tr>
+                            <tr><td style={{ ...labelTd, fontWeight: 700 }}>Precio Almidón (USD/TON)</td><td style={resultTd}>{almidon ? n(almidon.precio_almidon_usd_ton, 2) : '—'}</td></tr>
+                            <tr><td style={labelTd}>KG anual (compra)</td><td style={inputTd}>{numInput('kg_almidon_anual', '1')}</td></tr>
+                            <tr><td style={{ ...labelTd, fontWeight: 700 }}>Exposición USD</td><td style={{ ...resultTd, background: '#faf5ff', color: '#7c3aed' }}>{almidon ? fmtUsd(((exposureParams.kg_almidon_anual ?? 0) * almidon.precio_almidon_usd_ton) / 1000) : '—'}</td></tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </Col>
+                </Row>
+              )}
+
               {/* Summary tables */}
-              {exposureResult && (
+              {exposureResult && (() => {
+                // Recompute Super formula rows from live exposureParams so typing
+                // KG in a card updates this table instantly (no "Actualizar" click).
+                // Non-Super commodities keep the fetched values (need market prices).
+                const SUPER_IDS = new Set(['AKOMEL', 'CEBES_MC35', 'ALMIDON']);
+                const baseRows = exposureResult.commodities.filter((c) => !SUPER_IDS.has(c.nombre));
+                const liveSuperRows = isSuperAlimentos ? buildSuperFormulaCommodities(exposureParams) : [];
+                const displayRows = [...baseRows, ...liveSuperRows];
+                const liveTotalUsd = displayRows.reduce((s, c) => s + (c.exposicion_usd ?? 0), 0);
+                const liveRealUsd = (exposureResult.exposicion_ventas_intl ?? 0) - liveTotalUsd;
+                return (
                 <>
                   <div className="rounded mb-3" style={{ background: '#fff', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
                     <div style={{ padding: '12px 16px', borderBottom: '1px solid #e2e8f0' }}>
@@ -1962,7 +2159,7 @@ function RiskManagement() {
                           </tr>
                         </thead>
                         <tbody>
-                          {exposureResult.commodities.map((c) => (
+                          {displayRows.map((c) => (
                             <tr key={c.nombre} style={{ borderBottom: '1px solid #f1f5f9' }}>
                               <td style={{ padding: '8px 12px', color: '#7c3aed', fontWeight: 600 }}>{c.nombre}</td>
                               <td className="text-center" style={{ padding: '8px 12px', color: '#64748b' }}>{c.exchange}</td>
@@ -1975,7 +2172,7 @@ function RiskManagement() {
                           ))}
                           <tr style={{ borderTop: '2px solid #1e293b', fontWeight: 700 }}>
                             <td colSpan={5} className="text-end" style={{ padding: '10px 12px' }}>Total Commodities</td>
-                            <td className="text-end" style={{ padding: '10px 12px' }}>{fmtUsd(exposureResult.total_commodities_usd)}</td>
+                            <td className="text-end" style={{ padding: '10px 12px' }}>{fmtUsd(liveTotalUsd)}</td>
                             <td>{' '}</td>
                           </tr>
                         </tbody>
@@ -1991,7 +2188,7 @@ function RiskManagement() {
                       <tbody>
                         <tr>
                           <td style={{ padding: '8px 16px', color: '#64748b' }}>Total Commodities</td>
-                          <td className="text-end" style={{ padding: '8px 16px', fontWeight: 700 }}>{fmtUsd(exposureResult.total_commodities_usd)}</td>
+                          <td className="text-end" style={{ padding: '8px 16px', fontWeight: 700 }}>{fmtUsd(liveTotalUsd)}</td>
                         </tr>
                         <tr style={{ borderTop: '1px solid #f1f5f9' }}>
                           <td style={{ padding: '8px 16px', color: '#64748b' }}>Exposición Ventas Intl.</td>
@@ -1999,7 +2196,7 @@ function RiskManagement() {
                         </tr>
                         <tr style={{ borderTop: '2px solid #16a34a' }}>
                           <td style={{ padding: '10px 16px', fontWeight: 700, color: '#16a34a' }}>Exposición Real USD</td>
-                          <td className="text-end" style={{ padding: '10px 16px', fontWeight: 700, color: '#16a34a' }}>{fmtUsd(exposureResult.exposicion_real_usd)}</td>
+                          <td className="text-end" style={{ padding: '10px 16px', fontWeight: 700, color: '#16a34a' }}>{fmtUsd(liveRealUsd)}</td>
                         </tr>
                         <tr style={{ borderTop: '1px solid #f1f5f9' }}>
                           <td style={{ padding: '8px 16px', color: '#64748b' }}>Exposición PEN (Perú)</td>
@@ -2009,7 +2206,8 @@ function RiskManagement() {
                     </table>
                   </div>
                 </>
-              )}
+                );
+              })()}
             </div>
             </>
           );
