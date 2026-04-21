@@ -605,14 +605,14 @@ const METHODOLOGY: Record<string, { title: string; content: React.ReactNode }> =
         </div>
         <p>Para AKOMEL se muestra una fila <strong>Total Exposición AKOMEL USD</strong> que suma los 3 sub-productos (Granel + Sin Lecitina + Saborizado).</p>
 
-        <p style={methH}>Conexión con la tabla "Exposición por Commodity"</p>
+        <p style={methH}>Conexión con la tabla &ldquo;Exposición por Commodity&rdquo;</p>
         <p>Los valores calculados dentro de cada tarjeta alimentan la tabla de resumen en tiempo real:</p>
         <ul>
           <li><strong>AKOMEL</strong> → una sola fila con el total de los 3 sub-productos.</li>
           <li><strong>CEBES_MC35</strong> → fila con la exposición del único producto.</li>
           <li><strong>ALMIDON</strong> → fila con la exposición del único producto.</li>
         </ul>
-        <p>Estas 3 filas se suman al <strong>Total Commodities</strong> junto con AZÚCAR, MAÍZ, CACAO y EMPAQUE. Al editar cualquier KG o parámetro de las formulaciones, la tabla se actualiza inmediatamente sin necesidad de hacer clic en "Actualizar".</p>
+        <p>Estas 3 filas se suman al <strong>Total Commodities</strong> junto con AZÚCAR, MAÍZ, CACAO y EMPAQUE. Al editar cualquier KG o parámetro de las formulaciones, la tabla se actualiza inmediatamente sin necesidad de hacer clic en &ldquo;Actualizar&rdquo;.</p>
         <p>La <strong>Exposición Real USD</strong> también se recalcula en vivo: <code>Ventas Intl. − Total Commodities</code>.</p>
       </div>
     ),
