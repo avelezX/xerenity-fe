@@ -83,6 +83,63 @@ export interface ExposureParams {
   ventas_intl_usd?: number;
   ventas_co_usd?: number;
   ventas_pe_usd?: number;
+
+  // ── AKOMEL COP (aceite de palma crudo Malasia → productos terminados) ──
+  // Solo se usa en Super de Alimentos. Port fiel del instructivo Python.
+  akomel_fob_malasya?: number;              // USD/TON — FEP mensual (celda D8)
+  akomel_international_freight?: number;    // USD/TON — FEP mensual (D9)
+  akomel_risk_futures_fee?: number;         // USD/TON — 40/70 segun plazo (D11)
+  akomel_trm?: number;                      // USD/COP — FEP mensual (D12)
+  akomel_prima_abastecimiento?: number;     // COP/KG (D18)
+  akomel_flete_extractora_fabrica?: number; // COP/KG (D19)
+  akomel_tariff_aak_my_pct?: number;        // % arancel (C10, default 0.0004)
+  akomel_bonificacion_calidad_pct?: number; // % bonif (C17, default 0.025)
+  // AKOMEL Granel
+  akomel_rend_impurezas_humedad_granel?: number;  // C27 (default 0.99)
+  akomel_rend_acidez_aak_granel?: number;         // C28 (default 0.96)
+  akomel_costos_transf_granel?: number;           // COP/KG (D29)
+  // AKOMEL Sin Lecitina Caja 15Kg
+  akomel_rend_impurezas_humedad_sl?: number;      // C33 (default 0.99)
+  akomel_rend_acidez_aak_sl?: number;             // C34 (default 0.96)
+  akomel_costos_transf_sl?: number;               // COP/KG (D35)
+  akomel_material_empaque_sl?: number;            // COP/KG (D36)
+  // AKOMEL Saborizado Caja 15Kg
+  akomel_rend_impurezas_humedad_sab?: number;     // C40 (default 0.99)
+  akomel_rend_acidez_aak_sab?: number;            // C41 (default 0.96)
+  akomel_costos_transf_sab?: number;              // COP/KG (D42)
+  akomel_material_empaque_sab?: number;           // COP/KG (D43)
+
+  // ── CEBES MC 35 (Palmiste) ──
+  cebes_precio_palmiste_cif?: number;         // USD/TON (D50)
+  cebes_flete_malasia_colombia?: number;      // USD/TON (D51)
+  cebes_flete_malasia_europa?: number;        // USD/TON (D52, puede ser negativo)
+  cebes_trm?: number;                         // USD/COP (D56)
+  cebes_arancel_pct?: number;                 // % (D53, default 0.001)
+  // Informativos en la hoja (NO entran en la formula vigente D58)
+  cebes_risk_futures_fee_palmiste?: number;   // USD/TON (D55)
+  cebes_prima_rspo_mb?: number;               // USD/TON (D57)
+  // Operativos
+  cebes_prima_abastecimiento?: number;        // COP (D61)
+  cebes_flete_extractora_fabrica?: number;    // COP/KG (D62)
+  cebes_rend_impurezas_humedad?: number;      // C67 (default 0.994)
+  cebes_rend_acidez_aak?: number;             // C68 (default 0.94)
+  cebes_costos_transformacion?: number;       // COP/KG (D69)
+  cebes_material_empaque?: number;            // COP/KG (D70)
+  cebes_financiamiento?: number;              // COP/KG — 60 dias
+
+  // ── ALMIDON (Maiz → almidon) ──
+  almidon_flete_maritimo?: number;            // USD/TON (H13) — flete maritimo adicional
+  almidon_factor_conversion_bush_ton?: number; // H11 (default 0.3936825)
+  almidon_credito_subproductos_pct?: number;  // G15 (default 0.26)
+  almidon_factor_conversion_maiz_almidon?: number; // G17 (default 1.6)
+
+  // ── KG anual (input manual) para Exposicion Natural USD ──
+  // AKOMEL tiene 3 productos derivados; CEBES y ALMIDON uno cada uno.
+  kg_akomel_granel_anual?: number;     // Granel
+  kg_akomel_sl_anual?: number;         // Sin Lecitina Caja 15Kg
+  kg_akomel_sab_anual?: number;        // Saborizado Caja 15Kg
+  kg_cebes_anual?: number;             // CEBES MC 35
+  kg_almidon_anual?: number;           // Almidon
 }
 
 export interface CommodityExposure {

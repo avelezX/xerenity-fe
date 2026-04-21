@@ -206,6 +206,7 @@ export async function fetchRollingVar(
 export async function fetchExposure(
   filterDate: string,
   exposureParams: ExposureParams,
+  opts?: { includeSuperFormulas?: boolean },
 ): Promise<ExposureResponse> {
   // Fetch latest prices to override params
   const startDate = getStartDate(filterDate, 60);
@@ -237,7 +238,7 @@ export async function fetchExposure(
     }
   }
 
-  const result = calcularExposicionTotal(params);
+  const result = calcularExposicionTotal(params, { includeSuperFormulas: opts?.includeSuperFormulas });
   return {
     ...result,
     market_prices: marketPrices,
