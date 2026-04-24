@@ -1927,6 +1927,10 @@ function PortfolioPage() {
   const [markFecha, setMarkFecha] = useState<string>(defaultMarkFecha());
   const [curveStatus, setCurveStatus] = useState<CurveStatus | null>(null);
   const [addType, setAddType] = useState<string | null>(null); // 'xccy' | 'ndf' | 'ibr' | null
+  // #295: bump this counter whenever positions change and we want a reprice.
+  // Keeps the reprice trigger in ONE place (the useEffect below) — callbacks
+  // just bump this instead of calling repriceAllWithMark directly.
+  const [repriceTrigger, setRepriceTrigger] = useState(0);
   const { prefs: blotterPrefs, setPrefs: setBlotterPrefs } = useBlotterPreferences();
   const [selectedXccy, setSelectedXccy] = useState<PricedXccy | null>(null);
   const [selectedNdf, setSelectedNdf] = useState<PricedNdf | null>(null);
@@ -2030,12 +2034,17 @@ function PortfolioPage() {
   const curvesReady =
     curveStatus?.ibr.built && curveStatus?.sofr.built;
 
-  // Auto-reprice whenever the mark date changes (or curves become ready)
+  // #295 — SINGLE trigger for reprice. Inputs:
+  //   - curvesReady flips true after mount
+  //   - markFecha changes (user picked new date)
+  //   - repriceTrigger bumps (position added/removed, manual "Repricear" button)
+  // Everyone else that used to call repriceAllWithMark directly now just bumps
+  // repriceTrigger. The store's token + AbortController (#293) serializes.
   useEffect(() => {
     if (!curvesReady) return;
     handleRepriceWithMark(markFecha);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [curvesReady, markFecha]);
+  }, [curvesReady, markFecha, repriceTrigger]);
 
   const handleDelete = useCallback(
     (id: string, type: string) => {
@@ -2287,7 +2296,7 @@ function PortfolioPage() {
           onSave={async (v) => {
             await addXccyPosition(v);
             toast.success('Posicion XCCY creada');
-            if (curvesReady) await repriceAllWithMark(markFecha);
+            setRepriceTrigger((n) => n + 1);
           }}
         />
         <AddNdfModal
@@ -2296,7 +2305,7 @@ function PortfolioPage() {
           onSave={async (v) => {
             await addNdfPosition(v);
             toast.success('Posicion NDF creada');
-            if (curvesReady) await repriceAllWithMark(markFecha);
+            setRepriceTrigger((n) => n + 1);
           }}
         />
         <AddIbrSwapModal
@@ -2305,7 +2314,7 @@ function PortfolioPage() {
           onSave={async (v) => {
             await addIbrSwapPosition(v);
             toast.success('Posicion IBR Swap creada');
-            if (curvesReady) await repriceAllWithMark(markFecha);
+            setRepriceTrigger((n) => n + 1);
           }}
         />
         {/* Detail Modals */}
