@@ -256,13 +256,16 @@ export default function ChatPanel() {
     inputRef.current?.focus();
   }, []);
 
-  const SUGGESTIONS = [
-    { icon: '📈', text: 'Graficame las tasas IBR por plazo (3m, 6m, 1y)' },
-    { icon: '💹', text: 'Compara la inflacion con la tasa de politica monetaria' },
-    { icon: '🏦', text: 'Muestrame fondos FIC de renta fija' },
-    { icon: '💱', text: 'Cual es la TRM hoy?' },
-    { icon: '📊', text: 'Graficame el PIB vs la inflacion' },
-  ];
+  // Fetch suggestions from DB (super_admin can edit these via /admin/agent)
+  const [suggestions, setSuggestions] = useState<
+    Array<{ id: string; icon: string; title: string; prompt: string }>
+  >([]);
+  useEffect(() => {
+    fetch('/api/chat/suggestions')
+      .then((r) => (r.ok ? r.json() : { suggestions: [] }))
+      .then((data) => setSuggestions(data.suggestions || []))
+      .catch(() => setSuggestions([]));
+  }, []);
 
   // Build chart context string for the agent
   const chartContextText = chartSelections.length > 0
@@ -316,14 +319,16 @@ export default function ChatPanel() {
             <div style={{ fontSize: 13, color: '#b0b8c4' }}>
               Puedo consultar datos, graficar series y crear posiciones.
             </div>
-            <SuggestionsGrid>
-              {SUGGESTIONS.map((s) => (
-                <SuggestionBtn key={s.text} onClick={() => handleSuggestion(s.text)}>
-                  <span>{s.icon}</span>
-                  <span>{s.text}</span>
-                </SuggestionBtn>
-              ))}
-            </SuggestionsGrid>
+            {suggestions.length > 0 && (
+              <SuggestionsGrid>
+                {suggestions.map((s) => (
+                  <SuggestionBtn key={s.id} onClick={() => handleSuggestion(s.prompt)}>
+                    <span>{s.icon}</span>
+                    <span>{s.title}</span>
+                  </SuggestionBtn>
+                ))}
+              </SuggestionsGrid>
+            )}
           </EmptyState>
         ) : (
           chatMessages.map((msg) => (

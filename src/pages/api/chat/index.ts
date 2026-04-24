@@ -122,7 +122,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
   const userName = session.user.user_metadata?.full_name || session.user.email;
-  const systemPrompt = buildSystemPrompt(userName);
+  const systemPrompt = await buildSystemPrompt(userName, supabase);
 
   const anthropicMessages: Anthropic.MessageParam[] = clientMessages.map((m) => ({
     role: m.role,

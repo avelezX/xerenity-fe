@@ -1,5 +1,4 @@
 import Anthropic from '@anthropic-ai/sdk';
-import { buildSystemPrompt } from '../pages/api/chat/system-prompt';
 import { tools } from '../pages/api/chat/tools';
 import { evaluateTurn, isTurnPassing } from './evaluator';
 import type { TestCase, TestResult, TurnResult, ToolCallCapture } from './types';
@@ -169,7 +168,8 @@ export async function runTestCase(
   verbose: boolean = false,
 ): Promise<TestResult> {
   const startTime = Date.now();
-  const systemPrompt = buildSystemPrompt('Test User');
+  // System prompt is now loaded from DB. For evals, use a minimal fallback.
+  const systemPrompt = 'Eres el asistente de IA de Xerenity. Use view_series para graficar series buscando tickers en xerenity.search_mv.';
   const messages: Anthropic.MessageParam[] = [];
   const turnResults: TurnResult[] = [];
   let totalInput = 0;
