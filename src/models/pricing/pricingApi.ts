@@ -15,21 +15,29 @@ import type {
   XccyCashflowResponse,
   ParBasisPoint,
 } from 'src/types/pricing';
+import { telemetry } from 'src/lib/telemetry';
 
 const BASE_URL = process.env.NEXT_PUBLIC_PYSDK_URL || 'https://pysdk.fly.dev';
 
 async function pricingFetch<T>(path: string, options?: RequestInit): Promise<T> {
   const url = `${BASE_URL}/${path}`;
-  const res = await fetch(url, {
-    headers: { 'Content-Type': 'application/json' },
-    ...options,
-  });
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(text || `Request failed: ${res.status}`);
-  }
-  const json = await res.json();
-  return json.body ?? json;
+  return telemetry.time(
+    'pricing',
+    path,
+    async () => {
+      const res = await fetch(url, {
+        headers: { 'Content-Type': 'application/json' },
+        ...options,
+      });
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || `Request failed: ${res.status}`);
+      }
+      const json = await res.json();
+      return (json.body ?? json) as T;
+    },
+    { method: options?.method ?? 'GET' },
+  );
 }
 
 // ── Curves ──

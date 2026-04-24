@@ -1,5 +1,6 @@
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { LoanCashFlowIbr } from 'src/types/loans';
+import { telemetry } from 'src/lib/telemetry';
 
 // CashFlows Response
 export type CashflowResponse = {
@@ -41,20 +42,36 @@ export const fetchCashFlows = async (
     data: [],
     error: undefined,
   };
-  try {
-    const { data, error } = await supabase
-      .schema(SCHEMA)
-      .rpc(requestKey, { credito_id: loanId, filter_date: filterDate });
+  return telemetry.time(
+    'loans',
+    requestKey,
+    async () => {
+      try {
+        const { data, error } = await supabase
+          .schema(SCHEMA)
+          .rpc(requestKey, { credito_id: loanId, filter_date: filterDate });
 
-    if (error) {
-      response.error = CASH_FLOW.error;
-      return response;
-    }
+        if (error) {
+          telemetry.warn('loans', `${requestKey} rpc error`, {
+            loanId,
+            rpcMessage: error.message,
+            code: error.code,
+          });
+          response.error = CASH_FLOW.error;
+          return response;
+        }
 
-    response.data = data;
-    return response;
-  } catch (e) {
-    response.error = CASH_FLOW.error;
-    return response;
-  }
+        response.data = data;
+        return response;
+      } catch (e) {
+        telemetry.warn('loans', `${requestKey} threw`, {
+          loanId,
+          message: e instanceof Error ? e.message : String(e),
+        });
+        response.error = CASH_FLOW.error;
+        return response;
+      }
+    },
+    { loanId, loanType, filterDate },
+  );
 };

@@ -38,6 +38,7 @@ import {
   saveMarketDataConfig,
 } from 'src/models/trading';
 import { priceTesBond } from 'src/models/pricing/pricingApi';
+import { telemetry } from 'src/lib/telemetry';
 
 const genId = () => crypto.randomUUID();
 
@@ -78,6 +79,10 @@ export interface TradingSlice {
   };
   refPricesForDate: string | undefined;
   refPricesLoading: boolean;
+
+  // Fase 0 — Observability: counts concurrent reprice operations so we can
+  // correlate NPV flicker with overlapping calls (see epic #297).
+  inFlightReprices: number;
 
   // Actions
   loadUserRole: () => Promise<void>;
@@ -123,9 +128,40 @@ const initialTradingState = {
   refPrices: { daily: null, mtd: null, ytd: null },
   refPricesForDate: undefined,
   refPricesLoading: false,
+  inFlightReprices: 0,
 };
 
-const createTradingSlice: StateCreator<TradingSlice> = (set, get) => ({
+const createTradingSlice: StateCreator<TradingSlice> = (set, get) => {
+  // Track concurrent reprice operations. When N > 1 we have overlapping calls
+  // and the race condition that causes NPV flicker is in play. The counter is
+  // both in store state (for UI) and logged (for post-mortem).
+  const bumpInFlight = (delta: number, origin: string) => {
+    const next = Math.max(0, get().inFlightReprices + delta);
+    set({ inFlightReprices: next });
+    if (next > 1) {
+      telemetry.warn('store', 'overlapping reprice detected', {
+        origin,
+        inFlight: next,
+      });
+    } else {
+      telemetry.debug('store', 'reprice in-flight', {
+        origin,
+        inFlight: next,
+        delta,
+      });
+    }
+  };
+
+  const withInFlight = async <T>(origin: string, fn: () => Promise<T>): Promise<T> => {
+    bumpInFlight(+1, origin);
+    try {
+      return await fn();
+    } finally {
+      bumpInFlight(-1, origin);
+    }
+  };
+
+  return {
   ...initialTradingState,
 
   loadUserRole: async () => {
@@ -173,10 +209,8 @@ const createTradingSlice: StateCreator<TradingSlice> = (set, get) => ({
 
     set({ tradingLoading: true, tradingError: undefined });
     try {
-      const result = await repricePortfolio(
-        xccyPositions,
-        ndfPositions,
-        ibrSwapPositions,
+      const result = await withInFlight('repriceAll', () =>
+        repricePortfolio(xccyPositions, ndfPositions, ibrSwapPositions),
       );
       set({
         pricedXccy: result.xccy_results,
@@ -201,6 +235,7 @@ const createTradingSlice: StateCreator<TradingSlice> = (set, get) => ({
   repriceAllWithMark: async (fecha: string) => {
     const { xccyPositions, ndfPositions, ibrSwapPositions, tesPositions } = get();
     set({ tradingLoading: true, tesLoading: true, tradingError: undefined });
+    await withInFlight(`repriceAllWithMark(${fecha})`, async () => {
     try {
       // Excluir instrumentos cuya fecha de celebración es posterior a la fecha de marca
       const filteredNdf  = ndfPositions.filter((p) => !p.trade_date || p.trade_date <= fecha);
@@ -282,6 +317,7 @@ const createTradingSlice: StateCreator<TradingSlice> = (set, get) => ({
     } finally {
       set({ tradingLoading: false, tesLoading: false });
     }
+    });
   },
 
   addXccyPosition: async (values: NewXccyPosition) => {
@@ -398,6 +434,7 @@ const createTradingSlice: StateCreator<TradingSlice> = (set, get) => ({
     if (refPricesForDate === fechaMarca) return;
 
     set({ refPricesLoading: true });
+    await withInFlight(`loadReferencePrices(${fechaMarca})`, async () => {
     try {
       const refDates = await computePnlRefDates(fechaMarca);
 
@@ -449,6 +486,7 @@ const createTradingSlice: StateCreator<TradingSlice> = (set, get) => ({
     } catch {
       set({ refPricesLoading: false });
     }
+    });
   },
 
   resetTradingStore: () => set(initialTradingState),
@@ -473,16 +511,18 @@ const createTradingSlice: StateCreator<TradingSlice> = (set, get) => ({
 
     set({ tesLoading: true, tesError: undefined });
 
-    const results = await Promise.allSettled(
-      tesPositions.map((pos) =>
-        priceTesBond({
-          bond_name: pos.bond_name,
-          issue_date: pos.issue_date,
-          maturity_date: pos.maturity_date,
-          coupon_rate: pos.coupon_rate * 100, // pysdk expects pct
-          face_value: pos.face_value,
-          include_cashflows: true,
-        }).then((r) => ({ pos, result: r }))
+    const results = await withInFlight('repriceTes', () =>
+      Promise.allSettled(
+        tesPositions.map((pos) =>
+          priceTesBond({
+            bond_name: pos.bond_name,
+            issue_date: pos.issue_date,
+            maturity_date: pos.maturity_date,
+            coupon_rate: pos.coupon_rate * 100, // pysdk expects pct
+            face_value: pos.face_value,
+            include_cashflows: true,
+          }).then((r) => ({ pos, result: r }))
+        )
       )
     );
 
@@ -552,6 +592,7 @@ const createTradingSlice: StateCreator<TradingSlice> = (set, get) => ({
       pricedTesBonds: state.pricedTesBonds.filter((p) => !ids.includes(p.id)),
     }));
   },
-});
+  };
+};
 
 export default createTradingSlice;
