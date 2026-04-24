@@ -7,7 +7,11 @@ import type {
   PricedIbrSwap,
   PortfolioRepriceResponse,
 } from 'src/types/trading';
-import { telemetry } from 'src/lib/telemetry';
+import {
+  telemetry,
+  combineAbortSignals,
+  DEFAULT_FETCH_TIMEOUT_MS,
+} from 'src/lib/telemetry';
 
 const BASE_URL =
   process.env.NEXT_PUBLIC_PYSDK_URL || 'https://pysdk.fly.dev';
@@ -19,19 +23,31 @@ interface RawRepriceResponse {
   summary: PortfolioRepriceResponse['summary'];
 }
 
+export interface RepricePortfolioOptions {
+  valuation_date?: string;
+  /** Caller-supplied abort signal. Combined with a default timeout. */
+  signal?: AbortSignal;
+  /** Override the default 30s timeout (sub-issue #292). */
+  timeoutMs?: number;
+}
+
 // eslint-disable-next-line import/prefer-default-export
 export const repricePortfolio = async (
   xccyPositions: XccyPosition[],
   ndfPositions: NdfPosition[],
   ibrSwapPositions: IbrSwapPosition[],
-  options?: { valuation_date?: string }
+  options?: RepricePortfolioOptions,
 ): Promise<PortfolioRepriceResponse> => {
   const url = `${BASE_URL}/pricing/portfolio/reprice`;
+  const signal = combineAbortSignals(
+    options?.signal,
+    options?.timeoutMs ?? DEFAULT_FETCH_TIMEOUT_MS,
+  );
   return telemetry.time(
     'reprice',
     'portfolio/reprice',
     // eslint-disable-next-line @typescript-eslint/no-use-before-define
-    async () => repriceImpl(url, xccyPositions, ndfPositions, ibrSwapPositions, options),
+    async () => repriceImpl(url, signal, xccyPositions, ndfPositions, ibrSwapPositions, options),
     {
       valuationDate: options?.valuation_date ?? 'today',
       xccyCount: xccyPositions.length,
@@ -43,14 +59,16 @@ export const repricePortfolio = async (
 
 async function repriceImpl(
   url: string,
+  signal: AbortSignal,
   xccyPositions: XccyPosition[],
   ndfPositions: NdfPosition[],
   ibrSwapPositions: IbrSwapPosition[],
-  options?: { valuation_date?: string },
+  options?: RepricePortfolioOptions,
 ): Promise<PortfolioRepriceResponse> {
   const res = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
+    signal,
     body: JSON.stringify({
       ...(options?.valuation_date ? { valuation_date: options.valuation_date } : {}),
       xccy_positions: xccyPositions.map((p) => ({

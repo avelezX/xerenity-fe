@@ -1,12 +1,22 @@
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { LoanCashFlowIbr } from 'src/types/loans';
-import { telemetry } from 'src/lib/telemetry';
+import {
+  telemetry,
+  combineAbortSignals,
+  DEFAULT_FETCH_TIMEOUT_MS,
+  isAbortError,
+} from 'src/lib/telemetry';
 
 // CashFlows Response
 export type CashflowResponse = {
   data: LoanCashFlowIbr[];
   error: string | undefined;
 };
+
+export interface FetchCashFlowsOptions {
+  signal?: AbortSignal;
+  timeoutMs?: number;
+}
 
 const CASH_FLOW = {
   key: 'loan_cash_flow',
@@ -29,7 +39,8 @@ const supabase = createClientComponentClient();
 export const fetchCashFlows = async (
   loanId: string,
   loanType: string,
-  filterDate: string
+  filterDate: string,
+  opts?: FetchCashFlowsOptions,
 ): Promise<CashflowResponse> => {
   let requestKey = CASH_FLOW.key;
 
@@ -42,6 +53,10 @@ export const fetchCashFlows = async (
     data: [],
     error: undefined,
   };
+  const signal = combineAbortSignals(
+    opts?.signal,
+    opts?.timeoutMs ?? DEFAULT_FETCH_TIMEOUT_MS,
+  );
   return telemetry.time(
     'loans',
     requestKey,
@@ -49,7 +64,8 @@ export const fetchCashFlows = async (
       try {
         const { data, error } = await supabase
           .schema(SCHEMA)
-          .rpc(requestKey, { credito_id: loanId, filter_date: filterDate });
+          .rpc(requestKey, { credito_id: loanId, filter_date: filterDate })
+          .abortSignal(signal);
 
         if (error) {
           telemetry.warn('loans', `${requestKey} rpc error`, {
@@ -64,6 +80,12 @@ export const fetchCashFlows = async (
         response.data = data;
         return response;
       } catch (e) {
+        if (isAbortError(e)) {
+          telemetry.debug('loans', `${requestKey} aborted`, { loanId });
+          // Propagate so callers using Promise.allSettled can distinguish
+          // "my request was cancelled" from "backend error".
+          throw e;
+        }
         telemetry.warn('loans', `${requestKey} threw`, {
           loanId,
           message: e instanceof Error ? e.message : String(e),
