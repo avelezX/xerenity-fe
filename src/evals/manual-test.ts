@@ -7,7 +7,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import Anthropic from '@anthropic-ai/sdk';
-import { buildSystemPrompt } from '../pages/api/chat/system-prompt';
 import { tools } from '../pages/api/chat/tools';
 
 // Load env
@@ -24,7 +23,9 @@ if (fs.existsSync(envPath)) {
 }
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-const systemPrompt = buildSystemPrompt('Test User');
+// buildSystemPrompt is now async and reads from DB. For manual test, use a minimal fallback prompt.
+// Run this test from a context with Supabase connection (or refactor later to load skills in test).
+const systemPrompt = 'Eres el asistente de IA de Xerenity. Use view_series para graficar series buscando tickers en xerenity.search_mv.';
 
 // Synthetic responses for tool results
 function syntheticResult(toolName: string, toolInput: Record<string, unknown>): string {
