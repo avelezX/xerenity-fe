@@ -109,6 +109,7 @@ export default function LoansPage() {
     activeCompanyId,
     selectedCompanyId,
     calculationProgress,
+    retryFailedLoans,
   } = useAppStore();
 
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('Todos');
@@ -380,7 +381,35 @@ export default function LoansPage() {
               </div>
               <span style={{ fontSize: 11, color: '#6c757d', fontWeight: 600 }}>
                 Calculando {calculationProgress.completed}/{calculationProgress.total}
+                {calculationProgress.failed > 0 && (
+                  <span style={{ color: '#dc3545', marginLeft: 4 }}>
+                    ({calculationProgress.failed} con error)
+                  </span>
+                )}
               </span>
+            </div>
+          )}
+          {!calculationProgress.calculating && calculationProgress.failed > 0 && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 11, color: '#dc3545', fontWeight: 600 }}>
+                {calculationProgress.failed} de {calculationProgress.total} créditos con error
+              </span>
+              <button
+                type="button"
+                onClick={() => retryFailedLoans()}
+                style={{
+                  padding: '2px 10px',
+                  fontSize: 11,
+                  fontWeight: 600,
+                  borderRadius: 6,
+                  border: '1px solid #dc3545',
+                  background: '#fff',
+                  color: '#dc3545',
+                  cursor: 'pointer',
+                }}
+              >
+                Reintentar fallidos
+              </button>
             </div>
           )}
           {typeCounts.ibr > 0 && <SummaryItem label="IBR" value={`${typeCounts.ibr} créditos`} color="#856404" />}

@@ -23,11 +23,16 @@ import {
 import { LightSerieValue } from 'src/types/lightserie';
 import { SelectedLoansDate } from 'src/types/selectableRows';
 import calculateCurrentDate from 'src/utils/calculateCurrentDate';
+import { telemetry, isAbortError } from 'src/lib/telemetry';
 
 export interface CalculationProgress {
   total: number;
   completed: number;
   calculating: boolean;
+  /** #294: loans whose RPC failed or timed out. Surfaced in UI so the user
+   *  can retry only the failures instead of losing the batch. */
+  failed: number;
+  failedLoanIds: string[];
 }
 
 export interface LoansSlice {
@@ -78,6 +83,9 @@ export interface LoansSlice {
   setCurrentSelection: (loan: Loan) => void;
   wakeServer: () => void;
   deleteMultipleLoans: (loanIds: string[]) => void;
+  /** #294: retry only the loans that failed in the last calculation without
+   *  re-fetching the successful ones. */
+  retryFailedLoans: () => void;
 }
 
 const initialState = {
@@ -100,7 +108,13 @@ const initialState = {
   selectedBanks: [],
   filterDate: calculateCurrentDate(),
   currentSelection: undefined,
-  calculationProgress: { total: 0, completed: 0, calculating: false },
+  calculationProgress: {
+    total: 0,
+    completed: 0,
+    calculating: false,
+    failed: 0,
+    failedLoanIds: [],
+  },
 };
 
 // ─── Helper: build portfolio summary from individual cashflows ───
@@ -239,7 +253,36 @@ function buildPortfolioSummary(
   return { fullLoan, loanDebtData };
 }
 
-const createLoansSlice: StateCreator<LoansSlice> = (set) => ({
+const createLoansSlice: StateCreator<LoansSlice> = (set, get) => {
+  // #294 — Token + AbortController protect the long-running batch from being
+  // stomped by a newer selection change. Analogous to the trading store
+  // (#293) but for setSelectedLoans.
+  let calcToken = 0;
+  let calcAbort: AbortController | null = null;
+
+  const startCalc = (origin: string): { myToken: number; signal: AbortSignal } => {
+    if (calcAbort) {
+      telemetry.debug('loans', 'aborting prior calc', { origin, prior: calcToken });
+      calcAbort.abort();
+    }
+    calcToken += 1;
+    calcAbort = new AbortController();
+    return { myToken: calcToken, signal: calcAbort.signal };
+  };
+
+  const isStaleCalc = (myToken: number, origin: string): boolean => {
+    if (myToken !== calcToken) {
+      telemetry.debug('loans', 'dropping stale calc result', {
+        origin,
+        myToken,
+        current: calcToken,
+      });
+      return true;
+    }
+    return false;
+  };
+
+  return {
   ...initialState,
   // Store Actions
   createLoan: async (values: NewLoanValues) => {
@@ -307,53 +350,98 @@ const createLoansSlice: StateCreator<LoansSlice> = (set) => ({
 
     const total = selectedRows.length;
     if (total === 0) {
+      // Abort any in-flight calc so it doesn't land later.
+      if (calcAbort) calcAbort.abort();
+      calcToken += 1;
       set({
         loading: false,
         cashFlows: [],
         mergedCashFlows: [],
         fullLoan: undefined,
         loanDebtData: [],
-        calculationProgress: { total: 0, completed: 0, calculating: false },
+        calculationProgress: {
+          total: 0, completed: 0, calculating: false, failed: 0, failedLoanIds: [],
+        },
       });
       return;
     }
 
-    // Start progress
-    set({ calculationProgress: { total, completed: 0, calculating: true } });
+    const { myToken, signal } = startCalc('setSelectedLoans');
 
-    // Calculate each loan individually (batches of 5 in parallel)
+    // Start progress
+    set({
+      calculationProgress: {
+        total, completed: 0, calculating: true, failed: 0, failedLoanIds: [],
+      },
+    });
+
+    // Calculate each loan individually (batches of 5 in parallel).
+    //
+    // #294: Use Promise.allSettled — a single hung/failed RPC previously
+    // aborted the whole batch via Promise.all, so 13 batches after it would
+    // never run. Now every loan succeeds or fails independently; we track
+    // the failures in `failedLoanIds` and surface them in the progress bar.
     const batchSize = 5;
     const allCashFlows: CashFlowItem[] = [];
+    const failedLoanIds: string[] = [];
     const batches: Loan[][] = [];
     for (let i = 0; i < total; i += batchSize) {
       batches.push(selectedRows.slice(i, i + batchSize));
     }
 
-    const processBatch = async (batch: Loan[]): Promise<CashFlowItem[]> => {
-      const promises = batch.map(async (loan) => {
-        const response: CashflowResponse = await fetchCashFlows(
-          loan.id,
-          loan.type,
-          filterDate
-        );
-        if (!response.error && response.data) {
-          return { loanId: loan.id, flows: response.data } as CashFlowItem;
+    const processBatch = async (batch: Loan[], idx: number): Promise<void> => {
+      const outcomes = await Promise.allSettled(
+        batch.map(async (loan) => {
+          const response: CashflowResponse = await fetchCashFlows(
+            loan.id,
+            loan.type,
+            filterDate,
+            { signal },
+          );
+          if (response.error) throw new Error(response.error);
+          return { loanId: loan.id, flows: response.data ?? [] } as CashFlowItem;
+        }),
+      );
+      let ok = 0;
+      let failed = 0;
+      outcomes.forEach((outcome, i) => {
+        const loan = batch[i];
+        if (outcome.status === 'fulfilled') {
+          allCashFlows.push(outcome.value);
+          ok += 1;
+        } else if (isAbortError(outcome.reason)) {
+          // Aborted by a newer selection change; isStaleCalc below will
+          // drop our final writes.
+        } else {
+          failedLoanIds.push(loan.id);
+          failed += 1;
         }
-        return null;
       });
-      const results = await Promise.all(promises);
-      return results.filter((r): r is CashFlowItem => r !== null);
+      telemetry.info('loans', `batch ${idx + 1}/${batches.length}`, {
+        size: batch.length, ok, failed,
+      });
     };
 
     let completedCount = 0;
     // eslint-disable-next-line no-restricted-syntax
-    for (const batch of batches) {
+    for (let i = 0; i < batches.length; i += 1) {
+      const batch = batches[i];
       // eslint-disable-next-line no-await-in-loop
-      const batchResults = await processBatch(batch);
-      batchResults.forEach((r) => allCashFlows.push(r));
+      await processBatch(batch, i);
+      if (isStaleCalc(myToken, 'setSelectedLoans')) return;
       completedCount += batch.length;
-      set({ calculationProgress: { total, completed: completedCount, calculating: true } });
+      set({
+        calculationProgress: {
+          total,
+          completed: completedCount,
+          calculating: true,
+          failed: failedLoanIds.length,
+          failedLoanIds: [...failedLoanIds],
+        },
+      });
     }
+
+    if (isStaleCalc(myToken, 'setSelectedLoans')) return;
 
     // Build merged cashflows
     const newCashFlow: { [date: string]: LoanCashFlowIbr } = {};
@@ -400,7 +488,103 @@ const createLoansSlice: StateCreator<LoansSlice> = (set) => ({
       fullLoan,
       loanDebtData,
       loading: false,
-      calculationProgress: { total, completed: completedCount, calculating: false },
+      calculationProgress: {
+        total,
+        completed: completedCount,
+        calculating: false,
+        failed: failedLoanIds.length,
+        failedLoanIds,
+      },
+    });
+  },
+
+  retryFailedLoans: async () => {
+    const { calculationProgress, loans, filterDate, cashFlows, selectedLoans } = get();
+    const { failedLoanIds } = calculationProgress;
+    if (failedLoanIds.length === 0) return;
+    const toRetry = loans.filter((l) => failedLoanIds.includes(l.id));
+    if (toRetry.length === 0) return;
+
+    telemetry.info('loans', 'retrying failed loans', {
+      count: toRetry.length, ids: failedLoanIds,
+    });
+
+    const { myToken, signal } = startCalc('retryFailedLoans');
+    set({
+      calculationProgress: {
+        total: calculationProgress.total,
+        completed: calculationProgress.completed - failedLoanIds.length,
+        calculating: true,
+        failed: 0,
+        failedLoanIds: [],
+      },
+    });
+
+    const outcomes = await Promise.allSettled(
+      toRetry.map(async (loan) => {
+        const response = await fetchCashFlows(loan.id, loan.type, filterDate, { signal });
+        if (response.error) throw new Error(response.error);
+        return { loanId: loan.id, flows: response.data ?? [] } as CashFlowItem;
+      }),
+    );
+
+    if (isStaleCalc(myToken, 'retryFailedLoans')) return;
+
+    const newlySucceeded: CashFlowItem[] = [];
+    const stillFailed: string[] = [];
+    outcomes.forEach((o, i) => {
+      const loan = toRetry[i];
+      if (o.status === 'fulfilled') {
+        newlySucceeded.push(o.value);
+      } else if (!isAbortError(o.reason)) {
+        stillFailed.push(loan.id);
+      }
+    });
+
+    const mergedCashFlows = [...cashFlows, ...newlySucceeded];
+    const selectedRows = loans.filter((l) => selectedLoans.includes(l.id));
+
+    // Rebuild merged/aggregate from the union.
+    const byDate: { [date: string]: LoanCashFlowIbr } = {};
+    mergedCashFlows.forEach((item) => {
+      item.flows.forEach((flow) => {
+        const existing = byDate[flow.date];
+        if (existing) {
+          byDate[flow.date] = {
+            principal: existing.principal + flow.principal,
+            rate: existing.rate,
+            date: flow.date,
+            beginning_balance: existing.beginning_balance + flow.beginning_balance,
+            payment: existing.payment + flow.payment,
+            interest: existing.interest + flow.interest,
+            ending_balance: existing.ending_balance + flow.ending_balance,
+            rate_tot: existing.rate_tot,
+          };
+        } else {
+          byDate[flow.date] = { ...flow };
+        }
+      });
+    });
+    const mergedSorted = Object.values(byDate).sort((a, b) => (a.date < b.date ? -1 : 1));
+    const chartData: LightSerieValue[] = mergedSorted.map((v) => ({
+      time: v.date.split(' ')[0],
+      value: v.payment,
+    }));
+    const { fullLoan, loanDebtData } = buildPortfolioSummary(mergedCashFlows, selectedRows);
+
+    set({
+      cashFlows: mergedCashFlows,
+      mergedCashFlows: mergedSorted,
+      chartData,
+      fullLoan,
+      loanDebtData,
+      calculationProgress: {
+        total: calculationProgress.total,
+        completed: calculationProgress.completed - failedLoanIds.length + newlySucceeded.length,
+        calculating: false,
+        failed: stillFailed.length,
+        failedLoanIds: stillFailed,
+      },
     });
   },
 
@@ -535,6 +719,7 @@ const createLoansSlice: StateCreator<LoansSlice> = (set) => ({
       });
     }
   },
-});
+  };
+};
 
 export default createLoansSlice;
