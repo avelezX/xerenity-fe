@@ -137,6 +137,21 @@ async function repriceImpl(
   const bind = (r: Record<string, unknown>, posId: string) =>
     (field: string, fallback = 0): number => n(r[field], field, posId, fallback);
 
+  // #296 — When the backend returns a null/undefined NPV (curve missing, partial
+  // pricing, etc.), we must NOT show "0" in the UI. BlotterTable already renders
+  // "Err" when `error` is set, so promote null-NPV to an error status here so
+  // the user sees "Err" instead of a fake zero. Preserves any existing backend
+  // error message so real failure reasons still surface.
+  const promoteNullNpvToError = (
+    r: Record<string, unknown>,
+    criticalFields: string[],
+  ): string | undefined => {
+    if (r.error) return r.error as string;
+    const missing = criticalFields.filter((f) => r[f] === null || r[f] === undefined);
+    if (missing.length === 0) return undefined;
+    return `NPV incompleto (${missing.join(', ')})`;
+  };
+
   const xccyResults: PricedXccy[] = (raw.xccy_results ?? []).map((r) => {
     const pos = xccyById[r.id as string];
     const g = bind(r, (r.id as string) ?? 'unknown');
@@ -157,7 +172,7 @@ async function repriceImpl(
       par_basis_bps: r.par_basis_bps != null ? g('par_basis_bps') : null,
       notional_cop: g('notional_cop'), fx_spot: g('fx_spot'), n_periods: g('n_periods'),
       cashflows: (r.cashflows as PricedXccy['cashflows']) ?? [],
-      error: r.error as string | undefined,
+      error: promoteNullNpvToError(r, ['npv_cop', 'npv_usd']),
     };
   });
 
@@ -177,7 +192,7 @@ async function repriceImpl(
       spot: g('spot'),
       days_open: g('days_open'),
       accrued_cop: g('accrued_cop'),
-      error: r.error as string | undefined,
+      error: promoteNullNpvToError(r, ['npv_cop', 'npv_usd']),
     };
   });
 
@@ -196,7 +211,7 @@ async function repriceImpl(
       ibr_fwd_period_pct: g('ibr_fwd_period_pct'),
       carry_period_cop: g('carry_period_cop'),
       carry_period_diff_bps: g('carry_period_diff_bps'),
-      error: r.error as string | undefined,
+      error: promoteNullNpvToError(r, ['npv']),
     };
   });
 
