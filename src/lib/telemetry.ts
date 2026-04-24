@@ -11,6 +11,61 @@ const SHORT_ID_LEN = 8;
 
 export type TelemetryNamespace = 'pricing' | 'reprice' | 'loans' | 'store';
 
+/** Default HTTP timeout for pricing/loans fetchers. Also used when no external
+ *  signal is provided. Tracked in sub-issue #292. */
+export const DEFAULT_FETCH_TIMEOUT_MS = 30_000;
+
+/**
+ * Combine an optional external AbortSignal with a timeout signal.
+ * Returns a signal that aborts when either the external one aborts or the
+ * timeout fires. Falls back to a manual aggregator when AbortSignal.any is
+ * not available (older browsers / Node < 20).
+ */
+export function combineAbortSignals(
+  external: AbortSignal | undefined,
+  timeoutMs: number,
+): AbortSignal {
+  const timeoutSignal =
+    typeof AbortSignal.timeout === 'function'
+      ? AbortSignal.timeout(timeoutMs)
+      : (() => {
+          const c = new AbortController();
+          setTimeout(() => c.abort(new DOMException('Timeout', 'TimeoutError')), timeoutMs);
+          return c.signal;
+        })();
+
+  if (!external) return timeoutSignal;
+
+  const anyFn = (AbortSignal as unknown as { any?: (signals: AbortSignal[]) => AbortSignal }).any;
+  if (typeof anyFn === 'function') {
+    return anyFn([external, timeoutSignal]);
+  }
+
+  const ctrl = new AbortController();
+  const forward = (source: AbortSignal) => {
+    if (source.aborted) {
+      ctrl.abort(source.reason);
+      return;
+    }
+    source.addEventListener('abort', () => ctrl.abort(source.reason), { once: true });
+  };
+  forward(external);
+  forward(timeoutSignal);
+  return ctrl.signal;
+}
+
+/** True if the given error was caused by an abort/timeout. */
+export function isAbortError(e: unknown): boolean {
+  if (!e) return false;
+  if (e instanceof DOMException) {
+    return e.name === 'AbortError' || e.name === 'TimeoutError';
+  }
+  if (e instanceof Error) {
+    return e.name === 'AbortError' || e.name === 'TimeoutError';
+  }
+  return false;
+}
+
 const makeReqId = (): string => {
   try {
     return crypto.randomUUID().slice(0, SHORT_ID_LEN);
