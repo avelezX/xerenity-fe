@@ -14,7 +14,7 @@
  * - Curves change when marks are loaded — 30s is fine.
  * - Catalogs and historical marks change rarely — 10 min.
  */
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueries } from '@tanstack/react-query';
 import {
   getCurveStatus,
   getNdfImpliedCurve,
@@ -25,10 +25,12 @@ import {
   getMarkByDate,
 } from 'src/models/pricing/pricingApi';
 import { repricePortfolio } from 'src/models/trading/repricePortfolio';
+import { computePnlRefDates } from 'src/utils/pnlDates';
 import type {
   XccyPosition,
   NdfPosition,
   IbrSwapPosition,
+  PortfolioRepriceResponse,
 } from 'src/types/trading';
 
 export const pricingKeys = {
@@ -46,6 +48,17 @@ export const pricingKeys = {
     ibrIds: string[],
   ) => [
     'pricing', 'reprice', valuationDate,
+    [...xccyIds].sort(), [...ndfIds].sort(), [...ibrIds].sort(),
+  ] as const,
+  refDates: (fechaMarca: string) => ['pricing', 'refDates', fechaMarca] as const,
+  refPrice: (
+    period: 'daily' | 'mtd' | 'ytd',
+    fecha: string,
+    xccyIds: string[],
+    ndfIds: string[],
+    ibrIds: string[],
+  ) => [
+    'pricing', 'refPrice', period, fecha,
     [...xccyIds].sort(), [...ndfIds].sort(), [...ibrIds].sort(),
   ] as const,
 };
@@ -177,4 +190,105 @@ export function useRepricePortfolio(input: UseRepricePortfolioInput) {
     staleTime: 30_000,
   });
 }
+
+/**
+ * #314 — Compute reference prices (daily, MTD, YTD) needed to derive P&L
+ * columns in the portfolio blotter.
+ *
+ * Replaces `loadReferencePrices` from `src/store/trading/index.ts`. The
+ * legacy version:
+ *   1. Awaited `computePnlRefDates(fechaMarca)` to get the 3 reference dates.
+ *   2. Fired 3 `repricePortfolio` calls in parallel with `Promise.allSettled`.
+ *   3. Stored results in `state.refPrices.{daily, mtd, ytd}`.
+ *
+ * The hook does the same in two stages:
+ *   - One `useQuery` for `refDates` keyed on `fechaMarca`.
+ *   - `useQueries` for the 3 sub-reprices, gated by `refDates` being
+ *     resolved. Each sub-query has its own key so partial failures don't
+ *     cascade and TanStack dedupes if another component asks for the same
+ *     period+date combo.
+ */
+export type RefPricePeriod = 'daily' | 'mtd' | 'ytd';
+
+export interface UseReferencePricesInput {
+  xccy: XccyPosition[];
+  ndf: NdfPosition[];
+  ibr: IbrSwapPosition[];
+  fechaMarca: string;
+  enabled?: boolean;
+}
+
+export interface UseReferencePricesResult {
+  refPrices: {
+    daily: PortfolioRepriceResponse | null;
+    mtd: PortfolioRepriceResponse | null;
+    ytd: PortfolioRepriceResponse | null;
+  };
+  isLoading: boolean;
+  isError: boolean;
+}
+
+export function useReferencePrices(input: UseReferencePricesInput): UseReferencePricesResult {
+  const { xccy, ndf, ibr, fechaMarca, enabled = true } = input;
+
+  const refDatesQuery = useQuery({
+    queryKey: pricingKeys.refDates(fechaMarca),
+    queryFn: () => computePnlRefDates(fechaMarca),
+    enabled: enabled && !!fechaMarca,
+    // The 3 reference dates depend only on calendar logic for `fechaMarca`,
+    // not on market data — keep them cached for an hour.
+    staleTime: 60 * 60_000,
+  });
+  const refDates = refDatesQuery.data;
+
+  const periods: RefPricePeriod[] = ['daily', 'mtd', 'ytd'];
+
+  const subQueries = useQueries({
+    queries: periods.map((period) => {
+      const fecha = refDates?.[period];
+      const filteredXccy = fecha ? xccy.filter((p) => p.start_date <= fecha) : [];
+      const filteredNdf = fecha
+        ? ndf.filter((p) => !p.trade_date || p.trade_date <= fecha)
+        : [];
+      const filteredIbr = fecha ? ibr.filter((p) => p.start_date <= fecha) : [];
+      return {
+        queryKey: pricingKeys.refPrice(
+          period,
+          fecha ?? '',
+          filteredXccy.map((p) => p.id),
+          filteredNdf.map((p) => p.id),
+          filteredIbr.map((p) => p.id),
+        ),
+        queryFn: ({ signal }: { signal: AbortSignal }) =>
+          repricePortfolio(filteredXccy, filteredNdf, filteredIbr, {
+            valuation_date: fecha as string,
+            signal,
+          }),
+        enabled: enabled
+          && !!fecha
+          && (filteredXccy.length + filteredNdf.length + filteredIbr.length) > 0,
+        // Reference prices for past dates are immutable for that snapshot of
+        // positions — keep them warm for 5 min so navigating between pages or
+        // re-rendering doesn't refetch.
+        staleTime: 5 * 60_000,
+      };
+    }),
+  });
+
+  const [daily, mtd, ytd] = subQueries;
+  const isLoading = refDatesQuery.isLoading || subQueries.some((q) => q.isLoading);
+  const isError = refDatesQuery.isError || subQueries.some((q) => q.isError);
+
+  return {
+    refPrices: {
+      daily: daily?.data ?? null,
+      mtd: mtd?.data ?? null,
+      ytd: ytd?.data ?? null,
+    },
+    isLoading,
+    isError,
+  };
+}
+
+
 
