@@ -270,7 +270,7 @@ export function useLoanPortfolioSummary(
         if (!reason.toLowerCase().includes('abort')) failedLoanIds.push(loan.id);
         return;
       }
-      const data = q.data;
+      const { data } = q;
       if (!data || data.error) {
         if (data?.error) failedLoanIds.push(loan.id);
         return;
