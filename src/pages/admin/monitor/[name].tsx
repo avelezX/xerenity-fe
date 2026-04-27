@@ -20,8 +20,14 @@ import styled from 'styled-components';
 import PageTitle from '@components/PageTitle';
 import RoleGuard from 'src/components/RoleGuard';
 import useAppStore from 'src/store';
-import type { CollectorRun, CollectorOverview, RunStatus } from 'src/types/monitor';
+import type { CollectorRun, CollectorOverview, RunStatus, Severity } from 'src/types/monitor';
 import { getCollectorDefinition } from 'src/models/monitor';
+
+const SEV_BADGE: Record<Severity, string> = {
+  critical: '#dc3545',
+  warning:  '#f0ad4e',
+  info:     '#5bc0de',
+};
 
 const PageWrap = styled.div`
   padding: 16px 24px;
@@ -149,7 +155,7 @@ const CollectorDetailPage = () => {
                   {definition ? (
                     <dl>
                       <dt>Severity</dt>
-                      <dd><Badge style={{ background: definition.severity_default === 'critical' ? '#dc3545' : definition.severity_default === 'warning' ? '#f0ad4e' : '#5bc0de' }}>{definition.severity_default}</Badge></dd>
+                      <dd><Badge style={{ background: SEV_BADGE[definition.severity_default] }}>{definition.severity_default}</Badge></dd>
                       <dt>Enabled</dt>
                       <dd>{definition.enabled ? 'Sí' : 'No'}</dd>
                       <dt>Cron</dt>
@@ -170,14 +176,14 @@ const CollectorDetailPage = () => {
                   <table>
                     <thead>
                       <tr>
-                        <th />
+                        <th aria-label="expand traceback" />
                         <th>Inicio</th>
                         <th>Status</th>
                         <th>Duración</th>
                         <th>Filas</th>
                         <th>Exit</th>
                         <th>Error</th>
-                        <th />
+                        <th aria-label="external link" />
                       </tr>
                     </thead>
                     <tbody>

@@ -74,6 +74,17 @@ const AlertsPanel = styled.div`
   h4 { font-size: 14px; font-weight: 700; margin: 0 0 12px 0; text-transform: uppercase; letter-spacing: 0.5px; color: #302b63; }
 `;
 
+const SEV_COLORS: Record<Severity, string> = {
+  critical: '#dc3545',
+  warning:  '#f0ad4e',
+  info:     '#5bc0de',
+};
+const SEV_BG: Record<Severity, string> = {
+  critical: '#fdf3f4',
+  warning:  '#fdf8ef',
+  info:     '#f2f9fc',
+};
+
 const AlertCard = styled.div<{ $severity: Severity }>`
   border-left: 4px solid ${(p) => SEV_COLORS[p.$severity]};
   background: ${(p) => SEV_BG[p.$severity]};
@@ -94,17 +105,6 @@ const EmptyState = styled.div`
   font-size: 13px;
   padding: 32px 8px;
 `;
-
-const SEV_COLORS: Record<Severity, string> = {
-  critical: '#dc3545',
-  warning:  '#f0ad4e',
-  info:     '#5bc0de',
-};
-const SEV_BG: Record<Severity, string> = {
-  critical: '#fdf3f4',
-  warning:  '#fdf8ef',
-  info:     '#f2f9fc',
-};
 
 const statusColor = (row: CollectorOverview): string => {
   if (row.has_critical_alert) return '#dc3545';
@@ -220,14 +220,14 @@ const MonitorPage = () => {
                   <table>
                     <thead>
                       <tr>
-                        <th style={{ width: 24 }} />
+                        <th style={{ width: 24 }} aria-label="status indicator" />
                         <th>Collector</th>
                         <th>Severity</th>
                         <th>Último run</th>
                         <th>Duración</th>
                         <th>Alertas</th>
                         <th>Tablas</th>
-                        <th />
+                        <th aria-label="external links" />
                       </tr>
                     </thead>
                     <tbody>
