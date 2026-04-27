@@ -7,8 +7,16 @@ import { config } from '@fortawesome/fontawesome-svg-core';
 import '@fortawesome/fontawesome-svg-core/styles.css';
 import { ProgressBar } from '@components/ProgressBar';
 import { QueryClientProvider } from '@tanstack/react-query';
-import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
+import dynamic from 'next/dynamic';
 import { queryClient } from 'src/lib/queryClient';
+
+// Devtools is a devDependency — Vercel production builds skip dev deps, so
+// importing it unconditionally fails the build. Dynamic-import it and keep
+// the chunk out of the production bundle entirely.
+const ReactQueryDevtools = dynamic(
+  () => import('@tanstack/react-query-devtools').then((m) => m.ReactQueryDevtools),
+  { ssr: false },
+);
 
 // You change this configuration value to false so that the Font Awesome core SVG library
 // will not try and insert <style> elements into the <head> of the page.
