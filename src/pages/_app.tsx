@@ -8,7 +8,7 @@ import '@fortawesome/fontawesome-svg-core/styles.css';
 import { ProgressBar } from '@components/ProgressBar';
 import { QueryClientProvider } from '@tanstack/react-query';
 import dynamic from 'next/dynamic';
-import { queryClient } from 'src/lib/queryClient';
+import queryClient from 'src/lib/queryClient';
 
 // Devtools is a devDependency — Vercel production builds skip dev deps, so
 // importing it unconditionally fails the build. Dynamic-import it and keep
