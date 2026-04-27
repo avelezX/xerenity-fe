@@ -14,6 +14,7 @@ import {
   faCog,
   faRobot,
   faUsers,
+  faHeartPulse,
 } from '@fortawesome/free-solid-svg-icons';
 import useAppStore from 'src/store';
 import SubNavItem from './SubNavItem';
@@ -173,6 +174,14 @@ const SidebarNavList = ({ currentPath }: SidebarNavProps) => {
           path="/settings/users"
           icon={faUsers}
           active={currentPath.includes('/settings/users')}
+        />
+      )}
+      {userRole === 'super_admin' && (
+        <NavigationItem
+          name="Monitor"
+          path="/admin/monitor"
+          icon={faHeartPulse}
+          active={currentPath.includes('/admin/monitor')}
         />
       )}
       {userRole === 'super_admin' && (
