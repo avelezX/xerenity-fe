@@ -3,7 +3,7 @@
 /* eslint-disable no-nested-ternary, no-underscore-dangle, no-restricted-syntax, prefer-template, jsx-a11y/control-has-associated-label */
 import { CoreLayout } from '@layout';
 import { Row, Col, Form, Modal } from 'react-bootstrap';
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import Container from 'react-bootstrap/Container';
 import { FontAwesomeIcon as Icon } from '@fortawesome/react-fontawesome';
 import {
@@ -32,6 +32,8 @@ import {
   getNdfSettlement,
 } from 'src/models/pricing/pricingApi';
 import type { NdfSettlementResult } from 'src/models/pricing/pricingApi';
+import { useRepricePortfolio } from 'src/queries/pricing';
+import { useQueryClient } from '@tanstack/react-query';
 import { fetchHistoricalMark } from 'src/models/trading/fetchHistoricalMark';
 import type { CurveStatus } from 'src/types/pricing';
 import type {
@@ -1927,10 +1929,8 @@ function PortfolioPage() {
   const [markFecha, setMarkFecha] = useState<string>(defaultMarkFecha());
   const [curveStatus, setCurveStatus] = useState<CurveStatus | null>(null);
   const [addType, setAddType] = useState<string | null>(null); // 'xccy' | 'ndf' | 'ibr' | null
-  // #295: bump this counter whenever positions change and we want a reprice.
-  // Keeps the reprice trigger in ONE place (the useEffect below) — callbacks
-  // just bump this instead of calling repriceAllWithMark directly.
-  const [repriceTrigger, setRepriceTrigger] = useState(0);
+  // (#313 removed repriceTrigger — useRepricePortfolio's key includes position
+  //  IDs, so adding/removing a position triggers refetch automatically.)
   const { prefs: blotterPrefs, setPrefs: setBlotterPrefs } = useBlotterPreferences();
   const [selectedXccy, setSelectedXccy] = useState<PricedXccy | null>(null);
   const [selectedNdf, setSelectedNdf] = useState<PricedNdf | null>(null);
@@ -1943,15 +1943,8 @@ function PortfolioPage() {
     xccyPositions,
     ndfPositions,
     ibrSwapPositions,
-    pricedXccy,
-    pricedNdf,
-    pricedIbrSwap,
-    summary,
-    pricedAt,
-    tradingLoading,
     tradingError,
     loadPositions,
-    repriceAllWithMark,
     addXccyPosition,
     addNdfPosition,
     addIbrSwapPosition,
@@ -1970,6 +1963,12 @@ function PortfolioPage() {
     selectedCompanyId,
   } = useAppStore();
 
+  // Track when the user explicitly requested a reprice via the toolbar button
+  // — used to surface a toast when the next query lands. Without it, every
+  // automatic refetch (e.g. when a position is added) would also pop a toast.
+  const reprintRequestedRef = useRef(false);
+  const queryClient = useQueryClient();
+
   const handleBuild = useCallback(async (silent = false) => {
     setLoading(true);
     try {
@@ -1984,23 +1983,64 @@ function PortfolioPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleRepriceWithMark = useCallback(async (fecha: string) => {
-    setMarkRepricing(true);
-    try {
-      await repriceAllWithMark(fecha);
-      toast.success(`Portafolio valorado con marca ${fecha}`);
-      // Cargar precios de referencia en segundo plano (no bloquea la UI)
-      loadReferencePrices(fecha).catch(() => {});
-    } catch (e) {
-      toast.error(`Error al valorar: ${e instanceof Error ? e.message : String(e)}`);
-    } finally {
-      setMarkRepricing(false);
-    }
-  }, [repriceAllWithMark, loadReferencePrices]);
+  // #313 — `useRepricePortfolio` replaces the old `repriceAllWithMark` action.
+  // The query key includes `markFecha` and the sorted position IDs, so any
+  // change (date pick, add/remove position) triggers a fresh query and aborts
+  // the previous in-flight one automatically.
+  const reprice = useRepricePortfolio({
+    xccy: xccyPositions,
+    ndf: ndfPositions,
+    ibr: ibrSwapPositions,
+    valuationDate: markFecha,
+    enabled: !!(curveStatus?.ibr.built && curveStatus?.sofr.built),
+  });
+  const pricedXccy = reprice.data?.xccy_results ?? [];
+  const pricedNdf = reprice.data?.ndf_results ?? [];
+  const pricedIbrSwap = reprice.data?.ibr_swap_results ?? [];
+  const summary = reprice.data?.summary ?? null;
+  const tradingLoading = reprice.isFetching;
+  const pricedAt = reprice.dataUpdatedAt
+    ? new Date(reprice.dataUpdatedAt).toLocaleTimeString('es-CO', {
+        hour: '2-digit', minute: '2-digit', second: '2-digit',
+      })
+    : undefined;
 
-  const handleReprice = useCallback(async () => {
-    await handleRepriceWithMark(markFecha);
-  }, [handleRepriceWithMark, markFecha]);
+  // Toast only when the user explicitly hit "Repricear" — automatic refetches
+  // (date change, position added) should be silent. The dual-toast bug from
+  // the legacy code path was caused by aborted reprices firing toast.success.
+  // With useQuery, `dataUpdatedAt` only advances when the *current* query
+  // resolved successfully — aborted queries never touch this clock.
+  useEffect(() => {
+    if (!reprintRequestedRef.current) return;
+    if (reprice.isFetching) return;
+    if (reprice.isSuccess) {
+      toast.success(`Portafolio valorado con marca ${markFecha}`);
+      loadReferencePrices(markFecha).catch(() => {});
+      reprintRequestedRef.current = false;
+    } else if (reprice.isError) {
+      const msg = reprice.error instanceof Error ? reprice.error.message : String(reprice.error);
+      toast.error(`Error al valorar: ${msg}`);
+      reprintRequestedRef.current = false;
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reprice.isFetching, reprice.isSuccess, reprice.isError, reprice.dataUpdatedAt]);
+
+  // Background-load reference prices whenever the date or set of positions
+  // changes (the store de-dupes by date internally, so this is cheap).
+  useEffect(() => {
+    if (!(curveStatus?.ibr.built && curveStatus?.sofr.built)) return;
+    if (!markFecha) return;
+    loadReferencePrices(markFecha).catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [markFecha, curveStatus?.ibr.built, curveStatus?.sofr.built, xccyPositions.length, ndfPositions.length, ibrSwapPositions.length]);
+
+  const handleReprice = useCallback(() => {
+    reprintRequestedRef.current = true;
+    setMarkRepricing(true);
+    queryClient
+      .invalidateQueries({ queryKey: ['pricing', 'reprice'] })
+      .finally(() => setMarkRepricing(false));
+  }, [queryClient]);
 
   // Auto-load on mount: init curves + load positions + role + market data config
   useEffect(() => {
@@ -2034,17 +2074,9 @@ function PortfolioPage() {
   const curvesReady =
     curveStatus?.ibr.built && curveStatus?.sofr.built;
 
-  // #295 — SINGLE trigger for reprice. Inputs:
-  //   - curvesReady flips true after mount
-  //   - markFecha changes (user picked new date)
-  //   - repriceTrigger bumps (position added/removed, manual "Repricear" button)
-  // Everyone else that used to call repriceAllWithMark directly now just bumps
-  // repriceTrigger. The store's token + AbortController (#293) serializes.
-  useEffect(() => {
-    if (!curvesReady) return;
-    handleRepriceWithMark(markFecha);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [curvesReady, markFecha, repriceTrigger]);
+  // (#313 removed the manual reprice trigger useEffect — useRepricePortfolio
+  //  reacts automatically to curveStatus, markFecha and position changes via
+  //  its query key. The repriceTrigger counter from #295 is also obsolete.)
 
   const handleDelete = useCallback(
     (id: string, type: string) => {
@@ -2289,14 +2321,16 @@ function PortfolioPage() {
           <MarksContent selectedDate={markFecha} onSelectDate={setMarkFecha} />
         )}
 
-        {/* Add Modals */}
+        {/* Add Modals — adding a position changes xccyPositions/ndfPositions/
+            ibrSwapPositions; useRepricePortfolio sees the new position list in
+            its query key and refetches automatically. No manual reprice trigger
+            needed (#313). */}
         <AddXccyModal
           show={addType === 'xccy'}
           onHide={() => setAddType(null)}
           onSave={async (v) => {
             await addXccyPosition(v);
             toast.success('Posicion XCCY creada');
-            setRepriceTrigger((n) => n + 1);
           }}
         />
         <AddNdfModal
@@ -2305,7 +2339,6 @@ function PortfolioPage() {
           onSave={async (v) => {
             await addNdfPosition(v);
             toast.success('Posicion NDF creada');
-            setRepriceTrigger((n) => n + 1);
           }}
         />
         <AddIbrSwapModal
@@ -2314,7 +2347,6 @@ function PortfolioPage() {
           onSave={async (v) => {
             await addIbrSwapPosition(v);
             toast.success('Posicion IBR Swap creada');
-            setRepriceTrigger((n) => n + 1);
           }}
         />
         {/* Detail Modals */}
