@@ -1,105 +1,76 @@
+/**
+ * Loans store — write side only after #316.
+ *
+ * What lives here:
+ * - Lookup data: `banks`, `loans`.
+ * - UI flags: modal show/hide, current selection, filter date.
+ * - Mutations: createLoan, deleteLoanItem, deleteMultipleLoans, getLoanData,
+ *   setSelectedBanks, setFilterDate, setCurrentSelection, wakeServer.
+ *
+ * What moved out:
+ * - Per-loan cashflows + aggregation (cashFlows, mergedCashFlows, fullLoan,
+ *   loanDebtData, chartData, calculationProgress) — now `useLoanPortfolioSummary`
+ *   in `src/queries/loans.ts`.
+ * - The big `setSelectedLoans` action (batches of 5, tokens, AbortController,
+ *   retry) — TanStack Query handles all of it via `useQueries`.
+ * - `buildPortfolioSummary` helper — kept identical, just moved to the queries
+ *   file as a pure helper.
+ *
+ * The page tracks its own `selectedIds: Set<string>` in local state and feeds
+ * it to the hook. There is no longer a "selectedLoans" mirror in the store.
+ */
 import { StateCreator } from 'zustand';
-import {
-  Bank,
-  Loan,
-  LoanCashFlowIbr,
-  CashFlowItem,
-  NewLoanValues,
-  LoanData,
-} from 'src/types/loans';
+import { Bank, Loan, NewLoanValues } from 'src/types/loans';
 import {
   createNewLoan,
-  fetchCashFlows,
   deleteLoan,
   fetchBanks,
   fetchLoans,
   LoanResponse,
   BankResponse,
-  CashflowResponse,
   DeleteLoanResponse,
   CreateLoanResponse,
   wakeUpServer,
 } from 'src/models/loans';
-import { LightSerieValue } from 'src/types/lightserie';
-import { SelectedLoansDate } from 'src/types/selectableRows';
 import calculateCurrentDate from 'src/utils/calculateCurrentDate';
-import { telemetry, isAbortError } from 'src/lib/telemetry';
-
-export interface CalculationProgress {
-  total: number;
-  completed: number;
-  calculating: boolean;
-  /** #294: loans whose RPC failed or timed out. Surfaced in UI so the user
-   *  can retry only the failures instead of losing the batch. */
-  failed: number;
-  failedLoanIds: string[];
-}
 
 export interface LoansSlice {
   banks: Bank[];
-  loanDebtData: LoanData[];
   currentSelection: Loan | undefined;
-  cashFlows: CashFlowItem[];
-  chartData: LightSerieValue[];
-  createLoan: (values: NewLoanValues) => void;
   errorMessage: string | undefined;
   successMessage: string | undefined;
-  mergedCashFlows: LoanCashFlowIbr[];
   loans: Loan[];
   loading: boolean;
-  selectedLoans: string[];
   showDeleteConfirm: boolean;
   showLoanModal: boolean;
   showNewLoanModal: boolean;
   selectedBanks: Bank[];
   showCashFlowTable: boolean;
   showLoanDebtTable: boolean;
-  fullLoan: LoanData | undefined;
   filterDate: string;
-  calculationProgress: CalculationProgress;
+
+  createLoan: (values: NewLoanValues) => void;
   getLoanData: (bankFilter?: Bank[], companyId?: string) => void;
-  setSelectedLoans: ({
-    selectedCount,
-    selectedRows,
-    filterDate,
-  }: SelectedLoansDate<Loan>) => void;
   setSelectedBanks: (banks: Bank[]) => void;
-  setCashFlowItem: (
-    loanId: string,
-    type: string,
-    currentOther: CashFlowItem[],
-    filterDate: string
-  ) => void;
   onShowDeleteConfirm: (show: boolean) => void;
   onShowLoanModal: (show: boolean) => void;
   onShowNewLoanModal: (show: boolean) => void;
   onShowCashFlowTable: (show: boolean) => void;
   onShowLoanDebtTable: (show: boolean) => void;
   deleteLoanItem: (loanId: string) => void;
-  setMergedCashFlows: (cashFlows: CashFlowItem[]) => void;
-  getLoanChartData: (mergedCashFlows: LoanCashFlowIbr[]) => void;
   setFilterDate: (newFilterDate: string) => void;
   resetStore: () => void;
   setCurrentSelection: (loan: Loan) => void;
   wakeServer: () => void;
   deleteMultipleLoans: (loanIds: string[]) => void;
-  /** #294: retry only the loans that failed in the last calculation without
-   *  re-fetching the successful ones. */
-  retryFailedLoans: () => void;
 }
 
 const initialState = {
   banks: [],
-  cashFlows: [],
-  chartData: [],
   errorMessage: undefined,
   successMessage: undefined,
-  fullLoan: undefined,
-  mergedCashFlows: [],
   loans: [],
-  loanDebtData: [],
   loading: false,
-  selectedLoans: [],
   showCashFlowTable: false,
   showDeleteConfirm: false,
   showLoanModal: false,
@@ -108,183 +79,11 @@ const initialState = {
   selectedBanks: [],
   filterDate: calculateCurrentDate(),
   currentSelection: undefined,
-  calculationProgress: {
-    total: 0,
-    completed: 0,
-    calculating: false,
-    failed: 0,
-    failedLoanIds: [],
-  },
 };
 
-// ─── Helper: build portfolio summary from individual cashflows ───
-function buildPortfolioSummary(
-  cashFlows: CashFlowItem[],
-  loans: Loan[]
-): { fullLoan: LoanData; loanDebtData: LoanData[] } {
-  const today = new Date().toISOString().slice(0, 10);
-  const periodYears: Record<string, number> = {
-    Mensual: 1 / 12, Trimestral: 0.25, Semestral: 0.5, Anual: 1,
-  };
-
-  // Per-bank accumulator
-  const bankAcc: Record<string, {
-    totalValue: number; accrued: number;
-    weightedRate: number; weightedTenor: number; weightedDuration: number;
-    loanCount: number; loanIds: string[];
-    tvFija: number; tvIbr: number; tvUvr: number;
-    wrFija: number; wrIbr: number; wrUvr: number;
-  }> = {};
-
-  cashFlows.forEach((cf) => {
-    if (cf.flows.length === 0) return;
-    const loan = loans.find((l) => l.id === cf.loanId);
-    if (!loan) return;
-
-    // Current outstanding balance: last ending_balance before today
-    const pastFlows = cf.flows.filter((f) => f.date.split(' ')[0] <= today);
-    const outstanding = pastFlows.length > 0
-      ? pastFlows[pastFlows.length - 1].ending_balance
-      : cf.flows[0].beginning_balance;
-
-    if (outstanding <= 0) return;
-
-    // Average rate from cashflows
-    const avgRate = cf.flows.reduce((s, f) => s + (f.rate_tot ?? 0), 0) / cf.flows.length;
-
-    // Remaining tenor
-    const remainingFlows = cf.flows.filter((f) => f.date.split(' ')[0] > today);
-    const pY = periodYears[loan.periodicity] ?? 0.25;
-    const remainingTenor = remainingFlows.length * pY;
-
-    // Simple duration approximation (weighted avg time of remaining flows)
-    let durationSum = 0;
-    remainingFlows.forEach((f, i) => {
-      const t = (i + 1) * pY;
-      durationSum += t * (f.payment ?? 0);
-    });
-    const totalPayments = remainingFlows.reduce((s, f) => s + (f.payment ?? 0), 0);
-    const duration = totalPayments > 0 ? durationSum / totalPayments : remainingTenor;
-
-    const bank = loan.bank || 'Unknown';
-    if (!bankAcc[bank]) {
-      bankAcc[bank] = {
-        totalValue: 0, accrued: 0,
-        weightedRate: 0, weightedTenor: 0, weightedDuration: 0,
-        loanCount: 0, loanIds: [],
-        tvFija: 0, tvIbr: 0, tvUvr: 0,
-        wrFija: 0, wrIbr: 0, wrUvr: 0,
-      };
-    }
-
-    const b = bankAcc[bank];
-    b.totalValue += outstanding;
-    b.weightedRate += avgRate * outstanding;
-    b.weightedTenor += remainingTenor * outstanding;
-    b.weightedDuration += duration * outstanding;
-    b.loanCount += 1;
-    b.loanIds.push(loan.id);
-
-    if (loan.type === 'fija') {
-      b.tvFija += outstanding;
-      b.wrFija += avgRate * outstanding;
-    } else if (loan.type === 'ibr') {
-      b.tvIbr += outstanding;
-      b.wrIbr += avgRate * outstanding;
-    } else if (loan.type === 'uvr') {
-      b.tvUvr += outstanding;
-      b.wrUvr += avgRate * outstanding;
-    }
-  });
-
-  // Build LoanData per bank
-  const loanDebtData: LoanData[] = [];
-  let gtv = 0; let gac = 0; let gwr = 0; let gwt = 0; let gwd = 0; let glc = 0;
-  let gtvF = 0; let gtvI = 0; let gtvU = 0; let gwrF = 0; let gwrI = 0; let gwrU = 0;
-
-  Object.entries(bankAcc).forEach(([bank, b]) => {
-    const tv = b.totalValue;
-    loanDebtData.push({
-      bank,
-      loan_ids: b.loanIds,
-      loan_count: b.loanCount,
-      total_value: tv,
-      accrued_interest: b.accrued,
-      average_irr: tv > 0 ? b.weightedRate / tv / 100 : 0,
-      average_tenor: tv > 0 ? b.weightedTenor / tv : 0,
-      average_duration: tv > 0 ? b.weightedDuration / tv : 0,
-      total_value_fija: b.tvFija,
-      total_value_ibr: b.tvIbr,
-      total_value_uvr: b.tvUvr,
-      average_irr_fija: b.tvFija > 0 ? b.wrFija / b.tvFija / 100 : 0,
-      average_irr_ibr: b.tvIbr > 0 ? b.wrIbr / b.tvIbr / 100 : 0,
-      average_irr_uvr: b.tvUvr > 0 ? b.wrUvr / b.tvUvr / 100 : 0,
-      outdated_loan_count: 0,
-      not_calculated_loan_count: 0,
-    });
-    gtv += tv; gac += b.accrued; gwr += b.weightedRate;
-    gwt += b.weightedTenor; gwd += b.weightedDuration; glc += b.loanCount;
-    gtvF += b.tvFija; gtvI += b.tvIbr; gtvU += b.tvUvr;
-    gwrF += b.wrFija; gwrI += b.wrIbr; gwrU += b.wrUvr;
-  });
-
-  // Sort by total_value descending
-  loanDebtData.sort((a, b) => b.total_value - a.total_value);
-
-  const fullLoan: LoanData = {
-    bank: '0',
-    loan_ids: [],
-    loan_count: glc,
-    total_value: gtv,
-    accrued_interest: gac,
-    average_irr: gtv > 0 ? gwr / gtv / 100 : 0,
-    average_tenor: gtv > 0 ? gwt / gtv : 0,
-    average_duration: gtv > 0 ? gwd / gtv : 0,
-    total_value_fija: gtvF,
-    total_value_ibr: gtvI,
-    total_value_uvr: gtvU,
-    average_irr_fija: gtvF > 0 ? gwrF / gtvF / 100 : 0,
-    average_irr_ibr: gtvI > 0 ? gwrI / gtvI / 100 : 0,
-    average_irr_uvr: gtvU > 0 ? gwrU / gtvU / 100 : 0,
-    outdated_loan_count: 0,
-    not_calculated_loan_count: 0,
-  };
-
-  return { fullLoan, loanDebtData };
-}
-
-const createLoansSlice: StateCreator<LoansSlice> = (set, get) => {
-  // #294 — Token + AbortController protect the long-running batch from being
-  // stomped by a newer selection change. Analogous to the trading store
-  // (#293) but for setSelectedLoans.
-  let calcToken = 0;
-  let calcAbort: AbortController | null = null;
-
-  const startCalc = (origin: string): { myToken: number; signal: AbortSignal } => {
-    if (calcAbort) {
-      telemetry.debug('loans', 'aborting prior calc', { origin, prior: calcToken });
-      calcAbort.abort();
-    }
-    calcToken += 1;
-    calcAbort = new AbortController();
-    return { myToken: calcToken, signal: calcAbort.signal };
-  };
-
-  const isStaleCalc = (myToken: number, origin: string): boolean => {
-    if (myToken !== calcToken) {
-      telemetry.debug('loans', 'dropping stale calc result', {
-        origin,
-        myToken,
-        current: calcToken,
-      });
-      return true;
-    }
-    return false;
-  };
-
-  return {
+const createLoansSlice: StateCreator<LoansSlice> = (set) => ({
   ...initialState,
-  // Store Actions
+
   createLoan: async (values: NewLoanValues) => {
     set((state) => {
       state.onShowNewLoanModal(false);
@@ -333,259 +132,9 @@ const createLoansSlice: StateCreator<LoansSlice> = (set, get) => {
       }
     }
   },
+
   setCurrentSelection: (loan: Loan) => {
     set(() => ({ currentSelection: loan }));
-  },
-
-  setSelectedLoans: async ({
-    selectedRows,
-    filterDate,
-  }: SelectedLoansDate<Loan>) => {
-    set({
-      loading: true,
-      errorMessage: undefined,
-      successMessage: undefined,
-      selectedLoans: selectedRows.map((l) => l.id),
-    });
-
-    const total = selectedRows.length;
-    if (total === 0) {
-      // Abort any in-flight calc so it doesn't land later.
-      if (calcAbort) calcAbort.abort();
-      calcToken += 1;
-      set({
-        loading: false,
-        cashFlows: [],
-        mergedCashFlows: [],
-        fullLoan: undefined,
-        loanDebtData: [],
-        calculationProgress: {
-          total: 0, completed: 0, calculating: false, failed: 0, failedLoanIds: [],
-        },
-      });
-      return;
-    }
-
-    const { myToken, signal } = startCalc('setSelectedLoans');
-
-    // Start progress
-    set({
-      calculationProgress: {
-        total, completed: 0, calculating: true, failed: 0, failedLoanIds: [],
-      },
-    });
-
-    // Calculate each loan individually (batches of 5 in parallel).
-    //
-    // #294: Use Promise.allSettled — a single hung/failed RPC previously
-    // aborted the whole batch via Promise.all, so 13 batches after it would
-    // never run. Now every loan succeeds or fails independently; we track
-    // the failures in `failedLoanIds` and surface them in the progress bar.
-    const batchSize = 5;
-    const allCashFlows: CashFlowItem[] = [];
-    const failedLoanIds: string[] = [];
-    const batches: Loan[][] = [];
-    for (let i = 0; i < total; i += batchSize) {
-      batches.push(selectedRows.slice(i, i + batchSize));
-    }
-
-    const processBatch = async (batch: Loan[], idx: number): Promise<void> => {
-      const outcomes = await Promise.allSettled(
-        batch.map(async (loan) => {
-          const response: CashflowResponse = await fetchCashFlows(
-            loan.id,
-            loan.type,
-            filterDate,
-            { signal },
-          );
-          if (response.error) throw new Error(response.error);
-          return { loanId: loan.id, flows: response.data ?? [] } as CashFlowItem;
-        }),
-      );
-      let ok = 0;
-      let failed = 0;
-      outcomes.forEach((outcome, i) => {
-        const loan = batch[i];
-        if (outcome.status === 'fulfilled') {
-          allCashFlows.push(outcome.value);
-          ok += 1;
-        } else if (isAbortError(outcome.reason)) {
-          // Aborted by a newer selection change; isStaleCalc below will
-          // drop our final writes.
-        } else {
-          failedLoanIds.push(loan.id);
-          failed += 1;
-        }
-      });
-      telemetry.info('loans', `batch ${idx + 1}/${batches.length}`, {
-        size: batch.length, ok, failed,
-      });
-    };
-
-    let completedCount = 0;
-    // eslint-disable-next-line no-restricted-syntax
-    for (let i = 0; i < batches.length; i += 1) {
-      const batch = batches[i];
-      // eslint-disable-next-line no-await-in-loop
-      await processBatch(batch, i);
-      if (isStaleCalc(myToken, 'setSelectedLoans')) return;
-      completedCount += batch.length;
-      set({
-        calculationProgress: {
-          total,
-          completed: completedCount,
-          calculating: true,
-          failed: failedLoanIds.length,
-          failedLoanIds: [...failedLoanIds],
-        },
-      });
-    }
-
-    if (isStaleCalc(myToken, 'setSelectedLoans')) return;
-
-    // Build merged cashflows
-    const newCashFlow: { [date: string]: LoanCashFlowIbr } = {};
-    allCashFlows.forEach((item) => {
-      item.flows.forEach((flow) => {
-        const existing = newCashFlow[flow.date];
-        if (existing) {
-          newCashFlow[flow.date] = {
-            principal: existing.principal + flow.principal,
-            rate: existing.rate,
-            date: flow.date,
-            beginning_balance: existing.beginning_balance + flow.beginning_balance,
-            payment: existing.payment + flow.payment,
-            interest: existing.interest + flow.interest,
-            ending_balance: existing.ending_balance + flow.ending_balance,
-            rate_tot: existing.rate_tot,
-          };
-        } else {
-          newCashFlow[flow.date] = { ...flow };
-        }
-      });
-    });
-
-    const mergedCashFlows = Object.values(newCashFlow).sort((a, b) =>
-      a.date < b.date ? -1 : 1
-    );
-
-    // Build chart data
-    const chartData: LightSerieValue[] = mergedCashFlows.map((v) => ({
-      time: v.date.split(' ')[0],
-      value: v.payment,
-    }));
-
-    // Build portfolio summary from individual cashflows
-    const { fullLoan, loanDebtData } = buildPortfolioSummary(
-      allCashFlows,
-      selectedRows
-    );
-
-    set({
-      cashFlows: allCashFlows,
-      mergedCashFlows,
-      chartData,
-      fullLoan,
-      loanDebtData,
-      loading: false,
-      calculationProgress: {
-        total,
-        completed: completedCount,
-        calculating: false,
-        failed: failedLoanIds.length,
-        failedLoanIds,
-      },
-    });
-  },
-
-  retryFailedLoans: async () => {
-    const { calculationProgress, loans, filterDate, cashFlows, selectedLoans } = get();
-    const { failedLoanIds } = calculationProgress;
-    if (failedLoanIds.length === 0) return;
-    const toRetry = loans.filter((l) => failedLoanIds.includes(l.id));
-    if (toRetry.length === 0) return;
-
-    telemetry.info('loans', 'retrying failed loans', {
-      count: toRetry.length, ids: failedLoanIds,
-    });
-
-    const { myToken, signal } = startCalc('retryFailedLoans');
-    set({
-      calculationProgress: {
-        total: calculationProgress.total,
-        completed: calculationProgress.completed - failedLoanIds.length,
-        calculating: true,
-        failed: 0,
-        failedLoanIds: [],
-      },
-    });
-
-    const outcomes = await Promise.allSettled(
-      toRetry.map(async (loan) => {
-        const response = await fetchCashFlows(loan.id, loan.type, filterDate, { signal });
-        if (response.error) throw new Error(response.error);
-        return { loanId: loan.id, flows: response.data ?? [] } as CashFlowItem;
-      }),
-    );
-
-    if (isStaleCalc(myToken, 'retryFailedLoans')) return;
-
-    const newlySucceeded: CashFlowItem[] = [];
-    const stillFailed: string[] = [];
-    outcomes.forEach((o, i) => {
-      const loan = toRetry[i];
-      if (o.status === 'fulfilled') {
-        newlySucceeded.push(o.value);
-      } else if (!isAbortError(o.reason)) {
-        stillFailed.push(loan.id);
-      }
-    });
-
-    const mergedCashFlows = [...cashFlows, ...newlySucceeded];
-    const selectedRows = loans.filter((l) => selectedLoans.includes(l.id));
-
-    // Rebuild merged/aggregate from the union.
-    const byDate: { [date: string]: LoanCashFlowIbr } = {};
-    mergedCashFlows.forEach((item) => {
-      item.flows.forEach((flow) => {
-        const existing = byDate[flow.date];
-        if (existing) {
-          byDate[flow.date] = {
-            principal: existing.principal + flow.principal,
-            rate: existing.rate,
-            date: flow.date,
-            beginning_balance: existing.beginning_balance + flow.beginning_balance,
-            payment: existing.payment + flow.payment,
-            interest: existing.interest + flow.interest,
-            ending_balance: existing.ending_balance + flow.ending_balance,
-            rate_tot: existing.rate_tot,
-          };
-        } else {
-          byDate[flow.date] = { ...flow };
-        }
-      });
-    });
-    const mergedSorted = Object.values(byDate).sort((a, b) => (a.date < b.date ? -1 : 1));
-    const chartData: LightSerieValue[] = mergedSorted.map((v) => ({
-      time: v.date.split(' ')[0],
-      value: v.payment,
-    }));
-    const { fullLoan, loanDebtData } = buildPortfolioSummary(mergedCashFlows, selectedRows);
-
-    set({
-      cashFlows: mergedCashFlows,
-      mergedCashFlows: mergedSorted,
-      chartData,
-      fullLoan,
-      loanDebtData,
-      calculationProgress: {
-        total: calculationProgress.total,
-        completed: calculationProgress.completed - failedLoanIds.length + newlySucceeded.length,
-        calculating: false,
-        failed: stillFailed.length,
-        failedLoanIds: stillFailed,
-      },
-    });
   },
 
   setSelectedBanks: (selections: Bank[]) =>
@@ -593,33 +142,7 @@ const createLoansSlice: StateCreator<LoansSlice> = (set, get) => {
       state.getLoanData(selections);
       return { selectedBanks: selections };
     }),
-  setCashFlowItem: async (loanId, type, currentOther, filterDate) => {
-    set({ loading: true, errorMessage: undefined, successMessage: undefined });
-    const response: CashflowResponse = await fetchCashFlows(
-      loanId,
-      type,
-      filterDate
-    );
 
-    if (response.error) {
-      set((state) => {
-        const currentSelections = state.selectedLoans;
-        return {
-          loading: false,
-          selectedLoans: currentSelections.filter((id) => id !== loanId),
-          errorMessage: response.error,
-          successMessage: undefined,
-        };
-      });
-    } else if (response.data) {
-      set((state) => {
-        const flows = response.data || [];
-        currentOther.push({ loanId, flows });
-        state.setMergedCashFlows(currentOther);
-        return { loading: false, cashFlows: currentOther };
-      });
-    }
-  },
   onShowDeleteConfirm: (show: boolean) =>
     set(() => ({ showDeleteConfirm: show })),
   onShowLoanDebtTable: (show: boolean) =>
@@ -629,6 +152,7 @@ const createLoansSlice: StateCreator<LoansSlice> = (set, get) => {
   onShowLoanModal: (show: boolean) => set(() => ({ showLoanModal: show })),
   onShowNewLoanModal: (show: boolean) =>
     set(() => ({ showNewLoanModal: show })),
+
   deleteLoanItem: async (loanId) => {
     set({ loading: true, errorMessage: undefined, successMessage: undefined });
     const response: DeleteLoanResponse = await deleteLoan([loanId]);
@@ -647,59 +171,16 @@ const createLoansSlice: StateCreator<LoansSlice> = (set, get) => {
     }
   },
 
-  setMergedCashFlows: (cashFlows: CashFlowItem[]) =>
-    set((state) => {
-      const newCashFlow: { [date: string]: LoanCashFlowIbr } = {};
-
-      cashFlows.forEach((item) => {
-        item.flows.forEach((flow) => {
-          const existing = newCashFlow[flow.date];
-          if (existing) {
-            const newEntry = {
-              principal: existing.principal + flow.principal,
-              rate: existing.rate,
-              date: flow.date,
-              beginning_balance:
-                existing.beginning_balance + flow.beginning_balance,
-              payment: existing.payment + flow.payment,
-              interest: existing.interest + flow.interest,
-              ending_balance: existing.ending_balance + flow.ending_balance,
-              rate_tot: existing.rate_tot,
-            };
-            newCashFlow[newEntry.date] = newEntry;
-          } else {
-            newCashFlow[flow.date] = flow;
-          }
-        });
-      });
-
-      const mergedCashFlows: LoanCashFlowIbr[] = Object.values(newCashFlow).map(
-        (val) => val
-      );
-
-      mergedCashFlows.sort((a, b) => (a.date < b.date ? -1 : 1));
-      state.getLoanChartData(mergedCashFlows);
-
-      return { mergedCashFlows };
-    }),
-  getLoanChartData: (mergedCashFlows: LoanCashFlowIbr[]) => {
-    const chartData: LightSerieValue[] = [];
-    mergedCashFlows.forEach((value) => {
-      chartData.push({
-        time: value.date.split(' ')[0],
-        value: value.payment,
-      });
-    });
-
-    set({ chartData });
-  },
   setFilterDate: (newFilterDate: string) =>
     set(() => ({ filterDate: newFilterDate })),
+
   resetStore: () => set(initialState),
+
   wakeServer: async () => {
     const response = await wakeUpServer();
     return response;
   },
+
   deleteMultipleLoans: async (loanIds: string[]) => {
     set({ loading: true, errorMessage: undefined, successMessage: undefined });
     const response: DeleteLoanResponse = await deleteLoan(loanIds);
@@ -719,7 +200,6 @@ const createLoansSlice: StateCreator<LoansSlice> = (set, get) => {
       });
     }
   },
-  };
-};
+});
 
 export default createLoansSlice;

@@ -26,6 +26,7 @@ import { Loan, LoanCashFlowIbr } from 'src/types/loans';
 import currencyFormat from 'src/utils/currencyFormat';
 import LoansBlotterTable from 'src/components/loans/LoansBlotterTable';
 import { fetchCashFlows } from 'src/models/loans/fetchCashFlows';
+import { useLoanPortfolioSummary } from 'src/queries/loans';
 import NewCreditModal from './_NewCreditModal';
 import CashFlowOverlay from './_cashFlowOverLay/cashFlowOverlay';
 
@@ -87,29 +88,23 @@ export default function LoansPage() {
     deleteLoanItem,
     getLoanData,
     loans,
-    mergedCashFlows,
-    cashFlows,
     showDeleteConfirm,
     showNewLoanModal,
     showCashFlowTable,
     filterDate,
     currentSelection,
-    setSelectedLoans,
     setSelectedBanks,
     onShowDeleteConfirm,
     onShowNewLoanModal,
     onShowCashFlowTable,
     resetStore,
     setFilterDate,
-    fullLoan,
     wakeServer,
     deleteMultipleLoans,
     loading,
     setCurrentSelection,
     activeCompanyId,
     selectedCompanyId,
-    calculationProgress,
-    retryFailedLoans,
   } = useAppStore();
 
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('Todos');
@@ -120,6 +115,21 @@ export default function LoansPage() {
   const [cashflowModalData, setCashflowModalData] = useState<LoanCashFlowIbr[]>([]);
   const [cashflowModalLoading, setCashflowModalLoading] = useState(false);
   const [modalChartsReady, setModalChartsReady] = useState(false);
+
+  // #316 — Per-loan cashflows + aggregation now come from TanStack Query.
+  // Replaces the old store actions (setSelectedLoans, retryFailedLoans) and
+  // their derived state (cashFlows, mergedCashFlows, fullLoan, calculationProgress).
+  const selectedLoanRows = useMemo(
+    () => loans.filter((l) => selectedIds.has(l.id)),
+    [loans, selectedIds],
+  );
+  const {
+    cashFlows,
+    mergedCashFlows,
+    fullLoan,
+    progress: calculationProgress,
+    retryFailed: retryFailedLoans,
+  } = useLoanPortfolioSummary(selectedLoanRows, filterDate);
 
   const cashflowsEmpty = mergedCashFlows.length === 0;
 
@@ -246,16 +256,8 @@ export default function LoansPage() {
     }
   }, [cashFlows, filterDate]);
 
-  // Keep store selectedLoans in sync
-  useEffect(() => {
-    const ids = Array.from(selectedIds);
-    const selectedRows = loans.filter((l) => selectedIds.has(l.id));
-    setSelectedLoans({
-      selectedCount: ids.length,
-      selectedRows,
-      filterDate,
-    });
-  }, [selectedIds, loans, filterDate, setSelectedLoans]);
+  // (Removed sync useEffect — useLoanPortfolioSummary reacts to selectedIds
+  //  changes via its own deps; no need to push state into the store.)
 
   const onDownloadSeries = () => {
     const { name, columns, format } = CSV_FILE;
