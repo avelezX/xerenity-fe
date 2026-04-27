@@ -32,7 +32,7 @@ import {
   getNdfSettlement,
 } from 'src/models/pricing/pricingApi';
 import type { NdfSettlementResult } from 'src/models/pricing/pricingApi';
-import { useRepricePortfolio } from 'src/queries/pricing';
+import { useRepricePortfolio, useReferencePrices } from 'src/queries/pricing';
 import { useQueryClient } from '@tanstack/react-query';
 import { fetchHistoricalMark } from 'src/models/trading/fetchHistoricalMark';
 import type { CurveStatus } from 'src/types/pricing';
@@ -1957,8 +1957,6 @@ function PortfolioPage() {
     marketDataConfig,
     loadMarketDataConfig,
     updateMarketDataConfig,
-    refPrices,
-    loadReferencePrices,
     activeCompanyId,
     selectedCompanyId,
   } = useAppStore();
@@ -2005,6 +2003,17 @@ function PortfolioPage() {
       })
     : undefined;
 
+  // #314 — Reference prices (daily/MTD/YTD snapshots) for P&L derivation.
+  // The hook auto-fans into 3 sub-queries with own cache keys; aborts stale
+  // ones when fechaMarca or position list changes.
+  const { refPrices } = useReferencePrices({
+    xccy: xccyPositions,
+    ndf: ndfPositions,
+    ibr: ibrSwapPositions,
+    fechaMarca: markFecha,
+    enabled: !!(curveStatus?.ibr.built && curveStatus?.sofr.built),
+  });
+
   // Toast only when the user explicitly hit "Repricear" — automatic refetches
   // (date change, position added) should be silent. The dual-toast bug from
   // the legacy code path was caused by aborted reprices firing toast.success.
@@ -2015,7 +2024,6 @@ function PortfolioPage() {
     if (reprice.isFetching) return;
     if (reprice.isSuccess) {
       toast.success(`Portafolio valorado con marca ${markFecha}`);
-      loadReferencePrices(markFecha).catch(() => {});
       reprintRequestedRef.current = false;
     } else if (reprice.isError) {
       const msg = reprice.error instanceof Error ? reprice.error.message : String(reprice.error);
@@ -2025,14 +2033,8 @@ function PortfolioPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reprice.isFetching, reprice.isSuccess, reprice.isError, reprice.dataUpdatedAt]);
 
-  // Background-load reference prices whenever the date or set of positions
-  // changes (the store de-dupes by date internally, so this is cheap).
-  useEffect(() => {
-    if (!(curveStatus?.ibr.built && curveStatus?.sofr.built)) return;
-    if (!markFecha) return;
-    loadReferencePrices(markFecha).catch(() => {});
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [markFecha, curveStatus?.ibr.built, curveStatus?.sofr.built, xccyPositions.length, ndfPositions.length, ibrSwapPositions.length]);
+  // (#314 removed the explicit loadReferencePrices background effect —
+  //  useReferencePrices reacts natively to fechaMarca + position changes.)
 
   const handleReprice = useCallback(() => {
     reprintRequestedRef.current = true;
