@@ -1,7 +1,7 @@
 'use client';
 
 /* eslint-disable @typescript-eslint/no-use-before-define */
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { CoreLayout } from '@layout';
 import Container from 'react-bootstrap/Container';
 import PageTitle from '@components/PageTitle';
@@ -9,7 +9,8 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, ReferenceLine,
 } from 'recharts';
-import { getMarks, type MarketMarkRow } from 'src/models/pricing/pricingApi';
+import { type MarketMarkRow } from 'src/models/pricing/pricingApi';
+import { useMarks } from 'src/queries/pricing';
 import styles from './marks.module.css';
 
 const PAGE_TITLE = 'Marcas de Mercado';
@@ -150,9 +151,6 @@ export function MarksContent({
   selectedDate?: string | null;
   onSelectDate?: (fecha: string) => void;
 } = {}) {
-  const [rows, setRows]       = useState<MarketMarkRow[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError]     = useState<string | null>(null);
   const [internalSelected, setInternalSelected] = useState<string | null>(null);
 
   const selected = selectedDate !== undefined ? selectedDate : internalSelected;
@@ -161,12 +159,8 @@ export function MarksContent({
     onSelectDate?.(ymd);
   };
 
-  useEffect(() => {
-    getMarks()
-      .then((res) => { setRows(res.marks); })
-      .catch((e: unknown) => setError(e instanceof Error ? e.message : 'Error'))
-      .finally(() => setLoading(false));
-  }, []);
+  const { data: marksData, isLoading: loading, error } = useMarks();
+  const rows: MarketMarkRow[] = marksData?.marks ?? [];
 
   const byDate = Object.fromEntries(rows.map((r) => [r.fecha, r]));
   const detail = selected ? byDate[selected] : null;
@@ -186,7 +180,7 @@ export function MarksContent({
   }
 
   if (loading) return <p className={styles.muted}>Cargando marcas...</p>;
-  if (error)   return <p className={styles.danger}>Error: {error}</p>;
+  if (error)   return <p className={styles.danger}>Error: {error instanceof Error ? error.message : String(error)}</p>;
 
   return (
     <div>

@@ -27,7 +27,8 @@ import {
   Legend,
   ResponsiveContainer,
 } from 'recharts';
-import { getTesCatalog, getTesYieldCurve } from 'src/models/pricing/pricingApi';
+import { getTesYieldCurve } from 'src/models/pricing/pricingApi';
+import { useTesCatalog } from 'src/queries/pricing';
 import type { TesCatalogItem, TesYieldCurvePoint } from 'src/types/pricing';
 import type { PricedTesBond, NewTesPosition } from 'src/types/trading';
 import useAppStore from 'src/store';
@@ -836,8 +837,8 @@ function TesPortfolioPage() {
   const [viewTab, setViewTab] = useState<'posiciones' | 'curva'>('posiciones');
   const [showAdd, setShowAdd] = useState(false);
   const [selectedBond, setSelectedBond] = useState<PricedTesBond | null>(null);
-  const [catalog, setCatalog] = useState<TesCatalogItem[]>([]);
-  const [catalogLoading, setCatalogLoading] = useState(false);
+  const { data: catalogQueryData, isLoading: catalogLoading } = useTesCatalog();
+  const catalog: TesCatalogItem[] = catalogQueryData ?? [];
 
   const {
     tesPositions,
@@ -854,15 +855,10 @@ function TesPortfolioPage() {
     selectedCompanyId,
   } = useAppStore();
 
-  // Mount: load positions + role + catalog
+  // Mount: load positions + role (catalog now comes from useTesCatalog)
   useEffect(() => {
     loadTesPositions(activeCompanyId());
     loadUserRole();
-    setCatalogLoading(true);
-    getTesCatalog()
-      .then(setCatalog)
-      .catch(() => {})
-      .finally(() => setCatalogLoading(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadTesPositions, loadUserRole, selectedCompanyId]);
 

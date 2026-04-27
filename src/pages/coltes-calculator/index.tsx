@@ -28,10 +28,10 @@ import {
 } from 'recharts';
 import {
   priceTesBond,
-  getTesCatalog,
   getTesYieldCurve,
   type TesBondRequest,
 } from 'src/models/pricing/pricingApi';
+import { useTesCatalog } from 'src/queries/pricing';
 import type {
   TesBondResult,
   TesBondCashflow,
@@ -140,7 +140,8 @@ function ColTesCalculator() {
   const [loading, setLoading] = useState(false);
 
   // Catalog
-  const [catalog, setCatalog] = useState<TesCatalogItem[]>([]);
+  const { data: catalogData } = useTesCatalog();
+  const catalog: TesCatalogItem[] = catalogData?.length ? catalogData : MOCK_CATALOG;
   const [catalogMode, setCatalogMode] = useState(true);
   const [selectedBond, setSelectedBond] = useState<string>('');
 
@@ -169,13 +170,6 @@ function ColTesCalculator() {
   const [result, setResult] = useState<TesBondResult | null>(null);
   const [cashflows, setCashflows] = useState<TesBondCashflow[]>([]);
   const [yieldCurve, setYieldCurve] = useState<TesYieldCurvePoint[]>([]);
-
-  // Load catalog on mount
-  useEffect(() => {
-    getTesCatalog()
-      .then((data) => setCatalog(data?.length ? data : MOCK_CATALOG))
-      .catch(() => setCatalog(MOCK_CATALOG));
-  }, []);
 
   // When a bond is selected from catalog, prefill params
   useEffect(() => {
