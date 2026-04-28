@@ -66,14 +66,13 @@ const cashflowSeriesArb = (
       rate_tot: fc.double({ min: 0, max: 0.5, noNaN: true, noDefaultInfinity: true }),
     }),
     { minLength: 1, maxLength: numPayments },
-  ).map((flows) => {
+  ).map((flows) =>
     // Make dates strictly ascending so the "past flows" filter has stable
     // semantics — flows[0] is oldest, last is newest.
-    return flows.map((f, i) => ({
+    flows.map((f, i) => ({
       ...f,
       date: `2025-${String((i % 12) + 1).padStart(2, '0')}-01 00:00:00`,
-    }));
-  });
+    })));
 };
 
 export const cashflowItemArb = (loan: Loan): fc.Arbitrary<CashFlowItem> =>
