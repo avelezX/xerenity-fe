@@ -46,7 +46,7 @@ export interface FetchBulkLoanSummaryOptions {
 /** Server can return `bank` as the integer 0 (totals row, from a positional
  *  index) or a real bank-name string. Normalize both into `LoanData`. */
 const normalizeRow = (raw: Record<string, unknown>): LoanData => {
-  const bank = raw.bank;
+  const { bank } = raw;
   return {
     bank: bank === 0 ? '0' : String(bank ?? ''),
     loan_ids: Array.isArray(raw.loan_ids) ? (raw.loan_ids as string[]) : [],
