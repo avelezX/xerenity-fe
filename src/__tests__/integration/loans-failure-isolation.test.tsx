@@ -13,18 +13,14 @@
  */
 import { vi } from 'vitest';
 import { waitFor } from '@testing-library/react';
-import { renderHookWithClient } from '../mocks/test-helpers';
 import type { Loan } from 'src/types/loans';
+import { fetchCashFlows } from 'src/models/loans/fetchCashFlows';
+import { useLoanPortfolioSummary } from 'src/queries/loans';
+import { renderHookWithClient } from '../mocks/test-helpers';
 
 vi.mock('src/models/loans/fetchCashFlows', () => ({
   fetchCashFlows: vi.fn(),
 }));
-
-// Import AFTER vi.mock so the hook picks up the mocked module.
-// eslint-disable-next-line import/first
-import { fetchCashFlows } from 'src/models/loans/fetchCashFlows';
-// eslint-disable-next-line import/first
-import { useLoanPortfolioSummary } from 'src/queries/loans';
 
 const mockedFetch = fetchCashFlows as unknown as ReturnType<typeof vi.fn>;
 

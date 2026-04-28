@@ -12,10 +12,10 @@
  */
 import { http, HttpResponse, delay } from 'msw';
 import { waitFor, act } from '@testing-library/react';
-import { server } from '../mocks/server';
-import { renderHookWithClient } from '../mocks/test-helpers';
 import { useRepricePortfolio } from 'src/queries/pricing';
 import type { XccyPosition } from 'src/types/trading';
+import server from '../mocks/server';
+import { renderHookWithClient } from '../mocks/test-helpers';
 
 const PYSDK_URL = 'https://dummy-pysdk.local';
 
