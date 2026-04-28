@@ -9,9 +9,15 @@
  * matches Jest's default and keeps test files concise.
  */
 import { defineConfig } from 'vitest/config';
+import react from '@vitejs/plugin-react';
 import path from 'path';
 
 export default defineConfig({
+  // Next.js sets `jsx: 'preserve'` in tsconfig because the Next compiler
+  // handles JSX transformation. Vitest uses Vite, which respects tsconfig
+  // by default — so we plug in the official React plugin to handle JSX
+  // transformation independently of Next's compiler.
+  plugins: [react()],
   test: {
     globals: true,
     environment: 'happy-dom',
@@ -19,6 +25,13 @@ export default defineConfig({
     include: ['src/**/*.test.{ts,tsx}', 'src/__tests__/**/*.test.{ts,tsx}'],
     // Fail fast on the first error in CI (kept default in dev/watch mode).
     bail: process.env.CI ? 1 : 0,
+    // env runs before any test/source module loads, so modules that read
+    // `process.env.NEXT_PUBLIC_*` at import-time pick up these values.
+    env: {
+      NEXT_PUBLIC_SUPABASE_URL: 'https://dummy.supabase.co',
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: 'dummy-anon-key',
+      NEXT_PUBLIC_PYSDK_URL: 'https://dummy-pysdk.local',
+    },
   },
   resolve: {
     alias: {
