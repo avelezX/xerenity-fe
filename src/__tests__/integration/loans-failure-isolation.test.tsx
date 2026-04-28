@@ -22,6 +22,17 @@ vi.mock('src/models/loans/fetchCashFlows', () => ({
   fetchCashFlows: vi.fn(),
 }));
 
+// The bulk RPC isn't relevant to these failure-isolation tests, but the hook
+// chain calls it. Stub with a permanent reject so it doesn't make real
+// network calls; the FE-computed fallback in `useLoanPortfolioSummary` then
+// drives the assertions below.
+vi.mock('src/models/loans/fetchBulkSummary', () => ({
+  fetchBulkLoanSummary: vi.fn().mockResolvedValue({
+    data: [],
+    error: 'mocked-out',
+  }),
+}));
+
 const mockedFetch = fetchCashFlows as unknown as ReturnType<typeof vi.fn>;
 
 const mkLoan = (id: string, type = 'ibr', bank = 'Bancolombia'): Loan => ({

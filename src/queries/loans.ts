@@ -24,7 +24,7 @@
  * compound hook vs. inline at the end of the store action).
  */
 import { useMemo } from 'react';
-import { useQueries, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueries, useQueryClient } from '@tanstack/react-query';
 import {
   Loan,
   LoanCashFlowIbr,
@@ -33,12 +33,15 @@ import {
 } from 'src/types/loans';
 import { LightSerieValue } from 'src/types/lightserie';
 import { fetchCashFlows } from 'src/models/loans/fetchCashFlows';
+import { fetchBulkLoanSummary } from 'src/models/loans/fetchBulkSummary';
 import { telemetry } from 'src/lib/telemetry';
 
 export const loanKeys = {
   cashflow: (loanId: string, type: string, filterDate: string) =>
     ['loans', 'cashflow', loanId, type, filterDate] as const,
   cashflowAll: ['loans', 'cashflow'] as const,
+  bulkSummary: (loanIds: string[], filterDate: string) =>
+    ['loans', 'bulkSummary', [...loanIds].sort(), filterDate] as const,
 };
 
 const STALE_MS = 5 * 60_000;
@@ -230,14 +233,72 @@ export interface UseLoanPortfolioSummaryResult {
 }
 
 /**
+ * #300 (Phase 3.1) — Bulk loan summary query.
+ *
+ * Calls `xerenity.ibr_cash_flow_by_loans` (the misnamed bulk RPC that
+ * actually handles all loan types) which delegates to pysdk's `/all_loans`.
+ * Returns the same `LoanData[]` shape that `buildPortfolioSummary` produces
+ * locally — so consumers can read `fullLoan` and `loanDebtData` from a single
+ * round-trip instead of waiting for N per-loan queries to settle.
+ *
+ * Stale time matches per-loan queries (5 min): same underlying data, same
+ * cache horizon.
+ */
+export function useLoansBulkSummary(
+  loanIds: string[],
+  filterDate: string,
+  options?: { enabled?: boolean },
+) {
+  return useQuery({
+    queryKey: loanKeys.bulkSummary(loanIds, filterDate),
+    queryFn: async ({ signal }) => {
+      const res = await fetchBulkLoanSummary(loanIds, filterDate, { signal });
+      if (res.error) throw new Error(res.error);
+      return res.data;
+    },
+    enabled: (options?.enabled ?? true) && loanIds.length > 0,
+    staleTime: STALE_MS,
+    retry: 0 as const,
+  });
+}
+
+/** Split the bulk response into `fullLoan` (the totals row, `bank === '0'`)
+ *  and `loanDebtData` (the per-bank rows). */
+function splitBulkSummary(rows: LoanData[] | undefined): {
+  fullLoan: LoanData | undefined;
+  loanDebtData: LoanData[];
+} {
+  if (!rows || rows.length === 0) return { fullLoan: undefined, loanDebtData: [] };
+  const fullLoan = rows.find((r) => r.bank === '0' || r.bank === '');
+  const loanDebtData = rows.filter((r) => r !== fullLoan)
+    .sort((a, b) => b.total_value - a.total_value);
+  return { fullLoan, loanDebtData };
+}
+
+/**
  * Compound hook: fans out N per-loan queries via `useQueries`, then derives
  * the merged series + portfolio summary + progress from their results.
+ *
+ * Phase 3.1 (#300) hybrid strategy: the headline summary (`fullLoan`,
+ * `loanDebtData`) is sourced from the **bulk** RPC (one round-trip) so the
+ * user sees Deuda Total / CPD / Tenor / Duración as soon as it lands. The
+ * per-loan queries still feed `cashFlows` / `mergedCashFlows` / `chartData`
+ * for charts and the per-loan modal — those fill in progressively.
+ *
+ * If the bulk call hasn't settled yet, fall back to the FE-computed summary
+ * from whatever per-loan queries have completed so far. The math is
+ * identical (pysdk uses the same formulas), so the swap is transparent.
  */
 export function useLoanPortfolioSummary(
   selectedLoans: Loan[],
   filterDate: string,
 ): UseLoanPortfolioSummaryResult {
   const queryClient = useQueryClient();
+
+  const bulk = useLoansBulkSummary(
+    selectedLoans.map((l) => l.id),
+    filterDate,
+  );
 
   const queries = useQueries({
     queries: selectedLoans.map((loan) => ({
@@ -283,7 +344,16 @@ export function useLoanPortfolioSummary(
       time: v.date.split(' ')[0],
       value: v.payment,
     }));
-    const { fullLoan, loanDebtData } = buildPortfolioSummary(cashFlows, selectedLoans);
+
+    // Server-side summary from the bulk RPC (preferred). If it hasn't loaded
+    // yet, derive from whatever per-loan queries have completed so we still
+    // show *something*.
+    const bulkSplit = splitBulkSummary(bulk.data);
+    const fallback = buildPortfolioSummary(cashFlows, selectedLoans);
+    const fullLoan = bulkSplit.fullLoan ?? fallback.fullLoan;
+    const loanDebtData = bulkSplit.loanDebtData.length > 0
+      ? bulkSplit.loanDebtData
+      : fallback.loanDebtData;
 
     const progress: LoanCalcProgress = {
       total: selectedLoans.length,
@@ -305,6 +375,11 @@ export function useLoanPortfolioSummary(
           queryKey: loanKeys.cashflow(loan.id, loan.type, filterDate),
         });
       });
+      // Also invalidate the bulk summary since its results may shift when
+      // previously-failed loans succeed on retry.
+      queryClient.invalidateQueries({
+        queryKey: loanKeys.bulkSummary(selectedLoans.map((l) => l.id), filterDate),
+      });
     };
 
     return {
@@ -319,6 +394,7 @@ export function useLoanPortfolioSummary(
     };
     // queries is recomputed by useQueries on every render; including it as a
     // dep correctly triggers re-aggregation when any query state changes.
+    // bulk.data is the bulk summary (Phase 3.1) — re-derive when it lands.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [queries, selectedLoans, filterDate]);
+  }, [queries, selectedLoans, filterDate, bulk.data]);
 }
