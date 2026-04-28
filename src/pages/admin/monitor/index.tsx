@@ -225,7 +225,7 @@ const MonitorPage = () => {
                         <th>Severity</th>
                         <th>Último run</th>
                         <th>Duración</th>
-                        <th>Alertas</th>
+                        <th>Alertas abiertas</th>
                         <th>Tablas</th>
                         <th aria-label="external links" />
                       </tr>
@@ -269,7 +269,7 @@ const MonitorPage = () => {
                             {row.open_alerts > 0 ? (
                               <Badge bg="danger">{row.open_alerts}</Badge>
                             ) : (
-                              <span style={{ color: '#bbb' }}>0</span>
+                              <span style={{ color: '#ccc' }} title="0 alertas abiertas">—</span>
                             )}
                           </td>
                           <td style={{ fontSize: 11, color: '#666' }}>
