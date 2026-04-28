@@ -46,16 +46,14 @@ describe('buildPortfolioSummary — property-based', () => {
           'average_irr_fija', 'average_irr_ibr', 'average_irr_uvr',
           'accrued_interest',
         ];
-        for (const f of numericFields) {
-          const v = fullLoan[f] as number;
-          expect(Number.isFinite(v)).toBe(true);
-        }
-        for (const bank of loanDebtData) {
-          for (const f of numericFields) {
-            const v = bank[f] as number;
-            expect(Number.isFinite(v)).toBe(true);
-          }
-        }
+        numericFields.forEach((f) => {
+          expect(Number.isFinite(fullLoan[f] as number)).toBe(true);
+        });
+        loanDebtData.forEach((bank) => {
+          numericFields.forEach((f) => {
+            expect(Number.isFinite(bank[f] as number)).toBe(true);
+          });
+        });
       }),
     );
   });
@@ -89,10 +87,10 @@ describe('buildPortfolioSummary — property-based', () => {
     fc.assert(
       fc.property(portfolioArb({ min: 1, max: 15 }), ({ loans, cashFlows }) => {
         const { loanDebtData } = buildPortfolioSummary(cashFlows, loans);
-        for (const bank of loanDebtData) {
+        loanDebtData.forEach((bank) => {
           const splitSum = bank.total_value_fija + bank.total_value_ibr + bank.total_value_uvr;
           expect(Math.abs(bank.total_value - splitSum)).toBeLessThan(1e-6);
-        }
+        });
       }),
     );
   });
