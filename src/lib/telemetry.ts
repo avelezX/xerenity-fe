@@ -36,9 +36,15 @@ export function combineAbortSignals(
 
   if (!external) return timeoutSignal;
 
-  const anyFn = (AbortSignal as unknown as { any?: (signals: AbortSignal[]) => AbortSignal }).any;
-  if (typeof anyFn === 'function') {
-    return anyFn([external, timeoutSignal]);
+  // `AbortSignal.any` must be called as a static method on AbortSignal to
+  // preserve `this` binding. Extracting it as a free function and invoking
+  // it (`anyFn([...])`) fails with "this is not a constructor" in some
+  // runtimes (notably happy-dom inside vitest).
+  const AbortSignalCtor = AbortSignal as unknown as {
+    any?: (signals: AbortSignal[]) => AbortSignal;
+  };
+  if (typeof AbortSignalCtor.any === 'function') {
+    return AbortSignalCtor.any([external, timeoutSignal]);
   }
 
   const ctrl = new AbortController();
