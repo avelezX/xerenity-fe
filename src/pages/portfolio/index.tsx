@@ -33,6 +33,17 @@ import {
 } from 'src/models/pricing/pricingApi';
 import type { NdfSettlementResult } from 'src/models/pricing/pricingApi';
 import { useRepricePortfolio, useReferencePrices } from 'src/queries/pricing';
+import {
+  useXccyPositions,
+  useNdfPositions,
+  useIbrSwapPositions,
+  useAddXccyPosition,
+  useAddNdfPosition,
+  useAddIbrSwapPosition,
+  useRemoveXccyPositions,
+  useRemoveNdfPositions,
+  useRemoveIbrSwapPositions,
+} from 'src/queries/trading';
 import { useQueryClient } from '@tanstack/react-query';
 import { fetchHistoricalMark } from 'src/models/trading/fetchHistoricalMark';
 import type { CurveStatus } from 'src/types/pricing';
@@ -1940,17 +1951,7 @@ function PortfolioPage() {
   const [settlementMap, setSettlementMap] = useState<Record<string, NdfSettlementResult | 'error'>>({});
 
   const {
-    xccyPositions,
-    ndfPositions,
-    ibrSwapPositions,
     tradingError,
-    loadPositions,
-    addXccyPosition,
-    addNdfPosition,
-    addIbrSwapPosition,
-    removeXccyPositions,
-    removeNdfPositions,
-    removeIbrSwapPositions,
     canEdit,
     loadUserRole,
     userRole,
@@ -1960,6 +1961,29 @@ function PortfolioPage() {
     activeCompanyId,
     selectedCompanyId,
   } = useAppStore();
+
+  // #317 — Position lists now come from TanStack Query. Their cache key
+  // includes companyId so switching companies invalidates correctly. The
+  // store fields `xccyPositions/ndfPositions/ibrSwapPositions` are still
+  // there for risk-resumen (uses `loadPositions` imperatively); they will
+  // be removed in #318 cleanup.
+  const companyId = activeCompanyId();
+  const xccyPositionsQuery = useXccyPositions(companyId);
+  const ndfPositionsQuery = useNdfPositions(companyId);
+  const ibrSwapPositionsQuery = useIbrSwapPositions(companyId);
+  const xccyPositions = xccyPositionsQuery.data ?? [];
+  const ndfPositions = ndfPositionsQuery.data ?? [];
+  const ibrSwapPositions = ibrSwapPositionsQuery.data ?? [];
+
+  // #317 — Mutations replace the store CRUD actions. `onSuccess` invalidates
+  // the corresponding list query → list refetches → `useRepricePortfolio`
+  // sees a different ID set → reprice fires automatically.
+  const addXccyMutation = useAddXccyPosition();
+  const addNdfMutation = useAddNdfPosition();
+  const addIbrSwapMutation = useAddIbrSwapPosition();
+  const removeXccyMutation = useRemoveXccyPositions();
+  const removeNdfMutation = useRemoveNdfPositions();
+  const removeIbrSwapMutation = useRemoveIbrSwapPositions();
 
   // Track when the user explicitly requested a reprice via the toolbar button
   // — used to surface a toast when the next query lands. Without it, every
@@ -2059,11 +2083,12 @@ function PortfolioPage() {
       }
     };
     initCurves();
-    loadPositions(activeCompanyId());
+    // Positions are now fetched by useXccy/Ndf/IbrSwapPositions hooks
+    // (#317). They auto-fetch on mount; no manual loadPositions needed here.
     loadUserRole();
     loadMarketDataConfig();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [handleBuild, loadPositions, loadUserRole, loadMarketDataConfig, selectedCompanyId]);
+  }, [handleBuild, loadUserRole, loadMarketDataConfig, selectedCompanyId]);
 
 
   // Sync markFecha to curveStatus valuation_date once it loads
@@ -2082,12 +2107,12 @@ function PortfolioPage() {
 
   const handleDelete = useCallback(
     (id: string, type: string) => {
-      if (type === 'XCCY') removeXccyPositions([id]);
-      else if (type === 'NDF') removeNdfPositions([id]);
-      else if (type === 'IBR') removeIbrSwapPositions([id]);
+      if (type === 'XCCY') removeXccyMutation.mutate([id]);
+      else if (type === 'NDF') removeNdfMutation.mutate([id]);
+      else if (type === 'IBR') removeIbrSwapMutation.mutate([id]);
       toast.info('Posicion eliminada');
     },
-    [removeXccyPositions, removeNdfPositions, removeIbrSwapPositions]
+    [removeXccyMutation, removeNdfMutation, removeIbrSwapMutation]
   );
 
   const onSelectXccy = useCallback((pos: PricedXccy) => {
@@ -2331,7 +2356,7 @@ function PortfolioPage() {
           show={addType === 'xccy'}
           onHide={() => setAddType(null)}
           onSave={async (v) => {
-            await addXccyPosition(v);
+            await addXccyMutation.mutateAsync(v);
             toast.success('Posicion XCCY creada');
           }}
         />
@@ -2339,7 +2364,7 @@ function PortfolioPage() {
           show={addType === 'ndf'}
           onHide={() => setAddType(null)}
           onSave={async (v) => {
-            await addNdfPosition(v);
+            await addNdfMutation.mutateAsync(v);
             toast.success('Posicion NDF creada');
           }}
         />
@@ -2347,7 +2372,7 @@ function PortfolioPage() {
           show={addType === 'ibr'}
           onHide={() => setAddType(null)}
           onSave={async (v) => {
-            await addIbrSwapPosition(v);
+            await addIbrSwapMutation.mutateAsync(v);
             toast.success('Posicion IBR Swap creada');
           }}
         />
