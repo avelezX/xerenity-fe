@@ -140,6 +140,20 @@ export interface ExposureParams {
   kg_akomel_sab_anual?: number;        // Saborizado Caja 15Kg
   kg_cebes_anual?: number;             // CEBES MC 35
   kg_almidon_anual?: number;           // Almidon
+
+  // ── CAFE — Cobertura (empresas con CAFE en commodities) ──
+  // Calculadora de cobertura basada en el modelo de El Embrujo:
+  // P_compra = (KC + Prima_FNC) × 0.01 × TRM_compra × LB_CARGA × FR
+  // P_venta  = (KC_venta + Prima_exp) × 0.01 × TRM_venta × LB_CARGA
+  // Margen   = P_venta − P_compra
+  precio_cafe_cent_lb?: number;        // KC front contract (¢/lb), desde risk_prices
+  kc_venta_cafe_cent_lb?: number;      // KC al momento de venta (¢/lb), editable
+  prima_fnc_cent_lb?: number;          // Prima FNC sobre KC para precio interno
+  prima_exp_cent_lb?: number;          // Prima de exportacion sobre KC
+  factor_rendimiento_cafe?: number;    // FR: 0.94 estandar, 0.92 premium, 0.88 especial
+  trm_compra_cafe?: number;            // TRM al momento de compra (override editable, fallback a params.trm)
+  trm_venta_cafe?: number;             // TRM al momento de cobro (puede diferir de params.trm)
+  cargas_cafe_anual?: number;          // Volumen anual en cargas de 125 kg
 }
 
 export interface CommodityExposure {

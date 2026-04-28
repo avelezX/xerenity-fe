@@ -41,7 +41,7 @@ import { fetchCoffeePrices } from 'src/lib/risk/supabaseRisk';
 import type { CoffeePriceRow } from 'src/lib/risk/supabaseRisk';
 import { fetchUsdCopCalculator } from 'src/models/risk/usdcopCalculator';
 import type { UsdCopData } from 'src/models/risk/usdcopCalculator';
-import { calcularAkomelCop, calcularCebesMc35, calcularAlmidon, buildSuperFormulaCommodities } from 'src/lib/risk/exposureCalculator';
+import { calcularAkomelCop, calcularCebesMc35, calcularAlmidon, buildSuperFormulaCommodities, calcularCoberturaCafe } from 'src/lib/risk/exposureCalculator';
 import type { RollingVarResponse, BenchmarkFactorsResponse, ExposureParams, ExposureResponse, MarketPrice, FuturesPosition, NewFuturesPosition } from 'src/types/risk';
 import useAppStore from 'src/store';
 // Company type no longer needed — global selector in CoreLayout
@@ -1713,7 +1713,7 @@ function RiskManagement() {
         )}
 
         {/* ─── EXPOSICIÓN TAB ─── */}
-        {activeTab === 'exposure' && !companyConfig?.exposure_defaults && (
+        {activeTab === 'exposure' && (!companyConfig?.exposure_defaults || Object.keys(companyConfig.exposure_defaults).length === 0) && !hasCafe && (
           <div className="text-center py-5">
             <Icon icon={faShieldAlt} size="2x" className="text-muted mb-3" />
             <h5 className="text-muted">Exposición no configurada</h5>
@@ -1724,7 +1724,8 @@ function RiskManagement() {
             </p>
           </div>
         )}
-        {activeTab === 'exposure' && companyConfig?.exposure_defaults && Object.keys(companyConfig.exposure_defaults).length > 0 && (() => {
+        {activeTab === 'exposure' && (((companyConfig?.exposure_defaults && Object.keys(companyConfig.exposure_defaults).length > 0)) || hasCafe) && (() => {
+          const hasExposureDefaults = !!(companyConfig?.exposure_defaults && Object.keys(companyConfig.exposure_defaults).length > 0);
           const inputStyle = { fontSize: '0.78rem' };
           const calcStyle = { fontSize: '0.78rem', color: '#475569' };
           const headerStyle = { color: '#7c3aed', fontSize: '0.85rem', fontWeight: 700, padding: '12px 14px', borderBottom: '1px solid #e2e8f0' };
@@ -1845,6 +1846,7 @@ function RiskManagement() {
               </Row>
 
               <div id="pdf-exposure">
+              {hasExposureDefaults && (<>
               {/* Ventas Proyectadas - shared params */}
               <div className="rounded mb-3" style={{ background: '#fff', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
                 <div style={{ padding: '12px 16px', borderBottom: '1px solid #e2e8f0' }}>
@@ -2127,6 +2129,229 @@ function RiskManagement() {
                     </Col>
                 </Row>
               )}
+              </>)}
+
+              {/* ─── COBERTURA CAFE (empresas con CAFE en commodities) ─── */}
+              {hasCafe && (() => {
+                const cafe = calcularCoberturaCafe(exposureParams);
+                const fmt0 = (v: number) => v.toLocaleString('es-CO', { maximumFractionDigits: 0 });
+                const fmt2 = (v: number) => v.toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                const setScen = (sc: { kc?: number; pfnc?: number; trmc?: number; kcv?: number; pexp?: number; trmv?: number; cargas?: number }) => {
+                  setExposureParams((p) => ({
+                    ...p,
+                    ...(sc.kc != null && { precio_cafe_cent_lb: sc.kc }),
+                    ...(sc.pfnc != null && { prima_fnc_cent_lb: sc.pfnc }),
+                    ...(sc.trmc != null && { trm: sc.trmc }),
+                    ...(sc.kcv != null && { kc_venta_cafe_cent_lb: sc.kcv }),
+                    ...(sc.pexp != null && { prima_exp_cent_lb: sc.pexp }),
+                    ...(sc.trmv != null && { trm_venta_cafe: sc.trmv }),
+                    ...(sc.cargas != null && { cargas_cafe_anual: sc.cargas }),
+                  }));
+                };
+                const sensRows: Array<{ lbl: string; d: number }> = [
+                  { lbl: 'KC −10%', d: cafe.delta_kc_minus_10pct },
+                  { lbl: 'TRM compra −$200', d: cafe.delta_trm_compra_minus_200 },
+                  { lbl: 'TRM venta −$200', d: cafe.delta_trm_venta_minus_200 },
+                  { lbl: 'Prima exp. +5 ¢/lb', d: cafe.delta_prima_exp_plus_5 },
+                ];
+                const maxAbs = Math.max(...sensRows.map((r) => Math.abs(r.d)), 1);
+                const sectionDivider = { ...labelTd, padding: '8px 12px', fontSize: '0.75rem', color: '#1e293b', fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.05em', background: '#f1f5f9', borderTop: '1px solid #e2e8f0', borderBottom: '1px solid #e2e8f0' };
+
+                const trmRef = exposureParams.trm ?? 0;
+                const cafeContract = exposureResult?.market_prices?.precio_cafe_cent_lb?.contract;
+                const cafeContractLabel = cafeContract ? `Front: ${cafeContract}` : 'Mercado';
+                return (
+                  <Row className="g-3 mb-4">
+                    {/* TRM Xerenity ribbon */}
+                    <Col md={12}>
+                      <div className="rounded" style={{ background: '#fff', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', padding: '8px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+                        <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Cobertura Café — Análisis de exposición</span>
+                        <span style={{ fontSize: '0.72rem', color: '#64748b' }}>
+                          TRM actual <span style={{ fontSize: '0.65rem', color: '#94a3b8' }}>(Xerenity)</span>:
+                          <span style={{ marginLeft: 6, fontWeight: 700, color: '#1e293b', fontFamily: 'ui-monospace, monospace' }}>${fmt2(trmRef)}</span>
+                          <button type="button" onClick={() => setExposureParams((p) => ({ ...p, trm_compra_cafe: trmRef, trm_venta_cafe: trmRef }))} style={{ marginLeft: 10, fontSize: '0.7rem', padding: '2px 8px', border: '1px solid #cbd5e1', background: '#f8fafc', color: '#475569', borderRadius: 4, cursor: 'pointer' }}>Aplicar a compra y venta</button>
+                        </span>
+                      </div>
+                    </Col>
+
+                    {/* Compra */}
+                    <Col md={6}>
+                      <div className="rounded h-100" style={{ border: '1px solid #e2e8f0', overflow: 'hidden', background: '#fff', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+                        <div style={headerStyle}>Cobertura Café — Compra <span className="fw-normal ms-2" style={{ fontSize: '0.7rem' }}>paga COP al caficultor</span></div>
+                        <table className="table table-sm mb-0" style={{ fontSize: '0.78rem' }}>
+                          <tbody>
+                            <tr><td style={sectionDivider} colSpan={2}>Precio internacional</td></tr>
+                            <tr><td style={labelTd}>KC futuro (¢/lb) <span style={{ fontSize: '0.65rem', color: '#94a3b8' }}>({cafeContractLabel})</span></td><td style={{ ...valTd, ...calcStyle, fontWeight: 600 }}>{fmt2(cafe.kc_compra)}</td></tr>
+                            <tr><td style={labelTd}>Prima FNC (¢/lb)</td><td style={inputTd}>{numInput('prima_fnc_cent_lb', '0.5')}</td></tr>
+                            <tr><td style={sectionDivider} colSpan={2}>Tipo de cambio</td></tr>
+                            <tr><td style={labelTd}>TRM compra (COP/USD)</td><td style={inputTd}>{numInput('trm_compra_cafe', '10')}</td></tr>
+                            <tr><td style={labelTd}>FR — Factor Rendimiento</td><td style={inputTd}>
+                              <Form.Select size="sm" value={cafe.fr} onChange={(e) => setExposureParams((p) => ({ ...p, factor_rendimiento_cafe: parseFloat(e.target.value) }))} style={{ border: 'none', textAlign: 'right', padding: '5px 8px', background: 'transparent', fontSize: '0.78rem' }}>
+                                <option value={0.94}>FR 94 — excelso estándar</option>
+                                <option value={0.92}>FR 92 — premium</option>
+                                <option value={0.88}>FR 88 — especial</option>
+                              </Form.Select>
+                            </td></tr>
+                            <tr><td style={{ ...labelTd, fontWeight: 700 }}>Precio compra (COP/carga)</td><td style={resultTd}>{fmt0(cafe.p_compra_cop_carga)}</td></tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </Col>
+
+                    {/* Venta */}
+                    <Col md={6}>
+                      <div className="rounded h-100" style={{ border: '1px solid #e2e8f0', overflow: 'hidden', background: '#fff', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+                        <div style={headerStyle}>Cobertura Café — Venta <span className="fw-normal ms-2" style={{ fontSize: '0.7rem' }}>cobra USD del exportador</span></div>
+                        <table className="table table-sm mb-0" style={{ fontSize: '0.78rem' }}>
+                          <tbody>
+                            <tr><td style={sectionDivider} colSpan={2}>Precio internacional</td></tr>
+                            <tr><td style={labelTd}>Base KC venta (¢/lb)</td><td style={inputTd}>{numInput('kc_venta_cafe_cent_lb', '0.5')}</td></tr>
+                            <tr><td style={labelTd}>Prima exportación (¢/lb)</td><td style={inputTd}>{numInput('prima_exp_cent_lb', '0.5')}</td></tr>
+                            <tr><td style={sectionDivider} colSpan={2}>Tipo de cambio &amp; volumen</td></tr>
+                            <tr><td style={labelTd}>TRM venta (COP/USD)</td><td style={inputTd}>{numInput('trm_venta_cafe', '10')}</td></tr>
+                            <tr><td style={labelTd}>Volumen (cargas 125 kg)</td><td style={inputTd}>{numInput('cargas_cafe_anual', '10')}</td></tr>
+                            <tr><td style={{ ...labelTd, fontWeight: 700 }}>Precio venta (COP/carga)</td><td style={resultTd}>{fmt0(cafe.p_venta_cop_carga)}</td></tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </Col>
+
+                    {/* Exposición Total del Negocio */}
+                    <Col md={12}>
+                      <div className="rounded" style={{ background: '#fff', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+                        <div style={{ padding: '12px 16px', borderBottom: '1px solid #e2e8f0' }}>
+                          <h6 style={{ color: '#7c3aed', fontWeight: 700, marginBottom: 0, fontSize: '0.85rem' }}>Exposición total del negocio</h6>
+                        </div>
+                        <div className="table-responsive">
+                          <table className="table table-sm align-middle mb-0" style={{ fontSize: '0.78rem' }}>
+                            <thead style={{ fontSize: '0.7rem', color: '#64748b' }}>
+                              <tr>
+                                <th style={{ padding: '8px 12px', borderBottom: '2px solid #e2e8f0', textTransform: 'uppercase', fontWeight: 600 }}>Concepto</th>
+                                <th className="text-end" style={{ padding: '8px 12px', borderBottom: '2px solid #e2e8f0', textTransform: 'uppercase', fontWeight: 600 }}>Por carga</th>
+                                <th className="text-end" style={{ padding: '8px 12px', borderBottom: '2px solid #e2e8f0', textTransform: 'uppercase', fontWeight: 600 }}>Total ({fmt0(cafe.cargas)} cargas)</th>
+                                <th className="text-end" style={{ padding: '8px 12px', borderBottom: '2px solid #e2e8f0', textTransform: 'uppercase', fontWeight: 600 }}>Equivalente USD</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
+                                <td style={{ padding: '8px 12px', color: '#64748b' }}>Volumen físico</td>
+                                <td className="text-end" style={{ padding: '8px 12px' }}>125 kg</td>
+                                <td className="text-end" style={{ padding: '8px 12px', fontWeight: 600 }}>{fmt0(cafe.total_kg)} kg</td>
+                                <td className="text-end" style={{ padding: '8px 12px', color: '#94a3b8' }}>{fmt0(cafe.total_lb)} lb</td>
+                              </tr>
+                              <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
+                                <td style={{ padding: '8px 12px', color: '#64748b' }}>Compra al caficultor</td>
+                                <td className="text-end" style={{ padding: '8px 12px' }}>{fmt0(cafe.p_compra_cop_carga)} COP</td>
+                                <td className="text-end" style={{ padding: '8px 12px', fontWeight: 600 }}>{fmtUsd(cafe.total_compra_cop)} COP</td>
+                                <td className="text-end" style={{ padding: '8px 12px', color: '#94a3b8' }}>{fmtUsd(cafe.total_compra_cop / (cafe.trm_compra || 1))} USD</td>
+                              </tr>
+                              <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
+                                <td style={{ padding: '8px 12px', color: '#64748b' }}>Venta al exportador</td>
+                                <td className="text-end" style={{ padding: '8px 12px' }}>{fmt0(cafe.p_venta_cop_carga)} COP</td>
+                                <td className="text-end" style={{ padding: '8px 12px', fontWeight: 600 }}>{fmtUsd(cafe.total_venta_cop)} COP</td>
+                                <td className="text-end" style={{ padding: '8px 12px', color: '#94a3b8' }}>{fmtUsd(cafe.total_venta_usd)} USD</td>
+                              </tr>
+                              <tr style={{ borderTop: '2px solid #1e293b', fontWeight: 700 }}>
+                                <td style={{ padding: '10px 12px' }}>Margen / Utilidad</td>
+                                <td className="text-end" style={{ padding: '10px 12px', color: cafe.margen_cop_carga >= 0 ? '#16a34a' : '#dc2626' }}>{fmt0(cafe.margen_cop_carga)} COP <span style={{ fontWeight: 400, color: '#94a3b8', fontSize: '0.7rem' }}>({cafe.margen_pct.toFixed(1)}%)</span></td>
+                                <td className="text-end" style={{ padding: '10px 12px', color: cafe.margen_cop_carga >= 0 ? '#16a34a' : '#dc2626' }}>{fmtUsd(cafe.utilidad_total_cop)} COP</td>
+                                <td className="text-end" style={{ padding: '10px 12px', color: cafe.margen_cop_carga >= 0 ? '#16a34a' : '#dc2626' }}>{fmtUsd(cafe.utilidad_total_usd)} USD</td>
+                              </tr>
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    </Col>
+
+                    {/* Descalces */}
+                    <Col md={6}>
+                      <div className="rounded h-100" style={{ background: '#fff', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+                        <div style={{ padding: '12px 16px', borderBottom: '1px solid #e2e8f0' }}>
+                          <h6 style={{ color: '#7c3aed', fontWeight: 700, marginBottom: 0, fontSize: '0.85rem' }}>Descalce temporal</h6>
+                        </div>
+                        <table className="table table-sm mb-0" style={{ fontSize: '0.78rem' }}>
+                          <tbody>
+                            <tr><td style={labelTd}>Descalce TRM (venta − compra)</td><td style={{ ...valTd, fontWeight: 600, color: cafe.descalce_trm >= 0 ? '#16a34a' : '#dc2626' }}>{cafe.descalce_trm >= 0 ? '+' : ''}{fmt0(cafe.descalce_trm)} COP/USD</td></tr>
+                            <tr><td style={labelTd}>Descalce KC (venta − compra)</td><td style={{ ...valTd, fontWeight: 600, color: cafe.descalce_kc >= 0 ? '#16a34a' : '#dc2626' }}>{cafe.descalce_kc >= 0 ? '+' : ''}{fmt2(cafe.descalce_kc)} ¢/lb</td></tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </Col>
+
+                    {/* Sensibilidades */}
+                    <Col md={6}>
+                      <div className="rounded h-100" style={{ background: '#fff', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+                        <div style={{ padding: '12px 16px', borderBottom: '1px solid #e2e8f0' }}>
+                          <h6 style={{ color: '#7c3aed', fontWeight: 700, marginBottom: 0, fontSize: '0.85rem' }}>Sensibilidad — impacto en margen por carga</h6>
+                        </div>
+                        <div style={{ padding: '10px 16px' }}>
+                          {sensRows.map((r) => {
+                            const pct = Math.min(Math.abs(r.d) / maxAbs * 100, 100);
+                            const col = r.d >= 0 ? '#16a34a' : '#dc2626';
+                            return (
+                              <div key={r.lbl} style={{ display: 'grid', gridTemplateColumns: '160px 1fr 110px', gap: 10, alignItems: 'center', marginBottom: 8, fontSize: '0.75rem' }}>
+                                <span style={{ color: '#64748b' }}>{r.lbl}</span>
+                                <div style={{ background: '#f1f5f9', borderRadius: 3, height: 5, overflow: 'hidden' }}>
+                                  <div style={{ height: '100%', width: `${pct}%`, background: col, borderRadius: 3 }} />
+                                </div>
+                                <span style={{ textAlign: 'right', color: col, fontWeight: 600 }}>{r.d >= 0 ? '+' : ''}{fmt0(r.d)} COP</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </Col>
+
+                    {/* Chart sensibilidad TRM */}
+                    <Col md={12}>
+                      <div className="rounded" style={{ background: '#fff', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+                        <div style={{ padding: '12px 16px', borderBottom: '1px solid #e2e8f0' }}>
+                          <h6 style={{ color: '#7c3aed', fontWeight: 700, marginBottom: 0, fontSize: '0.85rem' }}>Sensibilidad del margen a la TRM de compra</h6>
+                        </div>
+                        <div style={{ padding: '14px 16px' }}>
+                          <ResponsiveContainer width="100%" height={240}>
+                            <LineChart data={cafe.curva} margin={{ top: 5, right: 25, left: 5, bottom: 25 }}>
+                              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                              <XAxis dataKey="trm" tick={{ fontSize: 10, fill: '#64748b' }} label={{ value: 'TRM compra (COP/USD)', position: 'insideBottom', offset: -10, fontSize: 11, fill: '#64748b' }} />
+                              <YAxis tick={{ fontSize: 10, fill: '#64748b' }} tickFormatter={(v) => fmt0(v)} label={{ value: 'Margen COP/carga', angle: -90, position: 'insideLeft', fontSize: 11, fill: '#64748b', dy: 60 }} />
+                              <Tooltip
+                                formatter={(v: number) => `${fmt0(v)} COP/carga`}
+                                labelFormatter={(t) => `TRM compra: ${fmt0(t as number)}`}
+                                contentStyle={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 4, fontSize: '0.78rem' }}
+                              />
+                              <Legend wrapperStyle={{ fontSize: '0.75rem', paddingTop: 8 }} />
+                              <Line type="monotone" dataKey="sin_descalce" name="Sin descalce" stroke="#7c3aed" strokeWidth={2} dot={false} />
+                              <Line type="monotone" dataKey="trm_venta_fija" name={`TRM venta fija (${fmt0(cafe.trm_venta)})`} stroke="#64748b" strokeWidth={1.5} strokeDasharray="5 4" dot={false} />
+                              <Line type="monotone" dataKey={() => 0} name="Break even" stroke="#dc2626" strokeWidth={1} strokeDasharray="3 3" dot={false} />
+                            </LineChart>
+                          </ResponsiveContainer>
+                        </div>
+                      </div>
+                    </Col>
+
+                    {/* Escenarios */}
+                    <Col md={12}>
+                      <div className="rounded" style={{ background: '#fff', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+                        <div style={{ padding: '12px 16px', borderBottom: '1px solid #e2e8f0' }}>
+                          <h6 style={{ color: '#7c3aed', fontWeight: 700, marginBottom: 0, fontSize: '0.85rem' }}>Escenarios pre-configurados</h6>
+                        </div>
+                        <div style={{ padding: '12px 16px', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                          {[
+                            { lbl: 'Base (hoy)', sc: { kc: cafe.kc_compra, pfnc: 10, kcv: cafe.kc_compra, pexp: 25, cargas: 200 } },
+                            { lbl: 'KC −15%', sc: { kc: cafe.kc_compra * 0.85, kcv: cafe.kc_compra * 0.85, pfnc: 10, pexp: 25, cargas: 200 } },
+                            { lbl: 'TRM compra $3,400', sc: { trmc: 3400, kcv: cafe.kc_compra, pexp: 25, pfnc: 10, cargas: 200 } },
+                            { lbl: 'TRM compra $4,000', sc: { trmc: 4000, kcv: cafe.kc_compra, pexp: 25, pfnc: 10, cargas: 200 } },
+                            { lbl: 'KC −15% + TRM $3,400', sc: { kc: cafe.kc_compra * 0.85, kcv: cafe.kc_compra * 0.85, trmc: 3400, pexp: 25, pfnc: 10, cargas: 200 } },
+                            { lbl: 'KC compra = KC venta', sc: { kcv: cafe.kc_compra, pexp: 25, pfnc: 10, cargas: 200 } },
+                          ].map((b) => (
+                            <Button key={b.lbl} variant="outline-secondary" size="sm" onClick={() => setScen(b.sc)} style={{ fontSize: '0.72rem' }}>{b.lbl}</Button>
+                          ))}
+                        </div>
+                      </div>
+                    </Col>
+                  </Row>
+                );
+              })()}
 
               {/* Summary tables */}
               {exposureResult && (() => {

@@ -217,6 +217,7 @@ export async function fetchExposure(
     AZUCAR: 'precio_azucar_cent_lb',
     MAIZ: 'precio_maiz_cent_bu',
     CACAO: 'precio_cocoa_usd_ton',
+    CAFE: 'precio_cafe_cent_lb',
     USD: 'trm',
   };
 
