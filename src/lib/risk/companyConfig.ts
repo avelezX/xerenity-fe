@@ -196,6 +196,16 @@ export const DEFAULT_EXPOSURE_PARAMS: ExposureParams = {
   kg_akomel_sab_anual: 0,
   kg_cebes_anual: 0,
   kg_almidon_anual: 0,
+
+  // CAFE — Cobertura (defaults del modelo El Embrujo, editables por empresa)
+  precio_cafe_cent_lb: 317.85,
+  kc_venta_cafe_cent_lb: 317.85,
+  prima_fnc_cent_lb: 10,
+  prima_exp_cent_lb: 25,
+  factor_rendimiento_cafe: 0.94,
+  trm_compra_cafe: 3700.67,
+  trm_venta_cafe: 3700.67,
+  cargas_cafe_anual: 200,
 };
 
 // ── Predefined commodity templates ──

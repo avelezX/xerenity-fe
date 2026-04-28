@@ -460,6 +460,125 @@ export function buildSuperFormulaCommodities(params: ExposureParams): CommodityE
   ];
 }
 
+// ── CAFE — Cobertura (modelo El Embrujo) ──
+//
+// Calculadora de cobertura de cafe basada en el modelo de El Embrujo.
+// Empresa compra cafe al caficultor en COP (FNC fija precio interno desde KC)
+// y lo vende al exterior en USD. El margen vive del spread de primas (Prima_exp
+// vs Prima_FNC × FR) y se ve afectado por descalce temporal de KC y TRM.
+//
+// Constante: 1 carga = 125 kg = 275.578 lb (LB_CARGA = 125 / 0.453592)
+
+export const LB_CARGA = 125 / 0.453592;
+
+export interface CoberturaCafeResult {
+  // Inputs efectivos (con defaults aplicados)
+  kc_compra: number;
+  kc_venta: number;
+  prima_fnc: number;
+  prima_exp: number;
+  trm_compra: number;
+  trm_venta: number;
+  fr: number;
+  cargas: number;
+  // Outputs principales
+  p_compra_cop_carga: number;
+  p_venta_cop_carga: number;
+  margen_cop_carga: number;
+  margen_pct: number;
+  utilidad_total_cop: number;
+  utilidad_total_usd: number;
+  descalce_trm: number;       // TRM_venta − TRM_compra
+  descalce_kc: number;        // KC_venta − KC_compra
+  // Exposicion total del negocio (volumen × precio)
+  total_compra_cop: number;   // cargas × p_compra (egreso al caficultor)
+  total_venta_cop: number;    // cargas × p_venta (ingreso del exportador)
+  total_venta_usd: number;    // total_venta_cop / TRM_venta
+  total_kg: number;           // cargas × 125
+  total_lb: number;           // cargas × LB_CARGA
+  // Sensibilidades (Δ margen vs base, COP/carga)
+  delta_kc_minus_10pct: number;
+  delta_trm_compra_minus_200: number;
+  delta_trm_venta_minus_200: number;
+  delta_prima_exp_plus_5: number;
+  // Curva sensibilidad TRM compra (rango 2800-4600)
+  curva: Array<{ trm: number; sin_descalce: number; trm_venta_fija: number }>;
+}
+
+export function calcularCoberturaCafe(params: ExposureParams): CoberturaCafeResult {
+  const kc = params.precio_cafe_cent_lb ?? 0;
+  const kcv = params.kc_venta_cafe_cent_lb ?? kc;
+  const pfnc = params.prima_fnc_cent_lb ?? 0;
+  const pexp = params.prima_exp_cent_lb ?? 0;
+  const trmc = params.trm_compra_cafe ?? params.trm ?? 0;
+  const trmv = params.trm_venta_cafe ?? trmc;
+  const fr = params.factor_rendimiento_cafe ?? 0.94;
+  const cargas = params.cargas_cafe_anual ?? 0;
+
+  const pCompra = (kc + pfnc) * 0.01 * trmc * LB_CARGA * fr;
+  const pVenta = (kcv + pexp) * 0.01 * trmv * LB_CARGA;
+  const margen = pVenta - pCompra;
+  const margenPct = pVenta > 0 ? (margen / pVenta) * 100 : 0;
+  const utilidadCop = margen * cargas;
+  const utilidadUsd = trmv > 0 ? utilidadCop / trmv : 0;
+
+  // Sensibilidades — choque individual manteniendo lo demas constante
+  const kc10 = kc * 0.9;
+  const pc10 = (kc10 + pfnc) * 0.01 * trmc * LB_CARGA * fr;
+  const pv10 = (kc10 + pexp) * 0.01 * trmv * LB_CARGA;
+  const deltaKcMinus10pct = (pv10 - pc10) - margen;
+
+  const pcT = (kc + pfnc) * 0.01 * (trmc - 200) * LB_CARGA * fr;
+  const deltaTrmCompraMinus200 = (pVenta - pcT) - margen;
+
+  const pvT = (kcv + pexp) * 0.01 * (trmv - 200) * LB_CARGA;
+  const deltaTrmVentaMinus200 = (pvT - pCompra) - margen;
+
+  const pv5 = (kcv + pexp + 5) * 0.01 * trmv * LB_CARGA;
+  const deltaPrimaExpPlus5 = (pv5 - pCompra) - margen;
+
+  // Curva sensibilidad TRM compra (rango 2800-4600, 19 puntos)
+  const curva: Array<{ trm: number; sin_descalce: number; trm_venta_fija: number }> = [];
+  for (let i = 0; i <= 18; i += 1) {
+    const t = 2800 + (4600 - 2800) * i / 18;
+    const pcT2 = (kc + pfnc) * 0.01 * t * LB_CARGA * fr;
+    curva.push({
+      trm: Math.round(t),
+      sin_descalce: Math.round((kc + pexp) * 0.01 * t * LB_CARGA - pcT2),
+      trm_venta_fija: Math.round((kc + pexp) * 0.01 * trmv * LB_CARGA - pcT2),
+    });
+  }
+
+  return {
+    kc_compra: kc,
+    kc_venta: kcv,
+    prima_fnc: pfnc,
+    prima_exp: pexp,
+    trm_compra: trmc,
+    trm_venta: trmv,
+    fr,
+    cargas,
+    p_compra_cop_carga: pCompra,
+    p_venta_cop_carga: pVenta,
+    margen_cop_carga: margen,
+    margen_pct: margenPct,
+    utilidad_total_cop: utilidadCop,
+    utilidad_total_usd: utilidadUsd,
+    descalce_trm: trmv - trmc,
+    descalce_kc: kcv - kc,
+    total_compra_cop: pCompra * cargas,
+    total_venta_cop: pVenta * cargas,
+    total_venta_usd: trmv > 0 ? (pVenta * cargas) / trmv : 0,
+    total_kg: cargas * 125,
+    total_lb: cargas * LB_CARGA,
+    delta_kc_minus_10pct: deltaKcMinus10pct,
+    delta_trm_compra_minus_200: deltaTrmCompraMinus200,
+    delta_trm_venta_minus_200: deltaTrmVentaMinus200,
+    delta_prima_exp_plus_5: deltaPrimaExpPlus5,
+    curva,
+  };
+}
+
 // ── Total Exposure ──
 
 export function calcularExposicionTotal(
