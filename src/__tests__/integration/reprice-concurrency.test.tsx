@@ -180,4 +180,73 @@ describe('useRepricePortfolio — null NPV handling', () => {
     expect(row.error).toBeTruthy();
     expect(row.error).toMatch(/npv_cop/);
   });
+
+  it('Phase 3.3: pricing_status="degraded" surfaces error + missing_fields passthrough', async () => {
+    server.use(
+      http.post(`${PYSDK_URL}/pricing/portfolio/reprice`, () =>
+        HttpResponse.json({
+          xccy_results: [{
+            id: 'p1',
+            npv_cop: null,
+            npv_usd: null,
+            pricing_status: 'degraded',
+            missing_fields: ['npv_cop', 'npv_usd', 'carry_cop'],
+          }],
+          ndf_results: [],
+          ibr_swap_results: [],
+          summary: { total_npv_cop: 0, total_npv_usd: 0, total_carry_cop: 0, total_carry_usd: 0, total_pnl_rate_cop: 0, total_pnl_fx_cop: 0 },
+        }),
+      ),
+    );
+
+    const { result } = renderHookWithClient(() =>
+      useRepricePortfolio({
+        xccy: [mkXccy('p1')], ndf: [], ibr: [],
+        valuationDate: '2026-04-25',
+      }),
+    );
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    const row = result.current.data!.xccy_results[0];
+    // Error message comes from the new explicit path and lists missing fields.
+    expect(row.error).toContain('npv_cop');
+    expect(row.error).toContain('carry_cop');
+    expect(row.pricing_status).toBe('degraded');
+    expect(row.missing_fields).toEqual(['npv_cop', 'npv_usd', 'carry_cop']);
+  });
+
+  it('Phase 3.3: pricing_status="partial" passes through without surfacing an error', async () => {
+    server.use(
+      http.post(`${PYSDK_URL}/pricing/portfolio/reprice`, () =>
+        HttpResponse.json({
+          xccy_results: [{
+            id: 'p1',
+            npv_cop: 1000,  // NPV is fine
+            npv_usd: 0.25,
+            carry_cop: null,  // auxiliary missing
+            pricing_status: 'partial',
+            missing_fields: ['carry_cop'],
+          }],
+          ndf_results: [],
+          ibr_swap_results: [],
+          summary: { total_npv_cop: 1000, total_npv_usd: 0.25, total_carry_cop: 0, total_carry_usd: 0, total_pnl_rate_cop: 0, total_pnl_fx_cop: 0 },
+        }),
+      ),
+    );
+
+    const { result } = renderHookWithClient(() =>
+      useRepricePortfolio({
+        xccy: [mkXccy('p1')], ndf: [], ibr: [],
+        valuationDate: '2026-04-25',
+      }),
+    );
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    const row = result.current.data!.xccy_results[0];
+    // Partial: NPV is usable so we do NOT mark as error. Status passes through.
+    expect(row.error).toBeUndefined();
+    expect(row.pricing_status).toBe('partial');
+    expect(row.missing_fields).toEqual(['carry_cop']);
+    expect(row.npv_cop).toBe(1000);
+  });
 });
