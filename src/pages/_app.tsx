@@ -6,6 +6,17 @@ import { Inter } from 'next/font/google';
 import { config } from '@fortawesome/fontawesome-svg-core';
 import '@fortawesome/fontawesome-svg-core/styles.css';
 import { ProgressBar } from '@components/ProgressBar';
+import { QueryClientProvider } from '@tanstack/react-query';
+import dynamic from 'next/dynamic';
+import queryClient from 'src/lib/queryClient';
+
+// Devtools is a devDependency — Vercel production builds skip dev deps, so
+// importing it unconditionally fails the build. Dynamic-import it and keep
+// the chunk out of the production bundle entirely.
+const ReactQueryDevtools = dynamic(
+  () => import('@tanstack/react-query-devtools').then((m) => m.ReactQueryDevtools),
+  { ssr: false },
+);
 
 // You change this configuration value to false so that the Font Awesome core SVG library
 // will not try and insert <style> elements into the <head> of the page.
@@ -23,7 +34,7 @@ function MyApp({ Component, pageProps }: AppProps) {
   // to ensure that the auto-generated ids are consistent between the server and client.
   // https://react-bootstrap.github.io/getting-started/server-side-rendering/
   return (
-    <>
+    <QueryClientProvider client={queryClient}>
       <style jsx global>{`
         html {
           font-family: ${inter.style.fontFamily};
@@ -35,7 +46,10 @@ function MyApp({ Component, pageProps }: AppProps) {
       <ProgressBar />
       {/* eslint-disable-next-line react/jsx-props-no-spreading */}
       <Component {...pageProps} />
-    </>
+      {process.env.NODE_ENV !== 'production' && (
+        <ReactQueryDevtools initialIsOpen={false} buttonPosition="bottom-right" />
+      )}
+    </QueryClientProvider>
   );
 }
 

@@ -3,7 +3,7 @@
 /* eslint-disable no-nested-ternary, no-underscore-dangle, no-restricted-syntax, prefer-template, jsx-a11y/control-has-associated-label */
 import { CoreLayout } from '@layout';
 import { Row, Col, Form, Modal } from 'react-bootstrap';
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import Container from 'react-bootstrap/Container';
 import { FontAwesomeIcon as Icon } from '@fortawesome/react-fontawesome';
 import {
@@ -32,6 +32,19 @@ import {
   getNdfSettlement,
 } from 'src/models/pricing/pricingApi';
 import type { NdfSettlementResult } from 'src/models/pricing/pricingApi';
+import { useRepricePortfolio, useReferencePrices } from 'src/queries/pricing';
+import {
+  useXccyPositions,
+  useNdfPositions,
+  useIbrSwapPositions,
+  useAddXccyPosition,
+  useAddNdfPosition,
+  useAddIbrSwapPosition,
+  useRemoveXccyPositions,
+  useRemoveNdfPositions,
+  useRemoveIbrSwapPositions,
+} from 'src/queries/trading';
+import { useQueryClient } from '@tanstack/react-query';
 import { fetchHistoricalMark } from 'src/models/trading/fetchHistoricalMark';
 import type { CurveStatus } from 'src/types/pricing';
 import type {
@@ -1927,6 +1940,8 @@ function PortfolioPage() {
   const [markFecha, setMarkFecha] = useState<string>(defaultMarkFecha());
   const [curveStatus, setCurveStatus] = useState<CurveStatus | null>(null);
   const [addType, setAddType] = useState<string | null>(null); // 'xccy' | 'ndf' | 'ibr' | null
+  // (#313 removed repriceTrigger — useRepricePortfolio's key includes position
+  //  IDs, so adding/removing a position triggers refetch automatically.)
   const { prefs: blotterPrefs, setPrefs: setBlotterPrefs } = useBlotterPreferences();
   const [selectedXccy, setSelectedXccy] = useState<PricedXccy | null>(null);
   const [selectedNdf, setSelectedNdf] = useState<PricedNdf | null>(null);
@@ -1936,35 +1951,45 @@ function PortfolioPage() {
   const [settlementMap, setSettlementMap] = useState<Record<string, NdfSettlementResult | 'error'>>({});
 
   const {
-    xccyPositions,
-    ndfPositions,
-    ibrSwapPositions,
-    pricedXccy,
-    pricedNdf,
-    pricedIbrSwap,
-    summary,
-    pricedAt,
-    tradingLoading,
     tradingError,
-    loadPositions,
-    repriceAllWithMark,
-    addXccyPosition,
-    addNdfPosition,
-    addIbrSwapPosition,
-    removeXccyPositions,
-    removeNdfPositions,
-    removeIbrSwapPositions,
     canEdit,
     loadUserRole,
     userRole,
     marketDataConfig,
     loadMarketDataConfig,
     updateMarketDataConfig,
-    refPrices,
-    loadReferencePrices,
     activeCompanyId,
     selectedCompanyId,
   } = useAppStore();
+
+  // #317 — Position lists now come from TanStack Query. Their cache key
+  // includes companyId so switching companies invalidates correctly. The
+  // store fields `xccyPositions/ndfPositions/ibrSwapPositions` are still
+  // there for risk-resumen (uses `loadPositions` imperatively); they will
+  // be removed in #318 cleanup.
+  const companyId = activeCompanyId();
+  const xccyPositionsQuery = useXccyPositions(companyId);
+  const ndfPositionsQuery = useNdfPositions(companyId);
+  const ibrSwapPositionsQuery = useIbrSwapPositions(companyId);
+  const xccyPositions = xccyPositionsQuery.data ?? [];
+  const ndfPositions = ndfPositionsQuery.data ?? [];
+  const ibrSwapPositions = ibrSwapPositionsQuery.data ?? [];
+
+  // #317 — Mutations replace the store CRUD actions. `onSuccess` invalidates
+  // the corresponding list query → list refetches → `useRepricePortfolio`
+  // sees a different ID set → reprice fires automatically.
+  const addXccyMutation = useAddXccyPosition();
+  const addNdfMutation = useAddNdfPosition();
+  const addIbrSwapMutation = useAddIbrSwapPosition();
+  const removeXccyMutation = useRemoveXccyPositions();
+  const removeNdfMutation = useRemoveNdfPositions();
+  const removeIbrSwapMutation = useRemoveIbrSwapPositions();
+
+  // Track when the user explicitly requested a reprice via the toolbar button
+  // — used to surface a toast when the next query lands. Without it, every
+  // automatic refetch (e.g. when a position is added) would also pop a toast.
+  const reprintRequestedRef = useRef(false);
+  const queryClient = useQueryClient();
 
   const handleBuild = useCallback(async (silent = false) => {
     setLoading(true);
@@ -1980,23 +2005,68 @@ function PortfolioPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleRepriceWithMark = useCallback(async (fecha: string) => {
-    setMarkRepricing(true);
-    try {
-      await repriceAllWithMark(fecha);
-      toast.success(`Portafolio valorado con marca ${fecha}`);
-      // Cargar precios de referencia en segundo plano (no bloquea la UI)
-      loadReferencePrices(fecha).catch(() => {});
-    } catch (e) {
-      toast.error(`Error al valorar: ${e instanceof Error ? e.message : String(e)}`);
-    } finally {
-      setMarkRepricing(false);
-    }
-  }, [repriceAllWithMark, loadReferencePrices]);
+  // #313 — `useRepricePortfolio` replaces the old `repriceAllWithMark` action.
+  // The query key includes `markFecha` and the sorted position IDs, so any
+  // change (date pick, add/remove position) triggers a fresh query and aborts
+  // the previous in-flight one automatically.
+  const reprice = useRepricePortfolio({
+    xccy: xccyPositions,
+    ndf: ndfPositions,
+    ibr: ibrSwapPositions,
+    valuationDate: markFecha,
+    enabled: !!(curveStatus?.ibr.built && curveStatus?.sofr.built),
+  });
+  const pricedXccy = reprice.data?.xccy_results ?? [];
+  const pricedNdf = reprice.data?.ndf_results ?? [];
+  const pricedIbrSwap = reprice.data?.ibr_swap_results ?? [];
+  const summary = reprice.data?.summary ?? null;
+  const tradingLoading = reprice.isFetching;
+  const pricedAt = reprice.dataUpdatedAt
+    ? new Date(reprice.dataUpdatedAt).toLocaleTimeString('es-CO', {
+        hour: '2-digit', minute: '2-digit', second: '2-digit',
+      })
+    : undefined;
 
-  const handleReprice = useCallback(async () => {
-    await handleRepriceWithMark(markFecha);
-  }, [handleRepriceWithMark, markFecha]);
+  // #314 — Reference prices (daily/MTD/YTD snapshots) for P&L derivation.
+  // The hook auto-fans into 3 sub-queries with own cache keys; aborts stale
+  // ones when fechaMarca or position list changes.
+  const { refPrices } = useReferencePrices({
+    xccy: xccyPositions,
+    ndf: ndfPositions,
+    ibr: ibrSwapPositions,
+    fechaMarca: markFecha,
+    enabled: !!(curveStatus?.ibr.built && curveStatus?.sofr.built),
+  });
+
+  // Toast only when the user explicitly hit "Repricear" — automatic refetches
+  // (date change, position added) should be silent. The dual-toast bug from
+  // the legacy code path was caused by aborted reprices firing toast.success.
+  // With useQuery, `dataUpdatedAt` only advances when the *current* query
+  // resolved successfully — aborted queries never touch this clock.
+  useEffect(() => {
+    if (!reprintRequestedRef.current) return;
+    if (reprice.isFetching) return;
+    if (reprice.isSuccess) {
+      toast.success(`Portafolio valorado con marca ${markFecha}`);
+      reprintRequestedRef.current = false;
+    } else if (reprice.isError) {
+      const msg = reprice.error instanceof Error ? reprice.error.message : String(reprice.error);
+      toast.error(`Error al valorar: ${msg}`);
+      reprintRequestedRef.current = false;
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reprice.isFetching, reprice.isSuccess, reprice.isError, reprice.dataUpdatedAt]);
+
+  // (#314 removed the explicit loadReferencePrices background effect —
+  //  useReferencePrices reacts natively to fechaMarca + position changes.)
+
+  const handleReprice = useCallback(() => {
+    reprintRequestedRef.current = true;
+    setMarkRepricing(true);
+    queryClient
+      .invalidateQueries({ queryKey: ['pricing', 'reprice'] })
+      .finally(() => setMarkRepricing(false));
+  }, [queryClient]);
 
   // Auto-load on mount: init curves + load positions + role + market data config
   useEffect(() => {
@@ -2013,11 +2083,12 @@ function PortfolioPage() {
       }
     };
     initCurves();
-    loadPositions(activeCompanyId());
+    // Positions are now fetched by useXccy/Ndf/IbrSwapPositions hooks
+    // (#317). They auto-fetch on mount; no manual loadPositions needed here.
     loadUserRole();
     loadMarketDataConfig();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [handleBuild, loadPositions, loadUserRole, loadMarketDataConfig, selectedCompanyId]);
+  }, [handleBuild, loadUserRole, loadMarketDataConfig, selectedCompanyId]);
 
 
   // Sync markFecha to curveStatus valuation_date once it loads
@@ -2030,21 +2101,18 @@ function PortfolioPage() {
   const curvesReady =
     curveStatus?.ibr.built && curveStatus?.sofr.built;
 
-  // Auto-reprice whenever the mark date changes (or curves become ready)
-  useEffect(() => {
-    if (!curvesReady) return;
-    handleRepriceWithMark(markFecha);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [curvesReady, markFecha]);
+  // (#313 removed the manual reprice trigger useEffect — useRepricePortfolio
+  //  reacts automatically to curveStatus, markFecha and position changes via
+  //  its query key. The repriceTrigger counter from #295 is also obsolete.)
 
   const handleDelete = useCallback(
     (id: string, type: string) => {
-      if (type === 'XCCY') removeXccyPositions([id]);
-      else if (type === 'NDF') removeNdfPositions([id]);
-      else if (type === 'IBR') removeIbrSwapPositions([id]);
+      if (type === 'XCCY') removeXccyMutation.mutate([id]);
+      else if (type === 'NDF') removeNdfMutation.mutate([id]);
+      else if (type === 'IBR') removeIbrSwapMutation.mutate([id]);
       toast.info('Posicion eliminada');
     },
-    [removeXccyPositions, removeNdfPositions, removeIbrSwapPositions]
+    [removeXccyMutation, removeNdfMutation, removeIbrSwapMutation]
   );
 
   const onSelectXccy = useCallback((pos: PricedXccy) => {
@@ -2090,13 +2158,13 @@ function PortfolioPage() {
   // Build unified portfolio rows
   const xccyRows: PricedXccy[] = pricedXccy.length > 0
     ? pricedXccy
-    : xccyPositions.map((p) => ({ ...p, npv_cop: 0, npv_usd: 0, pnl_rate_cop: 0, pnl_rate_usd: 0, pnl_fx_cop: 0, pnl_fx_usd: 0, usd_leg_pv: 0, cop_leg_pv: 0, usd_principal_pv: 0, cop_principal_pv: 0, carry_cop: 0, carry_usd: 0, carry_rate_cop_pct: 0, carry_rate_usd_pct: 0, carry_differential_bps: 0, dv01_ibr: 0, dv01_sofr: 0, dv01_total: 0, fx_delta: 0, fx_exposure_usd: 0, par_basis_bps: null, notional_cop: p.notional_usd * p.fx_initial, fx_spot: 0, n_periods: 0, cashflows: [], error: 'Sin pricear' } as PricedXccy));
+    : xccyPositions.map((p) => ({ ...p, npv_cop: 0, npv_usd: 0, pnl_rate_cop: 0, pnl_rate_usd: 0, pnl_fx_cop: 0, pnl_fx_usd: 0, usd_leg_pv: 0, cop_leg_pv: 0, usd_principal_pv: 0, cop_principal_pv: 0, carry_cop: 0, carry_usd: 0, carry_rate_cop_pct: 0, carry_rate_usd_pct: 0, carry_differential_bps: 0, dv01_ibr: 0, dv01_sofr: 0, dv01_total: 0, fx_delta: 0, fx_exposure_usd: 0, par_basis_bps: null, notional_cop: p.notional_usd * p.fx_initial, fx_spot: 0, n_periods: 0, cashflows: [], error: 'Pendiente de valoración' } as PricedXccy));
   const ndfRows: PricedNdf[] = pricedNdf.length > 0
     ? pricedNdf
-    : ndfPositions.map((p) => ({ ...p, npv_usd: 0, npv_cop: 0, forward: 0, forward_points: 0, carry_cop_daily: 0, carry_usd_daily: 0, days_to_maturity: 0, df_usd: 0, df_cop: 0, delta_cop: 0, dv01_cop: 0, dv01_usd: 0, dv01_total: 0, fx_delta: 0, fx_exposure_usd: 0, spot: 0, error: 'Sin pricear' } as PricedNdf));
+    : ndfPositions.map((p) => ({ ...p, npv_usd: 0, npv_cop: 0, forward: 0, forward_points: 0, carry_cop_daily: 0, carry_usd_daily: 0, days_to_maturity: 0, df_usd: 0, df_cop: 0, delta_cop: 0, dv01_cop: 0, dv01_usd: 0, dv01_total: 0, fx_delta: 0, fx_exposure_usd: 0, spot: 0, error: 'Pendiente de valoración' } as PricedNdf));
   const ibrRows: PricedIbrSwap[] = pricedIbrSwap.length > 0
     ? pricedIbrSwap
-    : ibrSwapPositions.map((p) => ({ ...p, npv: 0, fair_rate: 0, dv01: 0, fixed_leg_npv: 0, floating_leg_npv: 0, ibr_overnight_pct: 0, carry_daily_cop: 0, carry_daily_diff_bps: 0, ibr_fwd_period_pct: 0, carry_period_cop: 0, carry_period_diff_bps: 0, error: 'Sin pricear' } as PricedIbrSwap));
+    : ibrSwapPositions.map((p) => ({ ...p, npv: 0, fair_rate: 0, dv01: 0, fixed_leg_npv: 0, floating_leg_npv: 0, ibr_overnight_pct: 0, carry_daily_cop: 0, carry_daily_diff_bps: 0, ibr_fwd_period_pct: 0, carry_period_cop: 0, carry_period_diff_bps: 0, error: 'Pendiente de valoración' } as PricedIbrSwap));
 
   const portfolioRows = buildPortfolioRows(xccyRows, ndfRows, ibrRows, settlementMap, refPrices, markFecha);
 
@@ -2280,32 +2348,32 @@ function PortfolioPage() {
           <MarksContent selectedDate={markFecha} onSelectDate={setMarkFecha} />
         )}
 
-        {/* Add Modals */}
+        {/* Add Modals — adding a position changes xccyPositions/ndfPositions/
+            ibrSwapPositions; useRepricePortfolio sees the new position list in
+            its query key and refetches automatically. No manual reprice trigger
+            needed (#313). */}
         <AddXccyModal
           show={addType === 'xccy'}
           onHide={() => setAddType(null)}
           onSave={async (v) => {
-            await addXccyPosition(v);
+            await addXccyMutation.mutateAsync(v);
             toast.success('Posicion XCCY creada');
-            if (curvesReady) await repriceAllWithMark(markFecha);
           }}
         />
         <AddNdfModal
           show={addType === 'ndf'}
           onHide={() => setAddType(null)}
           onSave={async (v) => {
-            await addNdfPosition(v);
+            await addNdfMutation.mutateAsync(v);
             toast.success('Posicion NDF creada');
-            if (curvesReady) await repriceAllWithMark(markFecha);
           }}
         />
         <AddIbrSwapModal
           show={addType === 'ibr'}
           onHide={() => setAddType(null)}
           onSave={async (v) => {
-            await addIbrSwapPosition(v);
+            await addIbrSwapMutation.mutateAsync(v);
             toast.success('Posicion IBR Swap creada');
-            if (curvesReady) await repriceAllWithMark(markFecha);
           }}
         />
         {/* Detail Modals */}

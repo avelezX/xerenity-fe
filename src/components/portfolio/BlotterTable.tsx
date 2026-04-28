@@ -216,8 +216,11 @@ const buildColumns = (
     size: 90,
     cell: (info) => {
       const r = info.row.original;
+      // #296: show em-dash with a tooltip instead of a fake "0" or a loud
+      // red "Err" — keeps the table legible while making "sin precio"
+      // visually distinct from "precio cero".
       return r.error
-        ? <span style={{ color: '#dc3545', fontSize: 11 }}>Err</span>
+        ? <span title={r.error} style={{ color: '#adb5bd', fontSize: 11, fontFamily: 'monospace' }}>—</span>
         : <span style={{ fontFamily: 'monospace', fontSize: 11, color: npvColor(info.getValue()) }}>{fmtMM(info.getValue())}</span>;
     },
   }),
@@ -228,7 +231,7 @@ const buildColumns = (
     cell: (info) => {
       const r = info.row.original;
       return r.error
-        ? <span style={{ color: '#dc3545', fontSize: 11 }}>Err</span>
+        ? <span title={r.error} style={{ color: '#adb5bd', fontSize: 11, fontFamily: 'monospace' }}>—</span>
         : <span style={{ fontFamily: 'monospace', fontSize: 11, color: npvColor(info.getValue()) }}>{fmtMM(info.getValue())}</span>;
     },
   }),

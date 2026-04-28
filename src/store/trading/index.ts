@@ -38,6 +38,7 @@ import {
   saveMarketDataConfig,
 } from 'src/models/trading';
 import { priceTesBond } from 'src/models/pricing/pricingApi';
+import { telemetry, isAbortError } from 'src/lib/telemetry';
 
 const genId = () => crypto.randomUUID();
 
@@ -78,6 +79,10 @@ export interface TradingSlice {
   };
   refPricesForDate: string | undefined;
   refPricesLoading: boolean;
+
+  // Fase 0 — Observability: counts concurrent reprice operations so we can
+  // correlate NPV flicker with overlapping calls (see epic #297).
+  inFlightReprices: number;
 
   // Actions
   loadUserRole: () => Promise<void>;
@@ -123,9 +128,96 @@ const initialTradingState = {
   refPrices: { daily: null, mtd: null, ytd: null },
   refPricesForDate: undefined,
   refPricesLoading: false,
+  inFlightReprices: 0,
 };
 
-const createTradingSlice: StateCreator<TradingSlice> = (set, get) => ({
+const createTradingSlice: StateCreator<TradingSlice> = (set, get) => {
+  // Track concurrent reprice operations. When N > 1 we have overlapping calls
+  // and the race condition that causes NPV flicker is in play. The counter is
+  // both in store state (for UI) and logged (for post-mortem).
+  const bumpInFlight = (delta: number, origin: string) => {
+    const next = Math.max(0, get().inFlightReprices + delta);
+    set({ inFlightReprices: next });
+    if (next > 1) {
+      telemetry.warn('store', 'overlapping reprice detected', {
+        origin,
+        inFlight: next,
+      });
+    } else {
+      telemetry.debug('store', 'reprice in-flight', {
+        origin,
+        inFlight: next,
+        delta,
+      });
+    }
+  };
+
+  const withInFlight = async <T>(origin: string, fn: () => Promise<T>): Promise<T> => {
+    bumpInFlight(+1, origin);
+    try {
+      return await fn();
+    } finally {
+      bumpInFlight(-1, origin);
+    }
+  };
+
+  // #293 — Monotonic tokens guard writes to pricedXccy/pricedNdf/pricedIbrSwap
+  // and to refPrices. When repriceAll/repriceAllWithMark/repriceTes or
+  // loadReferencePrices is called while a previous one is still in flight, we:
+  //   1. Abort the previous request (needs #292's AbortSignal plumbing).
+  //   2. Bump the token, capture a local copy.
+  //   3. Before every set({priced...}), verify get().repriceToken === myToken.
+  //      Stale responses get dropped — no more "last to land wins".
+  let repriceToken = 0;
+  let refPricesToken = 0;
+  let repriceAbort: AbortController | null = null;
+  let refPricesAbort: AbortController | null = null;
+
+  const startReprice = (origin: string): { myToken: number; signal: AbortSignal } => {
+    if (repriceAbort) {
+      telemetry.debug('store', 'aborting prior reprice', { origin, prior: repriceToken });
+      repriceAbort.abort();
+    }
+    repriceToken += 1;
+    repriceAbort = new AbortController();
+    return { myToken: repriceToken, signal: repriceAbort.signal };
+  };
+
+  const isStaleReprice = (myToken: number, origin: string): boolean => {
+    if (myToken !== repriceToken) {
+      telemetry.debug('store', 'dropping stale reprice result', {
+        origin,
+        myToken,
+        current: repriceToken,
+      });
+      return true;
+    }
+    return false;
+  };
+
+  const startRefPrices = (origin: string): { myToken: number; signal: AbortSignal } => {
+    if (refPricesAbort) {
+      telemetry.debug('store', 'aborting prior refPrices', { origin, prior: refPricesToken });
+      refPricesAbort.abort();
+    }
+    refPricesToken += 1;
+    refPricesAbort = new AbortController();
+    return { myToken: refPricesToken, signal: refPricesAbort.signal };
+  };
+
+  const isStaleRefPrices = (myToken: number, origin: string): boolean => {
+    if (myToken !== refPricesToken) {
+      telemetry.debug('store', 'dropping stale refPrices result', {
+        origin,
+        myToken,
+        current: refPricesToken,
+      });
+      return true;
+    }
+    return false;
+  };
+
+  return {
   ...initialTradingState,
 
   loadUserRole: async () => {
@@ -171,13 +263,13 @@ const createTradingSlice: StateCreator<TradingSlice> = (set, get) => ({
       xccyPositions.length + ndfPositions.length + ibrSwapPositions.length;
     if (total === 0) return;
 
+    const { myToken, signal } = startReprice('repriceAll');
     set({ tradingLoading: true, tradingError: undefined });
     try {
-      const result = await repricePortfolio(
-        xccyPositions,
-        ndfPositions,
-        ibrSwapPositions,
+      const result = await withInFlight('repriceAll', () =>
+        repricePortfolio(xccyPositions, ndfPositions, ibrSwapPositions, { signal }),
       );
+      if (isStaleReprice(myToken, 'repriceAll')) return;
       set({
         pricedXccy: result.xccy_results,
         pricedNdf: result.ndf_results,
@@ -191,6 +283,8 @@ const createTradingSlice: StateCreator<TradingSlice> = (set, get) => ({
         }),
       });
     } catch (e) {
+      if (isAbortError(e)) return;
+      if (isStaleReprice(myToken, 'repriceAll')) return;
       set({
         tradingLoading: false,
         tradingError: e instanceof Error ? e.message : 'Reprice failed',
@@ -200,7 +294,9 @@ const createTradingSlice: StateCreator<TradingSlice> = (set, get) => ({
 
   repriceAllWithMark: async (fecha: string) => {
     const { xccyPositions, ndfPositions, ibrSwapPositions, tesPositions } = get();
+    const { myToken, signal } = startReprice(`repriceAllWithMark(${fecha})`);
     set({ tradingLoading: true, tesLoading: true, tradingError: undefined });
+    await withInFlight(`repriceAllWithMark(${fecha})`, async () => {
     try {
       // Excluir instrumentos cuya fecha de celebración es posterior a la fecha de marca
       const filteredNdf  = ndfPositions.filter((p) => !p.trade_date || p.trade_date <= fecha);
@@ -211,21 +307,28 @@ const createTradingSlice: StateCreator<TradingSlice> = (set, get) => ({
       const [portfolioResult, tesResults] = await Promise.allSettled([
         repricePortfolio(filteredXccy, filteredNdf, filteredIbr, {
           valuation_date: fecha,
+          signal,
         }),
         Promise.allSettled(
           tesPositions.map((pos) =>
-            priceTesBond({
-              bond_name: pos.bond_name,
-              issue_date: pos.issue_date,
-              maturity_date: pos.maturity_date,
-              coupon_rate: pos.coupon_rate * 100,
-              face_value: pos.face_value,
-              include_cashflows: true,
-              valuation_date: fecha,
-            }).then((r) => ({ pos, result: r }))
+            priceTesBond(
+              {
+                bond_name: pos.bond_name,
+                issue_date: pos.issue_date,
+                maturity_date: pos.maturity_date,
+                coupon_rate: pos.coupon_rate * 100,
+                face_value: pos.face_value,
+                include_cashflows: true,
+                valuation_date: fecha,
+              },
+              { signal },
+            ).then((r) => ({ pos, result: r }))
           )
         ),
       ]);
+
+      // If a newer reprice replaced us while we were awaiting, drop everything.
+      if (isStaleReprice(myToken, `repriceAllWithMark(${fecha})`)) return;
 
       if (portfolioResult.status === 'fulfilled') {
         const result = portfolioResult.value;
@@ -236,7 +339,7 @@ const createTradingSlice: StateCreator<TradingSlice> = (set, get) => ({
           summary: result.summary,
           pricedAt: fecha,
         });
-      } else {
+      } else if (!isAbortError(portfolioResult.reason)) {
         set({ tradingError: portfolioResult.reason instanceof Error ? portfolioResult.reason.message : 'Reprice failed' });
       }
 
@@ -278,10 +381,17 @@ const createTradingSlice: StateCreator<TradingSlice> = (set, get) => ({
         set({ pricedTesBonds: priced });
       }
     } catch (e) {
+      if (isAbortError(e)) return;
+      if (isStaleReprice(myToken, `repriceAllWithMark(${fecha})`)) return;
       set({ tradingError: e instanceof Error ? e.message : 'Reprice failed' });
     } finally {
-      set({ tradingLoading: false, tesLoading: false });
+      // Only turn loading off if we're still the active reprice; otherwise
+      // the newer one owns the loading state.
+      if (!isStaleReprice(myToken, `repriceAllWithMark(${fecha})`)) {
+        set({ tradingLoading: false, tesLoading: false });
+      }
     }
+    });
   },
 
   addXccyPosition: async (values: NewXccyPosition) => {
@@ -397,7 +507,9 @@ const createTradingSlice: StateCreator<TradingSlice> = (set, get) => ({
     // Caché: no recargar si la fecha de marca no cambió
     if (refPricesForDate === fechaMarca) return;
 
+    const { myToken, signal } = startRefPrices(`loadReferencePrices(${fechaMarca})`);
     set({ refPricesLoading: true });
+    await withInFlight(`loadReferencePrices(${fechaMarca})`, async () => {
     try {
       const refDates = await computePnlRefDates(fechaMarca);
 
@@ -416,7 +528,7 @@ const createTradingSlice: StateCreator<TradingSlice> = (set, get) => ({
               filterXccy(refDates.daily),
               filterNdf(refDates.daily),
               filterIbr(refDates.daily),
-              { valuation_date: refDates.daily }
+              { valuation_date: refDates.daily, signal }
             )
           : Promise.resolve(null),
         refDates.mtd
@@ -424,7 +536,7 @@ const createTradingSlice: StateCreator<TradingSlice> = (set, get) => ({
               filterXccy(refDates.mtd),
               filterNdf(refDates.mtd),
               filterIbr(refDates.mtd),
-              { valuation_date: refDates.mtd }
+              { valuation_date: refDates.mtd, signal }
             )
           : Promise.resolve(null),
         refDates.ytd
@@ -432,10 +544,12 @@ const createTradingSlice: StateCreator<TradingSlice> = (set, get) => ({
               filterXccy(refDates.ytd),
               filterNdf(refDates.ytd),
               filterIbr(refDates.ytd),
-              { valuation_date: refDates.ytd }
+              { valuation_date: refDates.ytd, signal }
             )
           : Promise.resolve(null),
       ]);
+
+      if (isStaleRefPrices(myToken, `loadReferencePrices(${fechaMarca})`)) return;
 
       set({
         refPrices: {
@@ -446,9 +560,12 @@ const createTradingSlice: StateCreator<TradingSlice> = (set, get) => ({
         refPricesForDate: fechaMarca,
         refPricesLoading: false,
       });
-    } catch {
+    } catch (e) {
+      if (isAbortError(e)) return;
+      if (isStaleRefPrices(myToken, `loadReferencePrices(${fechaMarca})`)) return;
       set({ refPricesLoading: false });
     }
+    });
   },
 
   resetTradingStore: () => set(initialTradingState),
@@ -471,20 +588,31 @@ const createTradingSlice: StateCreator<TradingSlice> = (set, get) => ({
     const { tesPositions } = get();
     if (tesPositions.length === 0) return;
 
+    // repriceTes shares the pricedXccy/pricedNdf/pricedIbrSwap token because
+    // repriceAllWithMark also writes pricedTesBonds — they compete for the
+    // same downstream slot.
+    const { myToken, signal } = startReprice('repriceTes');
     set({ tesLoading: true, tesError: undefined });
 
-    const results = await Promise.allSettled(
-      tesPositions.map((pos) =>
-        priceTesBond({
-          bond_name: pos.bond_name,
-          issue_date: pos.issue_date,
-          maturity_date: pos.maturity_date,
-          coupon_rate: pos.coupon_rate * 100, // pysdk expects pct
-          face_value: pos.face_value,
-          include_cashflows: true,
-        }).then((r) => ({ pos, result: r }))
+    const results = await withInFlight('repriceTes', () =>
+      Promise.allSettled(
+        tesPositions.map((pos) =>
+          priceTesBond(
+            {
+              bond_name: pos.bond_name,
+              issue_date: pos.issue_date,
+              maturity_date: pos.maturity_date,
+              coupon_rate: pos.coupon_rate * 100, // pysdk expects pct
+              face_value: pos.face_value,
+              include_cashflows: true,
+            },
+            { signal },
+          ).then((r) => ({ pos, result: r }))
+        )
       )
     );
+
+    if (isStaleReprice(myToken, 'repriceTes')) return;
 
     const priced: PricedTesBond[] = results.map((outcome, i) => {
       const pos = tesPositions[i];
@@ -512,6 +640,9 @@ const createTradingSlice: StateCreator<TradingSlice> = (set, get) => ({
           cashflows: r.cashflows,
         };
       }
+      // If individual result was aborted, treat as generic error — the
+      // isStaleReprice guard above already short-circuits the common case
+      // where the whole reprice was superseded.
       return {
         ...pos,
         clean_price: 0, dirty_price: 0, accrued_interest: 0,
@@ -552,6 +683,7 @@ const createTradingSlice: StateCreator<TradingSlice> = (set, get) => ({
       pricedTesBonds: state.pricedTesBonds.filter((p) => !ids.includes(p.id)),
     }));
   },
-});
+  };
+};
 
 export default createTradingSlice;

@@ -12,7 +12,9 @@ import {
   faChartArea,
   faChartPie,
   faCog,
+  faRobot,
   faUsers,
+  faHeartPulse,
 } from '@fortawesome/free-solid-svg-icons';
 import useAppStore from 'src/store';
 import SubNavItem from './SubNavItem';
@@ -176,10 +178,26 @@ const SidebarNavList = ({ currentPath }: SidebarNavProps) => {
       )}
       {userRole === 'super_admin' && (
         <NavigationItem
+          name="Monitor"
+          path="/admin/monitor"
+          icon={faHeartPulse}
+          active={currentPath.includes('/admin/monitor')}
+        />
+      )}
+      {userRole === 'super_admin' && (
+        <NavigationItem
           name="Admin"
           path="/admin"
           icon={faCog}
-          active={currentPath.includes('/admin')}
+          active={currentPath === '/admin'}
+        />
+      )}
+      {userRole === 'super_admin' && (
+        <NavigationItem
+          name="Agente IA"
+          path="/admin/agent"
+          icon={faRobot}
+          active={currentPath === '/admin/agent'}
         />
       )}
     </ul>
