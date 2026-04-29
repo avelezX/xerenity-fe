@@ -464,7 +464,15 @@ export interface MonitorTableProps {
 // Component
 // ─────────────────────────────────────────────────────────────────
 
-const MonitorTable: React.FC<MonitorTableProps> = ({ rows, onDiagnose }) => {
+// Default props guard the file against Next.js's pages-router static-
+// optimisation pass, which tries to prerender every module under pages/
+// (even underscore-prefixed components like this one) with no props.
+// Without the defaults, `rows.forEach(...)` inside the option-sets useMemo
+// blows up with a TypeError during `next build` and fails the deploy.
+const MonitorTable: React.FC<MonitorTableProps> = ({
+  rows = [],
+  onDiagnose = () => {},
+}) => {
   // ─── Toolbar state ────────────────────────────────────────────
   const [globalFilter, setGlobalFilter] = useState('');
   const [sourceFilter, setSourceFilter] = useState<string[]>([]);
