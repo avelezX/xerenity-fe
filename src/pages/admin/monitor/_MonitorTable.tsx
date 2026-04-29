@@ -542,16 +542,28 @@ const MonitorTable: React.FC<MonitorTableProps> = ({
         header: 'Fuente',
         filterFn: (row, _id, value) =>
           arrayIncludesAny([row.original.source?.name].filter(Boolean) as string[], value as string[]),
+        // Plain styled span instead of <Badge bg="light" text="dark">.
+        // The Bootstrap badge defaults render the label as white-on-light
+        // in this codebase's CSS chain (visible as empty pills in the
+        // overview), so we bypass the component entirely.
         cell: ({ row }) =>
           row.original.source ? (
-            <Badge
-              bg="light"
-              text="dark"
-              style={{ fontWeight: 500, border: '1px solid #d8d8e6' }}
+            <span
               title={row.original.source.label}
+              style={{
+                display: 'inline-block',
+                fontSize: 11,
+                fontWeight: 500,
+                color: '#222',
+                background: '#f3f3f7',
+                border: '1px solid #d8d8e6',
+                padding: '2px 8px',
+                borderRadius: 4,
+                whiteSpace: 'nowrap',
+              }}
             >
               {row.original.source.name}
-            </Badge>
+            </span>
           ) : (
             <span style={{ color: '#bbb', fontStyle: 'italic' }}>(sin fuente)</span>
           ),
@@ -616,6 +628,31 @@ const MonitorTable: React.FC<MonitorTableProps> = ({
                 <code key={t}>{t}</code>
               ))}
             </TableChips>
+          ) : (
+            <span style={{ color: '#bbb' }}>—</span>
+          ),
+      },
+      {
+        id: 'cron',
+        accessorFn: (r) => r.schedule_cron ?? '',
+        header: 'Cron',
+        enableGrouping: false,
+        cell: ({ row }) =>
+          row.original.schedule_cron ? (
+            <code
+              style={{
+                fontFamily: 'monospace',
+                fontSize: 11,
+                background: '#f3f3f7',
+                padding: '1px 6px',
+                borderRadius: 3,
+                whiteSpace: 'nowrap',
+                color: '#444',
+              }}
+              title="Click el collector para ver la traducción legible"
+            >
+              {row.original.schedule_cron}
+            </code>
           ) : (
             <span style={{ color: '#bbb' }}>—</span>
           ),
