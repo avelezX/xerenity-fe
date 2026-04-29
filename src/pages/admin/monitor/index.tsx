@@ -151,6 +151,27 @@ const formatDuration = (seconds: number | null): string => {
   return `${mins}m ${rem}s`;
 };
 
+const formatRowsInserted = (rows: number | null | undefined) => {
+  // null = the wrapper couldn't snapshot (older runs, RLS, etc.) — show — quietly.
+  // 0 = the run completed cleanly but did NOT write anything; for a daily
+  // collector this is suspicious enough that we want it to stand out
+  // visually even if no empty_run alert has been raised yet.
+  if (rows === null || rows === undefined) {
+    return <span style={{ color: '#bbb' }} title="rows_inserted no fue capturado en este run">—</span>;
+  }
+  if (rows === 0) {
+    return (
+      <span
+        style={{ color: '#b8860b', fontWeight: 600 }}
+        title="0 filas — el run terminó OK pero no escribió nada"
+      >
+        0
+      </span>
+    );
+  }
+  return rows.toLocaleString();
+};
+
 const MonitorPage = () => {
   const {
     collectorOverview,
@@ -257,6 +278,7 @@ const MonitorPage = () => {
                         <th>Severity</th>
                         <th>Último run</th>
                         <th>Duración</th>
+                        <th>Filas</th>
                         <th>Alertas abiertas</th>
                         <th>Tablas</th>
                         <th aria-label="external links" />
@@ -297,6 +319,7 @@ const MonitorPage = () => {
                             )}
                           </td>
                           <td>{formatDuration(row.last_run?.duration_s ?? null)}</td>
+                          <td>{formatRowsInserted(row.last_run?.rows_inserted)}</td>
                           <td>
                             {row.open_alerts > 0 ? (
                               <Badge bg="danger">{row.open_alerts}</Badge>
@@ -325,7 +348,7 @@ const MonitorPage = () => {
                       ))}
                       {collectorOverview.length === 0 && (
                         <tr>
-                          <td colSpan={8}>
+                          <td colSpan={9}>
                             <EmptyState>Sin collectors en el catálogo.</EmptyState>
                           </td>
                         </tr>
