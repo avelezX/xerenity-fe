@@ -25,7 +25,7 @@ import useAppStore from 'src/store';
 import type { CollectorRun, CollectorOverview, RunStatus, Severity } from 'src/types/monitor';
 import { getCollectorDefinition } from 'src/models/monitor';
 import CatalogTab from './_CatalogTab';
-import SaludCard from './_SaludCard';
+import SaludCard from 'src/components/monitor/SaludCard';
 
 const SEV_BADGE: Record<Severity, string> = {
   critical: '#dc3545',
