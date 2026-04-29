@@ -173,16 +173,20 @@ const formatRowsInserted = (rows: number | null | undefined) => {
   return rows.toLocaleString();
 };
 
-const buildDiagnosePrompt = (alert: {
+type DiagnoseAlert = {
+  source: string;
   collector_name: string | null;
+  table_name: string | null;
   body: string | null;
   metadata?: Record<string, unknown> | null;
-}): string => {
+};
+
+const buildRunFailedPrompt = (alert: DiagnoseAlert): string => {
   const md = (alert.metadata ?? {}) as Record<string, unknown>;
   const ghUrl = typeof md.gh_run_url === 'string' ? md.gh_run_url : null;
   const exitCode = md.exit_code != null ? String(md.exit_code) : 'desconocido';
   return [
-    `Estoy debuggeando un fallo de un collector de Xerenity. Necesito tu ayuda para entender la causa raiz y proponer un fix.`,
+    `Estoy debuggeando un fallo de ejecucion de un collector de Xerenity. Necesito tu ayuda para entender la causa raiz y proponer un fix.`,
     ``,
     `**Datos del fallo**`,
     `- Collector: \`${alert.collector_name ?? 'desconocido'}\``,
@@ -190,24 +194,106 @@ const buildDiagnosePrompt = (alert: {
     `- Exit code: ${exitCode}`,
     ghUrl ? `- GitHub Actions run: ${ghUrl}` : null,
     ``,
-    `**Mensaje de error**`,
+    `**Mensaje de error / traceback**`,
     '```',
     alert.body ?? '(sin mensaje)',
     '```',
     ``,
     `**Que necesito que hagas:**`,
-    `1. Usa la tool \`read_repo_file\` para leer el script entrypoint del collector. ` +
-      `Empezá leyendo \`xerenity.collector_definitions\` con \`query_database\` para encontrar el repo_path exacto:`,
+    `1. Encontra el repo_path del collector con \`query_database\`:`,
     '```sql',
-    `SELECT repo_path FROM xerenity.collector_definitions WHERE name = '${alert.collector_name}';`,
+    `SELECT repo_path, target_tables FROM xerenity.collector_definitions WHERE name = '${alert.collector_name}';`,
     '```',
-    `2. Luego leé el archivo y cualquier modulo importado relevante al traceback.`,
+    `2. Usa \`read_repo_file\` para leer el script entrypoint y los modulos referenciados en el traceback.`,
     `3. Identifica la linea exacta del bug.`,
     `4. Explica en español la causa raiz.`,
     `5. Sugerime un fix concreto: archivo, linea, codigo antes y despues.`,
     ``,
-    `Nada de cambios todavia — solo diagnostico. Yo aplico el fix manualmente despues.`,
+    `Nada de cambios todavia — solo diagnostico. Yo aplico el fix manualmente.`,
   ].filter(Boolean).join('\n');
+};
+
+const buildTableStalePrompt = (alert: DiagnoseAlert): string => {
+  const tbl = alert.table_name ?? 'desconocida';
+  return [
+    `Una tabla de Xerenity esta stale (sin datos recientes). Ayudame a entender por que y proponer un fix.`,
+    ``,
+    `**Tabla afectada:** \`${tbl}\``,
+    `**Detalle:** ${alert.body ?? '(sin detalle)'}`,
+    ``,
+    `**Que necesito que hagas:**`,
+    `1. Encontra que collector(s) tienen esa tabla en target_tables:`,
+    '```sql',
+    `SELECT name, repo_path, schedule_cron, expected_frequency, enabled`,
+    `  FROM xerenity.collector_definitions`,
+    ` WHERE '${tbl}' = ANY(target_tables);`,
+    '```',
+    `2. Mira los runs recientes de ese(s) collector(s):`,
+    '```sql',
+    `SELECT collector_name, status, started_at, rows_inserted, error_message`,
+    `  FROM xerenity.collector_runs`,
+    ` WHERE collector_name IN (...los nombres del paso 1...)`,
+    ` ORDER BY started_at DESC LIMIT 20;`,
+    '```',
+    `3. Diagnostico segun lo que encuentres:`,
+    `   - **Si los runs son exitosos pero rows_inserted=0**: el collector corre pero no inserta. Lee el codigo con \`read_repo_file\` para entender por que (selector roto, fuente vacia, dedup mal armado).`,
+    `   - **Si hay runs failed**: lee el error_message + traceback y diagnostica como un fallo normal.`,
+    `   - **Si no hay runs recientes**: el cron esta mal o el workflow esta deshabilitado.`,
+    `   - **Si los runs son recientes y exitosos pero la tabla sigue stale**: el collector quizas escribe a otra tabla, o hay un filtro.`,
+    `4. Propone un fix concreto si es bug de codigo, o una accion (re-habilitar workflow, re-ejecutar, contactar fuente externa) si es operacional.`,
+    ``,
+    `Solo diagnostico — yo aplico cambios despues.`,
+  ].filter(Boolean).join('\n');
+};
+
+const buildEmptyRunPrompt = (alert: DiagnoseAlert): string => {
+  const md = (alert.metadata ?? {}) as Record<string, unknown>;
+  const ghUrl = typeof md.gh_run_url === 'string' ? md.gh_run_url : null;
+  return [
+    `Un collector corrio exitosamente pero no escribio NINGUNA fila. Ayudame a entender por que.`,
+    ``,
+    `**Datos**`,
+    `- Collector: \`${alert.collector_name ?? 'desconocido'}\``,
+    ghUrl ? `- GitHub Actions run: ${ghUrl}` : null,
+    ``,
+    `**Que necesito que hagas:**`,
+    `1. Encontra repo_path y target_tables con \`query_database\`:`,
+    '```sql',
+    `SELECT repo_path, target_tables FROM xerenity.collector_definitions WHERE name = '${alert.collector_name}';`,
+    '```',
+    `2. Mira los ultimos runs:`,
+    '```sql',
+    `SELECT status, rows_inserted, started_at FROM xerenity.collector_runs`,
+    ` WHERE collector_name = '${alert.collector_name}' ORDER BY started_at DESC LIMIT 10;`,
+    '```',
+    `3. Lee el script con \`read_repo_file\`. Buscá:`,
+    `   - Selectores HTML / regex / parser que pueden retornar None silenciosamente`,
+    `   - Filtros incrementales (\`WHERE date > last_date\`) que pueden estar saltando todo`,
+    `   - Llamadas a fuente externa que pueden devolver array vacio sin error`,
+    `   - Lógica de skip/early-return`,
+    `4. Diagnostica y proponé un fix.`,
+    ``,
+    `Solo diagnostico — yo aplico cambios despues.`,
+  ].filter(Boolean).join('\n');
+};
+
+const buildDiagnosePrompt = (alert: DiagnoseAlert): string => {
+  switch (alert.source) {
+    case 'run_failed':  return buildRunFailedPrompt(alert);
+    case 'table_stale': return buildTableStalePrompt(alert);
+    case 'empty_run':   return buildEmptyRunPrompt(alert);
+    default: {
+      // Generic fallback for missed_run or future sources.
+      return [
+        `Estoy debuggeando una alerta del monitor de Xerenity (source=${alert.source}).`,
+        `Collector: \`${alert.collector_name ?? 'n/a'}\`. Tabla: \`${alert.table_name ?? 'n/a'}\`.`,
+        `Detalle: ${alert.body ?? '(sin detalle)'}`,
+        ``,
+        `Investiga con \`query_database\` (xerenity.collector_definitions, xerenity.collector_runs) y \`read_repo_file\` ` +
+        `si necesitas ver codigo. Diagnostica y propon un fix.`,
+      ].join('\n');
+    }
+  }
 };
 
 
@@ -431,16 +517,20 @@ const MonitorPage = () => {
                         primera vez {formatRelative(alert.first_seen_at)}
                       </div>
                       <div className="actions">
-                        {alert.source === 'run_failed' && (
-                          <BsButton
-                            size="sm"
-                            variant="outline-primary"
-                            title="Abre el chat con un prompt pre-cargado: traceback + nombre del collector. El agente leerá el código en xerenity-dm y propondrá un diagnóstico. NO modifica nada — solo te explica el bug."
-                            onClick={() => handleDiagnose(alert)}
-                          >
-                            <Icon icon={faRobot} /> Diagnosticar con IA
-                          </BsButton>
-                        )}
+                        <BsButton
+                          size="sm"
+                          variant="outline-primary"
+                          title={
+                            alert.source === 'table_stale'
+                              ? 'Abre el chat con un prompt pre-cargado: tabla afectada + collectors que la pueblan. El agente investiga por qué la tabla está stale y propone un diagnóstico. NO modifica nada.'
+                              : alert.source === 'empty_run'
+                                ? 'Abre el chat con un prompt pre-cargado: el collector corrió pero insertó 0 filas. El agente lee el código y busca por qué (selector roto, filtro mal armado, fuente vacía). NO modifica nada.'
+                                : 'Abre el chat con un prompt pre-cargado: traceback + nombre del collector. El agente leerá el código en xerenity-dm y propondrá un diagnóstico. NO modifica nada.'
+                          }
+                          onClick={() => handleDiagnose(alert)}
+                        >
+                          <Icon icon={faRobot} /> Diagnosticar con IA
+                        </BsButton>
                         {!alert.acknowledged_at && (
                           <BsButton
                             size="sm"
