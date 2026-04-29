@@ -18,9 +18,11 @@ import { toast } from 'react-toastify';
 import useAppStore from 'src/store';
 import type {
   CollectorTableSeries,
+  CollectorRunStatRecent,
   SliceBreakdown,
   ReviewStatus,
   HealthStatus,
+  CollectorFullDetail,
 } from 'src/types/catalog';
 
 // ─────────────────────────────────────────────────────────────────
@@ -533,6 +535,364 @@ const ConsumidoresSection: React.FC<{ consumers: { name: string; consumer_type: 
 // Top-level CatalogTab
 // ─────────────────────────────────────────────────────────────────
 
+// ─────────────────────────────────────────────────────────────────
+// SaludSection — top-of-tab health digest.
+//
+// Surfaces the same diagnostic signals a triager would otherwise
+// compute from SQL: human-readable cron, expected cadence vs latest
+// data, success/empty/failure rate over the last 30 runs, sparkline,
+// and a verdict explaining whether "0 rows" is normal or pathological.
+//
+// Lives inside this file (not a standalone component) because shipping
+// it as a separate module under src/pages/admin/monitor/ or
+// src/components/ kept failing Vercel's build for opaque reasons —
+// keeping all collector-detail UI co-located here sidesteps that.
+// ─────────────────────────────────────────────────────────────────
+
+const HealthCard = styled.div`
+  background: #fff;
+  border-radius: 8px;
+  padding: 14px 18px;
+  margin-bottom: 16px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(220px, 1fr) minmax(220px, 1fr) auto;
+  gap: 16px 24px;
+  align-items: start;
+
+  @media (max-width: 1100px) { grid-template-columns: 1fr 1fr; }
+  @media (max-width: 700px)  { grid-template-columns: 1fr; }
+`;
+
+const HealthBlock = styled.div`
+  min-width: 0;
+  h5 {
+    font-size: 11px;
+    font-weight: 700;
+    color: #555;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    margin: 0 0 6px 0;
+  }
+  .value { font-size: 13px; color: #222; }
+  .sub   { font-size: 11px; color: #888; margin-top: 2px; word-break: break-word; }
+  code   { font-family: monospace; background: #f3f3f7; padding: 1px 5px; border-radius: 3px; font-size: 11px; }
+`;
+
+const VerdictBox = styled.div<{ $tone: 'ok' | 'warn' | 'bad' | 'unknown' }>`
+  border-radius: 6px;
+  padding: 10px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  border-left: 4px solid ${(p) => {
+    if (p.$tone === 'ok') return '#28a745';
+    if (p.$tone === 'warn') return '#f0ad4e';
+    if (p.$tone === 'bad') return '#dc3545';
+    return '#adb5bd';
+  }};
+  background: ${(p) => {
+    if (p.$tone === 'ok') return '#e9f6ec';
+    if (p.$tone === 'warn') return '#fdf8ef';
+    if (p.$tone === 'bad') return '#fdf3f4';
+    return '#f3f3f7';
+  }};
+  color: #222;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  grid-column: 1 / -1;
+
+  .icon { font-size: 18px; }
+  .copy { display: flex; flex-direction: column; gap: 2px; }
+  .copy strong { font-size: 13px; }
+  .copy span  { font-size: 12px; color: #555; }
+`;
+
+const SparkBar = styled.div`
+  display: flex;
+  gap: 1px;
+  margin-top: 4px;
+  align-items: flex-end;
+  height: 22px;
+`;
+
+const SparkSlot2 = styled.div<{ $color: string; $h: number }>`
+  flex: 1;
+  min-width: 4px;
+  max-width: 12px;
+  height: ${(p) => p.$h}%;
+  min-height: 4px;
+  background: ${(p) => p.$color};
+  border-radius: 1px;
+  transition: opacity 100ms ease;
+  &:hover { opacity: 0.75; }
+`;
+
+const HealthStatGrid = styled.dl`
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 4px 10px;
+  font-size: 12px;
+  margin: 0;
+  dt { color: #777; font-weight: 500; }
+  dd { margin: 0; color: #222; font-weight: 600; }
+`;
+
+const GhBtn = styled.a`
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  font-size: 12px;
+  background: #24292e;
+  color: #fff !important;
+  border-radius: 4px;
+  text-decoration: none !important;
+  white-space: nowrap;
+  &:hover { background: #1b1f23; }
+`;
+
+const RUN_COLOR: Record<CollectorRunStatRecent['status'], string> = {
+  success: '#28a745',
+  running: '#5bc0de',
+  failed: '#dc3545',
+  timeout: '#6c757d',
+};
+
+// Tiny inline cron→Spanish translator. Covers the patterns we actually
+// use across xerenity-dm. Falls back to "(sin traducción)" otherwise.
+// Avoids the cronstrue npm package because its /i18n submodule broke
+// Vercel's build pipeline opaquely — works locally, fails on deploy.
+const DOW_ES = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+
+const cronToEs = (cron: string | null): string | null => {
+  if (!cron) return null;
+  const parts = cron.trim().split(/\s+/);
+  if (parts.length !== 5) return null;
+  const [min, hr, , , dow] = parts;
+
+  let when = '';
+  if (hr === '*' && min === '*') when = 'cada minuto';
+  else if (hr === '*' && /^\d+$/.test(min)) when = `al minuto ${min} de cada hora`;
+  else if (/^\d+$/.test(hr) && /^\d+$/.test(min)) when = `a las ${hr.padStart(2, '0')}:${min.padStart(2, '0')}`;
+  else if (/^[\d,]+$/.test(hr) && /^\d+$/.test(min)) {
+    when = `a las ${hr.split(',').map((h) => `${h.padStart(2, '0')}:${min.padStart(2, '0')}`).join(', ')}`;
+  }
+  else if (/^\*\/(\d+)$/.test(hr) && min === '0') when = `cada ${hr.match(/^\*\/(\d+)$/)![1]}h`;
+
+  let which = '';
+  if (dow === '*') which = 'todos los días';
+  else if (/^\d-\d$/.test(dow)) {
+    const [a, b] = dow.split('-').map((d) => DOW_ES[parseInt(d, 10) % 7]);
+    which = `de ${a} a ${b}`;
+  }
+  else if (/^[\d,]+$/.test(dow)) {
+    const days = dow.split(',').map((d) => DOW_ES[parseInt(d, 10) % 7]);
+    which = days.length === 1 ? `los ${days[0]}` : `los ${days.join(', ')}`;
+  }
+
+  if (!when || !which) return null;
+  return `${which} ${when} (UTC)`;
+};
+
+const expectedFreqHours = (raw: string | null): number | null => {
+  if (!raw) return null;
+  const m = raw.trim().match(/^(\d+)\s*(hour|hours|day|days|week|weeks|month|months)$/i);
+  if (!m) return null;
+  const n = parseInt(m[1], 10);
+  const unit = m[2].toLowerCase();
+  if (unit.startsWith('hour')) return n;
+  if (unit.startsWith('day')) return n * 24;
+  if (unit.startsWith('week')) return n * 24 * 7;
+  if (unit.startsWith('month')) return n * 24 * 30;
+  return null;
+};
+
+const computeLatestData = (series: CollectorTableSeries[]): string | null => {
+  let latest: string | null = null;
+  series.forEach((s) => {
+    s.slices.forEach((sl) => {
+      if ('error' in sl) return;
+      const slice = sl as SliceBreakdown;
+      if (slice.last_date && (!latest || slice.last_date > latest)) latest = slice.last_date;
+    });
+  });
+  return latest;
+};
+
+const buildVerdict = (
+  detail: CollectorFullDetail,
+  latestData: string | null,
+): { tone: 'ok' | 'warn' | 'bad' | 'unknown'; title: string; explain: string } => {
+  const stats = detail.run_stats;
+  const expectedH = expectedFreqHours(detail.definition.expected_frequency);
+
+  if (!stats || stats.total === 0) {
+    return { tone: 'unknown', title: 'Sin runs registrados', explain: 'Este collector aún no tiene runs en xerenity.collector_runs.' };
+  }
+
+  const lastFailed = stats.recent[0]?.status === 'failed' || stats.recent[0]?.status === 'timeout';
+  const ageH = latestData ? (Date.now() - new Date(latestData).getTime()) / 3.6e6 : null;
+
+  if (lastFailed) {
+    return { tone: 'bad', title: 'Último run falló', explain: `El último run terminó en ${stats.recent[0].status} ${formatRelative(stats.recent[0].started_at)}. Revisar traceback en la pestaña Estado actual.` };
+  }
+  if (expectedH !== null && ageH !== null && ageH > expectedH * 2) {
+    return { tone: 'bad', title: `Datos atrasados (${ageH.toFixed(0)}h)`, explain: `Cadencia esperada ${expectedH}h. Última fila ${formatRelative(latestData)}. Más del doble del rango.` };
+  }
+  if (expectedH !== null && ageH !== null && ageH > expectedH * 1.25) {
+    return { tone: 'warn', title: `Datos un poco atrasados (${ageH.toFixed(0)}h)`, explain: `Cadencia esperada ${expectedH}h. Última fila ${formatRelative(latestData)}.` };
+  }
+  if ((stats.empty_rate_pct ?? 0) >= 50) {
+    return { tone: 'ok', title: 'Patrón "muchos runs vacíos por diseño"', explain: `${stats.empty_rate_pct}% de los runs exitosos no insertaron filas. Lo común cuando la fuente publica menos seguido que el cron. La data fluye (última fila ${formatRelative(latestData)}).` };
+  }
+  if (stats.last_run_at && stats.last_data_run_at) {
+    return { tone: 'ok', title: 'Sano', explain: `Última fila ${formatRelative(latestData)} · último run con data ${formatRelative(stats.last_data_run_at)}.` };
+  }
+  return { tone: 'unknown', title: 'No se puede evaluar', explain: 'Información insuficiente — revisa runs y datos manualmente.' };
+};
+
+const verdictIcon = (tone: 'ok' | 'warn' | 'bad' | 'unknown') => {
+  if (tone === 'ok') return faCircleCheck;
+  if (tone === 'warn') return faCircleExclamation;
+  if (tone === 'bad') return faCircleXmark;
+  return faCircleExclamation;
+};
+
+const verdictIconColor = (tone: 'ok' | 'warn' | 'bad' | 'unknown') => {
+  if (tone === 'ok') return '#28a745';
+  if (tone === 'warn') return '#f0ad4e';
+  if (tone === 'bad') return '#dc3545';
+  return '#6c757d';
+};
+
+const SaludSection: React.FC<{ detail: CollectorFullDetail }> = ({ detail }) => {
+  const def = detail.definition;
+  const stats = detail.run_stats;
+  const latestData = useMemo(() => computeLatestData(detail.series ?? []), [detail.series]);
+  const cronHuman = cronToEs(def.schedule_cron);
+  const verdict = buildVerdict(detail, latestData);
+
+  const ghHref = (() => {
+    if (!def.repo) return null;
+    if (def.workflow_file) return `https://github.com/avelezX/${def.repo}/blob/main/${def.workflow_file}`;
+    return `https://github.com/avelezX/${def.repo}`;
+  })();
+
+  return (
+    <HealthCard>
+      <HealthBlock>
+        <h5>Cron</h5>
+        {def.schedule_cron ? (
+          <>
+            <div className="value"><code>{def.schedule_cron}</code></div>
+            <div className="sub">{cronHuman ?? '(sin traducción para este patrón)'}</div>
+            <div className="sub" style={{ marginTop: 6 }}>
+              <strong>Cadencia esperada:</strong>{' '}
+              {def.expected_frequency ? <code>{def.expected_frequency}</code> : <em>—</em>}
+            </div>
+          </>
+        ) : (
+          <div className="value"><em style={{ color: '#bbb' }}>sin cron</em></div>
+        )}
+      </HealthBlock>
+
+      <HealthBlock>
+        <h5>Frescura</h5>
+        <HealthStatGrid>
+          <dt>Última fila</dt>
+          <dd>{latestData ? formatRelative(latestData) : <em style={{ color: '#bbb' }}>—</em>}</dd>
+          <dt>Último run</dt>
+          <dd>{stats?.last_run_at ? formatRelative(stats.last_run_at) : <em style={{ color: '#bbb' }}>—</em>}</dd>
+          <dt>Último con data</dt>
+          <dd>{stats?.last_data_run_at ? formatRelative(stats.last_data_run_at) : <em style={{ color: '#bbb' }}>—</em>}</dd>
+        </HealthStatGrid>
+      </HealthBlock>
+
+      <HealthBlock>
+        <h5>Últimos {stats?.total ?? 0} runs</h5>
+        {stats && stats.total > 0 ? (
+          <>
+            <HealthStatGrid>
+              <dt>OK</dt>
+              <dd style={{ color: '#28a745' }}>
+                {stats.success}{' '}
+                <span style={{ color: '#888', fontWeight: 400 }}>
+                  ({stats.with_data} con data, {stats.empty} vacíos)
+                </span>
+              </dd>
+              <dt>Fallidos</dt>
+              <dd style={{ color: stats.failed + stats.timeout > 0 ? '#dc3545' : '#999' }}>
+                {stats.failed + stats.timeout}
+                {stats.timeout > 0 && (
+                  <span style={{ color: '#888', fontWeight: 400 }}> ({stats.timeout} timeout)</span>
+                )}
+              </dd>
+              {stats.empty_rate_pct != null && (
+                <>
+                  <dt>% vacío</dt>
+                  <dd>{stats.empty_rate_pct}%</dd>
+                </>
+              )}
+              {stats.median_duration_s != null && (
+                <>
+                  <dt>Duración mediana</dt>
+                  <dd>{stats.median_duration_s.toFixed(1)}s</dd>
+                </>
+              )}
+            </HealthStatGrid>
+            <SparkBar title="Status de los últimos 30 runs (más reciente a la derecha)">
+              {[...stats.recent].reverse().map((r) => {
+                const h = r.rows_inserted && r.rows_inserted > 0 ? 100 : 50;
+                return (
+                  <SparkSlot2
+                    key={r.started_at}
+                    $color={RUN_COLOR[r.status]}
+                    $h={h}
+                    title={`${r.status} · ${formatRelative(r.started_at)} · ${r.rows_inserted ?? 0} filas`}
+                  />
+                );
+              })}
+            </SparkBar>
+          </>
+        ) : (
+          <div className="value"><em style={{ color: '#bbb' }}>sin runs</em></div>
+        )}
+      </HealthBlock>
+
+      <HealthBlock style={{ textAlign: 'right' }}>
+        <h5>Workflow</h5>
+        {ghHref ? (
+          <GhBtn href={ghHref} target="_blank" rel="noreferrer">
+            Editar YAML
+          </GhBtn>
+        ) : (
+          <em style={{ color: '#bbb', fontSize: 12 }}>—</em>
+        )}
+        <div className="sub" style={{ marginTop: 6 }}>
+          <Badge bg={def.enabled ? 'success' : 'secondary'}>
+            {def.enabled ? 'enabled' : 'DISABLED'}
+          </Badge>{' '}
+          <Badge bg="dark">{def.severity}</Badge>
+        </div>
+      </HealthBlock>
+
+      <VerdictBox $tone={verdict.tone}>
+        <Icon
+          icon={verdictIcon(verdict.tone)}
+          className="icon"
+          style={{ color: verdictIconColor(verdict.tone) }}
+        />
+        <div className="copy">
+          <strong>{verdict.title}</strong>
+          <span>{verdict.explain}</span>
+        </div>
+      </VerdictBox>
+    </HealthCard>
+  );
+};
+
+
 const CatalogTab: React.FC<{ collectorName: string }> = ({ collectorName }) => {
   const { detail, loading, error, load } = useAppStore((s) => ({
     detail: s.catalogDetail[collectorName],
@@ -563,6 +923,7 @@ const CatalogTab: React.FC<{ collectorName: string }> = ({ collectorName }) => {
 
   return (
     <div>
+      <SaludSection detail={detail} />
       <OrigenSection collectorName={collectorName} />
       <SeriesSection series={detail.series} collectorName={collectorName} />
       <ConsumidoresSection consumers={detail.consumers} />
