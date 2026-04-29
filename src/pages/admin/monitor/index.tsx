@@ -188,6 +188,17 @@ const MonitorPage = () => {
     return { total, critical, warning, ok };
   }, [collectorOverview]);
 
+  // Alerts not associated with a collector (table_stale, missed_run on
+  // unknown collectors, etc.) don't show up in the per-collector counter
+  // above — they need their own line so the header doesn't claim "0
+  // critical" while 17 stale-table alerts are open in the side panel.
+  const alertCounts = useMemo(() => {
+    const critical = activeAlerts.filter((a) => a.severity === 'critical').length;
+    const warning  = activeAlerts.filter((a) => a.severity === 'warning').length;
+    const tableStale = activeAlerts.filter((a) => a.source === 'table_stale').length;
+    return { critical, warning, tableStale, total: activeAlerts.length };
+  }, [activeAlerts]);
+
   const handleAction = async (
     action: () => Promise<{ success: boolean; error: string | undefined }>,
     successMsg: string,
@@ -210,8 +221,29 @@ const MonitorPage = () => {
       >
         <PageWrap>
           <PageTitle>Monitor de Collectors</PageTitle>
+          <div style={{ fontSize: 13, color: '#666', marginBottom: 6 }}>
+            <strong>Collectors:</strong> {counts.ok}/{counts.total} OK · {counts.warning} en warning · {counts.critical} en critical
+          </div>
           <div style={{ fontSize: 13, color: '#666', marginBottom: 16 }}>
-            {counts.ok}/{counts.total} OK · {counts.warning} en warning · {counts.critical} en critical
+            <strong>Alertas activas:</strong>{' '}
+            {alertCounts.total === 0 ? (
+              <span style={{ color: '#28a745' }}>0 — todo tranquilo</span>
+            ) : (
+              <>
+                <span style={{ color: alertCounts.critical > 0 ? '#dc3545' : '#666', fontWeight: alertCounts.critical > 0 ? 600 : 'normal' }}>
+                  {alertCounts.critical} critical
+                </span>
+                {' · '}
+                <span style={{ color: alertCounts.warning > 0 ? '#f0ad4e' : '#666', fontWeight: alertCounts.warning > 0 ? 600 : 'normal' }}>
+                  {alertCounts.warning} warning
+                </span>
+                {alertCounts.tableStale > 0 && (
+                  <span style={{ color: '#888', marginLeft: 6 }}>
+                    ({alertCounts.tableStale} de tablas stale — ver panel derecho)
+                  </span>
+                )}
+              </>
+            )}
           </div>
           <Container fluid>
             <Row>
