@@ -25,6 +25,7 @@ import useAppStore from 'src/store';
 import type { CollectorRun, CollectorOverview, RunStatus, Severity } from 'src/types/monitor';
 import { getCollectorDefinition } from 'src/models/monitor';
 import CatalogTab from './_CatalogTab';
+import SaludCard from './_SaludCard';
 
 const SEV_BADGE: Record<Severity, string> = {
   critical: '#dc3545',
@@ -202,8 +203,12 @@ const CollectorDetailPage = () => {
             </TabButton>
           </TabBar>
 
-          {activeTab === 'estado' && (
+          {activeTab === 'estado' && name && (
             <Container fluid>
+              {/* Top-of-tab health digest — translates cron, summarises last 30
+                  runs, and gives a verdict so a triager doesn't need SQL to
+                  tell normal "0 rows by design" days from real failures. */}
+              <SaludCard collectorName={name} />
               <Row>
                 <Col md={4}>
                   <InfoCard>

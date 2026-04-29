@@ -110,6 +110,34 @@ export interface CollectorTableSeries {
   slices: (SliceBreakdown | SliceError)[];
 }
 
+// Run-stats aggregate over the last 30 runs of a collector. Returned by
+// get_collector_full_detail. Drives the SaludCard at the top of the
+// collector detail page so triagers can tell normal "0 rows by design"
+// runs from real failures.
+export interface CollectorRunStatRecent {
+  status: 'success' | 'failed' | 'timeout' | 'running';
+  started_at: string;
+  rows_inserted: number | null;
+  duration_s: number | null;
+}
+
+export interface CollectorRunStats {
+  total: number;
+  success: number;
+  failed: number;
+  timeout: number;
+  running: number;
+  with_data: number;
+  empty: number;
+  // Percentage of *successful* runs that inserted 0 rows. NULL when
+  // there are no successful runs to base the ratio on.
+  empty_rate_pct: number | null;
+  median_duration_s: number | null;
+  last_run_at: string | null;
+  last_data_run_at: string | null;
+  recent: CollectorRunStatRecent[];
+}
+
 // get_collector_full_detail return shape
 
 export interface CollectorFullDetail {
@@ -133,4 +161,5 @@ export interface CollectorFullDetail {
   series: CollectorTableSeries[];
   reviews: CollectorTableReview[];
   consumers: DataConsumer[];
+  run_stats: CollectorRunStats | null;
 }
