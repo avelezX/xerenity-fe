@@ -104,17 +104,18 @@ const TableBlock = styled.div`
   .table-meta { font-size: 11px; color: #888; }
 `;
 
-const Notes = styled.div`
-  font-size: 13px;
-  color: #444;
-  white-space: pre-wrap;
-  background: #fafaff;
-  border: 1px dashed #d8d8e6;
-  border-radius: 4px;
-  padding: 10px 12px;
-  min-height: 38px;
-  &.empty { color: #aaa; font-style: italic; }
-`;
+const HEALTH_BG: Record<HealthStatus, string> = {
+  healthy: '#d4edda',
+  degraded: '#fff3cd',
+  down: '#f8d7da',
+  unknown: '#e9ecef',
+};
+const HEALTH_FG: Record<HealthStatus, string> = {
+  healthy: '#155724',
+  degraded: '#856404',
+  down: '#721c24',
+  unknown: '#495057',
+};
 
 const HealthBadge = styled.span<{ $status: HealthStatus }>`
   display: inline-flex;
@@ -128,19 +129,6 @@ const HealthBadge = styled.span<{ $status: HealthStatus }>`
   background: ${(p) => HEALTH_BG[p.$status]};
   color: ${(p) => HEALTH_FG[p.$status]};
 `;
-
-const HEALTH_BG: Record<HealthStatus, string> = {
-  healthy: '#d4edda',
-  degraded: '#fff3cd',
-  down: '#f8d7da',
-  unknown: '#e9ecef',
-};
-const HEALTH_FG: Record<HealthStatus, string> = {
-  healthy: '#155724',
-  degraded: '#856404',
-  down: '#721c24',
-  unknown: '#495057',
-};
 
 const REVIEW_LABELS: Record<ReviewStatus, string> = {
   pendiente: 'Pendiente',
@@ -219,6 +207,87 @@ function useDebouncedSave<TArgs extends unknown[]>(
 // ─────────────────────────────────────────────────────────────────
 // Sub-sections
 // ─────────────────────────────────────────────────────────────────
+
+const SaveStatus: React.FC<{
+  savingState: 'idle' | 'saving' | 'saved' | 'error';
+  savedAt: number | null;
+}> = ({ savingState, savedAt }) => {
+  if (savingState === 'idle') return null;
+  return (
+    <div style={{ fontSize: 11, color: '#888', marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
+      {savingState === 'saving' && (
+        <><Spinner animation="border" size="sm" style={{ width: 10, height: 10 }} /> Guardando…</>
+      )}
+      {savingState === 'saved' && savedAt && (
+        <><Icon icon={faCircleCheck} style={{ color: '#28a745' }} /> Guardado {formatRelative(new Date(savedAt).toISOString())}</>
+      )}
+      {savingState === 'error' && (
+        <><Icon icon={faCircleXmark} style={{ color: '#dc3545' }} /> Error al guardar</>
+      )}
+    </div>
+  );
+};
+
+const ReviewBlock: React.FC<{
+  collectorName: string;
+  tableName: string;
+  review: { review_status: ReviewStatus; notes: string | null; reviewed_at: string | null; reviewed_by_email: string | null } | undefined;
+  save: (collectorName: string, tableName: string, status: ReviewStatus, notes: string | null) => Promise<{ ok: boolean; error?: string }>;
+}> = ({ collectorName, tableName, review, save }) => {
+  const [statusDraft, setStatusDraft] = useState<ReviewStatus>(review?.review_status ?? 'pendiente');
+  const [notesDraft, setNotesDraft] = useState(review?.notes ?? '');
+
+  useEffect(() => {
+    setStatusDraft(review?.review_status ?? 'pendiente');
+    setNotesDraft(review?.notes ?? '');
+  }, [review?.review_status, review?.notes]);
+
+  const { schedule, savingState, savedAt } = useDebouncedSave(
+    (s: ReviewStatus, n: string | null) => save(collectorName, tableName, s, n),
+  );
+
+  return (
+    <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px dashed #ddd' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8, flexWrap: 'wrap' }}>
+        <span style={{ fontSize: 11, fontWeight: 600, color: '#555', textTransform: 'uppercase' }}>Estado de revisión:</span>
+        <Form.Select
+          size="sm"
+          value={statusDraft}
+          onChange={(e) => {
+            const v = e.target.value as ReviewStatus;
+            setStatusDraft(v);
+            schedule(v, notesDraft || null);
+          }}
+          style={{ maxWidth: 180, display: 'inline-block' }}
+        >
+          {(Object.keys(REVIEW_LABELS) as ReviewStatus[]).map((k) => (
+            <option key={k} value={k}>{REVIEW_LABELS[k]}</option>
+          ))}
+        </Form.Select>
+        <Badge style={{ background: REVIEW_BG[statusDraft] }}>
+          {REVIEW_LABELS[statusDraft]}
+        </Badge>
+        {review?.reviewed_at && review.reviewed_by_email && (
+          <span style={{ fontSize: 11, color: '#888' }}>
+            Última: {formatRelative(review.reviewed_at)} por {review.reviewed_by_email}
+          </span>
+        )}
+      </div>
+      <Form.Control
+        as="textarea"
+        rows={2}
+        placeholder="Notas sobre esta tabla específica (selectores, filtros, decisiones)…"
+        value={notesDraft}
+        onChange={(e) => {
+          setNotesDraft(e.target.value);
+          schedule(statusDraft, e.target.value || null);
+        }}
+        style={{ fontSize: 12 }}
+      />
+      <SaveStatus savingState={savingState} savedAt={savedAt} />
+    </div>
+  );
+};
 
 const OrigenSection: React.FC<{ collectorName: string }> = ({ collectorName }) => {
   const { detail, sources, save, loadRegistries } = useAppStore((s) => ({
@@ -302,26 +371,6 @@ const OrigenSection: React.FC<{ collectorName: string }> = ({ collectorName }) =
         <SaveStatus savingState={savingState} savedAt={savedAt} />
       </div>
     </Section>
-  );
-};
-
-const SaveStatus: React.FC<{
-  savingState: 'idle' | 'saving' | 'saved' | 'error';
-  savedAt: number | null;
-}> = ({ savingState, savedAt }) => {
-  if (savingState === 'idle') return null;
-  return (
-    <div style={{ fontSize: 11, color: '#888', marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
-      {savingState === 'saving' && (
-        <><Spinner animation="border" size="sm" style={{ width: 10, height: 10 }} /> Guardando…</>
-      )}
-      {savingState === 'saved' && savedAt && (
-        <><Icon icon={faCircleCheck} style={{ color: '#28a745' }} /> Guardado {formatRelative(new Date(savedAt).toISOString())}</>
-      )}
-      {savingState === 'error' && (
-        <><Icon icon={faCircleXmark} style={{ color: '#dc3545' }} /> Error al guardar</>
-      )}
-    </div>
   );
 };
 
@@ -434,67 +483,6 @@ const SeriesSection: React.FC<{
         </TableBlock>
       ))}
     </Section>
-  );
-};
-
-const ReviewBlock: React.FC<{
-  collectorName: string;
-  tableName: string;
-  review: { review_status: ReviewStatus; notes: string | null; reviewed_at: string | null; reviewed_by_email: string | null } | undefined;
-  save: (collectorName: string, tableName: string, status: ReviewStatus, notes: string | null) => Promise<{ ok: boolean; error?: string }>;
-}> = ({ collectorName, tableName, review, save }) => {
-  const [statusDraft, setStatusDraft] = useState<ReviewStatus>(review?.review_status ?? 'pendiente');
-  const [notesDraft, setNotesDraft] = useState(review?.notes ?? '');
-
-  useEffect(() => {
-    setStatusDraft(review?.review_status ?? 'pendiente');
-    setNotesDraft(review?.notes ?? '');
-  }, [review?.review_status, review?.notes]);
-
-  const { schedule, savingState, savedAt } = useDebouncedSave(
-    (s: ReviewStatus, n: string | null) => save(collectorName, tableName, s, n),
-  );
-
-  return (
-    <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px dashed #ddd' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8, flexWrap: 'wrap' }}>
-        <span style={{ fontSize: 11, fontWeight: 600, color: '#555', textTransform: 'uppercase' }}>Estado de revisión:</span>
-        <Form.Select
-          size="sm"
-          value={statusDraft}
-          onChange={(e) => {
-            const v = e.target.value as ReviewStatus;
-            setStatusDraft(v);
-            schedule(v, notesDraft || null);
-          }}
-          style={{ maxWidth: 180, display: 'inline-block' }}
-        >
-          {(Object.keys(REVIEW_LABELS) as ReviewStatus[]).map((k) => (
-            <option key={k} value={k}>{REVIEW_LABELS[k]}</option>
-          ))}
-        </Form.Select>
-        <Badge style={{ background: REVIEW_BG[statusDraft] }}>
-          {REVIEW_LABELS[statusDraft]}
-        </Badge>
-        {review?.reviewed_at && review.reviewed_by_email && (
-          <span style={{ fontSize: 11, color: '#888' }}>
-            Última: {formatRelative(review.reviewed_at)} por {review.reviewed_by_email}
-          </span>
-        )}
-      </div>
-      <Form.Control
-        as="textarea"
-        rows={2}
-        placeholder="Notas sobre esta tabla específica (selectores, filtros, decisiones)…"
-        value={notesDraft}
-        onChange={(e) => {
-          setNotesDraft(e.target.value);
-          schedule(statusDraft, e.target.value || null);
-        }}
-        style={{ fontSize: 12 }}
-      />
-      <SaveStatus savingState={savingState} savedAt={savedAt} />
-    </div>
   );
 };
 
