@@ -15,6 +15,7 @@ import {
   faBellSlash,
   faCheck,
   faEye,
+  faRobot,
 } from '@fortawesome/free-solid-svg-icons';
 import { toast } from 'react-toastify';
 import styled from 'styled-components';
@@ -172,6 +173,44 @@ const formatRowsInserted = (rows: number | null | undefined) => {
   return rows.toLocaleString();
 };
 
+const buildDiagnosePrompt = (alert: {
+  collector_name: string | null;
+  body: string | null;
+  metadata?: Record<string, unknown> | null;
+}): string => {
+  const md = (alert.metadata ?? {}) as Record<string, unknown>;
+  const ghUrl = typeof md.gh_run_url === 'string' ? md.gh_run_url : null;
+  const exitCode = md.exit_code != null ? String(md.exit_code) : 'desconocido';
+  return [
+    `Estoy debuggeando un fallo de un collector de Xerenity. Necesito tu ayuda para entender la causa raiz y proponer un fix.`,
+    ``,
+    `**Datos del fallo**`,
+    `- Collector: \`${alert.collector_name ?? 'desconocido'}\``,
+    `- Repo: \`xerenity-dm\``,
+    `- Exit code: ${exitCode}`,
+    ghUrl ? `- GitHub Actions run: ${ghUrl}` : null,
+    ``,
+    `**Mensaje de error**`,
+    '```',
+    alert.body ?? '(sin mensaje)',
+    '```',
+    ``,
+    `**Que necesito que hagas:**`,
+    `1. Usa la tool \`read_repo_file\` para leer el script entrypoint del collector. ` +
+      `Empezá leyendo \`xerenity.collector_definitions\` con \`query_database\` para encontrar el repo_path exacto:`,
+    '```sql',
+    `SELECT repo_path FROM xerenity.collector_definitions WHERE name = '${alert.collector_name}';`,
+    '```',
+    `2. Luego leé el archivo y cualquier modulo importado relevante al traceback.`,
+    `3. Identifica la linea exacta del bug.`,
+    `4. Explica en español la causa raiz.`,
+    `5. Sugerime un fix concreto: archivo, linea, codigo antes y despues.`,
+    ``,
+    `Nada de cambios todavia — solo diagnostico. Yo aplico el fix manualmente despues.`,
+  ].filter(Boolean).join('\n');
+};
+
+
 const MonitorPage = () => {
   const {
     collectorOverview,
@@ -181,6 +220,9 @@ const MonitorPage = () => {
     acknowledgeAlert,
     silenceAlert,
     resolveAlert,
+    openChat,
+    clearChat,
+    sendMessage,
   } = useAppStore((s) => ({
     collectorOverview: s.collectorOverview,
     activeAlerts: s.activeAlerts,
@@ -189,6 +231,9 @@ const MonitorPage = () => {
     acknowledgeAlert: s.acknowledgeAlert,
     silenceAlert: s.silenceAlert,
     resolveAlert: s.resolveAlert,
+    openChat: s.openChat,
+    clearChat: s.clearChat,
+    sendMessage: s.sendMessage,
   }));
 
   useEffect(() => {
@@ -227,6 +272,15 @@ const MonitorPage = () => {
     const res = await action();
     if (res.success) toast.success(successMsg);
     else toast.error(res.error ?? 'Error');
+  };
+
+  const handleDiagnose = (alert: typeof activeAlerts[number]) => {
+    const prompt = buildDiagnosePrompt(alert);
+    clearChat();
+    openChat();
+    // Defer the actual send to the next tick so the panel is mounted
+    // and the user sees the message land in real time.
+    setTimeout(() => { sendMessage(prompt); }, 50);
   };
 
   return (
@@ -377,6 +431,16 @@ const MonitorPage = () => {
                         primera vez {formatRelative(alert.first_seen_at)}
                       </div>
                       <div className="actions">
+                        {alert.source === 'run_failed' && (
+                          <BsButton
+                            size="sm"
+                            variant="outline-primary"
+                            title="Abre el chat con un prompt pre-cargado: traceback + nombre del collector. El agente leerá el código en xerenity-dm y propondrá un diagnóstico. NO modifica nada — solo te explica el bug."
+                            onClick={() => handleDiagnose(alert)}
+                          >
+                            <Icon icon={faRobot} /> Diagnosticar con IA
+                          </BsButton>
+                        )}
                         {!alert.acknowledged_at && (
                           <BsButton
                             size="sm"
