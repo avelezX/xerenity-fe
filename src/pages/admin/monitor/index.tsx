@@ -296,6 +296,22 @@ const buildDiagnosePrompt = (alert: DiagnoseAlert): string => {
   }
 };
 
+const DIAGNOSE_TOOLTIPS: Record<string, string> = {
+  table_stale:
+    'Abre el chat con un prompt pre-cargado: tabla afectada + collectors que la pueblan. ' +
+    'El agente investiga por qué la tabla está stale y propone un diagnóstico. NO modifica nada.',
+  empty_run:
+    'Abre el chat con un prompt pre-cargado: el collector corrió pero insertó 0 filas. ' +
+    'El agente lee el código y busca por qué (selector roto, filtro mal armado, fuente vacía). NO modifica nada.',
+  run_failed:
+    'Abre el chat con un prompt pre-cargado: traceback + nombre del collector. ' +
+    'El agente leerá el código en xerenity-dm y propondrá un diagnóstico. NO modifica nada.',
+};
+
+const diagnoseTooltip = (source: string): string =>
+  DIAGNOSE_TOOLTIPS[source] ??
+  'Abre el chat con un prompt pre-cargado para que el agente investigue esta alerta. NO modifica nada.';
+
 
 const MonitorPage = () => {
   const {
@@ -520,13 +536,7 @@ const MonitorPage = () => {
                         <BsButton
                           size="sm"
                           variant="outline-primary"
-                          title={
-                            alert.source === 'table_stale'
-                              ? 'Abre el chat con un prompt pre-cargado: tabla afectada + collectors que la pueblan. El agente investiga por qué la tabla está stale y propone un diagnóstico. NO modifica nada.'
-                              : alert.source === 'empty_run'
-                                ? 'Abre el chat con un prompt pre-cargado: el collector corrió pero insertó 0 filas. El agente lee el código y busca por qué (selector roto, filtro mal armado, fuente vacía). NO modifica nada.'
-                                : 'Abre el chat con un prompt pre-cargado: traceback + nombre del collector. El agente leerá el código en xerenity-dm y propondrá un diagnóstico. NO modifica nada.'
-                          }
+                          title={diagnoseTooltip(alert.source)}
                           onClick={() => handleDiagnose(alert)}
                         >
                           <Icon icon={faRobot} /> Diagnosticar con IA
