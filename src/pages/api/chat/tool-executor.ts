@@ -314,6 +314,129 @@ function executeControlChart(input: Record<string, unknown>): ToolResult {
   };
 }
 
+// ── read_repo_file (gated to super_admin) ─────────────────────────────────
+
+const REPO_OWNER = 'avelezX';
+const REPO_NAME = 'xerenity-dm';
+const MAX_FILE_BYTES = 200_000; // 200 kB cap; GitHub Contents API actually
+                                // refuses >1 MB, but our agent has no
+                                // business reading anything larger anyway.
+
+async function callerIsSuperAdmin(
+  userSupabase: AnySupabaseClient | undefined,
+): Promise<boolean> {
+  if (!userSupabase) return false;
+  try {
+    const { data: { user } } = await userSupabase.auth.getUser();
+    if (!user?.id) return false;
+    const { data, error } = await userSupabase
+      .schema('xerenity')
+      .from('user_profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single();
+    if (error) return false;
+    return data?.role === 'super_admin';
+  } catch {
+    return false;
+  }
+}
+
+function isPathSafe(path: string): boolean {
+  if (!path) return false;
+  if (path.startsWith('/')) return false;
+  if (path.includes('..')) return false;
+  if (path.includes('\0')) return false;
+  // Whitelist a tight character set: letters, digits, _ - . / and one space
+  // (some workflow filenames use spaces). Anything else is suspicious.
+  return /^[A-Za-z0-9_\-./ ]+$/.test(path);
+}
+
+async function executeReadRepoFile(
+  input: Record<string, unknown>,
+  userSupabase: AnySupabaseClient | undefined,
+): Promise<ToolResult> {
+  const allowed = await callerIsSuperAdmin(userSupabase);
+  if (!allowed) {
+    return {
+      success: false,
+      error: 'read_repo_file requiere role=super_admin',
+    };
+  }
+
+  const path = (input.path as string || '').trim();
+  if (!isPathSafe(path)) {
+    return {
+      success: false,
+      error: `Path no permitido: ${path}. Debe ser relativo, sin ".." ni caracteres especiales.`,
+    };
+  }
+
+  const token = process.env.GITHUB_PAT_XERENITY_DM_READ;
+  if (!token) {
+    return {
+      success: false,
+      error: 'GITHUB_PAT_XERENITY_DM_READ no esta configurado en el server',
+    };
+  }
+
+  const url = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${encodeURIComponent(path).replace(/%2F/g, '/')}`;
+
+  try {
+    const res = await fetch(url, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: 'application/vnd.github+json',
+        'X-GitHub-Api-Version': '2022-11-28',
+      },
+    });
+    if (res.status === 404) {
+      return { success: false, error: `Archivo no encontrado en xerenity-dm: ${path}` };
+    }
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      return {
+        success: false,
+        error: `GitHub API ${res.status}: ${text.slice(0, 200)}`,
+      };
+    }
+    const json = await res.json() as {
+      type?: string;
+      encoding?: string;
+      size?: number;
+      content?: string;
+    };
+    if (json.type !== 'file') {
+      return { success: false, error: `${path} no es un archivo (es ${json.type})` };
+    }
+    if (typeof json.size === 'number' && json.size > MAX_FILE_BYTES) {
+      return {
+        success: false,
+        error: `Archivo demasiado grande (${json.size} bytes, limite ${MAX_FILE_BYTES})`,
+      };
+    }
+    if (json.encoding !== 'base64' || !json.content) {
+      return { success: false, error: 'Respuesta inesperada de GitHub Contents API' };
+    }
+    const decoded = Buffer.from(json.content, 'base64').toString('utf8');
+    return {
+      success: true,
+      data: {
+        path,
+        repo: `${REPO_OWNER}/${REPO_NAME}`,
+        bytes: decoded.length,
+        content: decoded,
+      },
+    };
+  } catch (e) {
+    return {
+      success: false,
+      error: `read_repo_file error: ${e instanceof Error ? e.message : String(e)}`,
+    };
+  }
+}
+
+
 // eslint-disable-next-line import/prefer-default-export
 export async function executeTool(
   toolName: string,
@@ -335,6 +458,8 @@ export async function executeTool(
       return executeViewSeries(toolInput);
     case 'control_chart':
       return executeControlChart(toolInput);
+    case 'read_repo_file':
+      return executeReadRepoFile(toolInput, userSupabase);
     default:
       return { success: false, error: `Tool desconocido: ${toolName}` };
   }
