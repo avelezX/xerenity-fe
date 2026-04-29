@@ -381,6 +381,7 @@ const MonitorPage = () => {
                           <BsButton
                             size="sm"
                             variant="outline-secondary"
+                            title="Marca la alerta como vista. La alerta sigue ABIERTA hasta que se resuelva el problema o se cierre manualmente."
                             onClick={() => handleAction(() => acknowledgeAlert(alert.id), 'ACK')}
                           >
                             <Icon icon={faEye} /> ACK
@@ -389,6 +390,7 @@ const MonitorPage = () => {
                         <BsButton
                           size="sm"
                           variant="outline-secondary"
+                          title="Silencia la alerta por 1 hora. Si el problema persiste tras ese plazo, vuelve a aparecer en el panel y a postear a Teams."
                           onClick={() => handleAction(() => silenceAlert(alert.id, '1 hour'), 'Silenciada 1h')}
                         >
                           <Icon icon={faBellSlash} /> 1h
@@ -396,6 +398,7 @@ const MonitorPage = () => {
                         <BsButton
                           size="sm"
                           variant="outline-secondary"
+                          title="Silencia la alerta por 24 horas. Útil mientras se trabaja en un fix; reaparece al día siguiente si el problema sigue."
                           onClick={() => handleAction(() => silenceAlert(alert.id, '1 day'), 'Silenciada 24h')}
                         >
                           <Icon icon={faBellSlash} /> 24h
@@ -403,9 +406,10 @@ const MonitorPage = () => {
                         <BsButton
                           size="sm"
                           variant="outline-success"
-                          onClick={() => handleAction(() => resolveAlert(alert.id), 'Resuelta')}
+                          title="Cierra la alerta y postea card RESOLVED a Teams. NO arregla la causa: si el próximo health check detecta el mismo problema, se vuelve a abrir."
+                          onClick={() => handleAction(() => resolveAlert(alert.id), 'Cerrada')}
                         >
-                          <Icon icon={faCheck} /> Resolver
+                          <Icon icon={faCheck} /> Cerrar
                         </BsButton>
                       </div>
                     </AlertCard>
