@@ -15,6 +15,8 @@ import {
   faArrowLeft,
   faChevronDown,
   faChevronRight,
+  faGauge,
+  faBookOpen,
 } from '@fortawesome/free-solid-svg-icons';
 import styled from 'styled-components';
 import PageTitle from '@components/PageTitle';
@@ -22,6 +24,7 @@ import RoleGuard from 'src/components/RoleGuard';
 import useAppStore from 'src/store';
 import type { CollectorRun, CollectorOverview, RunStatus, Severity } from 'src/types/monitor';
 import { getCollectorDefinition } from 'src/models/monitor';
+import CatalogTab from './_CatalogTab';
 
 const SEV_BADGE: Record<Severity, string> = {
   critical: '#dc3545',
@@ -75,6 +78,36 @@ const BackLink = styled(Link)`
   &:hover { text-decoration: underline; }
 `;
 
+const TabBar = styled.div`
+  display: flex;
+  gap: 4px;
+  border-bottom: 2px solid #e5e5ec;
+  margin-bottom: 16px;
+`;
+
+const TabButton = styled.button<{ $active: boolean }>`
+  background: ${(p) => (p.$active ? '#fff' : 'transparent')};
+  border: none;
+  border-bottom: 3px solid ${(p) => (p.$active ? '#302b63' : 'transparent')};
+  color: ${(p) => (p.$active ? '#302b63' : '#777')};
+  font-weight: ${(p) => (p.$active ? 700 : 500)};
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 10px 18px;
+  margin-bottom: -2px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  transition: color 120ms ease, border-color 120ms ease, background 120ms ease;
+
+  &:hover {
+    color: #302b63;
+    background: rgba(48, 43, 99, 0.04);
+  }
+`;
+
 const statusBadge = (status: RunStatus) => {
   const cfg: Record<RunStatus, { bg: string; icon: typeof faCircleCheck }> = {
     success: { bg: '#28a745', icon: faCircleCheck },
@@ -111,6 +144,7 @@ const CollectorDetailPage = () => {
 
   const [definition, setDefinition] = useState<CollectorOverview | null>(null);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [activeTab, setActiveTab] = useState<'estado' | 'catalogo'>('estado');
 
   const {
     collectorRuns,
@@ -147,101 +181,130 @@ const CollectorDetailPage = () => {
           </BackLink>
           <PageTitle>{name ?? 'Collector'}</PageTitle>
 
-          <Container fluid>
-            <Row>
-              <Col md={4}>
-                <InfoCard>
-                  <h4>Catálogo</h4>
-                  {definition ? (
-                    <dl>
-                      <dt>Severity</dt>
-                      <dd><Badge style={{ background: SEV_BADGE[definition.severity_default] }}>{definition.severity_default}</Badge></dd>
-                      <dt>Enabled</dt>
-                      <dd>{definition.enabled ? 'Sí' : 'No'}</dd>
-                      <dt>Cron</dt>
-                      <dd>{definition.schedule_cron ? <code>{definition.schedule_cron}</code> : <em>no-schedule</em>}</dd>
-                      <dt>Tablas</dt>
-                      <dd>{definition.target_tables.length > 0 ? definition.target_tables.join(', ') : <em>—</em>}</dd>
-                      <dt>Alertas</dt>
-                      <dd>{definition.open_alerts}</dd>
-                    </dl>
-                  ) : (
-                    <em style={{ color: '#888' }}>Cargando…</em>
-                  )}
-                </InfoCard>
-              </Col>
-              <Col md={8}>
-                <TimelineCard>
-                  <h4>Últimos runs ({runs.length})</h4>
-                  <table>
-                    <thead>
-                      <tr>
-                        <th aria-label="expand traceback" />
-                        <th>Inicio</th>
-                        <th>Status</th>
-                        <th>Duración</th>
-                        <th>Filas</th>
-                        <th>Exit</th>
-                        <th>Error</th>
-                        <th aria-label="external link" />
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {runs.map((run) => {
-                        const isExpanded = expanded[run.id] ?? false;
-                        const hasTraceback = Boolean(run.error_traceback);
-                        return (
-                          <React.Fragment key={run.id}>
-                            <tr className={run.status === 'failed' || run.status === 'timeout' ? 'failed' : ''}>
-                              <td
-                                className={hasTraceback ? 'expander' : ''}
-                                onClick={hasTraceback ? () => toggle(run.id) : undefined}
-                              >
-                                {hasTraceback && (
-                                  <Icon icon={isExpanded ? faChevronDown : faChevronRight} />
-                                )}
-                              </td>
-                              <td>{formatDate(run.started_at)}</td>
-                              <td>{statusBadge(run.status)}</td>
-                              <td>{formatDuration(run.duration_seconds)}</td>
-                              <td>{run.rows_inserted ?? '—'}</td>
-                              <td>{run.exit_code ?? '—'}</td>
-                              <td style={{ color: '#888', maxWidth: 280 }}>
-                                <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                  {run.error_message ?? ''}
-                                </div>
-                              </td>
-                              <td>
-                                {run.gh_run_url && (
-                                  <a href={run.gh_run_url} target="_blank" rel="noreferrer" style={{ fontSize: 12 }}>
-                                    GH <Icon icon={faArrowUpRightFromSquare} />
-                                  </a>
-                                )}
-                              </td>
-                            </tr>
-                            {isExpanded && hasTraceback && (
-                              <tr>
-                                <td colSpan={8}>
-                                  <div className="traceback">{run.error_traceback}</div>
+          <TabBar role="tablist" aria-label="Vistas del collector">
+            <TabButton
+              type="button"
+              role="tab"
+              aria-selected={activeTab === 'estado'}
+              $active={activeTab === 'estado'}
+              onClick={() => setActiveTab('estado')}
+            >
+              <Icon icon={faGauge} /> Estado actual
+            </TabButton>
+            <TabButton
+              type="button"
+              role="tab"
+              aria-selected={activeTab === 'catalogo'}
+              $active={activeTab === 'catalogo'}
+              onClick={() => setActiveTab('catalogo')}
+            >
+              <Icon icon={faBookOpen} /> Catálogo
+            </TabButton>
+          </TabBar>
+
+          {activeTab === 'estado' && (
+            <Container fluid>
+              <Row>
+                <Col md={4}>
+                  <InfoCard>
+                    <h4>Catálogo</h4>
+                    {definition ? (
+                      <dl>
+                        <dt>Severity</dt>
+                        <dd><Badge style={{ background: SEV_BADGE[definition.severity_default] }}>{definition.severity_default}</Badge></dd>
+                        <dt>Enabled</dt>
+                        <dd>{definition.enabled ? 'Sí' : 'No'}</dd>
+                        <dt>Cron</dt>
+                        <dd>{definition.schedule_cron ? <code>{definition.schedule_cron}</code> : <em>no-schedule</em>}</dd>
+                        <dt>Tablas</dt>
+                        <dd>{definition.target_tables.length > 0 ? definition.target_tables.join(', ') : <em>—</em>}</dd>
+                        <dt>Alertas</dt>
+                        <dd>{definition.open_alerts}</dd>
+                      </dl>
+                    ) : (
+                      <em style={{ color: '#888' }}>Cargando…</em>
+                    )}
+                  </InfoCard>
+                </Col>
+                <Col md={8}>
+                  <TimelineCard>
+                    <h4>Últimos runs ({runs.length})</h4>
+                    <table>
+                      <thead>
+                        <tr>
+                          <th aria-label="expand traceback" />
+                          <th>Inicio</th>
+                          <th>Status</th>
+                          <th>Duración</th>
+                          <th>Filas</th>
+                          <th>Exit</th>
+                          <th>Error</th>
+                          <th aria-label="external link" />
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {runs.map((run) => {
+                          const isExpanded = expanded[run.id] ?? false;
+                          const hasTraceback = Boolean(run.error_traceback);
+                          return (
+                            <React.Fragment key={run.id}>
+                              <tr className={run.status === 'failed' || run.status === 'timeout' ? 'failed' : ''}>
+                                <td
+                                  className={hasTraceback ? 'expander' : ''}
+                                  onClick={hasTraceback ? () => toggle(run.id) : undefined}
+                                >
+                                  {hasTraceback && (
+                                    <Icon icon={isExpanded ? faChevronDown : faChevronRight} />
+                                  )}
+                                </td>
+                                <td>{formatDate(run.started_at)}</td>
+                                <td>{statusBadge(run.status)}</td>
+                                <td>{formatDuration(run.duration_seconds)}</td>
+                                <td>{run.rows_inserted ?? '—'}</td>
+                                <td>{run.exit_code ?? '—'}</td>
+                                <td style={{ color: '#888', maxWidth: 280 }}>
+                                  <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                    {run.error_message ?? ''}
+                                  </div>
+                                </td>
+                                <td>
+                                  {run.gh_run_url && (
+                                    <a href={run.gh_run_url} target="_blank" rel="noreferrer" style={{ fontSize: 12 }}>
+                                      GH <Icon icon={faArrowUpRightFromSquare} />
+                                    </a>
+                                  )}
                                 </td>
                               </tr>
-                            )}
-                          </React.Fragment>
-                        );
-                      })}
-                      {runs.length === 0 && (
-                        <tr>
-                          <td colSpan={8} style={{ textAlign: 'center', color: '#999', padding: 24 }}>
-                            Sin runs registrados aún.
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </TimelineCard>
-              </Col>
-            </Row>
-          </Container>
+                              {isExpanded && hasTraceback && (
+                                <tr>
+                                  <td colSpan={8}>
+                                    <div className="traceback">{run.error_traceback}</div>
+                                  </td>
+                                </tr>
+                              )}
+                            </React.Fragment>
+                          );
+                        })}
+                        {runs.length === 0 && (
+                          <tr>
+                            <td colSpan={8} style={{ textAlign: 'center', color: '#999', padding: 24 }}>
+                              Sin runs registrados aún.
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </TimelineCard>
+                </Col>
+              </Row>
+            </Container>
+          )}
+
+          {activeTab === 'catalogo' && name && (
+            <Container fluid>
+              <CatalogTab collectorName={name} />
+            </Container>
+          )}
         </PageWrap>
       </RoleGuard>
     </CoreLayout>
