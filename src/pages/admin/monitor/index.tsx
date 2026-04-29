@@ -1,17 +1,11 @@
 'use client';
 
 import React, { useEffect, useMemo } from 'react';
-import Link from 'next/link';
 import { CoreLayout } from '@layout';
-import { Container, Row, Col, Badge, Button as BsButton } from 'react-bootstrap';
+import { Container, Row, Col, Button as BsButton } from 'react-bootstrap';
 import { FontAwesomeIcon as Icon } from '@fortawesome/react-fontawesome';
 import {
   faCircleCheck,
-  faCircleExclamation,
-  faCircleXmark,
-  faCircleMinus,
-  faClock,
-  faArrowUpRightFromSquare,
   faBellSlash,
   faCheck,
   faEye,
@@ -22,48 +16,11 @@ import styled from 'styled-components';
 import PageTitle from '@components/PageTitle';
 import RoleGuard from 'src/components/RoleGuard';
 import useAppStore from 'src/store';
-import type { CollectorOverview, Severity, RunStatus } from 'src/types/monitor';
+import type { CollectorOverviewEnriched, Severity } from 'src/types/monitor';
+import MonitorTable from './_MonitorTable';
 
 const PageWrap = styled.div`
   padding: 16px 24px;
-`;
-
-const StatusDot = styled.span<{ $color: string }>`
-  display: inline-block;
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  margin-right: 8px;
-  background: ${(p) => p.$color};
-  vertical-align: middle;
-`;
-
-const TableWrap = styled.div`
-  background: #fff;
-  border-radius: 8px;
-  overflow: hidden;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
-
-  table { width: 100%; margin-bottom: 0; border-collapse: collapse; }
-  thead th {
-    background: #302b63;
-    color: #fff;
-    font-size: 11px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    padding: 10px 12px;
-    text-align: left;
-  }
-  tbody td {
-    font-size: 13px;
-    padding: 10px 12px;
-    border-bottom: 1px solid #eee;
-    vertical-align: middle;
-  }
-  tbody tr:hover { background: rgba(48, 43, 99, 0.05); }
-  a { color: #302b63; text-decoration: none; font-weight: 600; }
-  a:hover { text-decoration: underline; }
 `;
 
 const AlertsPanel = styled.div`
@@ -107,36 +64,11 @@ const EmptyState = styled.div`
   padding: 32px 8px;
 `;
 
-const statusColor = (row: CollectorOverview): string => {
-  if (row.has_critical_alert) return '#dc3545';
-  if (row.has_warning_alert) return '#f0ad4e';
-  if (!row.last_run) return '#b0b0b0';
-  if (row.last_run.status === 'success') return '#28a745';
-  if (row.last_run.status === 'running') return '#5bc0de';
-  return '#dc3545';
-};
-
-const statusBadge = (status: RunStatus) => {
-  const cfg: Record<RunStatus, { bg: string; icon: typeof faCircleCheck }> = {
-    success: { bg: '#28a745', icon: faCircleCheck },
-    running: { bg: '#5bc0de', icon: faClock },
-    failed:  { bg: '#dc3545', icon: faCircleXmark },
-    timeout: { bg: '#6c757d', icon: faCircleExclamation },
-  };
-  const { bg, icon } = cfg[status];
-  return (
-    <Badge style={{ background: bg, fontWeight: 500 }}>
-      <Icon icon={icon} style={{ marginRight: 4 }} /> {status}
-    </Badge>
-  );
-};
-
 const formatRelative = (iso: string | null): string => {
   if (!iso) return '—';
-  const then = new Date(iso).getTime();
-  const diffMs = Date.now() - then;
-  const mins = Math.round(diffMs / 60000);
-  if (mins < 1) return 'justo ahora';
+  const ms = Date.now() - new Date(iso).getTime();
+  const mins = Math.round(ms / 60000);
+  if (mins < 1) return 'ahora';
   if (mins < 60) return `hace ${mins}m`;
   const hours = Math.round(mins / 60);
   if (hours < 48) return `hace ${hours}h`;
@@ -144,34 +76,13 @@ const formatRelative = (iso: string | null): string => {
   return `hace ${days}d`;
 };
 
-const formatDuration = (seconds: number | null): string => {
-  if (seconds == null) return '—';
-  if (seconds < 60) return `${seconds.toFixed(1)}s`;
-  const mins = Math.floor(seconds / 60);
-  const rem = Math.floor(seconds - mins * 60);
-  return `${mins}m ${rem}s`;
-};
-
-const formatRowsInserted = (rows: number | null | undefined) => {
-  // null = the wrapper couldn't snapshot (older runs, RLS, etc.) — show — quietly.
-  // 0 = the run completed cleanly but did NOT write anything; for a daily
-  // collector this is suspicious enough that we want it to stand out
-  // visually even if no empty_run alert has been raised yet.
-  if (rows === null || rows === undefined) {
-    return <span style={{ color: '#bbb' }} title="rows_inserted no fue capturado en este run">—</span>;
-  }
-  if (rows === 0) {
-    return (
-      <span
-        style={{ color: '#b8860b', fontWeight: 600 }}
-        title="0 filas — el run terminó OK pero no escribió nada"
-      >
-        0
-      </span>
-    );
-  }
-  return rows.toLocaleString();
-};
+// ─────────────────────────────────────────────────────────────────
+// Diagnose-prompt builders
+// ─────────────────────────────────────────────────────────────────
+//
+// All variants instruct the agent to investigate but NOT modify code.
+// The user-applied fix loop stays manual until we add a controlled
+// fix-collector tool.
 
 type DiagnoseAlert = {
   source: string;
@@ -277,13 +188,12 @@ const buildEmptyRunPrompt = (alert: DiagnoseAlert): string => {
   ].filter(Boolean).join('\n');
 };
 
-const buildDiagnosePrompt = (alert: DiagnoseAlert): string => {
+const buildAlertDiagnosePrompt = (alert: DiagnoseAlert): string => {
   switch (alert.source) {
     case 'run_failed':  return buildRunFailedPrompt(alert);
     case 'table_stale': return buildTableStalePrompt(alert);
     case 'empty_run':   return buildEmptyRunPrompt(alert);
-    default: {
-      // Generic fallback for missed_run or future sources.
+    default:
       return [
         `Estoy debuggeando una alerta del monitor de Xerenity (source=${alert.source}).`,
         `Collector: \`${alert.collector_name ?? 'n/a'}\`. Tabla: \`${alert.table_name ?? 'n/a'}\`.`,
@@ -292,8 +202,42 @@ const buildDiagnosePrompt = (alert: DiagnoseAlert): string => {
         `Investiga con \`query_database\` (xerenity.collector_definitions, xerenity.collector_runs) y \`read_repo_file\` ` +
         `si necesitas ver codigo. Diagnostica y propon un fix.`,
       ].join('\n');
-    }
   }
+};
+
+// Per-row "investigate this collector" prompt — invoked from the IA
+// button in the table. The agent gets enough context (source, target
+// tables, last run state, review distribution summary) to start a
+// generic health investigation without us pre-deciding what's wrong.
+const buildCollectorDiagnosePrompt = (row: CollectorOverviewEnriched): string => {
+  const lr = row.last_run;
+  const reviewSummary = Object.entries(row.review_distribution)
+    .filter(([k]) => k !== 'total')
+    .map(([k, v]) => `${k}=${v}`)
+    .join(', ');
+  return [
+    `Investiga el estado de salud del collector \`${row.name}\` y diagnostica si algo no va bien.`,
+    ``,
+    `**Contexto rápido**`,
+    `- Fuente: ${row.source ? `\`${row.source.name}\` (${row.source.label})` : '(sin fuente registrada — derivado o sin clasificar)'}`,
+    `- Tablas destino: ${row.target_tables.length > 0 ? row.target_tables.map((t) => `\`${t}\``).join(', ') : '(ninguna)'}`,
+    `- Categorías: ${row.categories.length > 0 ? row.categories.join(', ') : '—'}`,
+    `- Países (datos): ${row.countries_data.length > 0 ? row.countries_data.join(', ') : '—'}`,
+    `- Severity default: ${row.severity_default}${row.is_critical_any ? ' · ⭐ tabla crítica' : ''}`,
+    `- Enabled: ${row.enabled ? 'sí' : 'NO'}`,
+    `- Último run: ${lr ? `${lr.status} hace ${formatRelative(lr.started_at)} (${lr.rows_inserted ?? '—'} filas insertadas)` : 'nunca corrió'}`,
+    `- Alertas abiertas: ${row.open_alerts}`,
+    `- Estado revisión por par (collector,tabla): ${reviewSummary}`,
+    ``,
+    `**Pasos sugeridos**`,
+    `1. \`query_database\` → \`SELECT repo_path, schedule_cron, expected_frequency FROM xerenity.collector_definitions WHERE name = '${row.name}';\``,
+    `2. \`query_database\` → últimos 20 runs (\`xerenity.collector_runs\`) ordenados desc por started_at, mira tendencias de rows_inserted y errores.`,
+    `3. Si el último run es failed o tiene rows_inserted=0, lee el script con \`read_repo_file\`.`,
+    `4. Mira el contenido reciente de cada target_table — ¿last_date razonable dado expected_frequency?`,
+    `5. Resumen final: ¿está sano, hay un bug latente, o hace falta acción operacional? Propón un fix concreto si aplica.`,
+    ``,
+    `Solo diagnostico — no modifiques código. Yo aplico cambios después.`,
+  ].join('\n');
 };
 
 const DIAGNOSE_TOOLTIPS: Record<string, string> = {
@@ -313,11 +257,15 @@ const diagnoseTooltip = (source: string): string =>
   'Abre el chat con un prompt pre-cargado para que el agente investigue esta alerta. NO modifica nada.';
 
 
+// ─────────────────────────────────────────────────────────────────
+// Page
+// ─────────────────────────────────────────────────────────────────
+
 const MonitorPage = () => {
   const {
-    collectorOverview,
+    collectorOverviewEnriched,
     activeAlerts,
-    loadCollectorOverview,
+    loadCollectorOverviewEnriched,
     loadActiveAlerts,
     acknowledgeAlert,
     silenceAlert,
@@ -326,9 +274,9 @@ const MonitorPage = () => {
     clearChat,
     sendMessage,
   } = useAppStore((s) => ({
-    collectorOverview: s.collectorOverview,
+    collectorOverviewEnriched: s.collectorOverviewEnriched,
     activeAlerts: s.activeAlerts,
-    loadCollectorOverview: s.loadCollectorOverview,
+    loadCollectorOverviewEnriched: s.loadCollectorOverviewEnriched,
     loadActiveAlerts: s.loadActiveAlerts,
     acknowledgeAlert: s.acknowledgeAlert,
     silenceAlert: s.silenceAlert,
@@ -339,30 +287,28 @@ const MonitorPage = () => {
   }));
 
   useEffect(() => {
-    loadCollectorOverview();
+    loadCollectorOverviewEnriched();
     loadActiveAlerts();
     const interval = setInterval(() => {
-      loadCollectorOverview();
+      loadCollectorOverviewEnriched();
       loadActiveAlerts();
     }, 30000);
     return () => clearInterval(interval);
-  }, [loadCollectorOverview, loadActiveAlerts]);
+  }, [loadCollectorOverviewEnriched, loadActiveAlerts]);
 
   const counts = useMemo(() => {
-    const total = collectorOverview.length;
-    const critical = collectorOverview.filter((c) => c.has_critical_alert).length;
-    const warning  = collectorOverview.filter((c) => c.has_warning_alert && !c.has_critical_alert).length;
-    const ok       = collectorOverview.filter((c) => !c.has_critical_alert && !c.has_warning_alert && c.last_run?.status === 'success').length;
+    const total = collectorOverviewEnriched.length;
+    const critical = collectorOverviewEnriched.filter((c) => c.has_critical_alert).length;
+    const warning = collectorOverviewEnriched.filter((c) => c.has_warning_alert && !c.has_critical_alert).length;
+    const ok = collectorOverviewEnriched.filter(
+      (c) => !c.has_critical_alert && !c.has_warning_alert && c.last_run?.status === 'success',
+    ).length;
     return { total, critical, warning, ok };
-  }, [collectorOverview]);
+  }, [collectorOverviewEnriched]);
 
-  // Alerts not associated with a collector (table_stale, missed_run on
-  // unknown collectors, etc.) don't show up in the per-collector counter
-  // above — they need their own line so the header doesn't claim "0
-  // critical" while 17 stale-table alerts are open in the side panel.
   const alertCounts = useMemo(() => {
     const critical = activeAlerts.filter((a) => a.severity === 'critical').length;
-    const warning  = activeAlerts.filter((a) => a.severity === 'warning').length;
+    const warning = activeAlerts.filter((a) => a.severity === 'warning').length;
     const tableStale = activeAlerts.filter((a) => a.source === 'table_stale').length;
     return { critical, warning, tableStale, total: activeAlerts.length };
   }, [activeAlerts]);
@@ -376,13 +322,18 @@ const MonitorPage = () => {
     else toast.error(res.error ?? 'Error');
   };
 
-  const handleDiagnose = (alert: typeof activeAlerts[number]) => {
-    const prompt = buildDiagnosePrompt(alert);
+  const launchAgent = (prompt: string) => {
     clearChat();
     openChat();
-    // Defer the actual send to the next tick so the panel is mounted
-    // and the user sees the message land in real time.
     setTimeout(() => { sendMessage(prompt); }, 50);
+  };
+
+  const handleDiagnoseAlert = (alert: typeof activeAlerts[number]) => {
+    launchAgent(buildAlertDiagnosePrompt(alert));
+  };
+
+  const handleDiagnoseRow = (row: CollectorOverviewEnriched) => {
+    launchAgent(buildCollectorDiagnosePrompt(row));
   };
 
   return (
@@ -422,98 +373,16 @@ const MonitorPage = () => {
               </>
             )}
           </div>
+
           <Container fluid>
             <Row>
-              <Col md={8}>
-                <TableWrap>
-                  <table>
-                    <thead>
-                      <tr>
-                        <th style={{ width: 24 }} aria-label="status indicator" />
-                        <th>Collector</th>
-                        <th>Severity</th>
-                        <th>Último run</th>
-                        <th>Duración</th>
-                        <th>Filas</th>
-                        <th>Alertas abiertas</th>
-                        <th>Tablas</th>
-                        <th aria-label="external links" />
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {collectorOverview.map((row) => (
-                        <tr key={row.name}>
-                          <td><StatusDot $color={statusColor(row)} /></td>
-                          <td>
-                            <Link href={`/admin/monitor/${encodeURIComponent(row.name)}`}>
-                              {row.name}
-                            </Link>
-                          </td>
-                          <td>
-                            <Badge
-                              style={{
-                                background: SEV_COLORS[row.severity_default],
-                                fontWeight: 500,
-                              }}
-                            >
-                              {row.severity_default}
-                            </Badge>
-                          </td>
-                          <td>
-                            {row.last_run ? (
-                              <>
-                                {statusBadge(row.last_run.status)}
-                                <span style={{ marginLeft: 8, color: '#888' }}>
-                                  {formatRelative(row.last_run.started_at)}
-                                </span>
-                              </>
-                            ) : (
-                              <span style={{ color: '#999' }}>
-                                <Icon icon={faCircleMinus} style={{ marginRight: 4 }} />
-                                nunca
-                              </span>
-                            )}
-                          </td>
-                          <td>{formatDuration(row.last_run?.duration_s ?? null)}</td>
-                          <td>{formatRowsInserted(row.last_run?.rows_inserted)}</td>
-                          <td>
-                            {row.open_alerts > 0 ? (
-                              <Badge bg="danger">{row.open_alerts}</Badge>
-                            ) : (
-                              <span style={{ color: '#ccc' }} title="0 alertas abiertas">—</span>
-                            )}
-                          </td>
-                          <td style={{ fontSize: 11, color: '#666' }}>
-                            {row.target_tables.length > 0
-                              ? row.target_tables.join(', ')
-                              : <em style={{ color: '#bbb' }}>—</em>}
-                          </td>
-                          <td>
-                            {row.last_run?.gh_run_url && (
-                              <a
-                                href={row.last_run.gh_run_url}
-                                target="_blank"
-                                rel="noreferrer"
-                                style={{ fontSize: 12 }}
-                              >
-                                GH <Icon icon={faArrowUpRightFromSquare} />
-                              </a>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                      {collectorOverview.length === 0 && (
-                        <tr>
-                          <td colSpan={9}>
-                            <EmptyState>Sin collectors en el catálogo.</EmptyState>
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </TableWrap>
+              <Col xl={9} lg={8}>
+                <MonitorTable
+                  rows={collectorOverviewEnriched}
+                  onDiagnose={handleDiagnoseRow}
+                />
               </Col>
-              <Col md={4}>
+              <Col xl={3} lg={4}>
                 <AlertsPanel>
                   <h4>Alertas activas ({activeAlerts.length})</h4>
                   {activeAlerts.length === 0 && (
@@ -537,7 +406,7 @@ const MonitorPage = () => {
                           size="sm"
                           variant="outline-primary"
                           title={diagnoseTooltip(alert.source)}
-                          onClick={() => handleDiagnose(alert)}
+                          onClick={() => handleDiagnoseAlert(alert)}
                         >
                           <Icon icon={faRobot} /> Diagnosticar con IA
                         </BsButton>

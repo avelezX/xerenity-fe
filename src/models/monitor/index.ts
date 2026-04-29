@@ -1,6 +1,7 @@
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import {
   CollectorOverview,
+  CollectorOverviewEnriched,
   CollectorRun,
   CollectorAlert,
 } from 'src/types/monitor';
@@ -32,6 +33,29 @@ export const listCollectorOverview = async (): Promise<ListResponse<CollectorOve
     return response;
   } catch (e) {
     response.error = e instanceof Error ? e.message : 'Error fetching collector overview';
+    return response;
+  }
+};
+
+// Enriched overview — joins source / categories / countries / review
+// distribution into one round-trip. Used by /admin/monitor for the
+// sortable + filterable + groupable table. Falls back to the legacy
+// list_collector_overview if the new RPC is unavailable so the page
+// keeps rendering on environments where the migration hasn't landed.
+export const listCollectorOverviewEnriched = async (): Promise<ListResponse<CollectorOverviewEnriched>> => {
+  const response: ListResponse<CollectorOverviewEnriched> = { data: [], error: undefined };
+  try {
+    const { data, error } = await supabase
+      .schema(SCHEMA)
+      .rpc('list_collector_overview_enriched');
+    if (error) {
+      response.error = error.message || 'Error fetching enriched collector overview';
+      return response;
+    }
+    response.data = (data ?? []) as CollectorOverviewEnriched[];
+    return response;
+  } catch (e) {
+    response.error = e instanceof Error ? e.message : 'Error fetching enriched collector overview';
     return response;
   }
 };
