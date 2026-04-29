@@ -1,28 +1,52 @@
 'use client';
 
 import React, { useEffect } from 'react';
-import { Container, Row, Col } from 'react-bootstrap';
+import { Container } from 'react-bootstrap';
+import styled from 'styled-components';
 import { CoreLayout } from '@layout';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { FontAwesomeIcon as Icon } from '@fortawesome/react-fontawesome';
 import {
-  faFileCsv,
   faMoneyBillTrendUp,
+  faFileCsv,
 } from '@fortawesome/free-solid-svg-icons';
-import Toolbar from '@components/UI/Toolbar';
-import Button from '@components/UI/Button';
-import PageTitle from '@components/PageTitle';
 import useAppStore from 'src/store';
 import { ExportToCsv, downloadBlob } from 'src/utils/downloadCSV';
-import InflationKPIs from '@components/inflation/InflationKPIs';
-import InflationMainChart from '@components/inflation/InflationMainChart';
-import ContributionChart from '@components/inflation/ContributionChart';
-import InflationHeatmap from '@components/inflation/InflationHeatmap';
-import InflationPivotTable from '@components/inflation/InflationPivotTable';
 
-const PAGE_TITLE = 'Inflación';
+import HeroBlock from '@components/inflation/v2/HeroBlock';
+import TrendBlock from '@components/inflation/v2/TrendBlock';
+import SmallMultiples from '@components/inflation/v2/SmallMultiples';
+import DecompositionBlock from '@components/inflation/v2/DecompositionBlock';
+import CityRanking from '@components/inflation/v2/CityRanking';
+import CoreInflationPanel from '@components/inflation/v2/CoreInflationPanel';
+
 const TOTAL_ID = 1;
+
+const Topbar = styled.div`
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 16px; padding: 4px 0;
+`;
+const Heading = styled.div`
+  display: flex; align-items: center; gap: 12px;
+  h2 { margin: 0; font-size: 22px; font-weight: 700; color: #212529; }
+  .subtitle { font-size: 12px; color: #6E6B7B; margin-top: 2px; }
+`;
+const ExportBtn = styled.button`
+  display: inline-flex; align-items: center; gap: 6px;
+  background: #fff; border: 1px solid #DEDEDE; border-radius: 8px;
+  padding: 7px 12px; font-size: 12px; font-weight: 500; color: #212529;
+  cursor: pointer;
+  &:hover { background: #F5F5F7; }
+`;
+
+const Footer = styled.div`
+  margin-top: 24px;
+  padding: 12px 0;
+  border-top: 1px solid #ECECEE;
+  font-size: 10px; color: #A6A6A6;
+  display: flex; flex-wrap: wrap; gap: 16px;
+`;
 
 export default function InflationPage() {
   const loadInflationCatalog = useAppStore((s) => s.loadInflationCatalog);
@@ -30,13 +54,12 @@ export default function InflationPage() {
   const loadCanastaSnapshot = useAppStore((s) => s.loadCanastaSnapshot);
   const loadContributions = useAppStore((s) => s.loadContributions);
   const seriesByCanasta = useAppStore((s) => s.seriesByCanasta);
-  const canastas = useAppStore((s) => s.canastas);
 
   useEffect(() => {
     loadInflationCatalog();
     loadCanastaSeries(TOTAL_ID);
     loadCanastaSnapshot(TOTAL_ID);
-    loadContributions(24);
+    loadContributions(36);
   }, [
     loadInflationCatalog,
     loadCanastaSeries,
@@ -62,52 +85,33 @@ export default function InflationPage() {
 
   return (
     <CoreLayout>
-      <Container fluid className="px-4 pb-3">
-        <Row>
-          <div
-            className="d-flex align-items-center justify-content-between gap-2 py-1"
-            style={{ flexWrap: 'wrap' }}
-          >
-            <PageTitle>
-              <Icon icon={faMoneyBillTrendUp} size="1x" />
-              <h4>{PAGE_TITLE}</h4>
-            </PageTitle>
-            <Toolbar>
-              <Button variant="outline-primary" onClick={downloadCsv}>
-                <Icon icon={faFileCsv} className="mr-4" /> Descargar CSV
-              </Button>
-            </Toolbar>
-          </div>
-        </Row>
+      <Container fluid className="px-4 pb-3" style={{ background: '#FAFAFB', minHeight: '100vh' }}>
+        <Topbar>
+          <Heading>
+            <Icon icon={faMoneyBillTrendUp} size="lg" color="#786CF7" />
+            <div>
+              <h2>Inflación Colombia</h2>
+              <div className="subtitle">DANE · empalmado BanRep desde 1954 · 25 ciudades · medidas de núcleo</div>
+            </div>
+          </Heading>
+          <ExportBtn onClick={downloadCsv}>
+            <Icon icon={faFileCsv} /> Exportar CSV
+          </ExportBtn>
+        </Topbar>
 
-        <InflationKPIs />
+        <HeroBlock />
+        <TrendBlock />
+        <SmallMultiples />
+        <DecompositionBlock />
+        <CityRanking />
+        <CoreInflationPanel />
 
-        <Row>
-          <Col xs={12} className="mb-3">
-            <InflationMainChart />
-          </Col>
-        </Row>
-
-        <Row>
-          <Col xs={12} lg={6} className="mb-3">
-            <ContributionChart />
-          </Col>
-          <Col xs={12} lg={6} className="mb-3">
-            <InflationHeatmap />
-          </Col>
-        </Row>
-
-        <Row>
-          <Col xs={12}>
-            <InflationPivotTable />
-          </Col>
-        </Row>
-
-        <div style={{ marginTop: 12, fontSize: 11, color: '#777' }}>
-          Fuente: DANE (canasta IPC base 2018=100, 12 divisiones COICOP){' '}
-          {canastas.length > 0 ? `· ${canastas.length - 1} divisiones` : ''} ·{' '}
-          Histórico headline empalmado vía BanRep desde 1954.
-        </div>
+        <Footer>
+          <div>Fuente: DANE — Sistema Estadístico Nacional (SEN)</div>
+          <div>Histórico headline: BanRep id=7 (IPC base 2018=100)</div>
+          <div>Núcleo: BanRep — Inflación básica</div>
+          <div>Última actualización: {new Date().toLocaleDateString('es-CO')}</div>
+        </Footer>
       </Container>
       <ToastContainer />
     </CoreLayout>
