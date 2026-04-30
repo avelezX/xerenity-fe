@@ -108,6 +108,43 @@ const TabButton = styled.button<{ $active: boolean }>`
   }
 `;
 
+// Tiny inline cron→Spanish translator. Covers the patterns we use in
+// xerenity-dm. Returns null for shapes it doesn't understand so the UI
+// can fall back gracefully. Inlined (rather than depending on cronstrue)
+// because the cronstrue/i18n submodule breaks Vercel's build pipeline
+// opaquely in this codebase.
+const DOW_ES = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+
+const cronToEs = (cron: string | null): string | null => {
+  if (!cron) return null;
+  const parts = cron.trim().split(/\s+/);
+  if (parts.length !== 5) return null;
+  const [min, hr, , , dow] = parts;
+
+  let when = '';
+  if (hr === '*' && min === '*') when = 'cada minuto';
+  else if (hr === '*' && /^\d+$/.test(min)) when = `al minuto ${min} de cada hora`;
+  else if (/^\d+$/.test(hr) && /^\d+$/.test(min)) when = `a las ${hr.padStart(2, '0')}:${min.padStart(2, '0')}`;
+  else if (/^[\d,]+$/.test(hr) && /^\d+$/.test(min)) {
+    when = `a las ${hr.split(',').map((h) => `${h.padStart(2, '0')}:${min.padStart(2, '0')}`).join(', ')}`;
+  } else if (/^\*\/(\d+)$/.test(hr) && min === '0') {
+    when = `cada ${hr.match(/^\*\/(\d+)$/)![1]}h`;
+  }
+
+  let which = '';
+  if (dow === '*') which = 'todos los días';
+  else if (/^\d-\d$/.test(dow)) {
+    const [a, b] = dow.split('-').map((d) => DOW_ES[parseInt(d, 10) % 7]);
+    which = `de ${a} a ${b}`;
+  } else if (/^[\d,]+$/.test(dow)) {
+    const days = dow.split(',').map((d) => DOW_ES[parseInt(d, 10) % 7]);
+    which = days.length === 1 ? `los ${days[0]}` : `los ${days.join(', ')}`;
+  }
+
+  if (!when || !which) return null;
+  return `${which} ${when} (UTC)`;
+};
+
 const statusBadge = (status: RunStatus) => {
   const cfg: Record<RunStatus, { bg: string; icon: typeof faCircleCheck }> = {
     success: { bg: '#28a745', icon: faCircleCheck },
@@ -215,7 +252,20 @@ const CollectorDetailPage = () => {
                         <dt>Enabled</dt>
                         <dd>{definition.enabled ? 'Sí' : 'No'}</dd>
                         <dt>Cron</dt>
-                        <dd>{definition.schedule_cron ? <code>{definition.schedule_cron}</code> : <em>no-schedule</em>}</dd>
+                        <dd>
+                          {definition.schedule_cron ? (
+                            <>
+                              <code>{definition.schedule_cron}</code>
+                              {cronToEs(definition.schedule_cron) && (
+                                <div style={{ fontSize: 11, color: '#666', marginTop: 2 }}>
+                                  ↳ {cronToEs(definition.schedule_cron)}
+                                </div>
+                              )}
+                            </>
+                          ) : (
+                            <em>no-schedule</em>
+                          )}
+                        </dd>
                         <dt>Tablas</dt>
                         <dd>{definition.target_tables.length > 0 ? definition.target_tables.join(', ') : <em>—</em>}</dd>
                         <dt>Alertas</dt>
