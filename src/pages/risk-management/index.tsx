@@ -2784,9 +2784,8 @@ function RiskManagement() {
                         Px Actual
                         {futuresPortfolio[0]?.current_price_date && <div style={{ fontSize: '0.6rem', color: '#94a3b8', fontWeight: 400 }}>({futuresPortfolio[0].current_price_date})</div>}
                       </th>
-                      <th className="text-end" style={{ borderBottom: '2px solid #e2e8f0', padding: '8px 6px' }}>
+                      <th className="text-end" style={{ borderBottom: '2px solid #e2e8f0', padding: '8px 6px' }} title="Para posiciones abiertas en el mes seleccionado: precio de entrada. Para posiciones de meses anteriores: cierre del último día hábil del mes anterior al filtro.">
                         Px Previo
-                        {futuresPortfolio[0]?.precio_previo_date && <div style={{ fontSize: '0.6rem', color: '#94a3b8', fontWeight: 400 }}>({futuresPortfolio[0].precio_previo_date})</div>}
                       </th>
                       <th className="text-end" style={{ borderBottom: '2px solid #e2e8f0', padding: '8px 6px', color: '#475569' }}>Valor Compra</th>
                       <th className="text-end" style={{ borderBottom: '2px solid #e2e8f0', padding: '8px 6px', color: '#475569' }}>Valor T</th>
@@ -2884,8 +2883,8 @@ function RiskManagement() {
                                 <td style={{ padding: '6px 6px', color: '#94a3b8', fontSize: '0.7rem' }}>{leg.entry_date}</td>
                                 <td className="text-center" style={{ padding: '6px 6px' }}>{' '}</td>
                                 <td className="text-end" style={{ padding: '6px 6px' }}>{leg.entry_price != null ? fmt(leg.entry_price, 2) : ''}</td>
-                                <td className="text-end" style={{ padding: '6px 6px' }}>{leg.current_price != null ? fmt(leg.current_price, 2) : ''}</td>
-                                <td className="text-end" style={{ padding: '6px 6px' }}>{leg.precio_previo != null ? fmt(leg.precio_previo, 2) : ''}</td>
+                                <td className="text-end" style={{ padding: '6px 6px' }} title={leg.current_price_date ? `Precio del ${leg.current_price_date}` : undefined}>{leg.current_price != null ? fmt(leg.current_price, 2) : ''}</td>
+                                <td className="text-end" style={{ padding: '6px 6px' }} title={leg.precio_previo_date ? `Precio previo del ${leg.precio_previo_date}` : undefined}>{leg.precio_previo != null ? fmt(leg.precio_previo, 2) : ''}</td>
                                 <td className="text-end" style={{ padding: '6px 6px', color: '#94a3b8' }}>{leg.entry_price != null && leg.nominal != null ? fmtUsd(Math.round(leg.entry_price * (leg.multiplier ?? 1) * leg.nominal * (leg.asset === 'CACAO' ? 1 : 0.01))) : ''}</td>
                                 <td className="text-end" style={{ padding: '6px 6px', color: '#94a3b8' }}>{leg.valor_t != null ? fmtUsd(leg.valor_t) : ''}</td>
                                 <td className="text-end" style={{ padding: '6px 6px', color: '#94a3b8' }}>{leg.valor_t1 != null ? fmtUsd(leg.valor_t1) : ''}</td>
@@ -2934,8 +2933,8 @@ function RiskManagement() {
                             {!isSummaryRow && pos.asset ? ({ MAIZ: '5,000 bu', AZUCAR: '112,000 lbs', CACAO: '10 ton' }[pos.asset] ?? '') : ''}
                           </td>
                           <td className="text-end" style={{ padding: '8px 6px' }}>{!isSummaryRow && pos.entry_price != null ? fmt(pos.entry_price, 2) : ''}</td>
-                          <td className="text-end" style={{ padding: '8px 6px', fontWeight: 600 }}>{!isSummaryRow && pos.current_price != null ? fmt(pos.current_price, 2) : ''}</td>
-                          <td className="text-end" style={{ padding: '8px 6px' }}>{!isSummaryRow && pos.precio_previo != null ? fmt(pos.precio_previo, 2) : ''}</td>
+                          <td className="text-end" style={{ padding: '8px 6px', fontWeight: 600 }} title={!isSummaryRow && pos.current_price_date ? `Precio del ${pos.current_price_date}` : undefined}>{!isSummaryRow && pos.current_price != null ? fmt(pos.current_price, 2) : ''}</td>
+                          <td className="text-end" style={{ padding: '8px 6px' }} title={!isSummaryRow && pos.precio_previo_date ? `Precio previo del ${pos.precio_previo_date}` : undefined}>{!isSummaryRow && pos.precio_previo != null ? fmt(pos.precio_previo, 2) : ''}</td>
                           <td className="text-end" style={{ padding: '8px 6px' }}>{!isSummaryRow && pos.entry_price != null && pos.nominal != null ? fmtUsd(Math.round(pos.entry_price * (pos.multiplier ?? 1) * pos.nominal * ({ MAIZ: 0.01, AZUCAR: 0.01, CACAO: 1 }[pos.asset] ?? 1))) : ''}</td>
                           <td className="text-end" style={{ padding: '8px 6px' }}>{pos.valor_t != null ? fmtUsd(pos.valor_t) : ''}</td>
                           <td className="text-end" style={{ padding: '8px 6px' }}>{pos.valor_t1 != null ? fmtUsd(pos.valor_t1) : ''}</td>
