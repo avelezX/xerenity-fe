@@ -229,6 +229,7 @@ export function calculateFuturesPortfolio(
       closed_date: pos.closed_date,
       closed_price: pos.closed_price,
       rolled_to: pos.rolled_to,
+      portfolio_id: pos.portfolio_id,
     });
   }
 

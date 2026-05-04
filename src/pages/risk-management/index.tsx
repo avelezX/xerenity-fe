@@ -16,6 +16,7 @@ import {
   faBorderAll,
   faBookOpen,
   faFilePdf,
+  faFileCsv,
   faBriefcase,
   faMugHot,
   faCalculator,
@@ -328,7 +329,6 @@ async function exportTabToPdf(elementId: string, fileName: string) {
   const element = document.getElementById(elementId);
   if (!element) return;
 
-  // Hide buttons (Actualizar, Metodología, PDF, selectors) during capture
   const buttons = element.querySelectorAll('button, .btn, select, input[type="date"]');
   const origDisplay: string[] = [];
   buttons.forEach((el, i) => {
@@ -337,49 +337,103 @@ async function exportTabToPdf(elementId: string, fileName: string) {
     htmlEl.style.display = 'none';
   });
 
+  // scale 1.5 (vs 2) — ~44% pixel count, lectura sigue siendo crisp en A4
   const canvas = await html2canvas(element, {
-    scale: 2,
+    scale: 1.5,
     useCORS: true,
     backgroundColor: '#ffffff',
   });
 
-  // Restore buttons
   buttons.forEach((node, i) => {
     const htmlEl = node as HTMLElement;
     htmlEl.style.display = origDisplay[i];
   });
 
-  const imgData = canvas.toDataURL('image/png');
+  // JPEG quality 0.82 — visualmente equivalente a PNG para texto/grafico, 5-10x mas chico
+  const imgData = canvas.toDataURL('image/jpeg', 0.82);
 
-  // Landscape A4
-  const margin = 10; // mm margins
+  const margin = 10;
   // eslint-disable-next-line new-cap
-  const pdf = new jsPDF('l', 'mm', 'a4');
+  const pdf = new jsPDF({ orientation: 'l', unit: 'mm', format: 'a4', compress: true });
   const pdfWidth = pdf.internal.pageSize.getWidth();
   const pdfHeight = pdf.internal.pageSize.getHeight();
   const contentWidth = pdfWidth - margin * 2;
   const contentHeight = pdfHeight - margin * 2;
 
-  // Scale image to fit width with margins
   const imgAspect = canvas.height / canvas.width;
   const scaledHeight = contentWidth * imgAspect;
 
   if (scaledHeight <= contentHeight) {
-    // Fits on one page
-    pdf.addImage(imgData, 'PNG', margin, margin, contentWidth, scaledHeight);
+    pdf.addImage(imgData, 'JPEG', margin, margin, contentWidth, scaledHeight, undefined, 'FAST');
   } else {
-    // Multi-page: split vertically
     let yOffset = 0;
     let page = 0;
     while (yOffset < scaledHeight) {
       if (page > 0) pdf.addPage();
-      pdf.addImage(imgData, 'PNG', margin, margin - yOffset, contentWidth, scaledHeight);
+      pdf.addImage(imgData, 'JPEG', margin, margin - yOffset, contentWidth, scaledHeight, undefined, 'FAST');
       yOffset += contentHeight;
       page += 1;
     }
   }
 
   pdf.save(fileName);
+}
+
+/* ─── CSV EXPORT ─── */
+
+function tablesToCsv(element: HTMLElement): string {
+  const escape = (s: string): string => {
+    const trimmed = s.replace(/\s+/g, ' ').trim();
+    if (/[",\n]/.test(trimmed)) return `"${trimmed.replace(/"/g, '""')}"`;
+    return trimmed;
+  };
+
+  const sections: string[] = [];
+  const tables = element.querySelectorAll('table');
+
+  tables.forEach((table, tIdx) => {
+    const rows: string[] = [];
+    // Section title from preceding heading (h5/h6) if available
+    let title = `Tabla ${tIdx + 1}`;
+    const card = table.closest('.rounded, .table-responsive');
+    const heading = card?.parentElement?.querySelector('h5, h6');
+    if (heading?.textContent) title = heading.textContent.replace(/\s+/g, ' ').trim();
+    rows.push(escape(title));
+
+    table.querySelectorAll('tr').forEach((tr) => {
+      const cells: string[] = [];
+      tr.querySelectorAll('th, td').forEach((cell) => {
+        // Skip action cells (buttons-only)
+        const onlyButtons = cell.querySelector('button') && !cell.textContent?.replace(/\s/g, '').trim();
+        if (onlyButtons) return;
+        cells.push(escape(cell.textContent ?? ''));
+      });
+      if (cells.some((c) => c.length > 0)) rows.push(cells.join(','));
+    });
+    sections.push(rows.join('\n'));
+  });
+
+  return sections.join('\n\n');
+}
+
+async function exportTabToCsv(elementId: string, fileName: string) {
+  const element = document.getElementById(elementId);
+  if (!element) return;
+
+  const csv = tablesToCsv(element);
+  if (!csv.trim()) return;
+
+  // BOM (U+FEFF) para que Excel detecte UTF-8
+  const bom = String.fromCharCode(0xFEFF);
+  const blob = new Blob([bom + csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
 }
 
 function PdfButton({ elementId, fileName }: { elementId: string; fileName: string }) {
@@ -392,6 +446,20 @@ function PdfButton({ elementId, fileName }: { elementId: string; fileName: strin
     >
       <Icon icon={faFilePdf} className="me-1" />
       PDF
+    </button>
+  );
+}
+
+function CsvButton({ elementId, fileName }: { elementId: string; fileName: string }) {
+  return (
+    <button
+      type="button"
+      className="btn btn-sm btn-outline-success ms-2"
+      onClick={() => exportTabToCsv(elementId, fileName)}
+      title="Exportar a CSV"
+    >
+      <Icon icon={faFileCsv} className="me-1" />
+      CSV
     </button>
   );
 }
@@ -896,6 +964,7 @@ function RiskManagement() {
   const [futuresLoading, setFuturesLoading] = useState(false);
   const [futuresShowClosed, setFuturesShowClosed] = useState(false);
   const [futuresShowAddForm, setFuturesShowAddForm] = useState(false);
+  const [expandedSpreads, setExpandedSpreads] = useState<Set<string>>(new Set());
   const [futuresMonth, setFuturesMonth] = useState(currentMonth());
   const [newPosition, setNewPosition] = useState<NewFuturesPosition>({
     asset: 'MAIZ', contract: '', direction: 'SHORT', nominal: 1, entry_price: 0, entry_date: defaultDate(),
@@ -1402,6 +1471,7 @@ function RiskManagement() {
                 </Button>
                 <MethodologyButton onClick={() => setMethModal('benchmark')} />
                 <PdfButton elementId="pdf-benchmark" fileName="benchmark.pdf" />
+                <CsvButton elementId="pdf-benchmark" fileName="benchmark.csv" />
               </Col>
               <Col xs="auto">
                 <Form.Group>
@@ -1604,6 +1674,7 @@ function RiskManagement() {
                 </Button>
                 <MethodologyButton onClick={() => setMethModal('rolling')} />
                 <PdfButton elementId="pdf-rolling" fileName="rolling_var.pdf" />
+                <CsvButton elementId="pdf-rolling" fileName="rolling_var.csv" />
               </Col>
             </Row>
 
@@ -1836,6 +1907,7 @@ function RiskManagement() {
                     </Button>
                     <MethodologyButton onClick={() => setMethModal('exposure')} />
                     <PdfButton elementId="pdf-exposure" fileName="exposicion.pdf" />
+                    <CsvButton elementId="pdf-exposure" fileName="exposicion.csv" />
                   </div>
                 </Col>
                 <Col className="d-flex align-items-end gap-3">
@@ -2523,6 +2595,7 @@ function RiskManagement() {
                   </Button>
                   <MethodologyButton onClick={() => setMethModal('matrices')} />
                   <PdfButton elementId="pdf-matrices" fileName="matrices.pdf" />
+                  <CsvButton elementId="pdf-matrices" fileName="matrices.csv" />
                 </Col>
               </Row>
 
@@ -2634,6 +2707,7 @@ function RiskManagement() {
                 className="ms-3"
               />
               <PdfButton elementId="futures-tab" fileName="portafolio_gr_futuros.pdf" />
+              <CsvButton elementId="futures-tab" fileName="portafolio_gr_futuros.csv" />
             </div>
 
             {/* Add Position Form */}
@@ -2705,7 +2779,6 @@ function RiskManagement() {
                       <th className="text-center" style={{ borderBottom: '2px solid #e2e8f0', padding: '8px 6px' }}>Mult.</th>
                       <th className="text-end" style={{ borderBottom: '2px solid #e2e8f0', padding: '8px 6px' }}>
                         Px Compra
-                        {futuresPortfolio[0]?.entry_date && <div style={{ fontSize: '0.6rem', color: '#94a3b8', fontWeight: 400 }}>({futuresPortfolio[0].entry_date})</div>}
                       </th>
                       <th className="text-end" style={{ borderBottom: '2px solid #e2e8f0', padding: '8px 6px' }}>
                         Px Actual
@@ -2724,12 +2797,119 @@ function RiskManagement() {
                     </tr>
                   </thead>
                   <tbody>
-                    {futuresPortfolio.map((pos, idx) => {
+                    {(() => {
+                      // Pre-compute spread groups (rows sharing portfolio_id, 2 legs opp direction)
+                      type SpreadM = { long: FuturesPosition; short: FuturesPosition; nominal: number; mult: number; toUsd: number; spreadOpen: number; spreadCurrent: number | null; spreadPrev: number | null; valorCompra: number; valorT: number | null; valorT1: number | null; pnlMonth: number; pnlInception: number };
+                      const spreadMap = new Map<string, SpreadM>();
+                      const groups = new Map<string, FuturesPosition[]>();
+                      futuresPortfolio.forEach((p) => {
+                        if (!p.portfolio_id) return;
+                        const arr = groups.get(p.portfolio_id) ?? [];
+                        arr.push(p);
+                        groups.set(p.portfolio_id, arr);
+                      });
+                      groups.forEach((legs, pid) => {
+                        if (legs.length !== 2) return;
+                        const long = legs.find((l) => l.direction === 'LONG');
+                        const short = legs.find((l) => l.direction === 'SHORT');
+                        if (!long || !short || long.asset !== short.asset) return;
+                        const nominal = Math.min(long.nominal ?? 0, short.nominal ?? 0);
+                        const mult = long.multiplier ?? 1;
+                        const toUsd = long.asset === 'CACAO' ? 1 : 0.01;
+                        const spreadOpen = (long.entry_price ?? 0) - (short.entry_price ?? 0);
+                        const spreadCurrent = (long.current_price != null && short.current_price != null) ? long.current_price - short.current_price : null;
+                        const spreadPrev = (long.precio_previo != null && short.precio_previo != null) ? long.precio_previo - short.precio_previo : null;
+                        spreadMap.set(pid, {
+                          long, short, nominal, mult, toUsd,
+                          spreadOpen, spreadCurrent, spreadPrev,
+                          valorCompra: spreadOpen * nominal * mult * toUsd,
+                          valorT: spreadCurrent != null ? spreadCurrent * nominal * mult * toUsd : null,
+                          valorT1: spreadPrev != null ? spreadPrev * nominal * mult * toUsd : null,
+                          pnlMonth: (long.pnl_month ?? 0) + (short.pnl_month ?? 0),
+                          pnlInception: (long.pnl_inception ?? 0) + (short.pnl_inception ?? 0),
+                        });
+                      });
+                      const renderedSpreads = new Set<string>();
+                      const rendered: React.ReactNode[] = [];
+
+                      futuresPortfolio.forEach((pos, idx) => {
                       const isTotal = pos.asset === 'Total';
                       const isSubtotal = pos.asset?.startsWith('Total ') && !isTotal;
                       const isSummaryRow = isTotal || isSubtotal;
                       const dirColor = pos.direction === 'LONG' ? '#059669' : '#dc2626';
-                      return (
+
+                      // ── Spread handling: render spread-header on first leg, skip second leg ──
+                      if (pos.portfolio_id && spreadMap.has(pos.portfolio_id) && !isSummaryRow) {
+                        if (renderedSpreads.has(pos.portfolio_id)) return; // skip second leg
+                        renderedSpreads.add(pos.portfolio_id);
+                        const m = spreadMap.get(pos.portfolio_id)!;
+                        const isExpanded = expandedSpreads.has(pos.portfolio_id);
+                        const sprColor = m.pnlInception >= 0 ? '#059669' : '#dc2626';
+                        const fmtSpread = (v: number | null) => v == null ? '—' : (v >= 0 ? '+' : '') + v.toFixed(2);
+                        const toggle = () => setExpandedSpreads((prev) => { const n = new Set(prev); if (n.has(pos.portfolio_id!)) n.delete(pos.portfolio_id!); else n.add(pos.portfolio_id!); return n; });
+                        rendered.push(
+                          <tr key={`spread-${pos.portfolio_id}`} style={{ background: '#faf5ff', borderTop: '2px solid #c4b5fd' }}>
+                            <td style={{ padding: '8px 6px' }}>
+                              <button type="button" onClick={toggle} style={{ background: 'none', border: 'none', padding: 0, fontSize: '0.7rem', color: '#7c3aed', marginRight: 4, cursor: 'pointer' }} aria-label={isExpanded ? 'Colapsar' : 'Expandir'}>{isExpanded ? '▾' : '▸'}</button>
+                              <span style={{ color: '#7c3aed', fontWeight: 700 }}>{m.long.asset}</span>
+                            </td>
+                            <td style={{ padding: '8px 6px', color: '#475569', fontWeight: 600, fontSize: '0.75rem' }}>
+                              {m.long.contract}/{m.short.contract}
+                              <span style={{ color: '#94a3b8', fontSize: '0.65rem', marginLeft: 4 }}>(spread #{pos.portfolio_id})</span>
+                            </td>
+                            <td style={{ padding: '8px 6px', color: '#7c3aed', fontWeight: 600, fontSize: '0.7rem', letterSpacing: '0.05em' }}>SPREAD</td>
+                            <td className="text-center" style={{ padding: '8px 6px' }}>{m.nominal}</td>
+                            <td style={{ padding: '8px 6px', color: '#64748b', fontSize: '0.75rem' }}>{m.long.entry_date}</td>
+                            <td className="text-center" style={{ padding: '8px 6px', fontSize: '0.65rem', color: '#94a3b8' }}>{({ MAIZ: '5,000 bu', AZUCAR: '112,000 lbs', CACAO: '10 ton' } as Record<string,string>)[m.long.asset] ?? ''}</td>
+                            <td className="text-end" style={{ padding: '8px 6px', fontSize: '0.75rem' }} title="Spread apertura (long − short)">Δ {fmtSpread(m.spreadOpen)}</td>
+                            <td className="text-end" style={{ padding: '8px 6px', fontSize: '0.75rem', fontWeight: 600 }} title="Spread actual">Δ {fmtSpread(m.spreadCurrent)}</td>
+                            <td className="text-end" style={{ padding: '8px 6px', fontSize: '0.75rem' }} title="Spread previo">Δ {fmtSpread(m.spreadPrev)}</td>
+                            <td className="text-end" style={{ padding: '8px 6px' }}>{fmtUsd(Math.round(m.valorCompra))}</td>
+                            <td className="text-end" style={{ padding: '8px 6px' }}>{m.valorT != null ? fmtUsd(Math.round(m.valorT)) : ''}</td>
+                            <td className="text-end" style={{ padding: '8px 6px' }}>{m.valorT1 != null ? fmtUsd(Math.round(m.valorT1)) : ''}</td>
+                            <td className="text-end" style={{ padding: '8px 6px', fontWeight: 600, color: m.pnlMonth >= 0 ? '#059669' : '#dc2626' }}>{fmtUsd(m.pnlMonth)}</td>
+                            <td className="text-end" style={{ padding: '8px 6px', fontWeight: 600, color: sprColor }}>{fmtUsd(m.pnlInception)}</td>
+                            <td style={{ padding: '8px 6px' }}>{' '}</td>
+                          </tr>
+                        );
+                        if (isExpanded) {
+                          [m.long, m.short].forEach((leg) => {
+                            const legDirColor = leg.direction === 'LONG' ? '#059669' : '#dc2626';
+                            rendered.push(
+                              <tr key={`leg-${leg.id ?? leg.contract}`} style={{ background: '#fafafa', fontSize: '0.78rem' }}>
+                                <td style={{ padding: '6px 6px 6px 28px', color: '#94a3b8', fontStyle: 'italic' }}>↳ leg</td>
+                                <td style={{ padding: '6px 6px', color: '#64748b' }}>{leg.contract}{leg.contract && parseContractMaturity(leg.contract) && <span style={{ color: '#cbd5e1', fontSize: '0.7rem', marginLeft: 4 }}>({parseContractMaturity(leg.contract)})</span>}</td>
+                                <td style={{ padding: '6px 6px', color: legDirColor, fontWeight: 600, fontSize: '0.7rem' }}>{leg.direction}</td>
+                                <td className="text-center" style={{ padding: '6px 6px' }}>{leg.nominal}</td>
+                                <td style={{ padding: '6px 6px', color: '#94a3b8', fontSize: '0.7rem' }}>{leg.entry_date}</td>
+                                <td className="text-center" style={{ padding: '6px 6px' }}>{' '}</td>
+                                <td className="text-end" style={{ padding: '6px 6px' }}>{leg.entry_price != null ? fmt(leg.entry_price, 2) : ''}</td>
+                                <td className="text-end" style={{ padding: '6px 6px' }}>{leg.current_price != null ? fmt(leg.current_price, 2) : ''}</td>
+                                <td className="text-end" style={{ padding: '6px 6px' }}>{leg.precio_previo != null ? fmt(leg.precio_previo, 2) : ''}</td>
+                                <td className="text-end" style={{ padding: '6px 6px', color: '#94a3b8' }}>{leg.entry_price != null && leg.nominal != null ? fmtUsd(Math.round(leg.entry_price * (leg.multiplier ?? 1) * leg.nominal * (leg.asset === 'CACAO' ? 1 : 0.01))) : ''}</td>
+                                <td className="text-end" style={{ padding: '6px 6px', color: '#94a3b8' }}>{leg.valor_t != null ? fmtUsd(leg.valor_t) : ''}</td>
+                                <td className="text-end" style={{ padding: '6px 6px', color: '#94a3b8' }}>{leg.valor_t1 != null ? fmtUsd(leg.valor_t1) : ''}</td>
+                                <td className={`text-end ${pnlClass(leg.pnl_month)}`} style={{ padding: '6px 6px' }}>{leg.pnl_month != null ? fmtUsd(leg.pnl_month) : ''}</td>
+                                <td className={`text-end ${pnlClass(leg.pnl_inception)}`} style={{ padding: '6px 6px' }}>{leg.pnl_inception != null ? fmtUsd(leg.pnl_inception) : ''}</td>
+                                <td style={{ padding: '6px 6px' }}>
+                                  {leg.id && (
+                                    <div className="d-flex gap-1 justify-content-end">
+                                      <button type="button" className="btn btn-sm" style={{ fontSize: '0.62rem', padding: '1px 6px', color: '#64748b', border: '1px solid #e2e8f0', borderRadius: 4 }}
+                                        onClick={() => { setEditModal(leg); setEditFields({ asset: leg.asset, contract: leg.contract ?? '', direction: (leg.direction as 'LONG' | 'SHORT') ?? 'SHORT', nominal: leg.nominal ?? 1, entry_price: leg.entry_price ?? 0, entry_date: leg.entry_date ?? '' }); }}>Editar</button>
+                                      <button type="button" className="btn btn-sm" style={{ fontSize: '0.62rem', padding: '1px 6px', color: '#94a3b8' }}
+                                        onClick={() => handleDelete(leg)} title="Eliminar" aria-label="Eliminar leg">&times;</button>
+                                    </div>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          });
+                        }
+                        return;
+                      }
+
+                      // Normal row
+                      rendered.push(
                         <tr key={pos.id ?? `row-${idx}`} style={getRowStyle(isTotal, isSubtotal)}>
                           <td style={{ padding: '8px 6px', fontWeight: isSummaryRow ? 700 : 400 }}>
                             {/* eslint-disable-next-line no-nested-ternary */}
@@ -2785,7 +2965,9 @@ function RiskManagement() {
                           </td>
                         </tr>
                       );
-                    })}
+                    });
+                    return rendered;
+                    })()}
                   </tbody>
                 </table>
                 </div>
