@@ -207,6 +207,7 @@ export interface FuturesPosition {
   closed_date?: string | null;
   closed_price?: number | null;
   rolled_to?: string | null;
+  portfolio_id?: string | null;
 }
 
 export interface FuturesPortfolioResponse {
