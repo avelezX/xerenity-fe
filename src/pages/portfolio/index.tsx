@@ -1952,7 +1952,6 @@ function PortfolioPage() {
 
   const {
     tradingError,
-    canEdit,
     loadUserRole,
     userRole,
     marketDataConfig,
@@ -1961,6 +1960,16 @@ function PortfolioPage() {
     activeCompanyId,
     selectedCompanyId,
   } = useAppStore();
+  // Derive canEdit reactively from userProfile so it stays correct even when
+  // loadUserProfile resolves after loadUserRole. The store flag goes stale
+  // across that race; userProfile is the canonical source.
+  const userProfile = useAppStore((s) => s.userProfile);
+  const canEdit =
+    userProfile?.role === 'super_admin' ||
+    userProfile?.role === 'corp_admin' ||
+    userProfile?.role === 'gestor' ||
+    userRole.role === 'admin' ||
+    userRole.role === 'manager';
 
   // #317 — Position lists now come from TanStack Query. Their cache key
   // includes companyId so switching companies invalidates correctly. The

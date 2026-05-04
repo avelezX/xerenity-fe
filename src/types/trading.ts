@@ -97,6 +97,24 @@ export interface XccyCashflow {
   diff_bps: number;
 }
 
+/**
+ * Server-reported pricing completeness for a single position result.
+ *
+ * Phase 3.3 of epic #300 — pysdk now annotates each result row with one of
+ * these statuses so the FE doesn't have to infer from null coalescing.
+ *
+ * - `complete`: every required + auxiliary field is present and finite.
+ * - `partial`:  NPV is present (so the row is usable), but some auxiliary
+ *               fields (carry, DV01, par_basis, etc.) are missing — typically
+ *               because a curve isn't available for the position's tenor.
+ * - `degraded`: NPV itself is missing or pricing raised — the row is not
+ *               usable for valuation.
+ *
+ * Optional because older pysdk deploys don't send it; the FE falls back to
+ * the legacy null-NPV heuristic when missing.
+ */
+export type PricingStatus = 'complete' | 'partial' | 'degraded';
+
 export interface PricedXccy extends XccyPosition {
   npv_cop: number;
   npv_usd: number;
@@ -126,6 +144,8 @@ export interface PricedXccy extends XccyPosition {
   days_open?: number;
   cashflows: XccyCashflow[];
   error?: string;
+  pricing_status?: PricingStatus;
+  missing_fields?: string[];
 }
 
 export interface PricedNdf extends NdfPosition {
@@ -148,6 +168,8 @@ export interface PricedNdf extends NdfPosition {
   days_open?: number;
   accrued_cop?: number;
   error?: string;
+  pricing_status?: PricingStatus;
+  missing_fields?: string[];
 }
 
 export interface IbrSwapCashflow {
@@ -181,6 +203,8 @@ export interface PricedIbrSwap extends IbrSwapPosition {
   accrued_carry_cop?: number;
   cashflows?: IbrSwapCashflow[];
   error?: string;
+  pricing_status?: PricingStatus;
+  missing_fields?: string[];
 }
 
 // ── Portfolio summary ──

@@ -8,6 +8,10 @@ import { checkRateLimit } from './rate-limiter';
 
 export const config = {
   api: { bodyParser: { sizeLimit: '1mb' } },
+  // Vercel Pro caps node-runtime API routes at 60s by default. Debugging
+  // sessions can take longer once the agent chains 5–10 tool calls
+  // (query_database + read_repo_file roundtrips). 300s is the Pro maximum.
+  maxDuration: 300,
 };
 
 function sendSSE(res: NextApiResponse, event: Record<string, unknown>) {
@@ -130,7 +134,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }));
 
   try {
-    const MAX_LOOPS = 10;
+    // Generous loop budget for diagnose-an-alert sessions which often need
+    // catalog query + multiple file reads + a follow-up query. Bumped from
+    // 10 after the agent ran out mid-debugging on a stale-table alert.
+    const MAX_LOOPS = 20;
+    let hitLimit = true;
 
     for (let loopCount = 0; loopCount < MAX_LOOPS; loopCount += 1) {
       const stream = anthropic.messages.stream({
@@ -150,6 +158,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
       if (message.stop_reason === 'end_turn') {
         sendSSE(res, { type: 'done' });
+        hitLimit = false;
         break;
       }
 
@@ -166,8 +175,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         anthropicMessages.push({ role: 'user', content: toolResults });
       } else {
         sendSSE(res, { type: 'done' });
+        hitLimit = false;
         break;
       }
+    }
+
+    // If the loop exits because we hit MAX_LOOPS (not a clean stop_reason),
+    // still tell the client we're done so the spinner clears. Without this
+    // the UI keeps "thinking" forever and the user has to reload.
+    if (hitLimit) {
+      sendSSE(res, {
+        type: 'text_delta',
+        text: '\n\n_(El agente alcanzó el límite de iteraciones. Si necesitás que siga investigando, escribí "continuá" o pedile algo más específico.)_',
+      });
+      sendSSE(res, { type: 'done' });
     }
   } catch (error) {
     if (error instanceof Anthropic.RateLimitError) {

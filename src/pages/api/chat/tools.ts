@@ -184,6 +184,29 @@ export const tools: Anthropic.Tool[] = [
     },
   },
   {
+    name: 'read_repo_file',
+    description:
+      'Lee el contenido de un archivo del repositorio xerenity-dm (donde viven los collectors). ' +
+      'SOLO disponible para usuarios con role=super_admin. Solo permite lectura. ' +
+      'Usalo cuando estes debuggeando un fallo de un collector y necesites ver el codigo fuente. ' +
+      'Path debe ser relativo al root del repo (ej: "run_collect_trm.py", "data_collectors/coffee/fnc.py"). ' +
+      'No se permiten paths con ".." ni absolutos.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        path: {
+          type: 'string',
+          description: 'Path relativo desde el root de xerenity-dm. Ej: "run_collect_trm.py".',
+        },
+        explanation: {
+          type: 'string',
+          description: 'Por que necesitas leer este archivo (1 oracion).',
+        },
+      },
+      required: ['path', 'explanation'],
+    },
+  },
+  {
     name: 'control_chart',
     description:
       'Controla el graficador actual: cambiar periodo, normalizar, limpiar, o quitar series. ' +

@@ -6,6 +6,7 @@ import type {
   PricedNdf,
   PricedIbrSwap,
   PortfolioRepriceResponse,
+  PricingStatus,
 } from 'src/types/trading';
 import {
   telemetry,
@@ -142,15 +143,49 @@ async function repriceImpl(
   // "Err" when `error` is set, so promote null-NPV to an error status here so
   // the user sees "Err" instead of a fake zero. Preserves any existing backend
   // error message so real failure reasons still surface.
+  //
+  // Phase 3.3 (epic #300): pysdk now sets `pricing_status` and `missing_fields`
+  // explicitly. Prefer those when present; fall back to the legacy null-NPV
+  // heuristic for backwards-compat with older deploys.
   const promoteNullNpvToError = (
     r: Record<string, unknown>,
     criticalFields: string[],
   ): string | undefined => {
     if (r.error) return r.error as string;
+
+    // Server-reported status (preferred path).
+    const status = r.pricing_status as string | undefined;
+    if (status === 'degraded' || status === 'partial') {
+      const missing = Array.isArray(r.missing_fields) ? r.missing_fields as string[] : [];
+      // Only treat 'partial' as an error if NPV itself is missing — partial
+      // typically means an auxiliary field (carry/dv01) is None, which is
+      // displayable. Show explicit missing-field detail when degraded.
+      if (status === 'degraded') {
+        return missing.length > 0
+          ? `NPV incompleto (${missing.join(', ')})`
+          : 'NPV incompleto';
+      }
+      // partial: do not surface as error; charts/NPV still render.
+      return undefined;
+    }
+    if (status === 'complete') {
+      return undefined;
+    }
+
+    // Legacy fallback when `pricing_status` is absent (older pysdk deploys).
     const missing = criticalFields.filter((f) => r[f] === null || r[f] === undefined);
     if (missing.length === 0) return undefined;
     return `NPV incompleto (${missing.join(', ')})`;
   };
+
+  /** Pluck through the pricing_status / missing_fields onto each result row
+   *  so consumers (UI tooltips, dev panels, future logic) can read them. */
+  const passthroughStatus = (r: Record<string, unknown>) => ({
+    pricing_status: r.pricing_status as PricingStatus | undefined,
+    missing_fields: Array.isArray(r.missing_fields)
+      ? r.missing_fields as string[]
+      : undefined,
+  });
 
   const xccyResults: PricedXccy[] = (raw.xccy_results ?? []).map((r) => {
     const pos = xccyById[r.id as string];
@@ -173,6 +208,7 @@ async function repriceImpl(
       notional_cop: g('notional_cop'), fx_spot: g('fx_spot'), n_periods: g('n_periods'),
       cashflows: (r.cashflows as PricedXccy['cashflows']) ?? [],
       error: promoteNullNpvToError(r, ['npv_cop', 'npv_usd']),
+      ...passthroughStatus(r),
     };
   });
 
@@ -193,6 +229,7 @@ async function repriceImpl(
       days_open: g('days_open'),
       accrued_cop: g('accrued_cop'),
       error: promoteNullNpvToError(r, ['npv_cop', 'npv_usd']),
+      ...passthroughStatus(r),
     };
   });
 
@@ -212,6 +249,7 @@ async function repriceImpl(
       carry_period_cop: g('carry_period_cop'),
       carry_period_diff_bps: g('carry_period_diff_bps'),
       error: promoteNullNpvToError(r, ['npv']),
+      ...passthroughStatus(r),
     };
   });
 

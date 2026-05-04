@@ -1,11 +1,13 @@
 import { StateCreator } from 'zustand';
 import {
   CollectorOverview,
+  CollectorOverviewEnriched,
   CollectorRun,
   CollectorAlert,
 } from 'src/types/monitor';
 import {
   listCollectorOverview,
+  listCollectorOverviewEnriched,
   listActiveAlerts,
   listCollectorRuns,
   acknowledgeAlert as ackRpc,
@@ -15,13 +17,19 @@ import {
 } from 'src/models/monitor';
 
 export interface MonitorSlice {
+  // Legacy overview — kept around because /admin/monitor/[name] still
+  // calls getCollectorDefinition() which uses the basic RPC. Will get
+  // dropped once that page also migrates.
   collectorOverview: CollectorOverview[];
+  // Enriched overview powering the new /admin/monitor table.
+  collectorOverviewEnriched: CollectorOverviewEnriched[];
   activeAlerts: CollectorAlert[];
   collectorRuns: Record<string, CollectorRun[]>;
   monitorLoading: boolean;
   monitorError: string | undefined;
 
   loadCollectorOverview: () => Promise<void>;
+  loadCollectorOverviewEnriched: () => Promise<void>;
   loadActiveAlerts: () => Promise<void>;
   loadCollectorRuns: (collectorName: string, limit?: number) => Promise<void>;
   acknowledgeAlert: (alertId: string) => Promise<ActionResponse>;
@@ -32,6 +40,7 @@ export interface MonitorSlice {
 
 const initialState = {
   collectorOverview: [] as CollectorOverview[],
+  collectorOverviewEnriched: [] as CollectorOverviewEnriched[],
   activeAlerts: [] as CollectorAlert[],
   collectorRuns: {} as Record<string, CollectorRun[]>,
   monitorLoading: false,
@@ -49,6 +58,16 @@ const createMonitorSlice: StateCreator<MonitorSlice> = (set, get) => ({
       return;
     }
     set({ collectorOverview: res.data, monitorLoading: false });
+  },
+
+  loadCollectorOverviewEnriched: async () => {
+    set({ monitorLoading: true, monitorError: undefined });
+    const res = await listCollectorOverviewEnriched();
+    if (res.error) {
+      set({ monitorLoading: false, monitorError: res.error });
+      return;
+    }
+    set({ collectorOverviewEnriched: res.data, monitorLoading: false });
   },
 
   loadActiveAlerts: async () => {
