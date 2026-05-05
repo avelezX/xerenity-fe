@@ -28,10 +28,10 @@ import LoansBlotterTable from 'src/components/loans/LoansBlotterTable';
 import { fetchCashFlows } from 'src/models/loans/fetchCashFlows';
 import { useLoanPortfolioSummary } from 'src/queries/loans';
 import { useIbrCurve } from 'src/queries/sovereignCurve';
+import DebtCurveChart from 'src/components/loans/DebtCurveChart';
+import CheapestBankChart from 'src/components/loans/CheapestBankChart';
 import NewCreditModal from './_NewCreditModal';
 import CashFlowOverlay from './_cashFlowOverLay/cashFlowOverlay';
-import DebtCurveChart from './_DebtCurveChart';
-import CheapestBankChart from './_CheapestBankChart';
 
 const designSystem = tokens.xerenity;
 const INTEREST_COLOR = designSystem['purple-50'].value;
