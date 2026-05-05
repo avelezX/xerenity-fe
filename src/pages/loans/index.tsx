@@ -99,7 +99,6 @@ export default function LoansPage() {
     deleteMultipleLoans,
     setCurrentSelection,
     activeCompanyId,
-    selectedCompanyId,
   } = useAppStore();
 
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('Todos');
@@ -236,11 +235,20 @@ export default function LoansPage() {
     }
   };
 
+  // Only fetch loans when a company is selected. Without one, leave the
+  // store empty and let the render show the "select a company" state —
+  // calling the RPC with a null company_id would fall back to data outside
+  // the user's intended scope.
+  const companyId = activeCompanyId();
   useEffect(() => {
-    getLoanData([], activeCompanyId());
+    if (!companyId) {
+      resetStore();
+      return undefined;
+    }
+    getLoanData([], companyId);
     return () => resetStore();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [getLoanData, resetStore, selectedCompanyId]);
+  }, [getLoanData, resetStore, companyId]);
 
   useEffect(() => { wakeServer(); }, [wakeServer]);
 
@@ -258,6 +266,35 @@ export default function LoansPage() {
   }, [errorMessage, successMessage]);
 
   const bankSelectItems = banks.map((bck) => ({ value: bck.bank_name, label: bck.bank_name }));
+
+  if (!companyId) {
+    return (
+      <CoreLayout>
+        <div style={{ padding: '0 16px 16px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', padding: '8px 0', marginBottom: 8 }}>
+            <PageTitle>
+              <Icon icon={faLandmark} size="1x" />
+              <h4>{PAGE_TITLE}</h4>
+            </PageTitle>
+          </div>
+          <div
+            style={{
+              padding: 48,
+              textAlign: 'center',
+              color: '#6c757d',
+              fontSize: 13,
+              border: '2px dashed #dee2e6',
+              borderRadius: 8,
+              background: '#fff',
+            }}
+          >
+            Selecciona una empresa para ver sus créditos.
+          </div>
+        </div>
+        <ToastContainer />
+      </CoreLayout>
+    );
+  }
 
   return (
     <CoreLayout>
