@@ -27,6 +27,9 @@ import currencyFormat from 'src/utils/currencyFormat';
 import LoansBlotterTable from 'src/components/loans/LoansBlotterTable';
 import { fetchCashFlows } from 'src/models/loans/fetchCashFlows';
 import { useLoanPortfolioSummary } from 'src/queries/loans';
+import { useIbrCurve } from 'src/queries/sovereignCurve';
+import DebtCurveChart from 'src/components/loans/DebtCurveChart';
+import CheapestBankChart from 'src/components/loans/CheapestBankChart';
 import NewCreditModal from './_NewCreditModal';
 import CashFlowOverlay from './_cashFlowOverLay/cashFlowOverlay';
 
@@ -63,19 +66,12 @@ const TYPE_PILL_COLORS: Record<string, { bg: string; color: string }> = {
 };
 
 type TypeFilter = 'Todos' | 'ibr' | 'uvr' | 'fija';
-type ChartTab = 'ibr' | 'fija' | 'uvr';
 
 const TYPE_OPTIONS: { key: TypeFilter; label: string }[] = [
   { key: 'Todos', label: 'Todos' },
   { key: 'ibr', label: 'IBR' },
   { key: 'uvr', label: 'UVR' },
   { key: 'fija', label: 'Tasa Fija' },
-];
-
-const CHART_TABS: { key: ChartTab; label: string }[] = [
-  { key: 'ibr', label: 'IBR' },
-  { key: 'fija', label: 'Tasa Fija' },
-  { key: 'uvr', label: 'UVR' },
 ];
 
 // ─── Page ───────────────────────────────────────────────────────────────────
@@ -101,7 +97,6 @@ export default function LoansPage() {
     setFilterDate,
     wakeServer,
     deleteMultipleLoans,
-    loading,
     setCurrentSelection,
     activeCompanyId,
     selectedCompanyId,
@@ -110,7 +105,6 @@ export default function LoansPage() {
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('Todos');
   const [globalFilter, setGlobalFilter] = useState('');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [chartTab, setChartTab] = useState<ChartTab>('ibr');
   const [cashflowModalLoan, setCashflowModalLoan] = useState<Loan | null>(null);
   const [cashflowModalData, setCashflowModalData] = useState<LoanCashFlowIbr[]>([]);
   const [cashflowModalLoading, setCashflowModalLoading] = useState(false);
@@ -142,56 +136,10 @@ export default function LoansPage() {
     [loans, fullLoan],
   );
 
-  // ─── Chart data (from merged cashflows of selected loans) ───
-  const safeDate = (d: string | undefined) => (d ? d.split(' ')[0] : '');
-  const paymentChartData = mergedCashFlows
-    .filter((f) => f.date)
-    .map((flow) => ({ time: safeDate(flow.date), value: flow.payment ?? 0 }));
-  const principalChartData = mergedCashFlows
-    .filter((f) => f.date)
-    .map((flow) => ({ time: safeDate(flow.date), value: flow.principal ?? 0 }));
-  const rateChartData = mergedCashFlows
-    .filter((f) => f.date)
-    .map((flow) => ({ time: safeDate(flow.date), value: flow.rate_tot ?? 0 }));
+  // ─── IBR curve for the debt charts (used to compute IBR + spread points) ───
+  const { data: ibrCurve, isLoading: ibrLoading } = useIbrCurve();
 
-  // ─── Yield curve data: rate vs duration by type ───
-  const yieldCurveData = useMemo(() => {
-    const byType: Record<ChartTab, { time: string; value: number }[]> = {
-      ibr: [], fija: [], uvr: [],
-    };
-    // Build from individual cashflow items — use average rate_tot per loan
-    // lightweight-charts requires time as YYYY-MM-DD, so convert tenor (years) to fake dates
-    const BASE_YEAR = 2025;
-    cashFlows.forEach((cf) => {
-      const loan = loans.find((l) => l.id === cf.loanId);
-      if (!loan || cf.flows.length === 0) return;
-      const type = loan.type as ChartTab;
-      if (!(type in byType)) return;
-      const avgRate = cf.flows.reduce((s, f) => s + (f.rate_tot ?? 0), 0) / cf.flows.length;
-      if (!Number.isFinite(avgRate)) return;
-      const periodYears: Record<string, number> = {
-        Mensual: 1 / 12, Trimestral: 0.25, Semestral: 0.5, Anual: 1,
-      };
-      const tenor = loan.number_of_payments * (periodYears[loan.periodicity] ?? 0.25);
-      if (tenor <= 0) return;
-      // Convert tenor to a date: base + tenor years
-      const totalMonths = Math.round(tenor * 12);
-      const year = BASE_YEAR + Math.floor(totalMonths / 12);
-      const month = (totalMonths % 12) + 1;
-      const dateStr = `${year}-${String(month).padStart(2, '0')}-01`;
-      byType[type].push({ time: dateStr, value: avgRate * 100 });
-    });
-    // Sort by date and deduplicate (keep first per date)
-    Object.values(byType).forEach((arr) => {
-      arr.sort((a, b) => (a.time < b.time ? -1 : 1));
-      const seen = new Set<string>();
-      for (let i = arr.length - 1; i >= 0; i -= 1) {
-        if (seen.has(arr[i].time)) arr.splice(i, 1);
-        else seen.add(arr[i].time);
-      }
-    });
-    return byType;
-  }, [cashFlows, loans]);
+  const safeDate = (d: string | undefined) => (d ? d.split(' ')[0] : '');
 
   // Type counts for pills
   const typeCounts = useMemo(() => {
@@ -484,59 +432,19 @@ export default function LoansPage() {
           />
         </div>
 
-        {/* ─── Charts ─── */}
+        {/* ─── Debt Analysis Charts ─── */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
-          <div style={{ background: '#fff', border: '1px solid #dee2e6', borderRadius: 8, padding: 16 }}>
-            <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8, color: '#212529' }}>Flujo de Caja &amp; Tasa Implícita</div>
-            {paymentChartData.length > 0 ? (
-              <DelayedChart key={`cf-${paymentChartData.length}`} showToolbar loading={loading}>
-                <Chart.Bar data={paymentChartData} color={INTEREST_COLOR} scaleId="right" title="Interés" />
-                <Chart.Bar data={principalChartData} color={PRINCIPAL_COLOR} scaleId="right" title="Capital" />
-                <Chart.Line data={rateChartData} color={designSystem['green-400'].value} scaleId="left" title="Tasa % (Izq)" />
-              </DelayedChart>
-            ) : (
-              <div style={{ padding: 40, textAlign: 'center', color: '#adb5bd', fontSize: 12, border: '2px dashed #dee2e6', borderRadius: 8 }}>
-                Selecciona créditos para ver el flujo de caja consolidado.
-              </div>
-            )}
-          </div>
-
-          <div style={{ background: '#fff', border: '1px solid #dee2e6', borderRadius: 8, padding: 16 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-              <span style={{ fontSize: 13, fontWeight: 700, color: '#212529' }}>Curva de Tasa vs Duración</span>
-              <div style={{ display: 'flex', gap: 4, marginLeft: 'auto' }}>
-                {CHART_TABS.map(({ key, label }) => (
-                  <button
-                    type="button"
-                    key={key}
-                    onClick={() => setChartTab(key)}
-                    style={{
-                      padding: '2px 8px', fontSize: 10, fontWeight: 600, borderRadius: 4, cursor: 'pointer',
-                      border: chartTab === key ? '2px solid #495057' : '1px solid #dee2e6',
-                      background: chartTab === key ? (TYPE_PILL_COLORS[key]?.bg ?? '#495057') : '#f8f9fa',
-                      color: chartTab === key ? (TYPE_PILL_COLORS[key]?.color ?? '#fff') : '#6c757d',
-                    }}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-            </div>
-            {yieldCurveData[chartTab].length > 0 ? (
-              <DelayedChart key={`yc-${chartTab}-${yieldCurveData[chartTab].length}`} showToolbar loading={loading}>
-                <Chart.Line
-                  data={yieldCurveData[chartTab]}
-                  color={TYPE_PILL_COLORS[chartTab]?.color ?? '#495057'}
-                  scaleId="left"
-                  title={`Tasa (${chartTab.toUpperCase()})`}
-                />
-              </DelayedChart>
-            ) : (
-              <div style={{ padding: 40, textAlign: 'center', color: '#adb5bd', fontSize: 12, border: '2px dashed #dee2e6', borderRadius: 8 }}>
-                Selecciona créditos {chartTab.toUpperCase()} para ver la curva.
-              </div>
-            )}
-          </div>
+          <DebtCurveChart
+            loans={selectedLoanRows}
+            cashFlows={cashFlows}
+            ibrCurve={ibrCurve ?? []}
+            isLoading={ibrLoading}
+          />
+          <CheapestBankChart
+            loans={selectedLoanRows}
+            ibrCurve={ibrCurve ?? []}
+            isLoading={ibrLoading}
+          />
         </div>
       </div>
 
