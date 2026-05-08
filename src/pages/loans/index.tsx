@@ -60,18 +60,20 @@ const fmtMM = (v: number | null | undefined) => {
 };
 
 const TYPE_PILL_COLORS: Record<string, { bg: string; color: string }> = {
-  ibr:  { bg: '#fff3cd', color: '#856404' },
-  uvr:  { bg: '#e8d5f5', color: '#6f42c1' },
-  fija: { bg: '#cce5ff', color: '#004085' },
+  ibr:    { bg: '#fff3cd', color: '#856404' },
+  uvr:    { bg: '#e8d5f5', color: '#6f42c1' },
+  fija:   { bg: '#cce5ff', color: '#004085' },
+  custom: { bg: '#d1f7e7', color: '#0f5132' },
 };
 
-type TypeFilter = 'Todos' | 'ibr' | 'uvr' | 'fija';
+type TypeFilter = 'Todos' | 'ibr' | 'uvr' | 'fija' | 'custom';
 
 const TYPE_OPTIONS: { key: TypeFilter; label: string }[] = [
   { key: 'Todos', label: 'Todos' },
   { key: 'ibr', label: 'IBR' },
   { key: 'uvr', label: 'UVR' },
   { key: 'fija', label: 'Tasa Fija' },
+  { key: 'custom', label: 'Custom' },
 ];
 
 // ─── Page ───────────────────────────────────────────────────────────────────
@@ -142,7 +144,7 @@ export default function LoansPage() {
 
   // Type counts for pills
   const typeCounts = useMemo(() => {
-    const counts = { ibr: 0, uvr: 0, fija: 0 };
+    const counts = { ibr: 0, uvr: 0, fija: 0, custom: 0 };
     loans.forEach((l) => {
       if (l.type in counts) counts[l.type as keyof typeof counts] += 1;
     });
@@ -402,6 +404,7 @@ export default function LoansPage() {
           {typeCounts.ibr > 0 && <SummaryItem label="IBR" value={`${typeCounts.ibr} créditos`} color="#856404" />}
           {typeCounts.uvr > 0 && <SummaryItem label="UVR" value={`${typeCounts.uvr} créditos`} color="#6f42c1" />}
           {typeCounts.fija > 0 && <SummaryItem label="Tasa Fija" value={`${typeCounts.fija} créditos`} color="#004085" />}
+          {typeCounts.custom > 0 && <SummaryItem label="Custom" value={`${typeCounts.custom} créditos`} color="#0f5132" />}
         </div>
 
         {/* ─── Filters ─── */}

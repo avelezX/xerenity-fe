@@ -33,6 +33,11 @@ const CASH_FLOW_UVR = {
   error: 'Error Fetching UVR Cash Flows',
 };
 
+const CASH_FLOW_CUSTOM = {
+  key: 'custom_cash_flow',
+  error: 'Error Fetching Custom Cash Flows',
+};
+
 const SCHEMA = 'xerenity';
 const supabase = createClientComponentClient();
 
@@ -48,6 +53,8 @@ export const fetchCashFlows = async (
     requestKey = CASH_FLOW_IBR.key;
   } else if (loanType === 'uvr') {
     requestKey = CASH_FLOW_UVR.key;
+  } else if (loanType === 'custom') {
+    requestKey = CASH_FLOW_CUSTOM.key;
   }
   const response: CashflowResponse = {
     data: [],
