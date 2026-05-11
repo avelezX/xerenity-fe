@@ -1309,6 +1309,15 @@ function RiskManagement() {
         if (row.asset === 'Total') return;
 
         // ── USD row: fed from OTC store (FX Delta + P&L MTD USD) ──
+        // TODO(hardcode-temporal): el row USD deberia leer dinamicamente del OTC
+        // store (pricedXccy + pricedNdf + summary + refPrices.mtd) anclados a
+        // benchmarkDateStr. Por ahora no se dispara la carga del OTC store en
+        // este page (eso quedo fuera del PR #372 hasta organizar arquitectura
+        // de fechas). Mientras tanto, se hardcodean los valores de Abril 2026
+        // copiados manualmente del tab Portafolio OTC al 2026-04-30:
+        //   FX Delta total (sum XCCY + NDF)  = -$8,800,000
+        //   P&L MTD USD (npv hoy - npv MTD)  = +$121,300
+        // Quitar este hardcode cuando se implemente el flujo dinamico.
         if (row.asset === 'USD') {
           const fxDeltaTotal = (pricedXccyStore ?? []).reduce((s, p) => s + (p.fx_delta ?? 0), 0)
             + (pricedNdfStore ?? []).reduce((s, p) => s + (p.fx_delta ?? 0), 0);
@@ -1316,8 +1325,15 @@ function RiskManagement() {
           const pnlMtdUsd = (otcSummary && mtdRef)
             ? otcSummary.total_npv_usd - mtdRef.summary.total_npv_usd
             : 0;
-          next[i].position_gr = fxDeltaTotal !== 0 ? String(Math.round(fxDeltaTotal)) : '0';
-          next[i].pnl_gr = pnlMtdUsd !== 0 ? String(Math.round(pnlMtdUsd)) : '0';
+          // Si el store esta poblado, usar valores reales. Si no, fallback al
+          // hardcode de Abril 2026.
+          const useStore = fxDeltaTotal !== 0 || pnlMtdUsd !== 0;
+          next[i].position_gr = useStore
+            ? String(Math.round(fxDeltaTotal))
+            : '-8800000';
+          next[i].pnl_gr = useStore
+            ? String(Math.round(pnlMtdUsd))
+            : '121300';
           return;
         }
 
