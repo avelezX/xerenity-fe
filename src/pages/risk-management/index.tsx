@@ -1299,11 +1299,9 @@ function RiskManagement() {
   }, [exposureResult, varianceMap]);
 
   // When futures portfolio or benchmark month changes, auto-fill position_gr and pnl_gr
-  // Only positions opened ON or BEFORE the selected benchmark month are included
+  // Solo se incluyen posiciones con entry_date <= benchmarkDateStr (filtro que
+  // ya hizo calculateFuturesPortfolio antes de poblar futuresPortfolio).
   useEffect(() => {
-    // Use Px Inicio (price_start) and Px Fin (price_end) from benchmark factors for P&G
-    const factors = benchmarkFactors?.factors ?? {};
-
     setBenchmarkRows((prev) => {
       const next = prev.map((r) => ({ ...r }));
 
@@ -1323,43 +1321,24 @@ function RiskManagement() {
           return;
         }
 
-        // Filter positions: only those opened on or before the selected month
-        const positions = (futuresPortfolio ?? []).filter((p) =>
-          p.asset === row.asset
-          && p.entry_date != null
-          && p.entry_date !== ''
-          && p.entry_date <= benchmarkDateStr,
-        );
-
-        if (positions.length === 0) {
-          next[i].position_gr = '0';
-          next[i].pnl_gr = '0';
-          return;
-        }
-
-        // Position GR = sum of Valor Compra (entry_price × multiplier × nominal × toUsd)
-        const valorCompra = positions.reduce((s, p) => {
-          const toUsd = ({ MAIZ: 0.01, AZUCAR: 0.01, CACAO: 1 } as Record<string, number>)[p.asset] ?? 1;
-          return s + (p.entry_price ?? 0) * (p.multiplier ?? 1) * (p.nominal ?? 0) * toUsd;
-        }, 0);
-        next[i].position_gr = String(Math.round(valorCompra));
-
-        // P&G GR = sum of (price_end - price_start) × multiplier × nominal × dirSign × toUsd
-        // Use benchmark prices for the selected month
-        const f = factors[row.asset];
-        if (f?.price_start != null && f?.price_end != null) {
-          const pnlGr = positions.reduce((s, p) => {
-            const toUsd = ({ MAIZ: 0.01, AZUCAR: 0.01, CACAO: 1 } as Record<string, number>)[p.asset] ?? 1;
-            const dirSign = p.direction === 'LONG' ? 1 : -1;
-            // For positions opened in the current month: P&G = (price_end - entry_price) × ...
-            // For older positions: P&G = (price_end - price_start) × ...
-            const entryMonth = (p.entry_date ?? '').slice(0, 7);
-            const filterMonth = benchmarkDateStr.slice(0, 7);
-            const startPrice = entryMonth === filterMonth ? (p.entry_price ?? 0) : (f.price_start ?? 0);
-            return s + (f.price_end! - startPrice) * (p.multiplier ?? 1) * (p.nominal ?? 0) * dirSign * toUsd;
-          }, 0);
-          next[i].pnl_gr = String(Math.round(pnlGr));
+        // Lookup el subtotal row del Portafolio GR tab para este activo.
+        // Single source of truth: las dos pestañas (Benchmark y Portafolio GR)
+        // deben mostrar los mismos numeros para Valor Compra y P&L Mes.
+        //
+        // Antes: aqui se recalculaba con el FRONT contract price para todos los
+        // contratos del activo (lineas 1380-1404 del codigo anterior). Esto
+        // producia errores de hasta $20K en el P&G GR para AZUCAR/MAIZ porque
+        // contratos lejanos (SBH27, SBV27, ZCK27, ZCN27) tienen precios muy
+        // distintos al front (SBN26, ZCN26).
+        //
+        // Ahora: leer directo del subtotal del Portafolio GR (que usa precios
+        // per-contract de risk_prices_all_contracts).
+        const subtotalRow = (futuresPortfolio ?? []).find((p) => p.asset === `Total ${row.asset}`);
+        if (subtotalRow) {
+          next[i].position_gr = String(subtotalRow.valor_compra ?? 0);
+          next[i].pnl_gr = String(subtotalRow.pnl_month ?? 0);
         } else {
+          next[i].position_gr = '0';
           next[i].pnl_gr = '0';
         }
       });
@@ -1367,7 +1346,7 @@ function RiskManagement() {
       return recalcBenchmark(next, varianceMap);
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [futuresPortfolio, varianceMap, benchmarkDateStr, benchmarkFactors, otcSummary, pricedXccyStore, pricedNdfStore, refPricesStore]);
+  }, [futuresPortfolio, varianceMap, benchmarkDateStr, otcSummary, pricedXccyStore, pricedNdfStore, refPricesStore]);
 
   // Build chart data for rolling var
   const buildChartData = (asset: string, field: 'prices' | 'rolling_var') => {

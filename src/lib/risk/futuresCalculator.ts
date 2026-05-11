@@ -280,10 +280,12 @@ export function calculateFuturesPortfolio(
       closed_date: null,
       closed_price: null,
       rolled_to: null,
+      valor_compra: Math.round(group.valorCompra),
     });
   }
 
   // Grand total row
+  const grandValorCompra = Array.from(assetGroups.values()).reduce((s, g) => s + g.valorCompra, 0);
   sorted.push({
     id: '',
     asset: 'Total',
@@ -306,6 +308,7 @@ export function calculateFuturesPortfolio(
     closed_date: null,
     closed_price: null,
     rolled_to: null,
+    valor_compra: Math.round(grandValorCompra),
   });
 
   return sorted;
