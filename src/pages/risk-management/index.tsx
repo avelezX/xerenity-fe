@@ -887,6 +887,7 @@ function RiskManagement() {
   // Total $ COP del blotter cafe — alimenta Exposicion Natural de CAFE en Benchmark.
   // Solo aplica si hasCafe es true. El componente BlotterCafe llama a setCafeBlotterTotal
   // cada vez que cambian sus filas.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [cafeBlotterTotal, setCafeBlotterTotal] = useState<number>(0);
 
   const [activeTab, setActiveTab] = useState('benchmark');
