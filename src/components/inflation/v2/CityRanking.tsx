@@ -2,12 +2,15 @@
 
 import React, { useEffect, useState } from 'react';
 import styled from 'styled-components';
-import useAppStore from 'src/store';
 import { CitySnapshot } from 'src/types/inflation';
 import { fetchCitySnapshot } from 'src/models/inflation';
-
-const TARGET = 3;
-const BAND = 1;
+import {
+  toneFromYoy,
+  toneText,
+  toneBorder,
+  toneRowBg,
+  Tone,
+} from './toneColors';
 
 const Wrap = styled.section`
   background: #fff;
@@ -30,35 +33,20 @@ const Sub = styled.div`
 const Grid = styled.div`
   display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 6px;
 `;
-const Row = styled.div<{ tone: 'high' | 'mid' | 'low' | 'neutral' }>`
+const Row = styled.div<{ $tone: Tone }>`
   display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center;
   padding: 6px 10px; border-radius: 6px;
-  background: ${({ tone }) =>
-    tone === 'high' ? '#FCE5E720' :
-    tone === 'low'  ? '#DCEFE320' :
-    tone === 'mid'  ? '#FFF3CD20' : '#F5F5F7'};
-  border-left: 3px solid ${({ tone }) =>
-    tone === 'high' ? '#B02A37' :
-    tone === 'low'  ? '#188754' :
-    tone === 'mid'  ? '#FFC106' : '#A6A6A6'};
+  background: ${({ $tone }) => toneRowBg($tone)};
+  border-left: 3px solid ${({ $tone }) => toneBorder($tone)};
 `;
 const City = styled.div`
   font-size: 12px; color: #212529; font-weight: 500;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 `;
-const Yoy = styled.div<{ tone: 'high' | 'mid' | 'low' | 'neutral' }>`
+const Yoy = styled.div<{ $tone: Tone }>`
   font-size: 14px; font-weight: 700; font-feature-settings: 'tnum' on;
-  color: ${({ tone }) =>
-    tone === 'high' ? '#B02A37' :
-    tone === 'low'  ? '#188754' : '#212529'};
+  color: ${({ $tone }) => toneText($tone)};
 `;
-
-const tone = (yoy: number | null | undefined): 'high' | 'mid' | 'low' | 'neutral' => {
-  if (yoy == null || Number.isNaN(yoy)) return 'neutral';
-  if (yoy > TARGET + BAND) return 'high';
-  if (yoy < TARGET - BAND) return 'low';
-  return 'mid';
-};
 
 const fmtPct = (v: number | null | undefined) =>
   v == null || Number.isNaN(v) ? '—' : `${v.toFixed(2)}%`;
@@ -82,23 +70,24 @@ export default function CityRanking() {
   const minYoy = Math.min(...sorted.map((c) => c.yoy ?? Infinity));
   const maxYoy = Math.max(...sorted.map((c) => c.yoy ?? -Infinity));
 
+  let subText = 'Cargando…';
+  if (sorted.length > 0) {
+    subText = `${sorted.length} ciudades · cierre ${date ?? '—'} · rango ${minYoy.toFixed(2)}%–${maxYoy.toFixed(2)}%`;
+  }
+
   return (
     <Wrap>
       <Header>
         <Title>IPC por ciudad · ranking YoY</Title>
-        <Sub>
-          {sorted.length > 0
-            ? `${sorted.length} ciudades · cierre ${date ?? '—'} · rango ${minYoy.toFixed(2)}%–${maxYoy.toFixed(2)}%`
-            : 'Cargando…'}
-        </Sub>
+        <Sub>{subText}</Sub>
       </Header>
       <Grid>
         {sorted.map((c) => {
-          const t = tone(c.yoy);
+          const t = toneFromYoy(c.yoy);
           return (
-            <Row key={c.ciudad} tone={t}>
+            <Row key={c.ciudad} $tone={t}>
               <City title={c.ciudad}>{c.ciudad}</City>
-              <Yoy tone={t}>{fmtPct(c.yoy)}</Yoy>
+              <Yoy $tone={t}>{fmtPct(c.yoy)}</Yoy>
             </Row>
           );
         })}

@@ -6,14 +6,12 @@ import {
   ResponsiveContainer,
   ComposedChart,
   Area,
-  Line,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
   ReferenceArea,
   ReferenceLine,
-  Legend,
 } from 'recharts';
 import useAppStore from 'src/store';
 
@@ -100,10 +98,12 @@ export default function TrendBlock() {
   const data = useMemo(() => {
     if (!series) return [];
     const base = rangeMonths ? series.slice(-rangeMonths) : series;
-    return base.map((p) => ({
-      time: p.time,
-      v: view === 'yoy' ? p.yoy : view === 'mom' ? p.mom : p.indice,
-    }));
+    const pickValue = (p: typeof base[number]) => {
+      if (view === 'yoy') return p.yoy;
+      if (view === 'mom') return p.mom;
+      return p.indice;
+    };
+    return base.map((p) => ({ time: p.time, v: pickValue(p) }));
   }, [series, view, rangeMonths]);
 
   const visibleAnnotations = useMemo(() => {

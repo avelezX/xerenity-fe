@@ -54,7 +54,6 @@ interface Row {
 
 export default function CoreInflationPanel() {
   const [data, setData] = useState<Row[]>([]);
-  const [latest, setLatest] = useState<Record<number, number | null>>({});
 
   useEffect(() => {
     let cancelled = false;
@@ -64,9 +63,7 @@ export default function CoreInflationPanel() {
       if (cancelled || !res.data) return;
       // Merge by date
       const map = new Map<string, Row>();
-      const last: Record<number, number | null> = {};
       res.data.forEach(({ id, values }) => {
-        if (values.length) last[id] = values[values.length - 1].value;
         values.forEach((v) => {
           if (!map.has(v.time)) map.set(v.time, { time: v.time });
           (map.get(v.time) as Row)[`s${id}`] = v.value;
@@ -77,7 +74,6 @@ export default function CoreInflationPanel() {
       );
       // last 120 months
       setData(rows.slice(-120));
-      setLatest(last);
     })();
     return () => { cancelled = true; };
   }, []);

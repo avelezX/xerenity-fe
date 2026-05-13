@@ -9,10 +9,15 @@ import {
   YAxis,
 } from 'recharts';
 import useAppStore from 'src/store';
+import {
+  Tone,
+  toneFromYoy,
+  toneText,
+  toneBorder,
+  toneAccent,
+} from './toneColors';
 
 const TOTAL_ID = 1;
-const TARGET = 3;
-const BAND = 1;
 
 const Wrap = styled.section`
   background: #fff;
@@ -35,10 +40,9 @@ const Grid = styled.div`
   @media (max-width: 1100px) { grid-template-columns: repeat(2, 1fr); }
 `;
 
-const Card = styled.div<{ tone: 'high' | 'mid' | 'low' | 'neutral' }>`
+const Card = styled.div<{ $tone: Tone }>`
   border: 1px solid #ECECEE;
-  border-left: 3px solid ${({ tone }) =>
-    tone === 'high' ? '#B02A37' : tone === 'low' ? '#188754' : tone === 'mid' ? '#FFC106' : '#A6A6A6'};
+  border-left: 3px solid ${({ $tone }) => toneBorder($tone)};
   border-radius: 8px;
   padding: 10px 12px;
   display: flex; flex-direction: column; gap: 4px;
@@ -56,10 +60,9 @@ const NameTxt = styled.div`
 const PesoTxt = styled.div`
   font-size: 10px; color: #A6A6A6;
 `;
-const Big = styled.div<{ tone: 'high' | 'mid' | 'low' | 'neutral' }>`
+const Big = styled.div<{ $tone: Tone }>`
   font-size: 22px; font-weight: 700; line-height: 1;
-  color: ${({ tone }) =>
-    tone === 'high' ? '#B02A37' : tone === 'low' ? '#188754' : '#212529'};
+  color: ${({ $tone }) => toneText($tone)};
 `;
 const Small = styled.div`
   font-size: 11px; color: #6E6B7B;
@@ -68,14 +71,10 @@ const Spark = styled.div`
   height: 36px; width: 100%; margin-top: auto;
 `;
 
-const fmtPct = (v: number | null | undefined) =>
-  v == null || Number.isNaN(v) ? '—' : `${v >= 0 ? '+' : ''}${v.toFixed(2)}%`;
-
-const tone = (yoy: number | null | undefined): 'high' | 'mid' | 'low' | 'neutral' => {
-  if (yoy == null || Number.isNaN(yoy)) return 'neutral';
-  if (yoy > TARGET + BAND) return 'high';
-  if (yoy < TARGET - BAND) return 'low';
-  return 'mid';
+const fmtPct = (v: number | null | undefined) => {
+  if (v == null || Number.isNaN(v)) return '—';
+  const sign = v >= 0 ? '+' : '';
+  return `${sign}${v.toFixed(2)}%`;
 };
 
 export default function SmallMultiples() {
@@ -93,37 +92,36 @@ export default function SmallMultiples() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canastas.length]);
 
-  const cards = useMemo(() => {
-    return canastas
-      .filter((c) => c.id !== TOTAL_ID && (c.nivel === undefined || c.nivel === 1))
-      .map((c) => {
-        const ser = seriesByCanasta[c.id] || [];
-        const last = ser[ser.length - 1];
-        return {
-          id: c.id,
-          nombre: c.nombre,
-          peso: c.peso,
-          yoy: last?.yoy ?? null,
-          mom: last?.mom ?? null,
-          spark: ser.slice(-24).map((p) => ({ time: p.time, v: p.yoy })),
-        };
-      })
-      .sort((a, b) => (b.yoy ?? -Infinity) - (a.yoy ?? -Infinity));
-  }, [canastas, seriesByCanasta]);
+  const cards = useMemo(() => canastas
+    .filter((c) => c.id !== TOTAL_ID && (c.nivel === undefined || c.nivel === 1))
+    .map((c) => {
+      const ser = seriesByCanasta[c.id] || [];
+      const last = ser[ser.length - 1];
+      return {
+        id: c.id,
+        nombre: c.nombre,
+        peso: c.peso,
+        yoy: last?.yoy ?? null,
+        mom: last?.mom ?? null,
+        spark: ser.slice(-24).map((p) => ({ time: p.time, v: p.yoy })),
+      };
+    })
+    .sort((a, b) => (b.yoy ?? -Infinity) - (a.yoy ?? -Infinity)), [canastas, seriesByCanasta]);
 
   return (
     <Wrap>
       <Title>Las 12 divisiones · YoY actual y tendencia 24m</Title>
       <Grid>
         {cards.map((c) => {
-          const t = tone(c.yoy);
+          const t = toneFromYoy(c.yoy);
+          const accent = toneAccent(t);
           return (
-            <Card key={c.id} tone={t}>
+            <Card key={c.id} $tone={t}>
               <NameRow>
                 <NameTxt title={c.nombre}>{c.nombre}</NameTxt>
                 <PesoTxt>{(c.peso * 100).toFixed(1)}%</PesoTxt>
               </NameRow>
-              <Big tone={t}>{fmtPct(c.yoy)}</Big>
+              <Big $tone={t}>{fmtPct(c.yoy)}</Big>
               <Small>MoM {fmtPct(c.mom)}</Small>
               <Spark>
                 <ResponsiveContainer>
@@ -131,18 +129,14 @@ export default function SmallMultiples() {
                     <YAxis hide domain={['dataMin - 1', 'dataMax + 1']} />
                     <defs>
                       <linearGradient id={`grad-${c.id}`} x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%"
-                          stopColor={t === 'high' ? '#B02A37' : t === 'low' ? '#188754' : '#FFC106'}
-                          stopOpacity={0.35} />
-                        <stop offset="100%"
-                          stopColor={t === 'high' ? '#B02A37' : t === 'low' ? '#188754' : '#FFC106'}
-                          stopOpacity={0} />
+                        <stop offset="0%" stopColor={accent} stopOpacity={0.35} />
+                        <stop offset="100%" stopColor={accent} stopOpacity={0} />
                       </linearGradient>
                     </defs>
                     <Area
                       type="monotone"
                       dataKey="v"
-                      stroke={t === 'high' ? '#B02A37' : t === 'low' ? '#188754' : '#FFC106'}
+                      stroke={accent}
                       strokeWidth={1.5}
                       fill={`url(#grad-${c.id})`}
                       isAnimationActive={false}

@@ -13,6 +13,15 @@ import {
 } from 'recharts';
 import useAppStore from 'src/store';
 import { CPISnapshot } from 'src/types/inflation';
+import {
+  Tone,
+  DirTone,
+  toneFromYoy,
+  dirToneFromDelta,
+  toneText,
+  pillBg,
+  pillText,
+} from './toneColors';
 
 const TOTAL_ID = 1;
 const TARGET = 3;
@@ -39,10 +48,9 @@ const Label = styled.div`
   font-size: 11px; letter-spacing: 0.6px; text-transform: uppercase; color: #6E6B7B;
   font-weight: 600;
 `;
-const HeadlineNumber = styled.div<{ tone: 'high' | 'mid' | 'low' }>`
+const HeadlineNumber = styled.div<{ $tone: Tone }>`
   font-size: 64px; font-weight: 700; line-height: 1; letter-spacing: -1.5px;
-  color: ${({ tone }) =>
-    tone === 'high' ? '#B02A37' : tone === 'low' ? '#188754' : '#212529'};
+  color: ${({ $tone }) => toneText($tone)};
 `;
 const Sub = styled.div`
   font-size: 12px; color: #6E6B7B;
@@ -50,12 +58,10 @@ const Sub = styled.div`
 const PillRow = styled.div`
   display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px;
 `;
-const Pill = styled.span<{ tone?: 'pos' | 'neg' | 'neutral' }>`
+const Pill = styled.span<{ $tone?: DirTone }>`
   font-size: 11px; padding: 3px 8px; border-radius: 999px;
-  background: ${({ tone }) =>
-    tone === 'pos' ? '#FCE5E7' : tone === 'neg' ? '#DCEFE3' : '#EDEDEF'};
-  color: ${({ tone }) =>
-    tone === 'pos' ? '#B02A37' : tone === 'neg' ? '#188754' : '#3A3845'};
+  background: ${({ $tone }) => pillBg($tone ?? 'neutral')};
+  color: ${({ $tone }) => pillText($tone ?? 'neutral')};
   font-weight: 500;
 `;
 const SparkBox = styled.div`
@@ -70,34 +76,31 @@ const KpiGrid = styled.div`
 const KpiRow = styled.div`
   display: flex; flex-direction: column; gap: 0;
 `;
-const KpiSm = styled.div<{ tone?: 'pos' | 'neg' | 'neutral' }>`
+const KpiSm = styled.div<{ $tone?: DirTone }>`
   font-size: 22px; font-weight: 600; line-height: 1.05;
-  color: ${({ tone }) =>
-    tone === 'pos' ? '#B02A37' : tone === 'neg' ? '#188754' : '#212529'};
+  color: ${({ $tone }) => pillText($tone ?? 'neutral')};
+`;
+const DeltaText = styled.strong<{ $tone: DirTone }>`
+  color: ${({ $tone }) => pillText($tone)};
 `;
 
 // ── helpers ───────────────────────────────────────────────────
-const fmtPct = (v: number | null | undefined, d = 2) =>
-  v == null || Number.isNaN(v) ? '—' : `${v >= 0 ? '+' : ''}${v.toFixed(d)}%`;
-
-const tone = (v: number | null | undefined): 'pos' | 'neg' | 'neutral' => {
-  if (v == null || Number.isNaN(v)) return 'neutral';
-  if (v > 0.005) return 'pos';
-  if (v < -0.005) return 'neg';
-  return 'neutral';
-};
-
-const headlineTone = (yoy: number | null | undefined): 'high' | 'mid' | 'low' => {
-  if (yoy == null || Number.isNaN(yoy)) return 'mid';
-  if (yoy > TARGET + BAND) return 'high';
-  if (yoy < TARGET - BAND) return 'low';
-  return 'mid';
+const fmtPct = (v: number | null | undefined, d = 2) => {
+  if (v == null || Number.isNaN(v)) return '—';
+  const sign = v >= 0 ? '+' : '';
+  return `${sign}${v.toFixed(d)}%`;
 };
 
 const fmtMonthYear = (iso: string | null | undefined) => {
   if (!iso) return '—';
   const d = new Date(`${iso}T00:00:00`);
   return d.toLocaleDateString('es-CO', { month: 'long', year: 'numeric' });
+};
+
+const deltaArrow = (v: number) => {
+  if (v > 0) return '▲';
+  if (v < 0) return '▼';
+  return '·';
 };
 
 // ── component ─────────────────────────────────────────────────
@@ -126,26 +129,30 @@ export default function HeroBlock() {
       : null;
 
   const gaugeMax = 18;
+  const headlineTone = toneFromYoy(yoy);
+  const momTone = dirToneFromDelta(mom);
+  const ytdTone = dirToneFromDelta(ytd);
+  const dYoYTone = dYoY != null ? dirToneFromDelta(dYoY) : 'neutral';
 
   return (
     <Wrap>
       {/* Col 1 — headline */}
       <HeadlineCol>
         <Label>Inflación anual {fmtMonthYear(snapshot?.last_date ?? null)}</Label>
-        <HeadlineNumber tone={headlineTone(yoy)}>{fmtPct(yoy)}</HeadlineNumber>
+        <HeadlineNumber $tone={headlineTone}>{fmtPct(yoy)}</HeadlineNumber>
         <Sub>
           {dYoY != null && (
             <>
-              <strong style={{ color: tone(dYoY) === 'pos' ? '#B02A37' : tone(dYoY) === 'neg' ? '#188754' : '#3A3845' }}>
-                {dYoY > 0 ? '▲' : dYoY < 0 ? '▼' : '·'} {fmtPct(dYoY, 2)}
-              </strong>{' '}
+              <DeltaText $tone={dYoYTone}>
+                {deltaArrow(dYoY)} {fmtPct(dYoY, 2)}
+              </DeltaText>{' '}
               vs mes anterior
             </>
           )}
         </Sub>
         <PillRow>
-          <Pill tone={tone(mom)}>MoM {fmtPct(mom)}</Pill>
-          <Pill tone={tone(ytd)}>YTD {fmtPct(ytd)}</Pill>
+          <Pill $tone={momTone}>MoM {fmtPct(mom)}</Pill>
+          <Pill $tone={ytdTone}>YTD {fmtPct(ytd)}</Pill>
           <Pill>Meta Banrep {TARGET}% ±{BAND}</Pill>
         </PillRow>
       </HeadlineCol>
@@ -193,11 +200,11 @@ export default function HeroBlock() {
         <KpiGrid>
           <KpiRow>
             <Label>Mensual</Label>
-            <KpiSm tone={tone(mom)}>{fmtPct(mom)}</KpiSm>
+            <KpiSm $tone={momTone}>{fmtPct(mom)}</KpiSm>
           </KpiRow>
           <KpiRow>
             <Label>Año corrido</Label>
-            <KpiSm tone={tone(ytd)}>{fmtPct(ytd)}</KpiSm>
+            <KpiSm $tone={ytdTone}>{fmtPct(ytd)}</KpiSm>
           </KpiRow>
         </KpiGrid>
       </div>
