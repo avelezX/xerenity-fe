@@ -18,6 +18,7 @@ import {
   MarketDataConfig,
   DEFAULT_MARKET_DATA_CONFIG,
 } from 'src/types/trading';
+import type { UserProfile } from 'src/types/user';
 import { computePnlRefDates } from 'src/utils/pnlDates';
 import {
   fetchXccyPositions,
@@ -222,9 +223,18 @@ const createTradingSlice: StateCreator<TradingSlice> = (set, get) => {
 
   loadUserRole: async () => {
     const role = await fetchUserTradingRole();
+    // After the role-system migration, userProfile is the canonical source.
+    // The legacy trading RPC returns null for new role names, leaving canEdit
+    // false and hiding the "Add" buttons in OTC/TES portfolios.
+    const profile = (get() as unknown as { userProfile: UserProfile | null }).userProfile;
+    const modernCanEdit =
+      profile?.role === 'super_admin' ||
+      profile?.role === 'corp_admin' ||
+      profile?.role === 'gestor';
+    const legacyCanEdit = role.role === 'admin' || role.role === 'manager';
     set({
       userRole: role,
-      canEdit: role.role === 'admin' || role.role === 'manager',
+      canEdit: modernCanEdit || legacyCanEdit,
     });
   },
 

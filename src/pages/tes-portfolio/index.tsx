@@ -848,12 +848,20 @@ function TesPortfolioPage() {
     repriceTes,
     addTesPosition,
     removeTesPositions,
-    canEdit,
     loadUserRole,
     userRole,
     activeCompanyId,
     selectedCompanyId,
   } = useAppStore();
+  // Derive canEdit reactively from userProfile (avoids the race where
+  // loadUserProfile resolves after loadUserRole and the store flag goes stale).
+  const userProfile = useAppStore((s) => s.userProfile);
+  const canEdit =
+    userProfile?.role === 'super_admin' ||
+    userProfile?.role === 'corp_admin' ||
+    userProfile?.role === 'gestor' ||
+    userRole.role === 'admin' ||
+    userRole.role === 'manager';
 
   // Mount: load positions + role (catalog now comes from useTesCatalog)
   useEffect(() => {

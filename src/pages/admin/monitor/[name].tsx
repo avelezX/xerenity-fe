@@ -15,6 +15,8 @@ import {
   faArrowLeft,
   faChevronDown,
   faChevronRight,
+  faGauge,
+  faBookOpen,
 } from '@fortawesome/free-solid-svg-icons';
 import styled from 'styled-components';
 import PageTitle from '@components/PageTitle';
@@ -22,6 +24,7 @@ import RoleGuard from 'src/components/RoleGuard';
 import useAppStore from 'src/store';
 import type { CollectorRun, CollectorOverview, RunStatus, Severity } from 'src/types/monitor';
 import { getCollectorDefinition } from 'src/models/monitor';
+import CatalogTab from './_CatalogTab';
 
 const SEV_BADGE: Record<Severity, string> = {
   critical: '#dc3545',
@@ -75,6 +78,73 @@ const BackLink = styled(Link)`
   &:hover { text-decoration: underline; }
 `;
 
+const TabBar = styled.div`
+  display: flex;
+  gap: 4px;
+  border-bottom: 2px solid #e5e5ec;
+  margin-bottom: 16px;
+`;
+
+const TabButton = styled.button<{ $active: boolean }>`
+  background: ${(p) => (p.$active ? '#fff' : 'transparent')};
+  border: none;
+  border-bottom: 3px solid ${(p) => (p.$active ? '#302b63' : 'transparent')};
+  color: ${(p) => (p.$active ? '#302b63' : '#777')};
+  font-weight: ${(p) => (p.$active ? 700 : 500)};
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 10px 18px;
+  margin-bottom: -2px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  transition: color 120ms ease, border-color 120ms ease, background 120ms ease;
+
+  &:hover {
+    color: #302b63;
+    background: rgba(48, 43, 99, 0.04);
+  }
+`;
+
+// Tiny inline cron→Spanish translator. Covers the patterns we use in
+// xerenity-dm. Returns null for shapes it doesn't understand so the UI
+// can fall back gracefully. Inlined (rather than depending on cronstrue)
+// because the cronstrue/i18n submodule breaks Vercel's build pipeline
+// opaquely in this codebase.
+const DOW_ES = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+
+const cronToEs = (cron: string | null): string | null => {
+  if (!cron) return null;
+  const parts = cron.trim().split(/\s+/);
+  if (parts.length !== 5) return null;
+  const [min, hr, , , dow] = parts;
+
+  let when = '';
+  if (hr === '*' && min === '*') when = 'cada minuto';
+  else if (hr === '*' && /^\d+$/.test(min)) when = `al minuto ${min} de cada hora`;
+  else if (/^\d+$/.test(hr) && /^\d+$/.test(min)) when = `a las ${hr.padStart(2, '0')}:${min.padStart(2, '0')}`;
+  else if (/^[\d,]+$/.test(hr) && /^\d+$/.test(min)) {
+    when = `a las ${hr.split(',').map((h) => `${h.padStart(2, '0')}:${min.padStart(2, '0')}`).join(', ')}`;
+  } else if (/^\*\/(\d+)$/.test(hr) && min === '0') {
+    when = `cada ${hr.match(/^\*\/(\d+)$/)![1]}h`;
+  }
+
+  let which = '';
+  if (dow === '*') which = 'todos los días';
+  else if (/^\d-\d$/.test(dow)) {
+    const [a, b] = dow.split('-').map((d) => DOW_ES[parseInt(d, 10) % 7]);
+    which = `de ${a} a ${b}`;
+  } else if (/^[\d,]+$/.test(dow)) {
+    const days = dow.split(',').map((d) => DOW_ES[parseInt(d, 10) % 7]);
+    which = days.length === 1 ? `los ${days[0]}` : `los ${days.join(', ')}`;
+  }
+
+  if (!when || !which) return null;
+  return `${which} ${when} (UTC)`;
+};
+
 const statusBadge = (status: RunStatus) => {
   const cfg: Record<RunStatus, { bg: string; icon: typeof faCircleCheck }> = {
     success: { bg: '#28a745', icon: faCircleCheck },
@@ -111,6 +181,7 @@ const CollectorDetailPage = () => {
 
   const [definition, setDefinition] = useState<CollectorOverview | null>(null);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [activeTab, setActiveTab] = useState<'estado' | 'catalogo'>('estado');
 
   const {
     collectorRuns,
@@ -147,101 +218,143 @@ const CollectorDetailPage = () => {
           </BackLink>
           <PageTitle>{name ?? 'Collector'}</PageTitle>
 
-          <Container fluid>
-            <Row>
-              <Col md={4}>
-                <InfoCard>
-                  <h4>Catálogo</h4>
-                  {definition ? (
-                    <dl>
-                      <dt>Severity</dt>
-                      <dd><Badge style={{ background: SEV_BADGE[definition.severity_default] }}>{definition.severity_default}</Badge></dd>
-                      <dt>Enabled</dt>
-                      <dd>{definition.enabled ? 'Sí' : 'No'}</dd>
-                      <dt>Cron</dt>
-                      <dd>{definition.schedule_cron ? <code>{definition.schedule_cron}</code> : <em>no-schedule</em>}</dd>
-                      <dt>Tablas</dt>
-                      <dd>{definition.target_tables.length > 0 ? definition.target_tables.join(', ') : <em>—</em>}</dd>
-                      <dt>Alertas</dt>
-                      <dd>{definition.open_alerts}</dd>
-                    </dl>
-                  ) : (
-                    <em style={{ color: '#888' }}>Cargando…</em>
-                  )}
-                </InfoCard>
-              </Col>
-              <Col md={8}>
-                <TimelineCard>
-                  <h4>Últimos runs ({runs.length})</h4>
-                  <table>
-                    <thead>
-                      <tr>
-                        <th aria-label="expand traceback" />
-                        <th>Inicio</th>
-                        <th>Status</th>
-                        <th>Duración</th>
-                        <th>Filas</th>
-                        <th>Exit</th>
-                        <th>Error</th>
-                        <th aria-label="external link" />
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {runs.map((run) => {
-                        const isExpanded = expanded[run.id] ?? false;
-                        const hasTraceback = Boolean(run.error_traceback);
-                        return (
-                          <React.Fragment key={run.id}>
-                            <tr className={run.status === 'failed' || run.status === 'timeout' ? 'failed' : ''}>
-                              <td
-                                className={hasTraceback ? 'expander' : ''}
-                                onClick={hasTraceback ? () => toggle(run.id) : undefined}
-                              >
-                                {hasTraceback && (
-                                  <Icon icon={isExpanded ? faChevronDown : faChevronRight} />
-                                )}
-                              </td>
-                              <td>{formatDate(run.started_at)}</td>
-                              <td>{statusBadge(run.status)}</td>
-                              <td>{formatDuration(run.duration_seconds)}</td>
-                              <td>{run.rows_inserted ?? '—'}</td>
-                              <td>{run.exit_code ?? '—'}</td>
-                              <td style={{ color: '#888', maxWidth: 280 }}>
-                                <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                  {run.error_message ?? ''}
+          <TabBar role="tablist" aria-label="Vistas del collector">
+            <TabButton
+              type="button"
+              role="tab"
+              aria-selected={activeTab === 'estado'}
+              $active={activeTab === 'estado'}
+              onClick={() => setActiveTab('estado')}
+            >
+              <Icon icon={faGauge} /> Estado actual
+            </TabButton>
+            <TabButton
+              type="button"
+              role="tab"
+              aria-selected={activeTab === 'catalogo'}
+              $active={activeTab === 'catalogo'}
+              onClick={() => setActiveTab('catalogo')}
+            >
+              <Icon icon={faBookOpen} /> Catálogo
+            </TabButton>
+          </TabBar>
+
+          {activeTab === 'estado' && (
+            <Container fluid>
+              <Row>
+                <Col md={4}>
+                  <InfoCard>
+                    <h4>Catálogo</h4>
+                    {definition ? (
+                      <dl>
+                        <dt>Severity</dt>
+                        <dd><Badge style={{ background: SEV_BADGE[definition.severity_default] }}>{definition.severity_default}</Badge></dd>
+                        <dt>Enabled</dt>
+                        <dd>{definition.enabled ? 'Sí' : 'No'}</dd>
+                        <dt>Cron</dt>
+                        <dd>
+                          {definition.schedule_cron ? (
+                            <>
+                              <code>{definition.schedule_cron}</code>
+                              {cronToEs(definition.schedule_cron) && (
+                                <div style={{ fontSize: 11, color: '#666', marginTop: 2 }}>
+                                  ↳ {cronToEs(definition.schedule_cron)}
                                 </div>
-                              </td>
-                              <td>
-                                {run.gh_run_url && (
-                                  <a href={run.gh_run_url} target="_blank" rel="noreferrer" style={{ fontSize: 12 }}>
-                                    GH <Icon icon={faArrowUpRightFromSquare} />
-                                  </a>
-                                )}
-                              </td>
-                            </tr>
-                            {isExpanded && hasTraceback && (
-                              <tr>
-                                <td colSpan={8}>
-                                  <div className="traceback">{run.error_traceback}</div>
+                              )}
+                            </>
+                          ) : (
+                            <em>no-schedule</em>
+                          )}
+                        </dd>
+                        <dt>Tablas</dt>
+                        <dd>{definition.target_tables.length > 0 ? definition.target_tables.join(', ') : <em>—</em>}</dd>
+                        <dt>Alertas</dt>
+                        <dd>{definition.open_alerts}</dd>
+                      </dl>
+                    ) : (
+                      <em style={{ color: '#888' }}>Cargando…</em>
+                    )}
+                  </InfoCard>
+                </Col>
+                <Col md={8}>
+                  <TimelineCard>
+                    <h4>Últimos runs ({runs.length})</h4>
+                    <table>
+                      <thead>
+                        <tr>
+                          <th aria-label="expand traceback" />
+                          <th>Inicio</th>
+                          <th>Status</th>
+                          <th>Duración</th>
+                          <th>Filas</th>
+                          <th>Exit</th>
+                          <th>Error</th>
+                          <th aria-label="external link" />
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {runs.map((run) => {
+                          const isExpanded = expanded[run.id] ?? false;
+                          const hasTraceback = Boolean(run.error_traceback);
+                          return (
+                            <React.Fragment key={run.id}>
+                              <tr className={run.status === 'failed' || run.status === 'timeout' ? 'failed' : ''}>
+                                <td
+                                  className={hasTraceback ? 'expander' : ''}
+                                  onClick={hasTraceback ? () => toggle(run.id) : undefined}
+                                >
+                                  {hasTraceback && (
+                                    <Icon icon={isExpanded ? faChevronDown : faChevronRight} />
+                                  )}
+                                </td>
+                                <td>{formatDate(run.started_at)}</td>
+                                <td>{statusBadge(run.status)}</td>
+                                <td>{formatDuration(run.duration_seconds)}</td>
+                                <td>{run.rows_inserted ?? '—'}</td>
+                                <td>{run.exit_code ?? '—'}</td>
+                                <td style={{ color: '#888', maxWidth: 280 }}>
+                                  <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                    {run.error_message ?? ''}
+                                  </div>
+                                </td>
+                                <td>
+                                  {run.gh_run_url && (
+                                    <a href={run.gh_run_url} target="_blank" rel="noreferrer" style={{ fontSize: 12 }}>
+                                      GH <Icon icon={faArrowUpRightFromSquare} />
+                                    </a>
+                                  )}
                                 </td>
                               </tr>
-                            )}
-                          </React.Fragment>
-                        );
-                      })}
-                      {runs.length === 0 && (
-                        <tr>
-                          <td colSpan={8} style={{ textAlign: 'center', color: '#999', padding: 24 }}>
-                            Sin runs registrados aún.
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </TimelineCard>
-              </Col>
-            </Row>
-          </Container>
+                              {isExpanded && hasTraceback && (
+                                <tr>
+                                  <td colSpan={8}>
+                                    <div className="traceback">{run.error_traceback}</div>
+                                  </td>
+                                </tr>
+                              )}
+                            </React.Fragment>
+                          );
+                        })}
+                        {runs.length === 0 && (
+                          <tr>
+                            <td colSpan={8} style={{ textAlign: 'center', color: '#999', padding: 24 }}>
+                              Sin runs registrados aún.
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </TimelineCard>
+                </Col>
+              </Row>
+            </Container>
+          )}
+
+          {activeTab === 'catalogo' && name && (
+            <Container fluid>
+              <CatalogTab collectorName={name} />
+            </Container>
+          )}
         </PageWrap>
       </RoleGuard>
     </CoreLayout>

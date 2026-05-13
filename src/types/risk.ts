@@ -207,6 +207,11 @@ export interface FuturesPosition {
   closed_date?: string | null;
   closed_price?: number | null;
   rolled_to?: string | null;
+  portfolio_id?: string | null;
+  // Solo presente en subtotal rows (asset='Total ...'): suma de entry_price *
+  // multiplier * nominal * toUsd para el grupo (sin direccion). Coincide con la
+  // columna "Valor Compra" del tab Portafolio GR.
+  valor_compra?: number | null;
 }
 
 export interface FuturesPortfolioResponse {

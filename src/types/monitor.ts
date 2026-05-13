@@ -26,6 +26,36 @@ export interface CollectorOverview {
   has_warning_alert: boolean;
 }
 
+// Catalog enrichment returned by list_collector_overview_enriched RPC.
+// One element per collector. Extends CollectorOverview with the source +
+// per-target-table catalog metadata aggregated per-collector.
+
+export interface OverviewSource {
+  name: string;
+  label: string;
+  source_type: 'rest_api' | 'web_scrape' | 'file_download' | 'manual' | null;
+  country: string | null;
+}
+
+export type ReviewStatusKey =
+  | 'pendiente'
+  | 'mantener'
+  | 'arreglar'
+  | 'deprecar'
+  | 'documentar';
+
+export type ReviewDistribution = Record<ReviewStatusKey, number> & {
+  total: number;
+};
+
+export interface CollectorOverviewEnriched extends CollectorOverview {
+  source: OverviewSource | null;
+  categories: string[];
+  countries_data: string[];
+  is_critical_any: boolean;
+  review_distribution: ReviewDistribution;
+}
+
 export interface CollectorRun {
   id: string;
   collector_name: string;
