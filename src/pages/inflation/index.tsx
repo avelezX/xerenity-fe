@@ -48,6 +48,9 @@ const Footer = styled.div`
   display: flex; flex-wrap: wrap; gap: 16px;
 `;
 
+// Force runtime SSR so we don't try to prerender Recharts components at build time.
+export const getServerSideProps = async () => ({ props: {} });
+
 export default function InflationPage() {
   const loadInflationCatalog = useAppStore((s) => s.loadInflationCatalog);
   const loadCanastaSeries = useAppStore((s) => s.loadCanastaSeries);
