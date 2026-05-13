@@ -1,4 +1,4 @@
-/* eslint-disable jsx-a11y/control-has-associated-label */
+/* eslint-disable jsx-a11y/control-has-associated-label, no-underscore-dangle, no-nested-ternary, no-restricted-syntax, no-restricted-globals, react/self-closing-comp */
 /**
  * Blotter de fijaciones de cafe. Tabla CRUD que se renderiza dentro del
  * tab Benchmark de /risk-management cuando la empresa tiene CAFE en sus
@@ -36,10 +36,34 @@ import {
 type SaveState = 'idle' | 'dirty' | 'saving' | 'saved' | 'error';
 
 interface Row extends CafeFijacionRow {
-  _state?: SaveState;
+  saveState?: SaveState;
 }
 
 const AUTOSAVE_MS = 600;
+
+const SAVE_STATE_GLYPH: Record<SaveState, string> = {
+  idle: '',
+  dirty: '●',
+  saving: '⟳',
+  saved: '✓',
+  error: '!',
+};
+
+const SAVE_STATE_COLOR: Record<SaveState, string> = {
+  idle: 'transparent',
+  dirty: '#d97706',
+  saving: '#0ea5e9',
+  saved: '#15803d',
+  error: '#b91c1c',
+};
+
+const SAVE_STATE_LABEL: Record<SaveState, string> = {
+  idle: '',
+  dirty: 'Pendiente — guardando en 0.6s',
+  saving: 'Guardando...',
+  saved: 'Guardado',
+  error: 'Error al guardar',
+};
 
 interface Props {
   companyId: string;
@@ -142,21 +166,23 @@ export default function BlotterCafe({ companyId }: Props) {
 
   // Totals: 2 sumatorias (COP nativos + USD convertidos a COP via TRM por fila, viceversa)
   const totals = useMemo(() => {
-    let totalCop = 0;
-    let totalUsd = 0;
-    for (const c of computed) {
-      if (c.row.moneda === 'USD') {
-        // fila en USD: total nativo USD, COP equivalente via TRM de la fila
-        totalUsd += c.totalUsd;
-        totalCop += c.totalUsd * (c.row.fijacion_cop ?? 0);
-      } else {
-        // fila en COP: total nativo COP, USD equivalente via TRM de la fila
-        totalCop += c.totalCop;
-        if (c.row.fijacion_cop && c.row.fijacion_cop > 0) {
-          totalUsd += c.totalCop / c.row.fijacion_cop;
+    const { totalCop, totalUsd } = computed.reduce(
+      (acc, c) => {
+        if (c.row.moneda === 'USD') {
+          // fila en USD: total nativo USD, COP equivalente via TRM de la fila
+          acc.totalUsd += c.totalUsd;
+          acc.totalCop += c.totalUsd * (c.row.fijacion_cop ?? 0);
+        } else {
+          // fila en COP: total nativo COP, USD equivalente via TRM de la fila
+          acc.totalCop += c.totalCop;
+          if (c.row.fijacion_cop && c.row.fijacion_cop > 0) {
+            acc.totalUsd += c.totalCop / c.row.fijacion_cop;
+          }
         }
-      }
-    }
+        return acc;
+      },
+      { totalCop: 0, totalUsd: 0 },
+    );
     return {
       sacos: computed.reduce((s, c) => s + (c.row.sacos_fijados ?? 0), 0),
       kg: computed.reduce((s, c) => s + (c.row.kg ?? 0), 0),
@@ -170,7 +196,7 @@ export default function BlotterCafe({ companyId }: Props) {
   const commitRow = useCallback(async (id: string) => {
     const r = rowsRef.current.find((x) => x.id === id);
     if (!r) return;
-    setRows((prev) => prev.map((x) => (x.id === id ? { ...x, _state: 'saving' } : x)));
+    setRows((prev) => prev.map((x) => (x.id === id ? { ...x, saveState: 'saving' } : x)));
     try {
       await updateCafeFijacion(id, {
         sacos_fijados: r.sacos_fijados,
@@ -181,12 +207,12 @@ export default function BlotterCafe({ companyId }: Props) {
         fecha_fijacion: r.fecha_fijacion,
         moneda: r.moneda,
       });
-      setRows((prev) => prev.map((x) => (x.id === id ? { ...x, _state: 'saved' } : x)));
+      setRows((prev) => prev.map((x) => (x.id === id ? { ...x, saveState: 'saved' } : x)));
       setTimeout(() => {
-        setRows((prev) => prev.map((x) => (x.id === id && x._state === 'saved' ? { ...x, _state: 'idle' } : x)));
+        setRows((prev) => prev.map((x) => (x.id === id && x.saveState === 'saved' ? { ...x, saveState: 'idle' } : x)));
       }, 1500);
     } catch (e) {
-      setRows((prev) => prev.map((x) => (x.id === id ? { ...x, _state: 'error' } : x)));
+      setRows((prev) => prev.map((x) => (x.id === id ? { ...x, saveState: 'error' } : x)));
       toast.error((e as Error)?.message || 'Error guardando fila');
     }
   }, []);
@@ -206,7 +232,7 @@ export default function BlotterCafe({ companyId }: Props) {
 
   // Patch row state locally + agenda auto-save
   const patchRow = useCallback((id: string, patch: Partial<Row>) => {
-    setRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch, _state: 'dirty' } : r)));
+    setRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch, saveState: 'dirty' } : r)));
     scheduleSave(id);
   }, [scheduleSave]);
 
@@ -224,7 +250,7 @@ export default function BlotterCafe({ companyId }: Props) {
   const handleAdd = useCallback(async () => {
     try {
       const newRow = await insertCafeFijacion(emptyRow(companyId));
-      setRows((prev) => [...prev, { ...newRow, _state: 'idle' }]);
+      setRows((prev) => [...prev, { ...newRow, saveState: 'idle' }]);
     } catch (e) {
       toast.error((e as Error)?.message || 'Error agregando fila');
     }
@@ -232,7 +258,8 @@ export default function BlotterCafe({ companyId }: Props) {
 
   // Delete row
   const handleDelete = useCallback(async (id: string) => {
-    if (!confirm('¿Borrar esta fijacion?')) return;
+    // eslint-disable-next-line no-alert
+    if (!window.confirm('¿Borrar esta fijacion?')) return;
     try {
       await deleteCafeFijacion(id);
       setRows((prev) => prev.filter((r) => r.id !== id));
@@ -332,7 +359,7 @@ export default function BlotterCafe({ companyId }: Props) {
                 <th className="text-end" style={{ padding: '8px 10px', background: '#f1f5f9' }}>Precio / KG</th>
                 <th className="text-end" style={{ padding: '8px 10px', background: '#f1f5f9' }}>Precio / Saco</th>
                 <th className="text-end" style={{ padding: '8px 10px', background: '#f1f5f9' }}>Total</th>
-                <th style={{ padding: '8px 4px' }}></th>
+                <th style={{ padding: '8px 4px' }} aria-label="Estado y acciones" />
               </tr>
             </thead>
             <tbody>
@@ -453,26 +480,11 @@ export default function BlotterCafe({ companyId }: Props) {
                         width: 14,
                         fontSize: '0.85rem',
                         marginRight: 4,
-                        color:
-                          c.row._state === 'saved' ? '#15803d'
-                            : c.row._state === 'saving' ? '#0ea5e9'
-                              : c.row._state === 'dirty' ? '#d97706'
-                                : c.row._state === 'error' ? '#b91c1c'
-                                  : 'transparent',
+                        color: SAVE_STATE_COLOR[c.row.saveState ?? 'idle'],
                       }}
-                      title={
-                        c.row._state === 'saved' ? 'Guardado'
-                          : c.row._state === 'saving' ? 'Guardando...'
-                            : c.row._state === 'dirty' ? 'Pendiente — guardando en 0.6s'
-                              : c.row._state === 'error' ? 'Error al guardar'
-                                : ''
-                      }
+                      title={SAVE_STATE_LABEL[c.row.saveState ?? 'idle']}
                     >
-                      {c.row._state === 'saved' ? '✓'
-                        : c.row._state === 'saving' ? '⟳'
-                          : c.row._state === 'dirty' ? '●'
-                            : c.row._state === 'error' ? '!'
-                              : ''}
+                      {SAVE_STATE_GLYPH[c.row.saveState ?? 'idle']}
                     </span>
                     <Button
                       variant="link"
