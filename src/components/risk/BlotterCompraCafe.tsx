@@ -41,10 +41,35 @@ const LB_PER_KG = 2.20462;
 type SaveState = 'idle' | 'dirty' | 'saving' | 'saved' | 'error';
 
 interface Row extends CafeCompraRow {
-  _state?: SaveState;
+  saveState?: SaveState;
 }
 
 const AUTOSAVE_MS = 600;
+
+// Helpers visuales del badge de auto-save por fila.
+const SAVE_STATE_GLYPH: Record<SaveState, string> = {
+  idle: '',
+  dirty: '●',
+  saving: '⟳',
+  saved: '✓',
+  error: '!',
+};
+
+const SAVE_STATE_COLOR: Record<SaveState, string> = {
+  idle: 'transparent',
+  dirty: '#d97706',
+  saving: '#0ea5e9',
+  saved: '#15803d',
+  error: '#b91c1c',
+};
+
+const SAVE_STATE_LABEL: Record<SaveState, string> = {
+  idle: '',
+  dirty: 'Pendiente — guardando en 0.6s',
+  saving: 'Guardando...',
+  saved: 'Guardado',
+  error: 'Error al guardar',
+};
 
 interface Props {
   companyId: string;
@@ -62,24 +87,23 @@ const fmtKg = (v: number): string =>
   new Intl.NumberFormat('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(Math.round(v));
 
 const fmtNum2 = (v: number): string => v.toFixed(2);
-const fmtNum4 = (v: number): string => v.toFixed(4);
 
 // Formato con signo explicito: +0.0718 (long) / -0.0718 (short).
 // Cero se muestra como 0 sin signo (para no contaminar visualmente).
 const fmtSignedNum4 = (v: number): string => {
   if (v === 0) return '0.0000';
-  return (v > 0 ? '+' : '') + v.toFixed(4);
+  return `${v > 0 ? '+' : ''}${v.toFixed(4)}`;
 };
 const fmtSignedCop = (v: number): string => {
   if (v === 0) return '$0';
   const abs = new Intl.NumberFormat('es-CO').format(Math.round(Math.abs(v)));
-  return (v > 0 ? '+$' : '−$') + abs;
+  return `${v > 0 ? '+$' : '−$'}${abs}`;
 };
 
 function isoWeek(dateStr: string): number {
   // ISO week number from YYYY-MM-DD
   if (!dateStr) return 0;
-  const d = new Date(dateStr + 'T12:00:00');
+  const d = new Date(`${dateStr}T12:00:00`);
   const target = new Date(d.valueOf());
   const dayNr = (d.getDay() + 6) % 7; // Mon=0
   target.setDate(target.getDate() - dayNr + 3);
@@ -192,7 +216,7 @@ export default function BlotterCompraCafe({ companyId, precioKcCents, precioKcDa
   const commitRow = useCallback(async (id: string) => {
     const r = rowsRef.current.find((x) => x.id === id);
     if (!r) return;
-    setRows((prev) => prev.map((x) => (x.id === id ? { ...x, _state: 'saving' } : x)));
+    setRows((prev) => prev.map((x) => (x.id === id ? { ...x, saveState: 'saving' } : x)));
     try {
       await updateCafeCompra(id, {
         fecha_compra: r.fecha_compra,
@@ -200,13 +224,13 @@ export default function BlotterCompraCafe({ companyId, precioKcCents, precioKcDa
         valor_compra_at: r.valor_compra_at,
         factor_humedo: r.factor_humedo,
       });
-      setRows((prev) => prev.map((x) => (x.id === id ? { ...x, _state: 'saved' } : x)));
+      setRows((prev) => prev.map((x) => (x.id === id ? { ...x, saveState: 'saved' } : x)));
       // El badge "Guardado ✓" se oculta despues de 1.5s
       setTimeout(() => {
-        setRows((prev) => prev.map((x) => (x.id === id && x._state === 'saved' ? { ...x, _state: 'idle' } : x)));
+        setRows((prev) => prev.map((x) => (x.id === id && x.saveState === 'saved' ? { ...x, saveState: 'idle' } : x)));
       }, 1500);
     } catch (e) {
-      setRows((prev) => prev.map((x) => (x.id === id ? { ...x, _state: 'error' } : x)));
+      setRows((prev) => prev.map((x) => (x.id === id ? { ...x, saveState: 'error' } : x)));
       toast.error((e as Error)?.message || 'Error guardando fila');
     }
   }, []);
@@ -225,7 +249,7 @@ export default function BlotterCompraCafe({ companyId, precioKcCents, precioKcDa
   }, [commitRow]);
 
   const patchRow = useCallback((id: string, patch: Partial<Row>) => {
-    setRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch, _state: 'dirty' } : r)));
+    setRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch, saveState: 'dirty' } : r)));
     scheduleSave(id);
   }, [scheduleSave]);
 
@@ -243,14 +267,15 @@ export default function BlotterCompraCafe({ companyId, precioKcCents, precioKcDa
   const handleAdd = useCallback(async () => {
     try {
       const newRow = await insertCafeCompra(emptyRow(companyId));
-      setRows((prev) => [...prev, { ...newRow, _state: 'idle' }]);
+      setRows((prev) => [...prev, { ...newRow, saveState: 'idle' }]);
     } catch (e) {
       toast.error((e as Error)?.message || 'Error agregando fila');
     }
   }, [companyId]);
 
   const handleDelete = useCallback(async (id: string) => {
-    if (!confirm('¿Borrar esta compra?')) return;
+    // eslint-disable-next-line no-alert
+    if (!window.confirm('¿Borrar esta compra?')) return;
     try {
       await deleteCafeCompra(id);
       setRows((prev) => prev.filter((r) => r.id !== id));
@@ -372,7 +397,7 @@ export default function BlotterCompraCafe({ companyId, precioKcCents, precioKcDa
                 <th className="text-end" style={{ padding: '8px 10px', background: '#fef3c7', color: '#854d0e' }} title="+ = LONG USD (el inventario vale USD)">
                   Exp. USD
                 </th>
-                <th style={{ padding: '8px 4px' }}></th>
+                <th style={{ padding: '8px 4px' }} aria-label="Estado y acciones" />
               </tr>
             </thead>
             <tbody>
@@ -451,26 +476,11 @@ export default function BlotterCompraCafe({ companyId, precioKcCents, precioKcDa
                         width: 14,
                         fontSize: '0.85rem',
                         marginRight: 4,
-                        color:
-                          c.row._state === 'saved' ? '#15803d'
-                            : c.row._state === 'saving' ? '#0ea5e9'
-                              : c.row._state === 'dirty' ? '#d97706'
-                                : c.row._state === 'error' ? '#b91c1c'
-                                  : 'transparent',
+                        color: SAVE_STATE_COLOR[c.row.saveState ?? 'idle'],
                       }}
-                      title={
-                        c.row._state === 'saved' ? 'Guardado'
-                          : c.row._state === 'saving' ? 'Guardando...'
-                            : c.row._state === 'dirty' ? 'Pendiente — guardando en 0.6s'
-                              : c.row._state === 'error' ? 'Error al guardar'
-                                : ''
-                      }
+                      title={SAVE_STATE_LABEL[c.row.saveState ?? 'idle']}
                     >
-                      {c.row._state === 'saved' ? '✓'
-                        : c.row._state === 'saving' ? '⟳'
-                          : c.row._state === 'dirty' ? '●'
-                            : c.row._state === 'error' ? '!'
-                              : ''}
+                      {SAVE_STATE_GLYPH[c.row.saveState ?? 'idle']}
                     </span>
                     <Button
                       variant="link"
