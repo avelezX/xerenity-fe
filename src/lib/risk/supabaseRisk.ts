@@ -352,3 +352,204 @@ export async function fetchCoffeePrices(
   if (error) throw new Error(`Failed to fetch coffee_prices: ${error.message}`);
   return (data ?? []) as CoffeePriceRow[];
 }
+
+// ── Cafe Fijaciones (blotter por empresa) ──
+
+export interface CafeFijacionRow {
+  id: string;
+  company_id: string;
+  sacos_fijados: number;
+  kg: number;
+  fijacion_ny: number;     // cents/lb del NY base
+  prima: number;            // cents/lb del premio
+  fijacion_cop: number;     // TRM al momento de fijar (siempre se guarda; en USD es informativa)
+  fecha_fijacion: string;   // YYYY-MM-DD
+  moneda: 'COP' | 'USD';    // moneda de la venta
+  created_at?: string;
+  updated_at?: string;
+}
+
+export async function fetchCafeFijaciones(companyId: string): Promise<CafeFijacionRow[]> {
+  const { data, error } = await supabase
+    .schema(SCHEMA)
+    .from('cafe_fijaciones')
+    .select('*')
+    .eq('company_id', companyId)
+    .order('fecha_fijacion', { ascending: true });
+  if (error) throw new Error(`Failed to fetch cafe_fijaciones: ${error.message}`);
+  return (data ?? []) as CafeFijacionRow[];
+}
+
+export async function insertCafeFijacion(
+  row: Omit<CafeFijacionRow, 'id' | 'created_at' | 'updated_at'>,
+): Promise<CafeFijacionRow> {
+  const { data, error } = await supabase
+    .schema(SCHEMA)
+    .from('cafe_fijaciones')
+    .insert(row)
+    .select()
+    .single();
+  if (error) throw new Error(`Failed to insert cafe_fijacion: ${error.message}`);
+  return data as CafeFijacionRow;
+}
+
+export async function updateCafeFijacion(
+  id: string,
+  updates: Partial<Omit<CafeFijacionRow, 'id' | 'company_id' | 'created_at' | 'updated_at'>>,
+): Promise<void> {
+  const { error } = await supabase
+    .schema(SCHEMA)
+    .from('cafe_fijaciones')
+    .update(updates)
+    .eq('id', id);
+  if (error) throw new Error(`Failed to update cafe_fijacion: ${error.message}`);
+}
+
+export async function deleteCafeFijacion(id: string): Promise<void> {
+  const { error } = await supabase
+    .schema(SCHEMA)
+    .from('cafe_fijaciones')
+    .delete()
+    .eq('id', id);
+  if (error) throw new Error(`Failed to delete cafe_fijacion: ${error.message}`);
+}
+
+// Factor de conversion (vive en risk_company_config.cafe_factor_conversion)
+
+export async function fetchCafeFactorConversion(companyId: string): Promise<number> {
+  const { data, error } = await supabase
+    .schema(SCHEMA)
+    .from('risk_company_config')
+    .select('cafe_factor_conversion')
+    .eq('company_id', companyId)
+    .maybeSingle();
+  if (error) throw new Error(`Failed to fetch cafe_factor_conversion: ${error.message}`);
+  return Number(data?.cafe_factor_conversion ?? 1.5432);
+}
+
+export async function updateCafeFactorConversion(
+  companyId: string,
+  factor: number,
+): Promise<void> {
+  const { error } = await supabase
+    .schema(SCHEMA)
+    .from('risk_company_config')
+    .update({ cafe_factor_conversion: factor })
+    .eq('company_id', companyId);
+  if (error) throw new Error(`Failed to update cafe_factor_conversion: ${error.message}`);
+}
+
+// ── Cafe Compras (blotter de compra) ──
+
+export interface CafeCompraRow {
+  id: string;
+  company_id: string;
+  fecha_compra: string;          // YYYY-MM-DD
+  total_kg: number;              // kg de cafe humedo comprado
+  valor_compra_at: number;       // COP por @
+  factor_humedo: number;         // conversion humedo -> verde (default 0.1431, editable per fila)
+  created_at?: string;
+  updated_at?: string;
+}
+
+export async function fetchCafeCompras(companyId: string): Promise<CafeCompraRow[]> {
+  const { data, error } = await supabase
+    .schema(SCHEMA)
+    .from('cafe_compras')
+    .select('*')
+    .eq('company_id', companyId)
+    .order('fecha_compra', { ascending: true });
+  if (error) throw new Error(`Failed to fetch cafe_compras: ${error.message}`);
+  return (data ?? []) as CafeCompraRow[];
+}
+
+export async function insertCafeCompra(
+  row: Omit<CafeCompraRow, 'id' | 'created_at' | 'updated_at'>,
+): Promise<CafeCompraRow> {
+  const { data, error } = await supabase
+    .schema(SCHEMA)
+    .from('cafe_compras')
+    .insert(row)
+    .select()
+    .single();
+  if (error) throw new Error(`Failed to insert cafe_compra: ${error.message}`);
+  return data as CafeCompraRow;
+}
+
+export async function updateCafeCompra(
+  id: string,
+  updates: Partial<Omit<CafeCompraRow, 'id' | 'company_id' | 'created_at' | 'updated_at'>>,
+): Promise<void> {
+  const { error } = await supabase
+    .schema(SCHEMA)
+    .from('cafe_compras')
+    .update(updates)
+    .eq('id', id);
+  if (error) throw new Error(`Failed to update cafe_compra: ${error.message}`);
+}
+
+export async function deleteCafeCompra(id: string): Promise<void> {
+  const { error } = await supabase
+    .schema(SCHEMA)
+    .from('cafe_compras')
+    .delete()
+    .eq('id', id);
+  if (error) throw new Error(`Failed to delete cafe_compra: ${error.message}`);
+}
+
+// Globals de compra (kg_per_at + lbs_por_contrato_kc)
+// Nota: factor_humedo ya NO es global. Vive per-fila en cafe_compras
+// porque el rendimiento puede mejorar con el tiempo y se ajusta manualmente.
+
+export interface CafeCompraGlobals {
+  kg_per_at: number;            // default 60
+  lbs_per_contrato_kc: number;  // default 37500
+}
+
+export async function fetchCafeCompraGlobals(companyId: string): Promise<CafeCompraGlobals> {
+  const { data, error } = await supabase
+    .schema(SCHEMA)
+    .from('risk_company_config')
+    .select('cafe_kg_per_at_compra, cafe_lbs_per_contrato_kc')
+    .eq('company_id', companyId)
+    .maybeSingle();
+  if (error) throw new Error(`Failed to fetch cafe compra globals: ${error.message}`);
+  return {
+    kg_per_at: Number(data?.cafe_kg_per_at_compra ?? 60),
+    lbs_per_contrato_kc: Number(data?.cafe_lbs_per_contrato_kc ?? 37500),
+  };
+}
+
+export async function updateCafeCompraGlobals(
+  companyId: string,
+  globals: Partial<CafeCompraGlobals>,
+): Promise<void> {
+  const payload: Record<string, number> = {};
+  if (globals.kg_per_at != null) payload.cafe_kg_per_at_compra = globals.kg_per_at;
+  if (globals.lbs_per_contrato_kc != null) payload.cafe_lbs_per_contrato_kc = globals.lbs_per_contrato_kc;
+  const { error } = await supabase
+    .schema(SCHEMA)
+    .from('risk_company_config')
+    .update(payload)
+    .eq('company_id', companyId);
+  if (error) throw new Error(`Failed to update cafe compra globals: ${error.message}`);
+}
+
+// Precio actual KC desde risk_prices (front contract de CAFE)
+export async function fetchLatestCafePriceCents(): Promise<{ price: number; date: string } | null> {
+  const { data, error } = await supabase
+    .schema(SCHEMA)
+    .from('risk_prices')
+    .select('date, price')
+    .eq('asset', 'CAFE')
+    .order('date', { ascending: false })
+    .limit(1);
+  if (error) {
+    // eslint-disable-next-line no-console
+    console.error('fetchLatestCafePriceCents error:', error);
+    throw new Error(`Failed to fetch latest CAFE price: ${error.message}`);
+  }
+  const row = data?.[0];
+  if (!row) return null;
+  return { price: Number(row.price), date: String(row.date) };
+}

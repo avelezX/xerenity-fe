@@ -2,7 +2,7 @@
 
 import { CoreLayout } from '@layout';
 import { Row, Col, Form, Modal } from 'react-bootstrap';
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import Container from 'react-bootstrap/Container';
 import { FontAwesomeIcon as Icon } from '@fortawesome/react-fontawesome';
 import {
@@ -50,6 +50,8 @@ import RoleGuard from 'src/components/RoleGuard';
 import { fetchCompanyRiskConfig, getAssetsWithCurrency, getChartColors, saveCompanyRiskConfig, COMMODITY_TEMPLATES, DEFAULT_EXPOSURE_PARAMS } from 'src/lib/risk/companyConfig';
 import type { RiskCompanyConfig } from 'src/lib/risk/companyConfig';
 import { parseContractMaturity } from 'src/lib/risk/futuresCalculator';
+import BlotterCafe from 'src/components/risk/BlotterCafe';
+import BlotterCompraCafe from 'src/components/risk/BlotterCompraCafe';
 
 const PAGE_TITLE = 'Gestión de Riesgos';
 
@@ -844,6 +846,15 @@ function CommoditySetup({ companyId, onSaved }: { companyId: string; onSaved: (c
 
 function RiskManagement() {
   const { userProfile, isSuperAdmin, selectedCompanyId, setSelectedCompanyId } = useAppStore();
+  const companies = useAppStore((s) => s.companies);
+
+  // Nombre de la empresa activa, derivado del store. Cae a "Exp. Natural"
+  // como fallback si todavia no carga (evita parpadeo con "Super" hardcoded).
+  const activeCompanyName = useMemo(() => {
+    const id = selectedCompanyId || userProfile?.company_id;
+    if (!id) return 'Exp. Natural';
+    return companies.find((c) => c.id === id)?.name ?? 'Exp. Natural';
+  }, [selectedCompanyId, userProfile?.company_id, companies]);
 
   // Set default company to user's own company (if not already selected by global selector)
   useEffect(() => {
@@ -872,6 +883,11 @@ function RiskManagement() {
 
   // Check if this company has CAFE in its commodities (for conditional tabs)
   const hasCafe = companyConfig?.commodities?.some((c) => c.asset === 'CAFE') ?? false;
+
+  // Total $ COP del blotter cafe — alimenta Exposicion Natural de CAFE en Benchmark.
+  // Solo aplica si hasCafe es true. El componente BlotterCafe llama a setCafeBlotterTotal
+  // cada vez que cambian sus filas.
+  const [cafeBlotterTotal, setCafeBlotterTotal] = useState<number>(0);
 
   const [activeTab, setActiveTab] = useState('benchmark');
   // Build tabs dynamically: add "Precios Locales" if CAFE, + "Calculadora USDCOP" always
@@ -1279,6 +1295,12 @@ function RiskManagement() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [benchmarkMonth]);
 
+  // NOTA: anteriormente aqui habia un useEffect que tomaba el total del
+  // Blotter Fijaciones Cafe y lo metia en la fila CAFE Exp. Natural del
+  // Benchmark. Se elimino por decision del usuario (las fijaciones ahora
+  // pueden ser en COP o USD, asi que la integracion automatica no es
+  // trivial). El estado `cafeBlotterTotal` queda no usado (por ahora).
+
   // When exposure results change, update benchmark position_super
   useEffect(() => {
     if (!exposureResult) return;
@@ -1524,14 +1546,14 @@ function RiskManagement() {
                     <th className="text-end" style={{ borderBottom: '2px solid #e2e8f0', padding: '6px 4px', color: '#1e40af' }}>Exp. Natural</th>
                     <th className="text-end" style={{ borderBottom: '2px solid #e2e8f0', padding: '6px 4px', color: '#854d0e' }}>Portafolio GR</th>
                     <th className="text-end" style={{ borderBottom: '2px solid #e2e8f0', padding: '6px 4px' }}>Total</th>
-                    <th className="text-end" style={{ borderBottom: '2px solid #e2e8f0', padding: '6px 4px' }}>Super</th>
+                    <th className="text-end" style={{ borderBottom: '2px solid #e2e8f0', padding: '6px 4px' }}>{activeCompanyName}</th>
                     <th className="text-end" style={{ borderBottom: '2px solid #e2e8f0', padding: '6px 4px', color: '#854d0e' }}>GR</th>
                     <th className="text-end" style={{ borderBottom: '2px solid #e2e8f0', padding: '6px 4px' }}>Total</th>
                     <th className="text-end" style={{ borderBottom: '2px solid #e2e8f0', padding: '6px 4px' }}>Diario %</th>
                     <th className="text-center" style={{ borderBottom: '2px solid #e2e8f0', padding: '6px 4px' }}>Unidad</th>
                     <th className="text-end" style={{ borderBottom: '2px solid #e2e8f0', padding: '6px 4px' }}>Inicio</th>
                     <th className="text-end" style={{ borderBottom: '2px solid #e2e8f0', padding: '6px 4px' }}>Fin</th>
-                    <th className="text-end" style={{ borderBottom: '2px solid #e2e8f0', padding: '6px 4px' }}>Super</th>
+                    <th className="text-end" style={{ borderBottom: '2px solid #e2e8f0', padding: '6px 4px' }}>{activeCompanyName}</th>
                     <th className="text-end" style={{ borderBottom: '2px solid #e2e8f0', padding: '6px 4px', color: '#854d0e' }}>GR</th>
                     <th className="text-end" style={{ borderBottom: '2px solid #e2e8f0', padding: '6px 4px' }}>Total</th>
                   </tr>
@@ -1609,6 +1631,24 @@ function RiskManagement() {
               </table>
             </div>
             </div>
+
+            {/* Blotters Cafe — solo visibles si la empresa tiene CAFE.
+                Orden: Compras primero, despues Fijaciones (ventas).
+                Razon: el flujo logico es comprar -> hedgear -> fijar venta.
+                El precio KC para Exp USD viene de benchmarkFactors (mismo
+                dato que ya muestra la tabla Benchmark en columna Fin). */}
+            {hasCafe && selectedCompanyId && (
+              <>
+                <BlotterCompraCafe
+                  companyId={selectedCompanyId}
+                  precioKcCents={benchmarkFactors?.factors?.CAFE?.price_end ?? null}
+                  precioKcDate={benchmarkFactors?.period?.end ?? null}
+                />
+                <BlotterCafe
+                  companyId={selectedCompanyId}
+                />
+              </>
+            )}
           </div>
         )}
 
