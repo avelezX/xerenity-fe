@@ -119,7 +119,7 @@ export default function SmallMultiples() {
             <Card key={c.id} $tone={t}>
               <NameRow>
                 <NameTxt title={c.nombre}>{c.nombre}</NameTxt>
-                <PesoTxt>{(c.peso * 100).toFixed(1)}%</PesoTxt>
+                <PesoTxt>{c.peso != null ? `${(c.peso * 100).toFixed(1)}%` : '—'}</PesoTxt>
               </NameRow>
               <Big $tone={t}>{fmtPct(c.yoy)}</Big>
               <Small>MoM {fmtPct(c.mom)}</Small>
