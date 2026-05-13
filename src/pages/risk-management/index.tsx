@@ -906,6 +906,13 @@ function RiskManagement() {
   const pricedNdfStore = useAppStore((s) => s.pricedNdf);
   const refPricesStore = useAppStore((s) => s.refPrices);
 
+  // OTC store actions: needed to populate USD row dinamicamente per mes.
+  // Sin esto, los stores empiezan vacios y la fila USD quedaba en 0/0 a
+  // menos que el usuario hubiera visitado primero el tab Portafolio OTC.
+  const loadOtcPositions = useAppStore((s) => s.loadPositions);
+  const repriceWithMark = useAppStore((s) => s.repriceAllWithMark);
+  const loadOtcRefPrices = useAppStore((s) => s.loadReferencePrices);
+
   // Methodology modal
   const [methModal, setMethModal] = useState<string | null>(null);
 
@@ -1058,6 +1065,39 @@ function RiskManagement() {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [benchmarkDateStr, benchmarkMonthKey, confidenceLevel, companyConfig, dynamicAssets]);
+
+  // Auto-load OTC data cuando cambia el mes o la empresa, para que la fila
+  // USD del Benchmark se llene dinamicamente (FX Delta + P&L MTD USD).
+  // Mismo patron que /risk-resumen:
+  //   1) loadPositions(company) si el store esta vacio
+  //   2) repriceAllWithMark(benchmarkDateStr) — valor con curvas EOD
+  //   3) loadReferencePrices(benchmarkDateStr) — MTD ref para P&L
+  // Cuando el store se actualiza, el useEffect que rellena position_gr/pnl_gr
+  // (mas abajo, dependency: pricedXccyStore/pricedNdfStore/refPricesStore)
+  // se re-ejecuta automaticamente y rellena USD.
+  useEffect(() => {
+    if (!selectedCompanyId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const hasOtc = (pricedXccyStore?.length ?? 0) + (pricedNdfStore?.length ?? 0) > 0;
+        if (!hasOtc) {
+          await loadOtcPositions(selectedCompanyId);
+        }
+        if (cancelled) return;
+        await repriceWithMark(benchmarkDateStr);
+        if (cancelled) return;
+        await loadOtcRefPrices(benchmarkDateStr);
+      } catch (e) {
+        // Silent fail — la fila USD quedara en 0/0 pero el resto del
+        // benchmark sigue mostrandose normalmente.
+        // eslint-disable-next-line no-console
+        console.warn('Benchmark: error cargando OTC para USD row', e);
+      }
+    })();
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [benchmarkDateStr, selectedCompanyId]);
 
   // Save current rows to cache when they change
   const saveBenchmarkToCache = useCallback(() => {
@@ -1308,16 +1348,12 @@ function RiskManagement() {
       next.forEach((row, i) => {
         if (row.asset === 'Total') return;
 
-        // ── USD row: fed from OTC store (FX Delta + P&L MTD USD) ──
-        // TODO(hardcode-temporal): el row USD deberia leer dinamicamente del OTC
-        // store (pricedXccy + pricedNdf + summary + refPrices.mtd) anclados a
-        // benchmarkDateStr. Por ahora no se dispara la carga del OTC store en
-        // este page (eso quedo fuera del PR #372 hasta organizar arquitectura
-        // de fechas). Mientras tanto, se hardcodean los valores de Abril 2026
-        // copiados manualmente del tab Portafolio OTC al 2026-04-30:
-        //   FX Delta total (sum XCCY + NDF)  = -$8,800,000
-        //   P&L MTD USD (npv hoy - npv MTD)  = +$121,300
-        // Quitar este hardcode cuando se implemente el flujo dinamico.
+        // ── USD row: fed dinamicamente del OTC store (FX Delta + P&L MTD USD) ──
+        // El useEffect de mas arriba dispara loadOtcPositions + repriceWithMark
+        // + loadOtcRefPrices cuando cambia benchmarkDateStr o selectedCompanyId,
+        // poblando los stores. Aqui simplemente se leen.
+        //   position_gr = sum(fx_delta) de XCCY + NDF al benchmarkDateStr
+        //   pnl_gr      = total_npv_usd - refPrices.mtd.summary.total_npv_usd
         if (row.asset === 'USD') {
           const fxDeltaTotal = (pricedXccyStore ?? []).reduce((s, p) => s + (p.fx_delta ?? 0), 0)
             + (pricedNdfStore ?? []).reduce((s, p) => s + (p.fx_delta ?? 0), 0);
@@ -1325,15 +1361,8 @@ function RiskManagement() {
           const pnlMtdUsd = (otcSummary && mtdRef)
             ? otcSummary.total_npv_usd - mtdRef.summary.total_npv_usd
             : 0;
-          // Si el store esta poblado, usar valores reales. Si no, fallback al
-          // hardcode de Abril 2026.
-          const useStore = fxDeltaTotal !== 0 || pnlMtdUsd !== 0;
-          next[i].position_gr = useStore
-            ? String(Math.round(fxDeltaTotal))
-            : '-8800000';
-          next[i].pnl_gr = useStore
-            ? String(Math.round(pnlMtdUsd))
-            : '121300';
+          next[i].position_gr = String(Math.round(fxDeltaTotal));
+          next[i].pnl_gr = String(Math.round(pnlMtdUsd));
           return;
         }
 
