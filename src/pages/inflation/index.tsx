@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Container } from 'react-bootstrap';
 import styled from 'styled-components';
 import { CoreLayout } from '@layout';
@@ -58,6 +58,17 @@ export default function InflationPage() {
   const loadContributions = useAppStore((s) => s.loadContributions);
   const seriesByCanasta = useAppStore((s) => s.seriesByCanasta);
 
+  // Render-after-hydration flag — avoid SSR/client locale mismatches that
+  // can produce React error #418/#421 and bubble up as "Application error:
+  // a client-side exception has occurred" in production.
+  const [hydrated, setHydrated] = useState(false);
+  const [todayLabel, setTodayLabel] = useState('');
+
+  useEffect(() => {
+    setHydrated(true);
+    setTodayLabel(new Date().toLocaleDateString('es-CO'));
+  }, []);
+
   useEffect(() => {
     loadInflationCatalog();
     loadCanastaSeries(TOTAL_ID);
@@ -102,18 +113,22 @@ export default function InflationPage() {
           </ExportBtn>
         </Topbar>
 
-        <HeroBlock />
-        <TrendBlock />
-        <SmallMultiples />
-        <DecompositionBlock />
-        <CityRanking />
-        <CoreInflationPanel />
+        {hydrated && (
+          <>
+            <HeroBlock />
+            <TrendBlock />
+            <SmallMultiples />
+            <DecompositionBlock />
+            <CityRanking />
+            <CoreInflationPanel />
+          </>
+        )}
 
         <Footer>
           <div>Fuente: DANE — Sistema Estadístico Nacional (SEN)</div>
           <div>Histórico headline: BanRep id=7 (IPC base 2018=100)</div>
           <div>Núcleo: BanRep — Inflación básica</div>
-          <div>Última actualización: {new Date().toLocaleDateString('es-CO')}</div>
+          <div>Última actualización: {todayLabel || '—'}</div>
         </Footer>
       </Container>
       <ToastContainer />
