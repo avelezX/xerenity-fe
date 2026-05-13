@@ -67,8 +67,37 @@ const Pill = styled.span<{ $tone?: DirTone }>`
 const SparkBox = styled.div`
   height: 90px; width: 100%;
 `;
-const GaugeBox = styled.div`
-  height: 90px; width: 100%; padding-top: 8px;
+const GaugeTrack = styled.div`
+  position: relative;
+  width: 100%;
+  height: 14px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: linear-gradient(
+    to right,
+    rgba(163, 207, 187, 0.6)  0%,
+    rgba(163, 207, 187, 0.6) 22%,
+    rgba(255, 218, 106, 0.6) 22%,
+    rgba(255, 218, 106, 0.6) 33%,
+    rgba(227, 93, 106, 0.55) 33%,
+    rgba(227, 93, 106, 0.55) 50%,
+    rgba(176, 42, 55, 0.55)  50%,
+    rgba(176, 42, 55, 0.55) 100%
+  );
+  margin-top: 16px;
+`;
+const GaugeTick = styled.div<{ $position: number }>`
+  position: absolute;
+  top: -4px;
+  bottom: -4px;
+  left: ${({ $position }) => $position}%;
+  width: 3px;
+  background: #212529;
+  border-radius: 2px;
+`;
+const GaugeScale = styled.div`
+  display: flex; justify-content: space-between;
+  font-size: 9px; color: #A6A6A6; margin-top: 4px;
 `;
 const KpiGrid = styled.div`
   display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px 24px;
@@ -181,22 +210,17 @@ export default function HeroBlock() {
       {/* Col 3 — gauge + secondary KPIs */}
       <div>
         <Label>Posición vs rango Banrep</Label>
-        <GaugeBox>
-          <ResponsiveContainer>
-            <LineChart
-              data={[{ x: 0, v: yoy ?? 0 }, { x: 1, v: yoy ?? 0 }]}
-              margin={{ top: 16, right: 0, left: 0, bottom: 8 }}
-            >
-              <YAxis hide domain={[0, gaugeMax]} type="number" />
-              <ReferenceArea x1={0} x2={1} y1={0} y2={2} fill="#A3CFBB" fillOpacity={0.25} />
-              <ReferenceArea x1={0} x2={1} y1={2} y2={4} fill="#A3CFBB" fillOpacity={0.5} />
-              <ReferenceArea x1={0} x2={1} y1={4} y2={6} fill="#FFDA6A" fillOpacity={0.45} />
-              <ReferenceArea x1={0} x2={1} y1={6} y2={9} fill="#E35D6A" fillOpacity={0.4} />
-              <ReferenceArea x1={0} x2={1} y1={9} y2={gaugeMax} fill="#B02A37" fillOpacity={0.35} />
-              <ReferenceLine y={yoy ?? 0} stroke="#212529" strokeWidth={3} />
-            </LineChart>
-          </ResponsiveContainer>
-        </GaugeBox>
+        <GaugeTrack>
+          <GaugeTick
+            $position={Math.min(100, Math.max(0, ((yoy ?? 0) / gaugeMax) * 100))}
+          />
+        </GaugeTrack>
+        <GaugeScale>
+          <span>0%</span>
+          <span>4%</span>
+          <span>9%</span>
+          <span>{gaugeMax}%</span>
+        </GaugeScale>
         <KpiGrid>
           <KpiRow>
             <Label>Mensual</Label>
