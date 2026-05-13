@@ -884,12 +884,6 @@ function RiskManagement() {
   // Check if this company has CAFE in its commodities (for conditional tabs)
   const hasCafe = companyConfig?.commodities?.some((c) => c.asset === 'CAFE') ?? false;
 
-  // Total $ COP del blotter cafe — alimenta Exposicion Natural de CAFE en Benchmark.
-  // Solo aplica si hasCafe es true. El componente BlotterCafe llama a setCafeBlotterTotal
-  // cada vez que cambian sus filas.
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [cafeBlotterTotal, setCafeBlotterTotal] = useState<number>(0);
-
   const [activeTab, setActiveTab] = useState('benchmark');
   // Build tabs dynamically: add "Precios Locales" if CAFE, + "Calculadora USDCOP" always
   const [pageTabs, setPageTabs] = useState<TabItemType[]>(TAB_ITEMS);
