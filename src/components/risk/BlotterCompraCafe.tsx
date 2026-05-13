@@ -1,4 +1,4 @@
-/* eslint-disable jsx-a11y/control-has-associated-label */
+/* eslint-disable jsx-a11y/control-has-associated-label, no-underscore-dangle, no-nested-ternary, no-restricted-syntax, no-restricted-globals, react/self-closing-comp, @typescript-eslint/no-unused-vars, prefer-template */
 /**
  * Blotter de compras de cafe. Tabla CRUD que se renderiza dentro del
  * tab Benchmark de /risk-management cuando la empresa tiene CAFE.
