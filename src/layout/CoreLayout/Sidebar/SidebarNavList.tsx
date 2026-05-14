@@ -15,6 +15,7 @@ import {
   faRobot,
   faUsers,
   faHeartPulse,
+  faBook,
 } from '@fortawesome/free-solid-svg-icons';
 import useAppStore from 'src/store';
 import SubNavItem from './SubNavItem';
@@ -167,6 +168,12 @@ const SidebarNavList = ({ currentPath }: SidebarNavProps) => {
         path="/suameca"
         icon={faChartSimple}
         active={SERIES_DASHBOARDS_PREFIX.some((p) => currentPath.includes(p))}
+      />
+      <NavigationItem
+        name="Catálogo"
+        path="/data-catalog"
+        icon={faBook}
+        active={currentPath.includes('/data-catalog')}
       />
       {(userRole === 'super_admin' || userRole === 'corp_admin') && (
         <NavigationItem
