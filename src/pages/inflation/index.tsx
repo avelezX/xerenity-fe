@@ -17,6 +17,7 @@ import { ExportToCsv, downloadBlob } from 'src/utils/downloadCSV';
 import HeroBlock from '@components/inflation/v2/HeroBlock';
 import TrendBlock from '@components/inflation/v2/TrendBlock';
 import SmallMultiples from '@components/inflation/v2/SmallMultiples';
+import DivisionDrilldown from '@components/inflation/v2/DivisionDrilldown';
 import DecompositionBlock from '@components/inflation/v2/DecompositionBlock';
 import CityRanking from '@components/inflation/v2/CityRanking';
 import CoreInflationPanel from '@components/inflation/v2/CoreInflationPanel';
@@ -63,6 +64,11 @@ export default function InflationPage() {
   // a client-side exception has occurred" in production.
   const [hydrated, setHydrated] = useState(false);
   const [todayLabel, setTodayLabel] = useState('');
+  const [selectedDivisionId, setSelectedDivisionId] = useState<number | null>(null);
+
+  const handleSelectDivision = (id: number) => {
+    setSelectedDivisionId((prev) => (prev === id ? null : id));
+  };
 
   useEffect(() => {
     setHydrated(true);
@@ -117,7 +123,14 @@ export default function InflationPage() {
           <>
             <HeroBlock />
             <TrendBlock />
-            <SmallMultiples />
+            <SmallMultiples
+              selectedDivisionId={selectedDivisionId}
+              onSelectDivision={handleSelectDivision}
+            />
+            <DivisionDrilldown
+              divisionId={selectedDivisionId}
+              onClose={() => setSelectedDivisionId(null)}
+            />
             <DecompositionBlock />
             <CityRanking />
             <CoreInflationPanel />
