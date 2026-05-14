@@ -437,6 +437,77 @@ async function executeReadRepoFile(
 }
 
 
+// ─────────────────────────────────────────────────────────────────
+// Catalog tools (Phase 3) — let the agent introspect what data exists
+// before writing query_database SQL or referencing tables by guess.
+// All three use the caller's session (userSupabase) so the existing
+// auth.uid() gates in the catalog RPCs work transparently.
+// ─────────────────────────────────────────────────────────────────
+
+async function executeListDataCatalog(
+  userSupabase?: AnySupabaseClient,
+): Promise<ToolResult> {
+  if (!userSupabase) {
+    return { success: false, error: 'Se requiere sesion de usuario para consultar el catalogo' };
+  }
+  try {
+    const { data, error } = await userSupabase
+      .schema('xerenity')
+      .rpc('list_data_catalog_overview');
+    if (error) return { success: false, error: `Catalog overview: ${error.message}` };
+    return { success: true, data: { tables: data ?? [] } };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'Error desconocido';
+    return { success: false, error: `Catalog overview: ${msg}` };
+  }
+}
+
+async function executeDescribeTable(
+  input: Record<string, unknown>,
+  userSupabase?: AnySupabaseClient,
+): Promise<ToolResult> {
+  if (!userSupabase) {
+    return { success: false, error: 'Se requiere sesion de usuario para describir tabla' };
+  }
+  const tableName = ((input.table_name as string) || '').trim();
+  if (!tableName) {
+    return { success: false, error: 'table_name es requerido' };
+  }
+  try {
+    const { data, error } = await userSupabase
+      .schema('xerenity')
+      .rpc('describe_table', { p_table: tableName });
+    if (error) return { success: false, error: `Describe table: ${error.message}` };
+    return { success: true, data };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'Error desconocido';
+    return { success: false, error: `Describe table: ${msg}` };
+  }
+}
+
+async function executeDescribeLineage(
+  input: Record<string, unknown>,
+  userSupabase?: AnySupabaseClient,
+): Promise<ToolResult> {
+  if (!userSupabase) {
+    return { success: false, error: 'Se requiere sesion de usuario para consultar lineage' };
+  }
+  const tableName = ((input.table_name as string) || '').trim();
+  if (!tableName) {
+    return { success: false, error: 'table_name es requerido' };
+  }
+  try {
+    const { data, error } = await userSupabase
+      .schema('xerenity')
+      .rpc('get_table_lineage', { p_table: tableName });
+    if (error) return { success: false, error: `Lineage: ${error.message}` };
+    return { success: true, data };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'Error desconocido';
+    return { success: false, error: `Lineage: ${msg}` };
+  }
+}
+
 // eslint-disable-next-line import/prefer-default-export
 export async function executeTool(
   toolName: string,
@@ -460,6 +531,12 @@ export async function executeTool(
       return executeControlChart(toolInput);
     case 'read_repo_file':
       return executeReadRepoFile(toolInput, userSupabase);
+    case 'list_data_catalog':
+      return executeListDataCatalog(userSupabase);
+    case 'describe_table':
+      return executeDescribeTable(toolInput, userSupabase);
+    case 'describe_lineage':
+      return executeDescribeLineage(toolInput, userSupabase);
     default:
       return { success: false, error: `Tool desconocido: ${toolName}` };
   }

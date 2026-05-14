@@ -241,4 +241,56 @@ export const tools: Anthropic.Tool[] = [
       required: ['action'],
     },
   },
+  {
+    name: 'list_data_catalog',
+    description:
+      'Devuelve el inventario de TODAS las tablas de datos registradas en el catálogo de Xerenity. ' +
+      'Para cada tabla incluye: nombre, label, categoría, país, fuentes (collectors writing), ' +
+      'número de consumers que la leen, número de slice values documentados, descripción, y ' +
+      'flag is_critical. Usar este tool ANTES de query_database cuando el usuario pregunta sobre ' +
+      'qué datos tiene Xerenity, o para descubrir qué tabla contiene cierta serie.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {},
+      required: [],
+    },
+  },
+  {
+    name: 'describe_table',
+    description:
+      'Devuelve la descripción completa de una tabla específica del catálogo de Xerenity: ' +
+      'meta (label, descripción, categoría, país, columna fecha, columna slice), columnas con ' +
+      'tipos + labels + units, y diccionario de valores de slice (qué significa cada valor único ' +
+      'del slice_column). Usar este tool DESPUÉS de list_data_catalog cuando ya identificaste la ' +
+      'tabla de interés y necesitas detalles para construir queries SQL acertadas.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        table_name: {
+          type: 'string',
+          description: 'Nombre exacto de la tabla en el schema xerenity. Ej: "currency", "tes_operation", "cb_rates".',
+        },
+      },
+      required: ['table_name'],
+    },
+  },
+  {
+    name: 'describe_lineage',
+    description:
+      'Devuelve el lineage (linaje) de una tabla: qué collectors la pueblan (writers) y qué ' +
+      'consumers la leen (readers, e.g. páginas del FE, agente IA, pysdk). Útil para responder ' +
+      '"¿de dónde viene esta data?" o "¿quién depende de esta tabla?". ' +
+      'Cada writer incluye: nombre, source_name, cron, expected_frequency, severity, enabled. ' +
+      'Cada reader incluye: nombre, consumer_type (fe_page/agent_tool/sdk/etc), path, label, enabled.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        table_name: {
+          type: 'string',
+          description: 'Nombre exacto de la tabla en el schema xerenity.',
+        },
+      },
+      required: ['table_name'],
+    },
+  },
 ];
