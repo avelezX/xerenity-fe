@@ -10,6 +10,8 @@ import {
   faCheck,
   faEye,
   faRobot,
+  faBook,
+  faArrowUpRightFromSquare,
 } from '@fortawesome/free-solid-svg-icons';
 import { toast } from 'react-toastify';
 import styled from 'styled-components';
@@ -21,6 +23,42 @@ import MonitorTable from './_MonitorTable';
 
 const PageWrap = styled.div`
   padding: 16px 24px;
+`;
+
+// Canonical link to the operations playbook. Markdown is source of truth in
+// xerenity-dm, GitHub renders it nicely (TOC, code highlight, edit button).
+// Repo is private, so GitHub auth gates read access — no extra permission
+// logic needed in the FE beyond the super_admin gate that already protects
+// /admin/monitor.
+const PLAYBOOK_URL =
+  'https://github.com/avelezX/xerenity-dm/blob/main/docs/COLLECTORS_PLAYBOOK.md';
+
+const PlaybookLink = styled.a`
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #302b63;
+  background: #f3f3f7;
+  border: 1px solid #d8d8e6;
+  padding: 4px 10px;
+  border-radius: 4px;
+  text-decoration: none !important;
+  margin-left: 12px;
+  vertical-align: middle;
+
+  &:hover {
+    background: #e9e9f0;
+    color: #1f1b3e;
+  }
+`;
+
+const TitleRow = styled.div`
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
 `;
 
 const AlertsPanel = styled.div`
@@ -348,7 +386,18 @@ const MonitorPage = () => {
         }
       >
         <PageWrap>
-          <PageTitle>Monitor de Collectors</PageTitle>
+          <TitleRow>
+            <PageTitle>Monitor de Collectors</PageTitle>
+            <PlaybookLink
+              href={PLAYBOOK_URL}
+              target="_blank"
+              rel="noreferrer"
+              title="Manual operacional de collectors — markdown en xerenity-dm. Edición vía PR."
+            >
+              <Icon icon={faBook} /> Playbook
+              <Icon icon={faArrowUpRightFromSquare} style={{ fontSize: 9 }} />
+            </PlaybookLink>
+          </TitleRow>
           <div style={{ fontSize: 13, color: '#666', marginBottom: 6 }}>
             <strong>Collectors:</strong> {counts.ok}/{counts.total} OK · {counts.warning} en warning · {counts.critical} en critical
           </div>
