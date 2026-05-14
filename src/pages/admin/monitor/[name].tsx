@@ -17,6 +17,7 @@ import {
   faChevronRight,
   faGauge,
   faBookOpen,
+  faBook,
 } from '@fortawesome/free-solid-svg-icons';
 import styled from 'styled-components';
 import PageTitle from '@components/PageTitle';
@@ -76,6 +77,39 @@ const BackLink = styled(Link)`
   margin-bottom: 12px;
   text-decoration: none;
   &:hover { text-decoration: underline; }
+`;
+
+// Canonical link to the operations playbook. See xerenity-fe/CLAUDE.md
+// and xerenity-dm/docs/COLLECTORS_PLAYBOOK.md.
+const PLAYBOOK_URL =
+  'https://github.com/avelezX/xerenity-dm/blob/main/docs/COLLECTORS_PLAYBOOK.md';
+
+const PlaybookLink = styled.a`
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #302b63;
+  background: #f3f3f7;
+  border: 1px solid #d8d8e6;
+  padding: 4px 10px;
+  border-radius: 4px;
+  text-decoration: none !important;
+  margin-left: 12px;
+
+  &:hover {
+    background: #e9e9f0;
+    color: #1f1b3e;
+  }
+`;
+
+const HeaderRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
 `;
 
 const TabBar = styled.div`
@@ -213,9 +247,20 @@ const CollectorDetailPage = () => {
         }
       >
         <PageWrap>
-          <BackLink href="/admin/monitor">
-            <Icon icon={faArrowLeft} /> Volver al overview
-          </BackLink>
+          <HeaderRow>
+            <BackLink href="/admin/monitor" style={{ marginBottom: 0 }}>
+              <Icon icon={faArrowLeft} /> Volver al overview
+            </BackLink>
+            <PlaybookLink
+              href={PLAYBOOK_URL}
+              target="_blank"
+              rel="noreferrer"
+              title="Manual operacional — markdown en xerenity-dm. Edición vía PR."
+            >
+              <Icon icon={faBook} /> Playbook
+              <Icon icon={faArrowUpRightFromSquare} style={{ fontSize: 9 }} />
+            </PlaybookLink>
+          </HeaderRow>
           <PageTitle>{name ?? 'Collector'}</PageTitle>
 
           <TabBar role="tablist" aria-label="Vistas del collector">

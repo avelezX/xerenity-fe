@@ -1,5 +1,9 @@
 # Xerenity Frontend - Claude Agent Workflow
 
+## 📖 Playbook operacional de collectors
+
+Para entender los collectors que alimentan los datos del FE (y el sistema de monitoreo en `/admin/monitor`), leer [el playbook en xerenity-dm](https://github.com/avelezX/xerenity-dm/blob/main/docs/COLLECTORS_PLAYBOOK.md). Cubre el modelo de catálogo, anti-patterns, convenciones, y metodología de triage. El monitor del FE tiene un botón "📖 Playbook" que linkea directo a ese archivo.
+
 ## Qué es
 Frontend de la plataforma Xerenity. Aplicación web para visualización de datos financieros, series de tiempo, curvas de rendimiento, y dashboards de portafolio.
 
