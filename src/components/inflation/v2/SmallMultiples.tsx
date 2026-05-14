@@ -19,6 +19,11 @@ import {
 
 const TOTAL_ID = 1;
 
+interface Props {
+  selectedDivisionId?: number | null;
+  onSelectDivision?: (id: number) => void;
+}
+
 const Wrap = styled.section`
   background: #fff;
   border: 1px solid #ECECEE;
@@ -40,13 +45,26 @@ const Grid = styled.div`
   @media (max-width: 1100px) { grid-template-columns: repeat(2, 1fr); }
 `;
 
-const Card = styled.div<{ $tone: Tone }>`
-  border: 1px solid #ECECEE;
+const Card = styled.button<{ $tone: Tone; $active?: boolean }>`
+  border: 1px solid ${({ $active }) => ($active ? '#786CF7' : '#ECECEE')};
   border-left: 3px solid ${({ $tone }) => toneBorder($tone)};
   border-radius: 8px;
   padding: 10px 12px;
   display: flex; flex-direction: column; gap: 4px;
   min-height: 110px;
+  background: ${({ $active }) => ($active ? '#F4F2FE' : '#fff')};
+  text-align: left;
+  cursor: pointer;
+  transition: background 120ms ease, border-color 120ms ease, transform 120ms ease;
+  &:hover {
+    background: ${({ $active }) => ($active ? '#F4F2FE' : '#FAFAFB')};
+    border-color: ${({ $active }) => ($active ? '#786CF7' : '#D6D5DC')};
+    transform: translateY(-1px);
+  }
+  &:focus-visible {
+    outline: 2px solid #786CF7;
+    outline-offset: 2px;
+  }
 `;
 
 const NameRow = styled.div`
@@ -77,7 +95,7 @@ const fmtPct = (v: number | null | undefined) => {
   return `${sign}${v.toFixed(2)}%`;
 };
 
-export default function SmallMultiples() {
+export default function SmallMultiples({ selectedDivisionId, onSelectDivision }: Props) {
   const canastas = useAppStore((s) => s.canastas);
   const seriesByCanasta = useAppStore((s) => s.seriesByCanasta);
   const setSelected = useAppStore((s) => s.setSelectedCanastaIds);
@@ -110,13 +128,20 @@ export default function SmallMultiples() {
 
   return (
     <Wrap>
-      <Title>Las 12 divisiones · YoY actual y tendencia 24m</Title>
+      <Title>Las 12 divisiones · YoY actual y tendencia 24m{onSelectDivision ? ' · click para ver subgrupos' : ''}</Title>
       <Grid>
         {cards.map((c) => {
           const t = toneFromYoy(c.yoy);
           const accent = toneAccent(t);
+          const active = selectedDivisionId === c.id;
           return (
-            <Card key={c.id} $tone={t}>
+            <Card
+              key={c.id}
+              $tone={t}
+              $active={active}
+              type="button"
+              onClick={() => onSelectDivision?.(c.id)}
+            >
               <NameRow>
                 <NameTxt title={c.nombre}>{c.nombre}</NameTxt>
                 <PesoTxt>{c.peso != null ? `${(c.peso * 100).toFixed(1)}%` : '—'}</PesoTxt>
