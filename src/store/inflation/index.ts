@@ -7,6 +7,7 @@ import {
 } from 'src/types/inflation';
 import {
   fetchCanastas,
+  fetchCanastaTree,
   fetchCPIFullSeries,
   fetchCPISnapshot,
   fetchCPIContributions,
@@ -49,13 +50,24 @@ const createInflationSlice: StateCreator<InflationSlice> = (set, get) => ({
 
   loadInflationCatalog: async () => {
     set({ inflationLoading: true, inflationError: undefined });
-    const res = await fetchCanastas();
+    // Use cpi_canasta_tree so we get the hierarchy (nivel + id_padre) and
+    // the SmallMultiples / decomposition components can filter divisions
+    // from subgroups cleanly.
+    const res = await fetchCanastaTree();
     if (res.error || !res.data) {
-      set({ inflationLoading: false, inflationError: res.error });
+      // Fallback to the flat catalog if the RPC ever fails.
+      const fallback = await fetchCanastas();
+      if (fallback.error || !fallback.data) {
+        set({ inflationLoading: false, inflationError: res.error });
+        return;
+      }
+      const total: InflationCanasta = { id: TOTAL_ID, nombre: 'Total Nacional', peso: 1, nivel: 0 };
+      set({ canastas: [total, ...fallback.data.filter((c) => c.id !== TOTAL_ID)], inflationLoading: false });
       return;
     }
-    const total: InflationCanasta = { id: TOTAL_ID, nombre: 'Total Nacional', peso: 1 };
-    const merged = [total, ...res.data.filter((c) => c.id !== TOTAL_ID)];
+    const hasTotal = res.data.some((c) => c.id === TOTAL_ID);
+    const total: InflationCanasta = { id: TOTAL_ID, nombre: 'Total Nacional', peso: 1, nivel: 0 };
+    const merged = hasTotal ? res.data : [total, ...res.data];
     set({ canastas: merged, inflationLoading: false });
   },
 

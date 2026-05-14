@@ -86,14 +86,14 @@ export default function SmallMultiples() {
   useEffect(() => {
     if (canastas.length === 0) return;
     const divisionIds = canastas
-      .filter((c) => c.id !== TOTAL_ID && (c.nivel === undefined || c.nivel === 1))
+      .filter((c) => c.id !== TOTAL_ID && c.nivel === 1)
       .map((c) => c.id);
     if (divisionIds.length > 0) setSelected([TOTAL_ID, ...divisionIds]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canastas.length]);
 
   const cards = useMemo(() => canastas
-    .filter((c) => c.id !== TOTAL_ID && (c.nivel === undefined || c.nivel === 1))
+    .filter((c) => c.id !== TOTAL_ID && c.nivel === 1)
     .map((c) => {
       const ser = seriesByCanasta[c.id] || [];
       const last = ser[ser.length - 1];
