@@ -197,3 +197,82 @@ export interface CollectorFullDetail {
   run_stats: CollectorRunStats | null;
   dictionary: CollectorDictionary | null;
 }
+
+
+// ──────────────────────────────────────────────────────────────────────
+// Phase 2 — public data catalog (visible to any authenticated user)
+// ──────────────────────────────────────────────────────────────────────
+
+// Row returned by list_data_catalog_overview. One per table_meta with
+// writer/reader counts and source attribution for the overview page.
+export interface DataCatalogOverviewEntry {
+  table_name: string;
+  label: string | null;
+  category: string | null;
+  country: string | null;
+  is_critical: boolean;
+  description: string | null;
+  date_column: string;
+  slice_column: string | null;
+  n_collectors_writing: number;
+  n_consumers: number;
+  sources: string[];
+  n_slice_values: number;
+}
+
+// Returned by get_table_lineage(table_name).
+export interface TableLineageWriter {
+  name: string;
+  description: string | null;
+  enabled: boolean;
+  severity: 'critical' | 'warning' | 'info';
+  source_name: string | null;
+  schedule_cron: string | null;
+  expected_frequency: string | null;
+}
+
+export interface TableLineageReader {
+  name: string;
+  consumer_type: string;
+  label: string;
+  path: string | null;
+  enabled: boolean;
+  writes_tables: string[];
+  description: string | null;
+}
+
+export interface TableLineage {
+  writers: TableLineageWriter[];
+  readers: TableLineageReader[];
+}
+
+// Returned by get_table_freshness(table_name).
+export interface TableFreshnessOverall {
+  row_count: number;
+  first_date: string | null;
+  last_date: string | null;
+  age_hours: number | null;
+  error?: string;
+}
+
+export interface TableFreshnessPerSlice {
+  slice_value: string;
+  row_count: number;
+  first_date: string | null;
+  last_date: string | null;
+}
+
+export interface TableFreshness {
+  overall: TableFreshnessOverall;
+  // per_slice is an array when slice_column is set; can be the literal []
+  // when there is no slice_column. May be an error object if dynamic SQL
+  // failed (e.g. column type mismatch). The detail page guards both.
+  per_slice: TableFreshnessPerSlice[] | { error: string };
+}
+
+// Returned by describe_table (already exists in Phase 1 RPCs).
+export interface TableDescription {
+  meta: DataTableMeta;
+  columns: DataColumnMeta[];
+  slices: DataSliceEntry[];
+}
