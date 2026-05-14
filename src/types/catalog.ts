@@ -138,6 +138,39 @@ export interface CollectorRunStats {
   recent: CollectorRunStatRecent[];
 }
 
+// Phase 1 of the catalog plan — per-column metadata. Auto-populated from
+// information_schema; label/description/unit filled manually.
+export interface DataColumnMeta {
+  table_name: string;
+  column_name: string;
+  data_type: string;
+  ordinal_position: number;
+  is_pk: boolean;
+  is_slice_key: boolean;
+  is_date_key: boolean;
+  label: string | null;
+  description: string | null;
+  unit: string | null;
+  fk_to: string | null;
+}
+
+// Phase 1 — slice value dictionary. Explains what each unique value of the
+// slice_column means (e.g. cb_rates.codigo='XM' → "Euro area").
+export interface DataSliceEntry {
+  table_name: string;
+  slice_column: string;
+  slice_value: string;
+  label: string;
+  description: string | null;
+}
+
+// Phase 1 — per-target-table dictionary returned by get_collector_full_detail.
+// Key is the table_name; value is { columns, slices } arrays.
+export type CollectorDictionary = Record<
+  string,
+  { columns: DataColumnMeta[]; slices: DataSliceEntry[] }
+>;
+
 // get_collector_full_detail return shape
 
 export interface CollectorFullDetail {
@@ -162,4 +195,5 @@ export interface CollectorFullDetail {
   reviews: CollectorTableReview[];
   consumers: DataConsumer[];
   run_stats: CollectorRunStats | null;
+  dictionary: CollectorDictionary | null;
 }

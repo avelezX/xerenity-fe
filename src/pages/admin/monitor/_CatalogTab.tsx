@@ -23,6 +23,9 @@ import type {
   ReviewStatus,
   HealthStatus,
   CollectorFullDetail,
+  CollectorDictionary,
+  DataColumnMeta,
+  DataSliceEntry,
 } from 'src/types/catalog';
 
 // ─────────────────────────────────────────────────────────────────
@@ -376,10 +379,124 @@ const OrigenSection: React.FC<{ collectorName: string }> = ({ collectorName }) =
   );
 };
 
+// DictionaryBlock — collapsible columns + slice values for a single target
+// table. Collapsed by default so the catalog tab doesn't overwhelm; click to
+// expand. Pure render off the dictionary prop coming from get_collector_full_detail.
+const DictionaryBlock: React.FC<{
+  columns: DataColumnMeta[];
+  slices: DataSliceEntry[];
+}> = ({ columns, slices }) => {
+  const [showColumns, setShowColumns] = useState(false);
+  const [showSlices, setShowSlices] = useState(false);
+
+  if (columns.length === 0 && slices.length === 0) return null;
+
+  return (
+    <div style={{ marginTop: 10, paddingTop: 8, borderTop: '1px dashed #e0e0e8' }}>
+      {columns.length > 0 && (
+        <div>
+          <button
+            type="button"
+            onClick={() => setShowColumns((v) => !v)}
+            style={{
+              background: 'none',
+              border: 'none',
+              padding: 0,
+              fontSize: 11,
+              fontWeight: 600,
+              color: '#555',
+              textTransform: 'uppercase',
+              letterSpacing: 0.4,
+              cursor: 'pointer',
+            }}
+          >
+            <Icon icon={showColumns ? faCircleCheck : faCircleExclamation}
+              style={{ fontSize: 9, marginRight: 4, opacity: 0.4 }} />
+            Columnas ({columns.length}){showColumns ? ' ▾' : ' ▸'}
+          </button>
+          {showColumns && (
+            <SubTable style={{ marginTop: 6 }}>
+              <thead>
+                <tr>
+                  <th>Columna</th>
+                  <th>Tipo</th>
+                  <th>Label</th>
+                  <th>Descripción</th>
+                  <th>Unit</th>
+                </tr>
+              </thead>
+              <tbody>
+                {columns.map((c) => (
+                  <tr key={c.column_name}>
+                    <td>
+                      <code>{c.column_name}</code>
+                      {c.is_date_key && <Badge bg="info" style={{ marginLeft: 4, fontSize: 9 }}>date</Badge>}
+                      {c.is_slice_key && <Badge bg="warning" style={{ marginLeft: 4, fontSize: 9, color: '#000' }}>slice</Badge>}
+                    </td>
+                    <td style={{ color: '#888', fontSize: 11 }}>{c.data_type}</td>
+                    <td>{c.label ?? <em style={{ color: '#bbb' }}>—</em>}</td>
+                    <td style={{ fontSize: 11, color: '#555' }}>{c.description ?? <em style={{ color: '#bbb' }}>—</em>}</td>
+                    <td>{c.unit ?? <em style={{ color: '#bbb' }}>—</em>}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </SubTable>
+          )}
+        </div>
+      )}
+
+      {slices.length > 0 && (
+        <div style={{ marginTop: 8 }}>
+          <button
+            type="button"
+            onClick={() => setShowSlices((v) => !v)}
+            style={{
+              background: 'none',
+              border: 'none',
+              padding: 0,
+              fontSize: 11,
+              fontWeight: 600,
+              color: '#555',
+              textTransform: 'uppercase',
+              letterSpacing: 0.4,
+              cursor: 'pointer',
+            }}
+          >
+            <Icon icon={showSlices ? faCircleCheck : faCircleExclamation}
+              style={{ fontSize: 9, marginRight: 4, opacity: 0.4 }} />
+            Slice dictionary ({slices.length}){showSlices ? ' ▾' : ' ▸'}
+          </button>
+          {showSlices && (
+            <SubTable style={{ marginTop: 6 }}>
+              <thead>
+                <tr>
+                  <th>Valor</th>
+                  <th>Label</th>
+                  <th>Descripción</th>
+                </tr>
+              </thead>
+              <tbody>
+                {slices.map((s) => (
+                  <tr key={s.slice_value}>
+                    <td><code>{s.slice_value}</code></td>
+                    <td style={{ fontWeight: 500 }}>{s.label}</td>
+                    <td style={{ fontSize: 11, color: '#555' }}>{s.description ?? <em style={{ color: '#bbb' }}>—</em>}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </SubTable>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
 const SeriesSection: React.FC<{
   series: CollectorTableSeries[];
   collectorName: string;
-}> = ({ series, collectorName }) => {
+  dictionary: CollectorDictionary | null;
+}> = ({ series, collectorName, dictionary }) => {
   const { detail, save } = useAppStore((s) => ({
     detail: s.catalogDetail[collectorName],
     save: s.saveCollectorTableReview,
@@ -474,6 +591,12 @@ const SeriesSection: React.FC<{
               </tbody>
             </SubTable>
           )}
+
+          {/* Columns + slice dictionary — collapsible per table */}
+          <DictionaryBlock
+            columns={dictionary?.[s.table_name]?.columns ?? []}
+            slices={dictionary?.[s.table_name]?.slices ?? []}
+          />
 
           {/* Per-(collector, table) review */}
           <ReviewBlock
@@ -925,7 +1048,11 @@ const CatalogTab: React.FC<{ collectorName: string }> = ({ collectorName }) => {
     <div>
       <SaludSection detail={detail} />
       <OrigenSection collectorName={collectorName} />
-      <SeriesSection series={detail.series} collectorName={collectorName} />
+      <SeriesSection
+        series={detail.series}
+        collectorName={collectorName}
+        dictionary={detail.dictionary ?? null}
+      />
       <ConsumidoresSection consumers={detail.consumers} />
     </div>
   );
