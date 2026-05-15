@@ -12,6 +12,7 @@ import { useRouter } from 'next/router';
 import useAppStore from 'src/store';
 import type { Company } from 'src/types/user';
 import ChatContainer from '@components/chat/ChatContainer';
+import GlobalDateSelector from 'src/components/risk/GlobalDateSelector';
 import MobileWarning from './MobileWarning';
 
 const LOGIN_PATH = '/login';
@@ -36,18 +37,60 @@ function CompanySelector({ companies, selectedCompanyId, onSelect, onLoad }: {
   if (companies.length === 0) return null;
 
   return (
-    <div style={{ padding: '8px 16px', background: '#f1f5f9', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: 8 }}>
-      <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#64748b' }}>Empresa:</span>
+    <div className="company-selector-root">
+      <span className="company-selector-label">EMPRESA</span>
       <select
+        className="company-selector-select"
         value={selectedCompanyId || ''}
         onChange={(e) => onSelect(e.target.value || undefined)}
-        style={{ fontSize: '0.8rem', padding: '4px 8px', borderRadius: 4, border: '1px solid #cbd5e1', minWidth: 200 }}
       >
-        <option value="">Seleccionar empresa...</option>
+        <option value="">Seleccionar...</option>
         {companies.map((c) => (
           <option key={c.id} value={c.id}>{c.name}</option>
         ))}
       </select>
+      <style jsx>{`
+        .company-selector-root {
+          display: inline-flex;
+          align-items: stretch;
+          background: #ffffff;
+          border: 1px solid #cbd5e1;
+        }
+        .company-selector-label {
+          display: inline-flex;
+          align-items: center;
+          padding: 0 10px;
+          font-size: 10px;
+          font-weight: 600;
+          letter-spacing: 0.12em;
+          color: #64748b;
+          background: #f8fafc;
+          border-right: 1px solid #e2e8f0;
+        }
+        .company-selector-select {
+          font-size: 12px;
+          font-weight: 500;
+          letter-spacing: 0.02em;
+          color: #0f172a;
+          background: #ffffff;
+          padding: 5px 28px 5px 10px;
+          min-width: 200px;
+          border: none;
+          outline: none;
+          font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+          appearance: none;
+          background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+          background-repeat: no-repeat;
+          background-position: right 8px center;
+        }
+        .company-selector-select:hover {
+          background-color: #f8fafc;
+        }
+        .company-selector-select:focus-visible {
+          outline: 2px solid #9a3412;
+          outline-offset: -2px;
+        }
+      `}</style>
     </div>
   );
 }
@@ -132,14 +175,31 @@ export default function CoreLayout({ children }: PropsWithChildren) {
         <div className="layout-wrapper">
           <Sidebar />
           <div className="layout-content">
-            {isSuperAdmin() && isRiskSection(router.pathname) && (
-              <CompanySelector
-                companies={companies}
-                selectedCompanyId={selectedCompanyId}
-                onSelect={setSelectedCompanyId}
-                onLoad={loadCompanies}
-              />
+            {isRiskSection(router.pathname) && (
+              <div className="risk-context-bar">
+                {isSuperAdmin() ? (
+                  <CompanySelector
+                    companies={companies}
+                    selectedCompanyId={selectedCompanyId}
+                    onSelect={setSelectedCompanyId}
+                    onLoad={loadCompanies}
+                  />
+                ) : null}
+                <GlobalDateSelector />
+              </div>
             )}
+            <style jsx>{`
+              .risk-context-bar {
+                display: flex;
+                align-items: center;
+                gap: 24px;
+                padding: 10px 20px;
+                background: #f8fafc;
+                border-bottom: 1px solid #e2e8f0;
+                flex-wrap: wrap;
+                font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+              }
+            `}</style>
             <div>{children}</div>
           </div>
         </div>

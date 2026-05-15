@@ -8,6 +8,7 @@
 import type { FuturesPosition } from 'src/types/risk';
 import type { FuturesPositionRow } from './supabaseRisk';
 import type { CommodityConfig } from './companyConfig';
+import { lastBusinessDayOfPrevMonth as lastBusinessDayOfPrevMonthHelper } from './dateHelpers';
 
 // ── Constants ──
 
@@ -68,15 +69,11 @@ export function parseContractMaturity(contract: string | null | undefined): stri
 
 /**
  * Last business day of the previous month (skip weekends).
+ * Re-exporta el helper inmutable centralizado para mantener la API pública
+ * de este modulo. Antes habia una copia local mutadora — ahora vive en
+ * dateHelpers.ts (single source of truth).
  */
-export function lastBusinessDayOfPrevMonth(refDate: Date): Date {
-  const firstOfMonth = new Date(refDate.getFullYear(), refDate.getMonth(), 1);
-  const lastCalDay = new Date(firstOfMonth.getTime() - 86400000); // day before = last of prev month
-  const wd = lastCalDay.getDay(); // 0=Sun, 6=Sat
-  if (wd === 0) lastCalDay.setDate(lastCalDay.getDate() - 2); // Sun → Fri
-  else if (wd === 6) lastCalDay.setDate(lastCalDay.getDate() - 1); // Sat → Fri
-  return lastCalDay;
-}
+export const lastBusinessDayOfPrevMonth = lastBusinessDayOfPrevMonthHelper;
 
 function toDateStr(d: Date): string {
   return d.toISOString().slice(0, 10);

@@ -66,37 +66,7 @@ import { MarksContent } from '../marks';
 
 const PAGE_TITLE = 'Portafolio de Derivados';
 
-// ── Mark date helpers ──
-/** Parse pysdk valuation_date string ("February 27th, 2026") → "2026-02-27" */
-function parseValuationDate(valDate: string | undefined): string | undefined {
-  if (!valDate) return undefined;
-  const d = new Date(valDate);
-  if (!Number.isNaN(d.getTime())) return d.toISOString().slice(0, 10);
-  return undefined;
-}
-
-function lastBusinessDay(d: Date): Date {
-  const day = d.getDay();
-  if (day === 0) d.setDate(d.getDate() - 2);
-  else if (day === 6) d.setDate(d.getDate() - 1);
-  return d;
-}
-function defaultMarkFecha(): string {
-  const d = new Date();
-  d.setDate(d.getDate() - 1);
-  return lastBusinessDay(d).toISOString().slice(0, 10);
-}
-function stepMarkDate(fecha: string, delta: number): string {
-  const d = new Date(`${fecha}T12:00:00`);
-  const step = delta > 0 ? 1 : -1;
-  let remaining = Math.abs(delta);
-  while (remaining > 0) {
-    d.setDate(d.getDate() + step);
-    const day = d.getDay();
-    if (day !== 0 && day !== 6) remaining -= 1;
-  }
-  return d.toISOString().slice(0, 10);
-}
+// Helpers de fecha locales removidos. La fecha viene del store global.
 
 // ── Mark Chip with dropdown ──
 function MarkChip({ label, ok, rows }: { label: string; ok: boolean; rows: [string, string][] }) {
@@ -148,12 +118,6 @@ const fmt = (v: number | null | undefined, decimals = 2) =>
       })
     : '\u2014';
 
-// ── Mark Date Bar ──
-const markNavBtn: React.CSSProperties = {
-  background: 'none', border: '1px solid #ced4da', borderRadius: 4,
-  padding: '2px 8px', cursor: 'pointer', fontSize: 12, color: '#495057',
-};
-
 const IBR_TENOR_KEYS: [string, string][] = [
   ['O/N', 'ibr_1d'], ['1M', 'ibr_1m'], ['3M', 'ibr_3m'], ['6M', 'ibr_6m'],
   ['1Y', 'ibr_12m'], ['2Y', 'ibr_2y'], ['5Y', 'ibr_5y'], ['10Y', 'ibr_10y'],
@@ -186,14 +150,10 @@ function ndfMarkRows(mark: HistoricalMark | null): [string, string][] {
 function MarkDateBar({
   repricing,
   fecha,
-  onFechaChange,
 }: {
   repricing: boolean;
   fecha: string;
-  onFechaChange: (f: string) => void;
 }) {
-  const today = new Date().toISOString().slice(0, 10);
-  const setFecha = onFechaChange;
   const [mark, setMark] = useState<HistoricalMark | null>(null);
   const [loadingMark, setLoadingMark] = useState(false);
 
@@ -211,22 +171,25 @@ function MarkDateBar({
 
   return (
     <div style={{
-      display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12,
+      display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12,
       fontSize: 12, flexWrap: 'wrap', background: '#f8f9fa',
       borderRadius: 6, padding: '6px 12px',
-    }}>
+    }}
+    >
       <span style={{ color: '#495057', fontWeight: 600 }}>Marca:</span>
-      <input
-        type="date"
-        value={fecha}
-        min="2026-01-01"
-        max={today}
-        onChange={(e) => e.target.value && setFecha(e.target.value)}
-        style={{ border: '1px solid #ced4da', borderRadius: 4, padding: '2px 6px', fontSize: 12, fontFamily: 'monospace' }}
-      />
-      <button type="button" onClick={() => setFecha(stepMarkDate(fecha, -1))} disabled={loadingMark} style={markNavBtn}>◀</button>
-      <button type="button" onClick={() => { const next = stepMarkDate(fecha, 1); if (next <= today) setFecha(next); }} disabled={loadingMark} style={markNavBtn}>▶</button>
-      <button type="button" onClick={() => setFecha(defaultMarkFecha())} disabled={loadingMark} style={{ ...markNavBtn, padding: '2px 10px' }}>Ayer</button>
+      <span style={{
+        fontFamily: 'ui-monospace, monospace',
+        fontWeight: 500,
+        color: '#0f172a',
+        padding: '2px 8px',
+        border: '1px solid #cbd5e1',
+        borderRadius: 4,
+        background: '#fff',
+        letterSpacing: '0.03em',
+      }}
+      >
+        {fecha}
+      </span>
       {loadingMark ? (
         <span style={{ color: '#6c757d' }}>…</span>
       ) : (
@@ -1937,7 +1900,12 @@ function CurvesPanel({ status }: { status: CurveStatus | null }) {
 function PortfolioPage() {
   const [loading, setLoading] = useState(false);
   const [markRepricing, setMarkRepricing] = useState(false);
-  const [markFecha, setMarkFecha] = useState<string>(defaultMarkFecha());
+  // Fecha global del modulo de Riesgos. El blotter OTC se anclla 100% a
+  // esta fecha — sin override local (mismo comportamiento que Resumen y
+  // Exposicion). Si el usuario quiere cambiar la fecha, lo hace desde el
+  // selector global de CoreLayout (con toggle Mes/Dia).
+  const markFecha = useAppStore((s) => s.globalEvaluationDate);
+  const setMarkFecha = useAppStore((s) => s.setGlobalEvaluationDate);
   const [curveStatus, setCurveStatus] = useState<CurveStatus | null>(null);
   const [addType, setAddType] = useState<string | null>(null); // 'xccy' | 'ndf' | 'ibr' | null
   // (#313 removed repriceTrigger — useRepricePortfolio's key includes position
@@ -2100,11 +2068,15 @@ function PortfolioPage() {
   }, [handleBuild, loadUserRole, loadMarketDataConfig, selectedCompanyId]);
 
 
-  // Sync markFecha to curveStatus valuation_date once it loads
-  useEffect(() => {
-    const parsed = parseValuationDate(curveStatus?.valuation_date);
-    if (parsed) setMarkFecha(parsed);
-  }, [curveStatus?.valuation_date]);
+  // NOTE: anteriormente habia un useEffect que sincronizaba markFecha al
+  // valuation_date que retornaba el backend (curveStatus). Esto creaba un
+  // tug-of-war con el selector global: el usuario cambiaba la fecha, el
+  // backend snapeaba a un dia habil, y este useEffect clobbereaba el valor
+  // local. Removido. Ahora `markFecha` solo cambia via:
+  //   1. globalEvaluationDate (selector global del CoreLayout)
+  //   2. Override manual en la MarkDateBar (input/◀/▶)
+  // Si el backend snapea, se muestra `curveStatus.valuation_date` por
+  // separado pero NO se reescribe `markFecha`.
 
   // Auto-reprice when positions loaded and curves are ready
   const curvesReady =
@@ -2256,7 +2228,6 @@ function PortfolioPage() {
         <MarkDateBar
           repricing={markRepricing}
           fecha={markFecha}
-          onFechaChange={setMarkFecha}
         />
 
         {/* Active market data sources */}
