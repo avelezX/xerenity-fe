@@ -7,6 +7,7 @@ import {
   UserRole,
   ROLE_HIERARCHY,
 } from 'src/types/user';
+import { defaultEvaluationDate, formatISO } from 'src/lib/risk/dateHelpers';
 import {
   fetchUserProfile,
   listCompanyUsers,
@@ -64,6 +65,62 @@ export interface UserSlice {
   setSelectedCompanyId: (id: string | undefined) => void;
   /** Returns selectedCompanyId if set, otherwise userProfile.company_id */
   activeCompanyId: () => string | undefined;
+
+  // Global evaluation date (for risk module). Persisted in localStorage.
+  // Format: ISO string "YYYY-MM-DD". El consumidor SIEMPRE recibe un string ISO.
+  // El `mode` es solo UI: 'month' usa el ultimo dia habil del mes, 'day' usa
+  // el dia tal cual seleccionado.
+  globalEvaluationDate: string;
+  dateSelectorMode: 'month' | 'day';
+  setGlobalEvaluationDate: (date: string) => void;
+  setDateSelectorMode: (mode: 'month' | 'day') => void;
+  /** Returns globalEvaluationDate (always defined; falls back to default). */
+  activeEvaluationDate: () => string;
+}
+
+// localStorage keys (versioned para futuras migraciones de schema)
+const LS_DATE_KEY = 'xerenity.globalEvaluationDate.v1';
+const LS_MODE_KEY = 'xerenity.dateSelectorMode.v1';
+
+function loadDateFromStorage(): string {
+  if (typeof window === 'undefined') return formatISO(defaultEvaluationDate());
+  try {
+    const stored = window.localStorage.getItem(LS_DATE_KEY);
+    // Validacion basica: debe ser YYYY-MM-DD
+    if (stored && /^\d{4}-\d{2}-\d{2}$/.test(stored)) return stored;
+  } catch {
+    // localStorage puede fallar en modo privado / Safari ITP
+  }
+  return formatISO(defaultEvaluationDate());
+}
+
+function loadModeFromStorage(): 'month' | 'day' {
+  if (typeof window === 'undefined') return 'month';
+  try {
+    const stored = window.localStorage.getItem(LS_MODE_KEY);
+    if (stored === 'month' || stored === 'day') return stored;
+  } catch {
+    // ignore
+  }
+  return 'month';
+}
+
+function saveDateToStorage(date: string): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(LS_DATE_KEY, date);
+  } catch {
+    // ignore (localStorage full, private mode, etc.)
+  }
+}
+
+function saveModeToStorage(mode: 'month' | 'day'): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(LS_MODE_KEY, mode);
+  } catch {
+    // ignore
+  }
 }
 
 const initialUserState = {
@@ -271,6 +328,18 @@ const createUserSlice: StateCreator<UserSlice> = (set, get) => ({
     const { selectedCompanyId: selected, userProfile } = get();
     return selected || userProfile?.company_id || undefined;
   },
+
+  globalEvaluationDate: loadDateFromStorage(),
+  dateSelectorMode: loadModeFromStorage(),
+  setGlobalEvaluationDate: (date) => {
+    saveDateToStorage(date);
+    set({ globalEvaluationDate: date });
+  },
+  setDateSelectorMode: (mode) => {
+    saveModeToStorage(mode);
+    set({ dateSelectorMode: mode });
+  },
+  activeEvaluationDate: () => get().globalEvaluationDate,
 });
 
 export default createUserSlice;

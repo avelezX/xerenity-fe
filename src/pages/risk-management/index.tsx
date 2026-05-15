@@ -10,8 +10,6 @@ import {
   faSyncAlt,
   faChartLine,
   faEdit,
-  faChevronLeft,
-  faChevronRight,
   faDollarSign,
   faBorderAll,
   faBookOpen,
@@ -50,6 +48,7 @@ import RoleGuard from 'src/components/RoleGuard';
 import { fetchCompanyRiskConfig, getAssetsWithCurrency, getChartColors, saveCompanyRiskConfig, COMMODITY_TEMPLATES, DEFAULT_EXPOSURE_PARAMS } from 'src/lib/risk/companyConfig';
 import type { RiskCompanyConfig } from 'src/lib/risk/companyConfig';
 import { parseContractMaturity } from 'src/lib/risk/futuresCalculator';
+import { lastBusinessDay, MONTH_NAMES } from 'src/lib/risk/dateHelpers';
 import BlotterCafe from 'src/components/risk/BlotterCafe';
 import BlotterCompraCafe from 'src/components/risk/BlotterCompraCafe';
 
@@ -169,39 +168,14 @@ const CHART_COLORS: Record<string, string> = {
   USD: '#3b82f6',
 };
 
-function lastBusinessDay(d: Date): Date {
-  const day = d.getDay();
-  if (day === 0) d.setDate(d.getDate() - 2);
-  else if (day === 6) d.setDate(d.getDate() - 1);
-  return d;
-}
+// Helpers de fecha (lastBusinessDay, lastBusinessDayOfMonth, MONTH_NAMES, etc.)
+// vienen de src/lib/risk/dateHelpers. La fecha global llega via useAppStore.
 
+/** Default para entry_date en los modales: ayer (ultimo dia habil). */
 function defaultDate(): string {
   const d = new Date();
   d.setDate(d.getDate() - 1);
   return lastBusinessDay(d).toISOString().slice(0, 10);
-}
-
-const MONTH_NAMES = [
-  'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
-  'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
-];
-
-/** Get the last day of a given month as YYYY-MM-DD */
-function lastDayOfMonth(year: number, month: number): string {
-  const d = new Date(year, month + 1, 0); // day 0 of next month = last day of this month
-  return lastBusinessDay(d).toISOString().slice(0, 10);
-}
-
-/** Format month key like "2026-01" */
-function monthKey(year: number, month: number): string {
-  return `${year}-${String(month + 1).padStart(2, '0')}`;
-}
-
-/** Current month/year */
-function currentMonth(): { year: number; month: number } {
-  const now = new Date();
-  return { year: now.getFullYear(), month: now.getMonth() };
 }
 
 
@@ -909,7 +883,12 @@ function RiskManagement() {
   const [usdcopLoading, setUsdcopLoading] = useState(false);
   const [usdcopDays, setUsdcopDays] = useState(30);
   const [usdcopSigma, setUsdcopSigma] = useState(2.0);
-  const [filterDate, setFilterDate] = useState(defaultDate());
+
+  // Fecha global del modulo de Riesgos. Viene del selector en CoreLayout
+  // (persistido en localStorage). Todas las pestañas de esta pagina y todas
+  // las paginas del modulo se sincronizan con esta unica fecha.
+  // Si el usuario quiere cambiar la fecha, lo hace desde el selector global.
+  const filterDate = useAppStore((s) => s.globalEvaluationDate);
 
   // OTC store handles — used by Benchmark USD row auto-fill
   const otcSummary = useAppStore((s) => s.summary) as { total_npv_cop: number; total_npv_usd: number } | undefined;
@@ -925,7 +904,13 @@ function RiskManagement() {
 
   // Benchmark state
   const [assets, setAssets] = useState<string[]>(dynamicAssets);
-  const [benchmarkMonth, setBenchmarkMonth] = useState(currentMonth());
+
+  // benchmarkMonth derivado de filterDate (global). Single source of truth.
+  // Antes: useState local que se desincronizaba con futuresMonth y con loans.
+  const benchmarkMonth = React.useMemo(() => {
+    const d = new Date(`${filterDate}T12:00:00Z`);
+    return { year: d.getUTCFullYear(), month: d.getUTCMonth() };
+  }, [filterDate]);
   const [benchmarkRows, setBenchmarkRows] = useState<BenchmarkRow[]>(emptyBenchmarkRows());
   const [benchmarkFactors, setBenchmarkFactors] = useState<BenchmarkFactorsResponse | null>(null);
   const [benchmarkLoading, setBenchmarkLoading] = useState(false);
@@ -976,7 +961,9 @@ function RiskManagement() {
   const [futuresShowClosed, setFuturesShowClosed] = useState(false);
   const [futuresShowAddForm, setFuturesShowAddForm] = useState(false);
   const [expandedSpreads, setExpandedSpreads] = useState<Set<string>>(new Set());
-  const [futuresMonth, setFuturesMonth] = useState(currentMonth());
+  // futuresMonth = benchmarkMonth (ya derivado de filterDate global).
+  // Antes existia una sync useEffect unidireccional que causaba bugs.
+  const futuresMonth = benchmarkMonth;
   const [newPosition, setNewPosition] = useState<NewFuturesPosition>({
     asset: 'MAIZ', contract: '', direction: 'SHORT', nominal: 1, entry_price: 0, entry_date: defaultDate(),
   });
@@ -1011,8 +998,10 @@ function RiskManagement() {
     }
   }, [filterDate, confidenceLevel, companyConfig]);
 
-  const benchmarkDateStr = lastDayOfMonth(benchmarkMonth.year, benchmarkMonth.month);
-  const benchmarkMonthKey = monthKey(benchmarkMonth.year, benchmarkMonth.month);
+  // filterDate ya es ISO "YYYY-MM-DD" (ultimo dia habil del mes en modo Mes,
+  // o dia especifico en modo Dia). Derivamos las cadenas auxiliares.
+  const benchmarkDateStr = filterDate;
+  const benchmarkMonthKey = filterDate.slice(0, 7);  // "YYYY-MM"
 
   const handleFetchBenchmarkFactors = useCallback(async () => {
     setBenchmarkLoading(true);
@@ -1070,29 +1059,14 @@ function RiskManagement() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [benchmarkDateStr, benchmarkMonthKey, confidenceLevel, companyConfig, dynamicAssets]);
 
-  // Save current rows to cache when they change
-  const saveBenchmarkToCache = useCallback(() => {
+  // Save current rows to cache when they change (auto, no manual trigger)
+  useEffect(() => {
     setMonthCache((prev) => ({ ...prev, [benchmarkMonthKey]: benchmarkRows }));
   }, [benchmarkMonthKey, benchmarkRows]);
 
-  // Navigate months
-  const goToPrevMonth = () => {
-    saveBenchmarkToCache();
-    setBenchmarkMonth((prev) => {
-      if (prev.month === 0) return { year: prev.year - 1, month: 11 };
-      return { year: prev.year, month: prev.month - 1 };
-    });
-    setBenchmarkFactors(null); // trigger reload
-  };
-
-  const goToNextMonth = () => {
-    saveBenchmarkToCache();
-    setBenchmarkMonth((prev) => {
-      if (prev.month === 11) return { year: prev.year + 1, month: 0 };
-      return { year: prev.year, month: prev.month + 1 };
-    });
-    setBenchmarkFactors(null); // trigger reload
-  };
+  // Navegacion de meses: ahora vive en el selector global (CoreLayout).
+  // Cuando el usuario cambia el mes alli, `filterDate` se actualiza y los
+  // useEffect de fetch reaccionan automaticamente.
 
   const handleFetchExposure = useCallback(async (overrideDate?: string) => {
     // Si la empresa no tiene parametros de proyeccion configurados, NO calculamos
@@ -1153,7 +1127,7 @@ function RiskManagement() {
   }, [companyConfig]);
 
   // ── Futures Portfolio handlers ──
-  const futuresFilterDate = lastDayOfMonth(futuresMonth.year, futuresMonth.month);
+  const futuresFilterDate = filterDate;
 
   const handleFetchFutures = useCallback(async () => {
     setFuturesLoading(true);
@@ -1261,14 +1235,16 @@ function RiskManagement() {
   const handleFetchUsdcop = useCallback(async () => {
     setUsdcopLoading(true);
     try {
-      const data = await fetchUsdCopCalculator();
+      // Anclar al selector global para que la TRM y la vol sean del mismo
+      // dia que el resto del modulo (Resumen, Benchmark, OTC).
+      const data = await fetchUsdCopCalculator(filterDate);
       setUsdcopData(data);
     } catch (e: unknown) {
       toast.error((e as Error)?.message || 'Error cargando calculadora USDCOP');
     } finally {
       setUsdcopLoading(false);
     }
-  }, []);
+  }, [filterDate]);
 
   useEffect(() => {
     if (!companyConfig) return; // guard: esperar a que config cargue
@@ -1280,15 +1256,16 @@ function RiskManagement() {
     }
     if (activeTab === 'futures') handleFetchFutures();
     if (activeTab === 'coffee') handleFetchCoffeePrices();
-    if (activeTab === 'usdcop' && !usdcopData) handleFetchUsdcop();
+    // USDCOP: refetch al cambiar tab O al cambiar filterDate (asi sigue
+    // al selector global para que TRM/vol siempre sean del mismo dia).
+    if (activeTab === 'usdcop') handleFetchUsdcop();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, futuresMonth, benchmarkDateStr, companyConfig]);
 
-  // Sync futuresMonth with benchmarkMonth (both views show the same period)
-  useEffect(() => {
-    setFuturesMonth(benchmarkMonth);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [benchmarkMonth]);
+  // NOTE: anteriormente habia un useEffect que sincronizaba futuresMonth con
+  // benchmarkMonth de forma unidireccional (bug: cambiar mes en Portafolio GR
+  // no actualizaba Benchmark). Ahora ambos derivan de la misma `filterDate`
+  // global, asi que la sincronizacion es automatica y bidireccional.
 
   // NOTA: anteriormente aqui habia un useEffect que tomaba el total del
   // Blotter Fijaciones Cafe y lo metia en la fila CAFE Exp. Natural del
@@ -1433,31 +1410,8 @@ function RiskManagement() {
         {activeTab === 'benchmark' && (
           <div id="pdf-benchmark">
             <Row className="mb-3 align-items-center">
-              <Col xs="auto" className="d-flex align-items-center gap-2">
-                <Button
-                  variant="outline-secondary"
-                  size="sm"
-                  onClick={goToPrevMonth}
-                  disabled={benchmarkLoading}
-                  style={{ padding: '4px 10px' }}
-                >
-                  <Icon icon={faChevronLeft} />
-                </Button>
-                <div className="text-center" style={{ minWidth: 160 }}>
-                  <strong style={{ fontSize: '1.1rem', color: '#7c3aed' }}>
-                    {MONTH_NAMES[benchmarkMonth.month]} {benchmarkMonth.year}
-                  </strong>
-                </div>
-                <Button
-                  variant="outline-secondary"
-                  size="sm"
-                  onClick={goToNextMonth}
-                  disabled={benchmarkLoading}
-                  style={{ padding: '4px 10px' }}
-                >
-                  <Icon icon={faChevronRight} />
-                </Button>
-              </Col>
+              {/* El selector de mes vive en CoreLayout (barra superior).
+                  Aqui solo dejamos los controles especificos del Benchmark. */}
               <Col xs="auto">
                 <Button
                   variant="primary"
@@ -1651,17 +1605,6 @@ function RiskManagement() {
                     ))}
                     <option value="TODOS">Todos</option>
                   </Form.Select>
-                </Form.Group>
-              </Col>
-              <Col xs="auto">
-                <Form.Group>
-                  <Form.Label className="small text-muted">Fecha filtro</Form.Label>
-                  <Form.Control
-                    type="date"
-                    size="sm"
-                    value={filterDate}
-                    onChange={(e) => setFilterDate(e.target.value)}
-                  />
                 </Form.Group>
               </Col>
               <Col xs="auto">
@@ -1904,19 +1847,8 @@ function RiskManagement() {
           return (
             <>
               <Row className="mb-3 align-items-center">
+                {/* Fecha global vive en CoreLayout. */}
                 <Col xs="auto">
-                  <Form.Group>
-                    <Form.Label className="small text-muted mb-0">Fecha precios</Form.Label>
-                    <Form.Control
-                      type="date"
-                      size="sm"
-                      value={filterDate}
-                      onChange={(e) => setFilterDate(e.target.value)}
-                    />
-                  </Form.Group>
-                </Col>
-                <Col xs="auto">
-                  <Form.Label className="small text-muted mb-0">&nbsp;</Form.Label>
                   <div>
                     <Button variant="primary" size="sm" onClick={handleFetchExposure} disabled={exposureLoading}>
                       <Icon icon={faSyncAlt} spin={exposureLoading} className="me-1" />
@@ -2592,15 +2524,7 @@ function RiskManagement() {
           return (
             <div id="pdf-matrices">
               <Row className="align-items-end mb-3 g-2">
-                <Col md={3}>
-                  <Form.Label className="small mb-1">Fecha de referencia</Form.Label>
-                  <Form.Control
-                    type="date"
-                    size="sm"
-                    value={filterDate}
-                    onChange={(e) => setFilterDate(e.target.value)}
-                  />
-                </Col>
+                {/* Fecha global vive en CoreLayout. */}
                 <Col md="auto">
                   <Button
                     size="sm"
@@ -2684,26 +2608,10 @@ function RiskManagement() {
         {/* ── Portafolio GR (Futures) Tab ── */}
         {activeTab === 'futures' && (
           <div id="futures-tab">
-            {/* Month selector + controls */}
+            {/* El selector de mes vive en CoreLayout (barra superior global). */}
             <div className="d-flex align-items-center gap-2 mb-3 flex-wrap">
-              <button type="button" className="btn btn-sm btn-outline-secondary" onClick={() => {
-                const prev = futuresMonth.month === 0 ? { year: futuresMonth.year - 1, month: 11 } : { year: futuresMonth.year, month: futuresMonth.month - 1 };
-                setFuturesMonth(prev);
-              }}>
-                <Icon icon={faChevronLeft} />
-              </button>
-              <strong style={{ minWidth: 140, textAlign: 'center' }}>
-                {MONTH_NAMES[futuresMonth.month]} {futuresMonth.year}
-              </strong>
-              <button type="button" className="btn btn-sm btn-outline-secondary" onClick={() => {
-                const next = futuresMonth.month === 11 ? { year: futuresMonth.year + 1, month: 0 } : { year: futuresMonth.year, month: futuresMonth.month + 1 };
-                setFuturesMonth(next);
-              }}>
-                <Icon icon={faChevronRight} />
-              </button>
-
               <Button
-                className="btn-sm ms-3"
+                className="btn-sm"
                 onClick={handleFetchFutures}
                 disabled={futuresLoading}
               >

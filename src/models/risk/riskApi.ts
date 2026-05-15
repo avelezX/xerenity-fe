@@ -23,6 +23,11 @@ import { calcularExposicionTotal } from 'src/lib/risk/exposureCalculator';
 import { calculateFuturesPortfolio, executeRoll } from 'src/lib/risk/futuresCalculator';
 import type { CommodityConfig, RiskCompanyConfig } from 'src/lib/risk/companyConfig';
 import { getUnits } from 'src/lib/risk/companyConfig';
+import {
+  parseISOAsNoon,
+  formatISO,
+  lastBusinessDayOfPrevMonth as lastBusinessDayOfPrevMonthDate,
+} from 'src/lib/risk/dateHelpers';
 
 // Fallback units (used when no company config)
 const DEFAULT_UNITS: Record<string, string> = {
@@ -37,14 +42,10 @@ function getStartDate(filterDate: string, daysBack: number): string {
   return d.toISOString().slice(0, 10);
 }
 
+/** Wrapper string -> string. Delegates a la implementacion inmutable de
+ *  dateHelpers.ts (single source of truth, libre de mutacion). */
 function lastBusinessDayOfPrevMonth(filterDate: string): string {
-  const d = new Date(filterDate + 'T12:00:00');
-  const first = new Date(d.getFullYear(), d.getMonth(), 1);
-  const last = new Date(first.getTime() - 86400000);
-  const wd = last.getDay();
-  if (wd === 0) last.setDate(last.getDate() - 2);
-  else if (wd === 6) last.setDate(last.getDate() - 1);
-  return last.toISOString().slice(0, 10);
+  return formatISO(lastBusinessDayOfPrevMonthDate(parseISOAsNoon(filterDate)));
 }
 
 // ── Benchmark Factors ──

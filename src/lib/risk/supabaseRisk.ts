@@ -4,6 +4,7 @@
  * Replaces Django backend calls — reads from xerenity schema tables.
  */
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { fetchFxSpotSeries } from 'src/lib/risk/marketMarks';
 
 const supabase = createClientComponentClient();
 const SCHEMA = 'xerenity';
@@ -21,16 +22,40 @@ export async function fetchRiskPrices(
   startDate: string,
   endDate: string,
 ): Promise<RiskPriceRow[]> {
-  const { data, error } = await supabase
+  // Commodities: precios EOD vienen de `risk_prices` (alimentada por collectors
+  // de IB para MAIZ/AZUCAR/CACAO/CAFE/etc.). Excluimos asset='USD' aqui.
+  // USD: viene de `market_marks.fx_spot` para ser consistente con OTC pricing
+  // y con la fuente unica de verdad del modulo. Si en `risk_prices` queda
+  // alguna fila vieja con asset='USD', se ignora.
+  const { data: commodityData, error: commodityErr } = await supabase
     .schema(SCHEMA)
     .from('risk_prices')
     .select('date, asset, price, contract')
     .gte('date', startDate)
     .lte('date', endDate)
+    .neq('asset', 'USD')
     .order('date', { ascending: true });
 
-  if (error) throw new Error(`Failed to fetch risk_prices: ${error.message}`);
-  return (data ?? []) as RiskPriceRow[];
+  if (commodityErr) throw new Error(`Failed to fetch risk_prices: ${commodityErr.message}`);
+  const commodityRows = (commodityData ?? []) as RiskPriceRow[];
+
+  // USD desde market_marks (single source of truth EOD para FX).
+  // Si falla, no rompemos los commodities — solo loggeamos.
+  let usdRows: RiskPriceRow[] = [];
+  try {
+    const fxSeries = await fetchFxSpotSeries(startDate, endDate);
+    usdRows = fxSeries.map((p) => ({
+      date: p.fecha,
+      asset: 'USD',
+      price: p.fx_spot,
+      contract: null,
+    }));
+  } catch (e) {
+    // eslint-disable-next-line no-console
+    console.warn('fetchRiskPrices: no se pudo cargar USD de market_marks:', e);
+  }
+
+  return [...commodityRows, ...usdRows].sort((a, b) => a.date.localeCompare(b.date));
 }
 
 /**

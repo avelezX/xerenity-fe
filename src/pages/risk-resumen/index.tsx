@@ -8,8 +8,6 @@ import { FontAwesomeIcon as Icon } from '@fortawesome/react-fontawesome';
 import {
   faShieldAlt,
   faSyncAlt,
-  faChevronLeft,
-  faChevronRight,
   faChartPie,
   faBriefcase,
   faDollarSign,
@@ -34,29 +32,10 @@ import type { RiskCompanyConfig } from 'src/lib/risk/companyConfig';
 
 const PAGE_TITLE = 'Resumen — Gestión de Riesgos';
 
-const MONTH_NAMES = [
-  'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
-  'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
-];
-
 const DEFAULT_ASSETS = ['MAIZ', 'AZUCAR', 'CACAO', 'USD'];
 
-function lastBusinessDay(d: Date): Date {
-  const day = d.getDay();
-  if (day === 0) d.setDate(d.getDate() - 2);
-  else if (day === 6) d.setDate(d.getDate() - 1);
-  return d;
-}
-
-function lastDayOfMonth(year: number, month: number): string {
-  const d = new Date(year, month + 1, 0);
-  return lastBusinessDay(d).toISOString().slice(0, 10);
-}
-
-function currentMonth(): { year: number; month: number } {
-  const now = new Date();
-  return { year: now.getFullYear(), month: now.getMonth() };
-}
+// Helpers de fecha viven en src/lib/risk/dateHelpers. La fecha global
+// llega via useAppStore (selector global en CoreLayout).
 
 function fmtCompact(v: number | null | undefined): string {
   if (v == null) return '—';
@@ -223,25 +202,10 @@ function RiskResumenPage() {
     [companyConfig],
   );
 
-  // Month selector — same pattern as Benchmark
-  const [resumenMonth, setResumenMonth] = useState(currentMonth());
-  const filterDate = useMemo(
-    () => lastDayOfMonth(resumenMonth.year, resumenMonth.month),
-    [resumenMonth],
-  );
-
-  const goToPrevMonth = () => {
-    setResumenMonth((prev) => {
-      if (prev.month === 0) return { year: prev.year - 1, month: 11 };
-      return { year: prev.year, month: prev.month - 1 };
-    });
-  };
-  const goToNextMonth = () => {
-    setResumenMonth((prev) => {
-      if (prev.month === 11) return { year: prev.year + 1, month: 0 };
-      return { year: prev.year, month: prev.month + 1 };
-    });
-  };
+  // Fecha global del modulo de Riesgos. Viene del selector en CoreLayout
+  // (Zustand, persistido en localStorage). Esta pagina ya no tiene
+  // selector propio — todas las paginas de Riesgos comparten la misma fecha.
+  const filterDate = useAppStore((s) => s.globalEvaluationDate);
 
   // Resumen state
   const [resumenData, setResumenData] = useState<ResumenData | null>(null);
@@ -382,37 +346,9 @@ function RiskResumenPage() {
               </Button>
             </div>
 
-            {/* Month selector */}
-            <Row className="mb-3 align-items-center">
-              <Col xs="auto" className="d-flex align-items-center gap-2">
-                <Button
-                  variant="outline-secondary"
-                  size="sm"
-                  onClick={goToPrevMonth}
-                  disabled={loading || tradingLoading}
-                  style={{ padding: '4px 10px' }}
-                >
-                  <Icon icon={faChevronLeft} />
-                </Button>
-                <div className="text-center" style={{ minWidth: 160 }}>
-                  <strong style={{ fontSize: '1.1rem', color: '#7c3aed' }}>
-                    {MONTH_NAMES[resumenMonth.month]} {resumenMonth.year}
-                  </strong>
-                </div>
-                <Button
-                  variant="outline-secondary"
-                  size="sm"
-                  onClick={goToNextMonth}
-                  disabled={loading || tradingLoading}
-                  style={{ padding: '4px 10px' }}
-                >
-                  <Icon icon={faChevronRight} />
-                </Button>
-                <span className="text-muted ms-3" style={{ fontSize: '0.8rem' }}>
-                  Cierre: {filterDate}
-                </span>
-              </Col>
-            </Row>
+            {/* El selector de mes vive en CoreLayout (barra superior global).
+                Esta pagina lee `filterDate` del store y se actualiza
+                automaticamente. */}
 
             {(loading || tradingLoading) && <p className="text-muted">Cargando resumen...</p>}
 
