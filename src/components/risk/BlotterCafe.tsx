@@ -30,8 +30,11 @@ import {
   deleteCafeFijacion,
   fetchCafeFactorConversion,
   updateCafeFactorConversion,
+  fetchCafeCompraGlobals,
   CafeFijacionRow,
 } from 'src/lib/risk/supabaseRisk';
+
+const LB_PER_KG = 2.20462;
 
 type SaveState = 'idle' | 'dirty' | 'saving' | 'saved' | 'error';
 
@@ -67,6 +70,10 @@ const SAVE_STATE_LABEL: Record<SaveState, string> = {
 
 interface Props {
   companyId: string;
+  // Precio actual de CAFE KC (cents/lb) para calcular exposicion USD por fila.
+  // Llega del page padre (mismo dato que ya tiene la tabla Benchmark).
+  precioKcCents?: number | null;
+  precioKcDate?: string | null;
 }
 
 const fmtCop = (v: number): string =>
@@ -78,6 +85,17 @@ const fmtUsd = (v: number): string =>
 
 const fmtCents = (v: number): string => v.toFixed(2);
 const fmtFactor = (v: number): string => v.toFixed(4);
+
+// Formato signado: +0.0716 / -0.0716. Cero sin signo.
+const fmtSignedNum4 = (v: number): string => {
+  if (v === 0) return '0.0000';
+  return `${v > 0 ? '+' : ''}${v.toFixed(4)}`;
+};
+const fmtSignedUsd = (v: number): string => {
+  if (v === 0) return '$0';
+  const abs = new Intl.NumberFormat('en-US').format(Math.round(Math.abs(v)));
+  return `${v > 0 ? '+$' : '−$'}${abs}`;
+};
 
 function emptyRow(companyId: string): Omit<Row, 'id' | 'created_at' | 'updated_at'> {
   return {
@@ -92,11 +110,19 @@ function emptyRow(companyId: string): Omit<Row, 'id' | 'created_at' | 'updated_a
   };
 }
 
-export default function BlotterCafe({ companyId }: Props) {
+export default function BlotterCafe({ companyId, precioKcCents, precioKcDate }: Props) {
   const [rows, setRows] = useState<Row[]>([]);
   const [factor, setFactor] = useState<number>(1.5432);
+  const [lbsPorContrato, setLbsPorContrato] = useState<number>(37500);
   const [loading, setLoading] = useState(false);
   const [savingFactor, setSavingFactor] = useState(false);
+
+  // Precio actual KC (cents/lb) para calcular Exp USD. Memo para evitar
+  // re-renders cuando los props son los mismos.
+  const precioKc = useMemo(
+    () => (precioKcCents != null ? { price: precioKcCents, date: precioKcDate ?? '' } : null),
+    [precioKcCents, precioKcDate],
+  );
 
   // Auto-save por fila con debounce. rowsRef mantiene el snapshot mas
   // reciente para que el timer no quede pegado a un closure viejo.
@@ -109,18 +135,22 @@ export default function BlotterCafe({ companyId }: Props) {
     saveTimers.current.clear();
   }, []);
 
-  // Load on mount / company change
+  // Load on mount / company change. Cargamos fijaciones + factor + globals
+  // (estos ultimos para tener lbs_por_contrato_kc del blotter compras y
+  // compartirlo aqui en el calculo de # contratos).
   useEffect(() => {
     if (!companyId) return;
     setLoading(true);
     (async () => {
       try {
-        const [fijaciones, fct] = await Promise.all([
+        const [fijaciones, fct, globals] = await Promise.all([
           fetchCafeFijaciones(companyId),
           fetchCafeFactorConversion(companyId),
+          fetchCafeCompraGlobals(companyId).catch(() => null),
         ]);
         setRows(fijaciones);
         setFactor(fct);
+        if (globals?.lbs_per_contrato_kc) setLbsPorContrato(globals.lbs_per_contrato_kc);
       } catch (e) {
         toast.error((e as Error)?.message || 'Error cargando blotter cafe');
       } finally {
@@ -152,6 +182,16 @@ export default function BlotterCafe({ companyId }: Props) {
     const precioUsdKg = r.kg > 0 ? (precioPorSacoUsd * r.sacos_fijados) / r.kg : 0;
     const totalCop = precioPorSacoCop * r.sacos_fijados;
     const totalUsd = precioPorSacoUsd * r.sacos_fijados;
+    // # Ctos KC y Exp USD: la fijacion es una VENTA forward, asi que es
+    // SHORT cafe (signo negativo). El kg representa cafe verde vendido.
+    //   contratos = -(kg × lb/kg) / lbs_por_contrato
+    //   exp_usd   = contratos × lbs_por_contrato × precio_KC_cents / 100
+    const contratosKc = lbsPorContrato > 0
+      ? -(r.kg * LB_PER_KG) / lbsPorContrato
+      : 0;
+    const exposicionUsd = precioKc?.price != null
+      ? contratosKc * lbsPorContrato * precioKc.price / 100
+      : 0;
     return {
       row: r,
       precioFinal,
@@ -161,8 +201,10 @@ export default function BlotterCafe({ companyId }: Props) {
       precioUsdKg,
       totalCop,
       totalUsd,
+      contratosKc,
+      exposicionUsd,
     };
-  }), [rows, factor]);
+  }), [rows, factor, lbsPorContrato, precioKc]);
 
   // Totals: 2 sumatorias (COP nativos + USD convertidos a COP via TRM por fila, viceversa)
   const totals = useMemo(() => {
@@ -188,6 +230,8 @@ export default function BlotterCafe({ companyId }: Props) {
       kg: computed.reduce((s, c) => s + (c.row.kg ?? 0), 0),
       totalCop,
       totalUsd,
+      contratosKc: computed.reduce((s, c) => s + c.contratosKc, 0),
+      exposicionUsd: computed.reduce((s, c) => s + c.exposicionUsd, 0),
     };
   }, [computed]);
 
@@ -333,17 +377,19 @@ export default function BlotterCafe({ companyId }: Props) {
             }}
           >
             <colgroup>
-              <col style={{ width: 130 }} />{/* Fecha */}
+              <col style={{ width: 120 }} />{/* Fecha */}
               <col style={{ width: 70 }} />{/* Moneda */}
-              <col style={{ width: 75 }} />{/* Sacos */}
-              <col style={{ width: 90 }} />{/* KG */}
-              <col style={{ width: 95 }} />{/* Fij NY */}
-              <col style={{ width: 85 }} />{/* Prima */}
-              <col style={{ width: 105 }} />{/* Precio Final */}
-              <col style={{ width: 100 }} />{/* TRM */}
-              <col style={{ width: 130 }} />{/* Precio/KG */}
-              <col style={{ width: 130 }} />{/* Precio/Saco */}
-              <col style={{ width: 150 }} />{/* Total */}
+              <col style={{ width: 70 }} />{/* Sacos */}
+              <col style={{ width: 85 }} />{/* KG */}
+              <col style={{ width: 90 }} />{/* Fij NY */}
+              <col style={{ width: 80 }} />{/* Prima */}
+              <col style={{ width: 100 }} />{/* Precio Final */}
+              <col style={{ width: 95 }} />{/* TRM */}
+              <col style={{ width: 120 }} />{/* Precio/KG */}
+              <col style={{ width: 120 }} />{/* Precio/Saco */}
+              <col style={{ width: 135 }} />{/* Total */}
+              <col style={{ width: 95 }} />{/* # Ctos KC */}
+              <col style={{ width: 130 }} />{/* Exp USD */}
               <col style={{ width: 70 }} />{/* Estado + X */}
             </colgroup>
             <thead style={{ background: '#f8fafc' }}>
@@ -359,6 +405,20 @@ export default function BlotterCafe({ companyId }: Props) {
                 <th className="text-end" style={{ padding: '8px 10px', background: '#f1f5f9' }}>Precio / KG</th>
                 <th className="text-end" style={{ padding: '8px 10px', background: '#f1f5f9' }}>Precio / Saco</th>
                 <th className="text-end" style={{ padding: '8px 10px', background: '#f1f5f9' }}>Total</th>
+                <th
+                  className="text-end"
+                  style={{ padding: '8px 10px', background: '#fef3c7', color: '#854d0e' }}
+                  title="− = SHORT café (vendido forward, ya no tienes inventario)"
+                >
+                  # Ctos KC <span style={{ textTransform: 'none', fontWeight: 400 }}>(café)</span>
+                </th>
+                <th
+                  className="text-end"
+                  style={{ padding: '8px 10px', background: '#fef3c7', color: '#854d0e' }}
+                  title="− = SHORT USD (la venta ya esta locked)"
+                >
+                  Exp. USD
+                </th>
                 <th style={{ padding: '8px 4px' }} aria-label="Estado y acciones" />
               </tr>
             </thead>
@@ -473,6 +533,12 @@ export default function BlotterCafe({ companyId }: Props) {
                   <td className="text-end fw-bold" style={{ background: '#f1f5f9', color: isUsd ? '#1d4ed8' : '#15803d', padding: '4px 12px', fontVariantNumeric: 'tabular-nums' }}>
                     {monedaPrefix}{isUsd ? fmtUsd(total) : fmtCop(total)}
                   </td>
+                  <td className="text-end fw-semibold" style={{ background: '#fef3c7', color: c.contratosKc >= 0 ? '#15803d' : '#b91c1c', padding: '4px 12px', fontVariantNumeric: 'tabular-nums' }}>
+                    {fmtSignedNum4(c.contratosKc)}
+                  </td>
+                  <td className="text-end fw-semibold" style={{ background: '#fef3c7', color: c.exposicionUsd >= 0 ? '#15803d' : '#b91c1c', padding: '4px 12px', fontVariantNumeric: 'tabular-nums' }}>
+                    {fmtSignedUsd(c.exposicionUsd)}
+                  </td>
                   <td style={{ padding: '4px 4px', textAlign: 'center', whiteSpace: 'nowrap' }}>
                     <span
                       style={{
@@ -502,9 +568,10 @@ export default function BlotterCafe({ companyId }: Props) {
               })}
             </tbody>
             <tfoot>
-              {/* 2 filas de totales: COP y USD, cada una expresando TODAS las
-                  fijaciones en esa moneda (las de otra moneda convertidas via
-                  TRM de cada fila). */}
+              {/* 14 columnas: Fecha, Moneda, Sacos, KG, FijNY, Prima, PFinal,
+                  TRM, PrecioKG, PrecioSaco, Total, #CtosKC, ExpUSD, Estado.
+                  2 filas de totales (COP / USD). #Ctos KC y Exp. USD viven
+                  en ambas filas porque son magnitudes de hedging globales. */}
               <tr style={{ background: '#f1f5f9', fontWeight: 600, borderTop: '2px solid #cbd5e1' }}>
                 <td style={{ padding: '8px 10px', textTransform: 'uppercase', letterSpacing: '0.04em', fontSize: '0.72rem', color: '#475569' }}>Total <span style={{ color: '#15803d' }}>COP</span></td>
                 <td />
@@ -512,12 +579,15 @@ export default function BlotterCafe({ companyId }: Props) {
                 <td className="text-end" style={{ padding: '8px 12px', fontVariantNumeric: 'tabular-nums' }}>{fmtCop(totals.kg)}</td>
                 <td colSpan={6} />
                 <td className="text-end" style={{ color: '#15803d', padding: '8px 12px', fontVariantNumeric: 'tabular-nums', fontSize: '0.95rem' }}>${fmtCop(totals.totalCop)}</td>
+                <td className="text-end" style={{ color: totals.contratosKc >= 0 ? '#15803d' : '#b91c1c', padding: '8px 12px', fontVariantNumeric: 'tabular-nums', fontSize: '0.95rem' }}>{fmtSignedNum4(totals.contratosKc)}</td>
+                <td className="text-end" style={{ color: totals.exposicionUsd >= 0 ? '#15803d' : '#b91c1c', padding: '8px 12px', fontVariantNumeric: 'tabular-nums', fontSize: '0.95rem' }}>{fmtSignedUsd(totals.exposicionUsd)}</td>
                 <td />
               </tr>
               <tr style={{ background: '#f8fafc', fontWeight: 600, borderTop: '1px solid #e2e8f0' }}>
                 <td style={{ padding: '8px 10px', textTransform: 'uppercase', letterSpacing: '0.04em', fontSize: '0.72rem', color: '#475569' }}>Total <span style={{ color: '#1d4ed8' }}>USD</span></td>
                 <td colSpan={9} />
                 <td className="text-end" style={{ color: '#1d4ed8', padding: '8px 12px', fontVariantNumeric: 'tabular-nums', fontSize: '0.95rem' }}>${fmtUsd(totals.totalUsd)}</td>
+                <td colSpan={2} />
                 <td />
               </tr>
             </tfoot>
