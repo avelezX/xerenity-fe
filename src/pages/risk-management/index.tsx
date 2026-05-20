@@ -1582,6 +1582,8 @@ function RiskManagement() {
                 />
                 <BlotterCafe
                   companyId={selectedCompanyId}
+                  precioKcCents={benchmarkFactors?.factors?.CAFE?.price_end ?? null}
+                  precioKcDate={benchmarkFactors?.period?.end ?? null}
                 />
               </>
             )}
