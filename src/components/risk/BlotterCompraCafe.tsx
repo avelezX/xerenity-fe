@@ -25,6 +25,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Table, Form, Button, Spinner } from 'react-bootstrap';
 import { toast } from 'react-toastify';
+import useAppStore from 'src/store';
 
 import {
   fetchCafeCompras,
@@ -115,9 +116,10 @@ function isoWeek(dateStr: string): number {
   return 1 + Math.ceil((firstThursday - target.valueOf()) / 604800000);
 }
 
-function emptyRow(companyId: string): Omit<Row, 'id' | 'created_at' | 'updated_at'> {
+function emptyRow(companyId: string, loteId: string): Omit<Row, 'id' | 'created_at' | 'updated_at'> {
   return {
     company_id: companyId,
+    lote_id: loteId,
     fecha_compra: new Date().toISOString().slice(0, 10),
     total_kg: 0,
     valor_compra_at: 0,
@@ -126,6 +128,7 @@ function emptyRow(companyId: string): Omit<Row, 'id' | 'created_at' | 'updated_a
 }
 
 export default function BlotterCompraCafe({ companyId, precioKcCents, precioKcDate }: Props) {
+  const selectedLoteId = useAppStore((s) => s.selectedLoteId);
   const [rows, setRows] = useState<Row[]>([]);
   const [kgPerAt, setKgPerAt] = useState<number>(60);
   const [lbsPorContrato, setLbsPorContrato] = useState<number>(37500);
@@ -153,17 +156,21 @@ export default function BlotterCompraCafe({ companyId, precioKcCents, precioKcDa
     [precioKcCents, precioKcDate],
   );
 
-  // Initial load (compras + globals). Las dos cargas son INDEPENDIENTES:
-  // si falla la de globals, la de compras debe seguir mostrandose.
-  // Antes usabamos Promise.all -> un error en cualquiera tumbaba ambas.
+  // Initial load (compras filtradas por lote + globals).
+  // Re-fetch automatico cuando cambia el lote seleccionado.
+  // Si no hay lote, no fetcheamos — el usuario debe crear/seleccionar uno.
   useEffect(() => {
     if (!companyId) return;
+    if (!selectedLoteId) {
+      setRows([]);  // sin lote seleccionado: blotter vacio
+      return;
+    }
     setLoading(true);
     let comprasErr: string | null = null;
     let globalsErr: string | null = null;
     (async () => {
       try {
-        const compras = await fetchCafeCompras(companyId);
+        const compras = await fetchCafeCompras(companyId, selectedLoteId);
         setRows(compras);
       } catch (e) {
         comprasErr = (e as Error)?.message || 'Error cargando compras';
@@ -179,7 +186,7 @@ export default function BlotterCompraCafe({ companyId, precioKcCents, precioKcDa
       if (globalsErr) toast.warning(`Globals: ${globalsErr} (usando defaults)`);
       setLoading(false);
     })();
-  }, [companyId]);
+  }, [companyId, selectedLoteId]);
 
   // Calc derived per row — factor_humedo ahora es per-fila
   const computed = useMemo(() => rows.map((r) => {
@@ -265,13 +272,17 @@ export default function BlotterCompraCafe({ companyId, precioKcCents, precioKcDa
   }, [commitRow]);
 
   const handleAdd = useCallback(async () => {
+    if (!selectedLoteId) {
+      toast.error('Selecciona o crea un lote antes de agregar una compra');
+      return;
+    }
     try {
-      const newRow = await insertCafeCompra(emptyRow(companyId));
+      const newRow = await insertCafeCompra(emptyRow(companyId, selectedLoteId));
       setRows((prev) => [...prev, { ...newRow, saveState: 'idle' }]);
     } catch (e) {
       toast.error((e as Error)?.message || 'Error agregando fila');
     }
-  }, [companyId]);
+  }, [companyId, selectedLoteId]);
 
   const handleDelete = useCallback(async (id: string) => {
     // eslint-disable-next-line no-alert

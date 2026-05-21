@@ -22,6 +22,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Table, Form, Button, Spinner } from 'react-bootstrap';
 import { toast } from 'react-toastify';
+import useAppStore from 'src/store';
 
 import {
   fetchCafeFijaciones,
@@ -97,9 +98,10 @@ const fmtSignedUsd = (v: number): string => {
   return `${v > 0 ? '+$' : '−$'}${abs}`;
 };
 
-function emptyRow(companyId: string): Omit<Row, 'id' | 'created_at' | 'updated_at'> {
+function emptyRow(companyId: string, loteId: string): Omit<Row, 'id' | 'created_at' | 'updated_at'> {
   return {
     company_id: companyId,
+    lote_id: loteId,
     sacos_fijados: 0,
     kg: 0,
     fijacion_ny: 0,
@@ -111,6 +113,7 @@ function emptyRow(companyId: string): Omit<Row, 'id' | 'created_at' | 'updated_a
 }
 
 export default function BlotterCafe({ companyId, precioKcCents, precioKcDate }: Props) {
+  const selectedLoteId = useAppStore((s) => s.selectedLoteId);
   const [rows, setRows] = useState<Row[]>([]);
   const [factor, setFactor] = useState<number>(1.5432);
   const [lbsPorContrato, setLbsPorContrato] = useState<number>(37500);
@@ -140,11 +143,15 @@ export default function BlotterCafe({ companyId, precioKcCents, precioKcDate }: 
   // compartirlo aqui en el calculo de # contratos).
   useEffect(() => {
     if (!companyId) return;
+    if (!selectedLoteId) {
+      setRows([]);  // sin lote seleccionado: blotter vacio
+      return;
+    }
     setLoading(true);
     (async () => {
       try {
         const [fijaciones, fct, globals] = await Promise.all([
-          fetchCafeFijaciones(companyId),
+          fetchCafeFijaciones(companyId, selectedLoteId),
           fetchCafeFactorConversion(companyId),
           fetchCafeCompraGlobals(companyId).catch(() => null),
         ]);
@@ -157,7 +164,7 @@ export default function BlotterCafe({ companyId, precioKcCents, precioKcDate }: 
         setLoading(false);
       }
     })();
-  }, [companyId]);
+  }, [companyId, selectedLoteId]);
 
   // Calc derived per row (soporta COP y USD)
   //
@@ -292,13 +299,17 @@ export default function BlotterCafe({ companyId, precioKcCents, precioKcDate }: 
 
   // Add new row
   const handleAdd = useCallback(async () => {
+    if (!selectedLoteId) {
+      toast.error('Selecciona o crea un lote antes de agregar una fijacion');
+      return;
+    }
     try {
-      const newRow = await insertCafeFijacion(emptyRow(companyId));
+      const newRow = await insertCafeFijacion(emptyRow(companyId, selectedLoteId));
       setRows((prev) => [...prev, { ...newRow, saveState: 'idle' }]);
     } catch (e) {
       toast.error((e as Error)?.message || 'Error agregando fila');
     }
-  }, [companyId]);
+  }, [companyId, selectedLoteId]);
 
   // Delete row
   const handleDelete = useCallback(async (id: string) => {
