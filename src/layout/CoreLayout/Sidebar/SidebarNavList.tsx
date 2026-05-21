@@ -66,16 +66,32 @@ const NAV_ITEMS: NavItemProps[] = [
   },
 ];
 
-const RIESGOS_SUBNAV: NavItemProps[] = [
+// Items con `divider: true` se renderizan como cabeceras de seccion (no
+// navegables) — agrupan visualmente los entries por workflow del trader:
+//   1. Panorama: ver donde estoy
+//   2. Posiciones: que tengo
+//   3. Calculadoras: como pricear
+//   4. Mercado: datos de referencia
+type RiesgosNavItem = NavItemProps | { divider: true; name: string };
+
+const RIESGOS_SUBNAV: RiesgosNavItem[] = [
   { name: 'Resumen', path: '/risk-resumen', icon: faChartPie, active: false },
-  { name: 'Exposición', path: '/risk-management', icon: faChartArea, active: false },
-  { name: 'Créditos', path: '/loans', icon: faLandmark, active: false },
+
+  { divider: true, name: 'POSICIONES' },
+  { name: 'Commodities', path: '/risk-management', icon: faChartArea, active: false },
   { name: 'Portafolio OTC', path: '/portfolio', icon: faBriefcase, active: false },
+  { name: 'Créditos', path: '/loans', icon: faLandmark, active: false },
+  { name: 'Portafolio TES', path: '/tes-portfolio', icon: faLandmark, active: false },
+
+  { divider: true, name: 'CALCULADORAS' },
   { name: 'NDF Pricer', path: '/ndf-pricer', icon: faCalculator, active: false },
   { name: 'IBR Swap', path: '/ibr-swap', icon: faLineChart, active: false },
   { name: 'XCCY Swap', path: '/xccy-swap', icon: faLineChart, active: false },
   { name: 'COLTES', path: '/coltes-calculator', icon: faCalculator, active: false },
-  { name: 'Portafolio TES', path: '/tes-portfolio', icon: faLandmark, active: false },
+  { name: 'USDCOP', path: '/usdcop-calculator', icon: faCalculator, active: false },
+
+  { divider: true, name: 'DATOS DE MERCADO' },
+  { name: 'Marcas', path: '/marks', icon: faBook, active: false },
 ];
 
 const MONEDAS_SUBNAV: NavItemProps[] = [
@@ -127,25 +143,49 @@ const SidebarNavList = ({ currentPath }: SidebarNavProps) => {
         name="Riesgos"
         icon={faScaleBalanced}
         active={
+          currentPath.includes('/risk-resumen') ||
           currentPath.includes('/risk-management') ||
           currentPath.includes('/loans') ||
           currentPath.includes('/ndf-pricer') ||
           currentPath.includes('/ibr-swap') ||
-          currentPath.includes('/xcxy-swap') ||
+          currentPath.includes('/xccy-swap') ||
           currentPath.includes('/portfolio') ||
           currentPath.includes('/coltes-calculator') ||
-          currentPath.includes('/tes-portfolio')
+          currentPath.includes('/tes-portfolio') ||
+          currentPath.includes('/usdcop-calculator') ||
+          currentPath.includes('/marks')
         }
       >
-        {RIESGOS_SUBNAV.map(({ name, path, icon }) => (
-          <NavigationItem
-            active={currentPath.includes(path)}
-            name={name}
-            path={path}
-            icon={icon}
-            key={`${name}${path}`}
-          />
-        ))}
+        {RIESGOS_SUBNAV.map((item) => {
+          if ('divider' in item) {
+            return (
+              <li
+                key={`divider-${item.name}`}
+                style={{
+                  padding: '14px 18px 4px',
+                  fontSize: '0.62rem',
+                  fontWeight: 700,
+                  letterSpacing: '0.12em',
+                  color: '#94a3b8',
+                  textTransform: 'uppercase',
+                  pointerEvents: 'none',
+                  userSelect: 'none',
+                }}
+              >
+                {item.name}
+              </li>
+            );
+          }
+          return (
+            <NavigationItem
+              active={currentPath.includes(item.path)}
+              name={item.name}
+              path={item.path}
+              icon={item.icon}
+              key={`${item.name}${item.path}`}
+            />
+          );
+        })}
       </SubNavItem>
       )}
       <SubNavItem
