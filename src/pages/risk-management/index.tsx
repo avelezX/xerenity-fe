@@ -51,6 +51,7 @@ import { parseContractMaturity } from 'src/lib/risk/futuresCalculator';
 import { lastBusinessDay, MONTH_NAMES } from 'src/lib/risk/dateHelpers';
 import BlotterCafe from 'src/components/risk/BlotterCafe';
 import BlotterCompraCafe from 'src/components/risk/BlotterCompraCafe';
+import LoteSelector from 'src/components/risk/LoteSelector';
 
 const PAGE_TITLE = 'Gestión de Riesgos';
 
@@ -1569,12 +1570,12 @@ function RiskManagement() {
             </div>
 
             {/* Blotters Cafe — solo visibles si la empresa tiene CAFE.
-                Orden: Compras primero, despues Fijaciones (ventas).
-                Razon: el flujo logico es comprar -> hedgear -> fijar venta.
-                El precio KC para Exp USD viene de benchmarkFactors (mismo
-                dato que ya muestra la tabla Benchmark en columna Fin). */}
+                Arriba: LoteSelector (dropdown para elegir lote actual).
+                Despues: Blotters de compras y fijaciones (filtrados por lote en PR C).
+                El precio KC viene de benchmarkFactors. */}
             {hasCafe && selectedCompanyId && (
               <>
+                <LoteSelector companyId={selectedCompanyId} />
                 <BlotterCompraCafe
                   companyId={selectedCompanyId}
                   precioKcCents={benchmarkFactors?.factors?.CAFE?.price_end ?? null}

@@ -76,11 +76,18 @@ export interface UserSlice {
   setDateSelectorMode: (mode: 'month' | 'day') => void;
   /** Returns globalEvaluationDate (always defined; falls back to default). */
   activeEvaluationDate: () => string;
+
+  // Lote seleccionado del modulo cafe. Persistido en localStorage.
+  // Es un UUID de xerenity.cafe_lotes. undefined = "no hay lote elegido"
+  // (la UI muestra primer lote disponible o pide crear uno).
+  selectedLoteId: string | undefined;
+  setSelectedLoteId: (id: string | undefined) => void;
 }
 
 // localStorage keys (versioned para futuras migraciones de schema)
 const LS_DATE_KEY = 'xerenity.globalEvaluationDate.v1';
 const LS_MODE_KEY = 'xerenity.dateSelectorMode.v1';
+const LS_LOTE_KEY = 'xerenity.selectedLoteId.v1';
 
 function loadDateFromStorage(): string {
   if (typeof window === 'undefined') return formatISO(defaultEvaluationDate());
@@ -118,6 +125,30 @@ function saveModeToStorage(mode: 'month' | 'day'): void {
   if (typeof window === 'undefined') return;
   try {
     window.localStorage.setItem(LS_MODE_KEY, mode);
+  } catch {
+    // ignore
+  }
+}
+
+function loadLoteFromStorage(): string | undefined {
+  if (typeof window === 'undefined') return undefined;
+  try {
+    const stored = window.localStorage.getItem(LS_LOTE_KEY);
+    // Validacion basica: debe ser UUID v4-like
+    if (stored && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(stored)) {
+      return stored;
+    }
+  } catch {
+    // ignore
+  }
+  return undefined;
+}
+
+function saveLoteToStorage(id: string | undefined): void {
+  if (typeof window === 'undefined') return;
+  try {
+    if (id) window.localStorage.setItem(LS_LOTE_KEY, id);
+    else window.localStorage.removeItem(LS_LOTE_KEY);
   } catch {
     // ignore
   }
@@ -340,6 +371,12 @@ const createUserSlice: StateCreator<UserSlice> = (set, get) => ({
     set({ dateSelectorMode: mode });
   },
   activeEvaluationDate: () => get().globalEvaluationDate,
+
+  selectedLoteId: loadLoteFromStorage(),
+  setSelectedLoteId: (id) => {
+    saveLoteToStorage(id);
+    set({ selectedLoteId: id });
+  },
 });
 
 export default createUserSlice;
