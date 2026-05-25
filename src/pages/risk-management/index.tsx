@@ -931,9 +931,12 @@ function RiskManagement() {
   const xccyPositionsQuery = useXccyPositions(selectedCompanyId);
   const ndfPositionsQuery = useNdfPositions(selectedCompanyId);
   const ibrSwapPositionsQuery = useIbrSwapPositions(selectedCompanyId);
-  const otcXccyPositions = xccyPositionsQuery.data ?? [];
-  const otcNdfPositions = ndfPositionsQuery.data ?? [];
-  const otcIbrPositions = ibrSwapPositionsQuery.data ?? [];
+  // Memoize position lists para que la identidad de los arrays sea estable
+  // entre renders (sino `?? []` crea uno nuevo y los hooks downstream
+  // tendrian dependencias inestables aunque sus queryKeys sí son estables).
+  const otcXccyPositions = useMemo(() => xccyPositionsQuery.data ?? [], [xccyPositionsQuery.data]);
+  const otcNdfPositions = useMemo(() => ndfPositionsQuery.data ?? [], [ndfPositionsQuery.data]);
+  const otcIbrPositions = useMemo(() => ibrSwapPositionsQuery.data ?? [], [ibrSwapPositionsQuery.data]);
 
   const otcReprice = useRepricePortfolio({
     xccy: otcXccyPositions,
@@ -943,7 +946,7 @@ function RiskManagement() {
     enabled: otcCurvesReady,
   });
   // Memoize para que la identidad del array no cambie en cada render
-  // (`?? []` crea nuevo array → triggers infinitos en useEffect deps).
+  // (`?? []` crea nuevo array -> triggers infinitos en useEffect deps).
   const pricedXccyStore = useMemo(() => otcReprice.data?.xccy_results ?? [], [otcReprice.data]);
   const pricedNdfStore = useMemo(() => otcReprice.data?.ndf_results ?? [], [otcReprice.data]);
   const pricedIbrSwapStore = useMemo(() => otcReprice.data?.ibr_swap_results ?? [], [otcReprice.data]);
@@ -955,7 +958,19 @@ function RiskManagement() {
     fechaMarca: filterDate,
     enabled: otcCurvesReady,
   });
-  const refPricesStore = otcRefPrices.refPrices;
+  // CRITICAL: useReferencePrices construye un objeto NUEVO `{daily, mtd, ytd}`
+  // en cada render. Sin esta memoizacion, refPricesStore tiene identidad nueva
+  // cada render -> el useEffect del Benchmark (que lo tiene en deps) se
+  // dispara EN CADA RENDER, causando "saltos" de valores y resets intermitentes
+  // de la fila USD. Memoizamos contra los 3 .data internos (que SI son
+  // estables gracias al structural sharing de TanStack Query).
+  const refDaily = otcRefPrices.refPrices.daily;
+  const refMtd = otcRefPrices.refPrices.mtd;
+  const refYtd = otcRefPrices.refPrices.ytd;
+  const refPricesStore = useMemo(
+    () => ({ daily: refDaily, mtd: refMtd, ytd: refYtd }),
+    [refDaily, refMtd, refYtd],
+  );
 
   // Methodology modal
   const [methModal, setMethModal] = useState<string | null>(null);
@@ -1350,16 +1365,34 @@ function RiskManagement() {
       next.forEach((row, i) => {
         if (row.asset === 'Total') return;
 
-        // ── USD row: fed from OTC store (FX Delta + P&L MTD USD per-fila) ──
+        // ── USD row: fed from OTC TanStack hooks (FX Delta + P&L MTD USD per-fila) ──
         // Calculo per-fila (mismo patron que /portfolio):
-        //   - Para cada posicion: pnl_mtd_usd = npv_usd_hoy − npv_usd_mtd_ref
+        //   - Para cada posicion: pnl_mtd_usd = npv_usd_hoy - npv_usd_mtd_ref
         //   - Posicion NUEVA (sin ref MTD): cuenta TODO el npv_usd como P&L desde
-        //     inception (e.g., FWD creado el 15-may, MTD ref es 30-abr → no existe).
+        //     inception (e.g., FWD creado el 15-may, MTD ref es 30-abr -> no existe).
         //   - Suma de todas las posiciones XCCY + NDF + IBR.
-        // Si el store esta vacio (sin OTC), todo queda en 0. Sin hardcodes.
         if (row.asset === 'USD') {
-          const fxDeltaTotal = (pricedXccyStore ?? []).reduce((s, p) => s + (p.fx_delta ?? 0), 0)
-            + (pricedNdfStore ?? []).reduce((s, p) => s + (p.fx_delta ?? 0), 0);
+          // ANTI-FLICKER: si los datos OTC aun no estan listos (curvas
+          // construyendose, primer fetch, refetch en curso sin data previa),
+          // NO sobreescribir la fila USD. Asi el usuario no ve "saltos"
+          // entre 0/0 y el valor real durante transiciones.
+          //
+          // Detalle: tener positions cargadas pero `data` undefined indica
+          // que el reprice esta en flight; mantenemos el valor anterior.
+          const positionsLoaded = otcXccyPositions.length + otcNdfPositions.length + otcIbrPositions.length > 0;
+          const repriceReady = !!otcReprice.data;
+          if (positionsLoaded && !repriceReady) return;
+
+          // IMPORTANTE: filtrar posiciones con error ANTES de sumar (matching
+          // /portfolio's BlotterTable footer: `valid = rows.filter(r => !r.error)`).
+          // Sin esto, una posicion errored hoy (npv_usd=0) con MTD ref valida
+          // (npv_usd=$120K) restaria $120K del total, divergiendo de /portfolio.
+          const validXccy = pricedXccyStore.filter((p) => !p.error);
+          const validNdf = pricedNdfStore.filter((p) => !p.error);
+          const validIbr = pricedIbrSwapStore.filter((p) => !p.error);
+
+          const fxDeltaTotal = validXccy.reduce((s, p) => s + (p.fx_delta ?? 0), 0)
+            + validNdf.reduce((s, p) => s + (p.fx_delta ?? 0), 0);
 
           const mtdRef = refPricesStore?.mtd;
           const mtdXccyMap: Record<string, { id: string; npv_usd: number; error?: string }> = {};
@@ -1371,15 +1404,15 @@ function RiskManagement() {
             (mtdRef.ibr_swap_results ?? []).forEach((r) => { mtdIbrMap[r.id] = r; });
           }
 
-          const pnlForXccy = (pricedXccyStore ?? []).reduce((s, p) => {
+          const pnlForXccy = validXccy.reduce((s, p) => {
             const ref = mtdXccyMap[p.id];
             const today = p.npv_usd ?? 0;
-            if (!ref) return s + today; // posicion nueva — todo es P&L desde inception
+            if (!ref) return s + today; // posicion nueva - todo es P&L desde inception
             if (ref.error) return s;
             return s + (today - (ref.npv_usd ?? 0));
           }, 0);
 
-          const pnlForNdf = (pricedNdfStore ?? []).reduce((s, p) => {
+          const pnlForNdf = validNdf.reduce((s, p) => {
             const ref = mtdNdfMap[p.id];
             const today = p.npv_usd ?? 0;
             if (!ref) return s + today;
@@ -1387,10 +1420,10 @@ function RiskManagement() {
             return s + (today - (ref.npv_usd ?? 0));
           }, 0);
 
-          const pnlForIbr = (pricedIbrSwapStore ?? []).reduce((s, p) => {
+          const pnlForIbr = validIbr.reduce((s, p) => {
             const ref = mtdIbrMap[p.id];
             // IBR pricedSwap usa `npv` (en COP). Convertimos a USD aprox.
-            const today = (p.npv ?? 0) / 4200; // aproximacion gruesa USD/COP
+            const today = (p.npv ?? 0) / 4200;
             if (!ref) return s + today;
             if (ref.error) return s;
             return s + (today - (ref.npv ?? 0) / 4200);
