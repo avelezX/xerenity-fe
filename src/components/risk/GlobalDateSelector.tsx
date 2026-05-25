@@ -12,7 +12,7 @@
  * (Zustand, persistido en localStorage). El consumidor (paginas) siempre
  * lee un ISO string "YYYY-MM-DD" via activeEvaluationDate().
  */
-import { ChangeEvent } from 'react';
+import { ChangeEvent, useEffect, useState } from 'react';
 import useAppStore from 'src/store';
 import {
   parseISOAsNoon,
@@ -43,6 +43,12 @@ const MONO = "'IBM Plex Mono', 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo,
 
 // ─────────────────────────────────────────────────────────────────
 export default function GlobalDateSelector() {
+  // Hydration guard: el store inicializa con valor de localStorage en el
+  // cliente y con default en el SSR. Renderizamos un placeholder hasta
+  // despues del primer mount para evitar text-content-mismatch.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
+
   const date = useAppStore((s) => s.globalEvaluationDate);
   const mode = useAppStore((s) => s.dateSelectorMode);
   const setDate = useAppStore((s) => s.setGlobalEvaluationDate);
@@ -69,6 +75,16 @@ export default function GlobalDateSelector() {
   const year = currentDate.getUTCFullYear();
   const day = String(currentDate.getUTCDate()).padStart(2, '0');
   const monthSmall = MONTH_NAMES_SHORT[currentDate.getUTCMonth()].toLowerCase();
+
+  // Render placeholder hasta despues del mount (evita SSR/CSR mismatch).
+  // El placeholder ocupa espacio similar para que no haya layout shift.
+  if (!mounted) {
+    return (
+      <div className="gds-root" style={{ visibility: 'hidden' }} aria-hidden="true">
+        <div className="gds-toggle" />
+      </div>
+    );
+  }
 
   return (
     <div className="gds-root">

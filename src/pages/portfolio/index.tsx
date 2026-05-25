@@ -154,12 +154,18 @@ function MarkDateBar({
 }) {
   const [mark, setMark] = useState<HistoricalMark | null>(null);
   const [loadingMark, setLoadingMark] = useState(false);
+  // Hydration guard: `fecha` viene de globalEvaluationDate (localStorage),
+  // que difiere entre SSR (default) y CSR (valor persistido). Renderizamos
+  // un placeholder hasta despues del mount para evitar text-content-mismatch.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
 
   useEffect(() => {
+    if (!mounted) return;
     setLoadingMark(true);
     setMark(null);
     fetchHistoricalMark(fecha).then(setMark).finally(() => setLoadingMark(false));
-  }, [fecha]);
+  }, [fecha, mounted]);
 
   const chips: { label: string; ok: boolean; rows: [string, string][] }[] = [
     { label: 'IBR', ok: mark?.hasIbr ?? false, rows: ibrMarkRows(mark) },
@@ -184,13 +190,17 @@ function MarkDateBar({
         borderRadius: 4,
         background: '#fff',
         letterSpacing: '0.03em',
+        minWidth: 92,
+        display: 'inline-block',
+        textAlign: 'center',
       }}
       >
-        {fecha}
+        {mounted ? fecha : ' '}
       </span>
-      {loadingMark ? (
+      {mounted && loadingMark && (
         <span style={{ color: '#6c757d' }}>…</span>
-      ) : (
+      )}
+      {mounted && !loadingMark && (
         <>
           <span style={{ display: 'flex', gap: 4 }}>
             {chips.map((c) => (
