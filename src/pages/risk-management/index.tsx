@@ -35,6 +35,14 @@ import {
 import { fetchRollingVar, fetchBenchmarkFactors, fetchExposure, fetchFuturesPortfolio, upsertFuturesPositions, rollFuturesPosition, closeFuturesPosition, deleteFuturesPosition, editFuturesPosition } from 'src/models/risk/riskApi';
 import { fetchCoffeePrices } from 'src/lib/risk/supabaseRisk';
 import type { CoffeePriceRow } from 'src/lib/risk/supabaseRisk';
+// TanStack hooks compartidos con /portfolio — garantizan que la fila USD
+// del Benchmark muestre EXACTAMENTE los mismos numeros que ve el usuario en
+// /portfolio (Position GR = sum FX delta, P&G GR = sum P&L MTD USD). Sin
+// esto cada pagina tendria su propio cache y los valores divergian.
+import { useXccyPositions, useNdfPositions, useIbrSwapPositions } from 'src/queries/trading';
+import { useRepricePortfolio, useReferencePrices } from 'src/queries/pricing';
+import { buildCurves, getCurveStatus } from 'src/models/pricing/pricingApi';
+import type { CurveStatus } from 'src/types/pricing';
 // Calculadora USDCOP movida a /usdcop-calculator (mayo 2026)
 import { calcularAkomelCop, calcularCebesMc35, calcularAlmidon, buildSuperFormulaCommodities, calcularCoberturaCafe } from 'src/lib/risk/exposureCalculator';
 import type { RollingVarResponse, BenchmarkFactorsResponse, ExposureParams, ExposureResponse, MarketPrice, FuturesPosition, NewFuturesPosition } from 'src/types/risk';
@@ -882,11 +890,72 @@ function RiskManagement() {
   // Si el usuario quiere cambiar la fecha, lo hace desde el selector global.
   const filterDate = useAppStore((s) => s.globalEvaluationDate);
 
-  // OTC store handles — used by Benchmark USD row auto-fill
-  const otcSummary = useAppStore((s) => s.summary) as { total_npv_cop: number; total_npv_usd: number } | undefined;
-  const pricedXccyStore = useAppStore((s) => s.pricedXccy);
-  const pricedNdfStore = useAppStore((s) => s.pricedNdf);
-  const refPricesStore = useAppStore((s) => s.refPrices);
+  // OTC pricing — usa los MISMOS hooks TanStack que /portfolio para garantizar
+  // que la fila USD del Benchmark muestre exactamente los mismos numeros que
+  // el blotter de /portfolio. Antes leiamos del store Zustand
+  // (pricedXccy/pricedNdf/pricedIbrSwap/refPrices alimentados por
+  // repriceAllWithMark/loadReferencePrices), pero /portfolio migro a TanStack
+  // Query (PR #313/#314/#317) y dejo de escribir al store — los dos caches
+  // se desincronizaban y los valores divergian.
+  //
+  // Position GR USD = sum(FX delta XCCY + NDF) de pricedXccy/pricedNdf
+  // PnL GR USD     = sum per-fila de (npv_usd_hoy − npv_usd_mtd_ref)
+  //                  Para posiciones nuevas (sin ref MTD) cuenta el NPV
+  //                  completo como P&L desde inception.
+  const [otcCurveStatus, setOtcCurveStatus] = useState<CurveStatus | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const status = await getCurveStatus();
+        if (cancelled) return;
+        if (status.ibr.built && status.sofr.built) {
+          setOtcCurveStatus(status);
+        } else {
+          const built = await buildCurves();
+          if (!cancelled) setOtcCurveStatus(built.full_status);
+        }
+      } catch {
+        try {
+          const built = await buildCurves();
+          if (!cancelled) setOtcCurveStatus(built.full_status);
+        } catch {
+          // silent — la fila USD quedara en 0/0 si no se pueden construir
+        }
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+  const otcCurvesReady = !!(otcCurveStatus?.ibr.built && otcCurveStatus?.sofr.built);
+
+  const xccyPositionsQuery = useXccyPositions(selectedCompanyId);
+  const ndfPositionsQuery = useNdfPositions(selectedCompanyId);
+  const ibrSwapPositionsQuery = useIbrSwapPositions(selectedCompanyId);
+  const otcXccyPositions = xccyPositionsQuery.data ?? [];
+  const otcNdfPositions = ndfPositionsQuery.data ?? [];
+  const otcIbrPositions = ibrSwapPositionsQuery.data ?? [];
+
+  const otcReprice = useRepricePortfolio({
+    xccy: otcXccyPositions,
+    ndf: otcNdfPositions,
+    ibr: otcIbrPositions,
+    valuationDate: filterDate,
+    enabled: otcCurvesReady,
+  });
+  // Memoize para que la identidad del array no cambie en cada render
+  // (`?? []` crea nuevo array → triggers infinitos en useEffect deps).
+  const pricedXccyStore = useMemo(() => otcReprice.data?.xccy_results ?? [], [otcReprice.data]);
+  const pricedNdfStore = useMemo(() => otcReprice.data?.ndf_results ?? [], [otcReprice.data]);
+  const pricedIbrSwapStore = useMemo(() => otcReprice.data?.ibr_swap_results ?? [], [otcReprice.data]);
+
+  const otcRefPrices = useReferencePrices({
+    xccy: otcXccyPositions,
+    ndf: otcNdfPositions,
+    ibr: otcIbrPositions,
+    fechaMarca: filterDate,
+    enabled: otcCurvesReady,
+  });
+  const refPricesStore = otcRefPrices.refPrices;
 
   // Methodology modal
   const [methModal, setMethModal] = useState<string | null>(null);
@@ -1248,6 +1317,10 @@ function RiskManagement() {
   // pueden ser en COP o USD, asi que la integracion automatica no es
   // trivial). El estado `cafeBlotterTotal` queda no usado (por ahora).
 
+  // (Auto-load eliminado: los hooks TanStack useXccy/Ndf/IbrSwapPositions +
+  //  useRepricePortfolio + useReferencePrices se auto-disparan al cambiar
+  //  selectedCompanyId o filterDate, y comparten cache con /portfolio.)
+
   // When exposure results change, update benchmark position_super
   useEffect(() => {
     if (!exposureResult) return;
@@ -1277,17 +1350,54 @@ function RiskManagement() {
       next.forEach((row, i) => {
         if (row.asset === 'Total') return;
 
-        // ── USD row: fed from OTC store (FX Delta + P&L MTD USD) ──
-        // Si la empresa no tiene OTC positions cargadas, los stores vienen
-        // vacios y los valores quedan en 0. NO se hardcodea ningun valor;
-        // mas adelante se decide que mostrar como fallback per-empresa.
+        // ── USD row: fed from OTC store (FX Delta + P&L MTD USD per-fila) ──
+        // Calculo per-fila (mismo patron que /portfolio):
+        //   - Para cada posicion: pnl_mtd_usd = npv_usd_hoy − npv_usd_mtd_ref
+        //   - Posicion NUEVA (sin ref MTD): cuenta TODO el npv_usd como P&L desde
+        //     inception (e.g., FWD creado el 15-may, MTD ref es 30-abr → no existe).
+        //   - Suma de todas las posiciones XCCY + NDF + IBR.
+        // Si el store esta vacio (sin OTC), todo queda en 0. Sin hardcodes.
         if (row.asset === 'USD') {
           const fxDeltaTotal = (pricedXccyStore ?? []).reduce((s, p) => s + (p.fx_delta ?? 0), 0)
             + (pricedNdfStore ?? []).reduce((s, p) => s + (p.fx_delta ?? 0), 0);
+
           const mtdRef = refPricesStore?.mtd;
-          const pnlMtdUsd = (otcSummary && mtdRef)
-            ? otcSummary.total_npv_usd - mtdRef.summary.total_npv_usd
-            : 0;
+          const mtdXccyMap: Record<string, { id: string; npv_usd: number; error?: string }> = {};
+          const mtdNdfMap: Record<string, { id: string; npv_usd: number; error?: string }> = {};
+          const mtdIbrMap: Record<string, { id: string; npv: number; error?: string }> = {};
+          if (mtdRef) {
+            (mtdRef.xccy_results ?? []).forEach((r) => { mtdXccyMap[r.id] = r; });
+            (mtdRef.ndf_results ?? []).forEach((r) => { mtdNdfMap[r.id] = r; });
+            (mtdRef.ibr_swap_results ?? []).forEach((r) => { mtdIbrMap[r.id] = r; });
+          }
+
+          const pnlForXccy = (pricedXccyStore ?? []).reduce((s, p) => {
+            const ref = mtdXccyMap[p.id];
+            const today = p.npv_usd ?? 0;
+            if (!ref) return s + today; // posicion nueva — todo es P&L desde inception
+            if (ref.error) return s;
+            return s + (today - (ref.npv_usd ?? 0));
+          }, 0);
+
+          const pnlForNdf = (pricedNdfStore ?? []).reduce((s, p) => {
+            const ref = mtdNdfMap[p.id];
+            const today = p.npv_usd ?? 0;
+            if (!ref) return s + today;
+            if (ref.error) return s;
+            return s + (today - (ref.npv_usd ?? 0));
+          }, 0);
+
+          const pnlForIbr = (pricedIbrSwapStore ?? []).reduce((s, p) => {
+            const ref = mtdIbrMap[p.id];
+            // IBR pricedSwap usa `npv` (en COP). Convertimos a USD aprox.
+            const today = (p.npv ?? 0) / 4200; // aproximacion gruesa USD/COP
+            if (!ref) return s + today;
+            if (ref.error) return s;
+            return s + (today - (ref.npv ?? 0) / 4200);
+          }, 0);
+
+          const pnlMtdUsd = pnlForXccy + pnlForNdf + pnlForIbr;
+
           next[i].position_gr = String(Math.round(fxDeltaTotal));
           next[i].pnl_gr = String(Math.round(pnlMtdUsd));
           return;
@@ -1318,7 +1428,7 @@ function RiskManagement() {
       return recalcBenchmark(next, varianceMap);
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [futuresPortfolio, varianceMap, benchmarkDateStr, otcSummary, pricedXccyStore, pricedNdfStore, refPricesStore]);
+  }, [futuresPortfolio, varianceMap, benchmarkDateStr, pricedXccyStore, pricedNdfStore, pricedIbrSwapStore, refPricesStore]);
 
   // Build chart data for rolling var
   const buildChartData = (asset: string, field: 'prices' | 'rolling_var') => {
