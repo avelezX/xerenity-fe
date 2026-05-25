@@ -10,9 +10,7 @@ import {
   faBriefcase,
   faSyncAlt,
   faPlus,
-  faTable,
   faCog,
-  faCalendarAlt,
 } from '@fortawesome/free-solid-svg-icons';
 import { toast } from 'react-toastify';
 import PageTitle from '@components/PageTitle';
@@ -62,7 +60,7 @@ import useAppStore from 'src/store';
 import BlotterTable, { type PortfolioRow } from '@components/portfolio/BlotterTable';
 import { useBlotterPreferences } from 'src/models/user/blotter-preferences';
 import MarketDataConfigModal from './_MarketDataConfigModal';
-import { MarksContent } from '../marks';
+// MarksContent ya no se importa aqui (mayo 2026): vive standalone en /marks.
 
 const PAGE_TITLE = 'Portafolio de Derivados';
 
@@ -1905,7 +1903,8 @@ function PortfolioPage() {
   // Exposicion). Si el usuario quiere cambiar la fecha, lo hace desde el
   // selector global de CoreLayout (con toggle Mes/Dia).
   const markFecha = useAppStore((s) => s.globalEvaluationDate);
-  const setMarkFecha = useAppStore((s) => s.setGlobalEvaluationDate);
+  // setMarkFecha removido: el unico setter era MarksContent que ya no vive
+  // aqui. El selector global de CoreLayout es el que mueve la fecha.
   const [curveStatus, setCurveStatus] = useState<CurveStatus | null>(null);
   const [addType, setAddType] = useState<string | null>(null); // 'xccy' | 'ndf' | 'ibr' | null
   // (#313 removed repriceTrigger — useRepricePortfolio's key includes position
@@ -1914,7 +1913,7 @@ function PortfolioPage() {
   const [selectedXccy, setSelectedXccy] = useState<PricedXccy | null>(null);
   const [selectedNdf, setSelectedNdf] = useState<PricedNdf | null>(null);
   const [selectedIbrSwap, setSelectedIbrSwap] = useState<PricedIbrSwap | null>(null);
-  const [viewTab, setViewTab] = useState<'portfolio' | 'marcas'>('portfolio');
+  // viewTab eliminado (mayo 2026): el tab Marcas se movio al sidebar como /marks.
   const [showConfigModal, setShowConfigModal] = useState(false);
   const [settlementMap, setSettlementMap] = useState<Record<string, NdfSettlementResult | 'error'>>({});
 
@@ -2275,58 +2274,27 @@ function PortfolioPage() {
         {/* Summary */}
         <SummaryBar summary={summary} pricedAt={pricedAt} pnlTotals={pnlTotals} />
 
-        {/* View Toggle */}
-        <div style={{ display: 'flex', gap: 4, marginBottom: 12 }}>
-          {([
-            ['portfolio', 'Portafolio', faTable],
-            ['marcas', 'Marcas', faCalendarAlt],
-          ] as const).map(([key, label, icon]) => (
-            <button
-              key={key}
-              type="button"
-              onClick={() => setViewTab(key)}
-              style={{
-                padding: '5px 14px',
-                fontSize: 12,
-                fontWeight: 600,
-                border: '1px solid #dee2e6',
-                borderRadius: 6,
-                cursor: 'pointer',
-                background: viewTab === key ? '#0d6efd' : '#fff',
-                color: viewTab === key ? '#fff' : '#495057',
-              }}
-            >
-              <Icon icon={icon} className="me-1" />
-              {label}
-            </button>
-          ))}
+        {/* Portafolio (anteriormente habia un toggle Portafolio/Marcas;
+            Marcas ahora vive como entrada propia en el sidebar -> /marks) */}
+        <div
+          style={{
+            background: '#fff',
+            border: '1px solid #dee2e6',
+            borderRadius: 8,
+            padding: 20,
+          }}
+        >
+          <BlotterTable
+            rows={portfolioRows}
+            onDelete={handleDelete}
+            onSelectXccy={onSelectXccy}
+            onSelectNdf={onSelectNdf}
+            onSelectIbr={onSelectIbr}
+            canEdit={canEdit}
+            prefs={blotterPrefs}
+            onPrefsChange={setBlotterPrefs}
+          />
         </div>
-
-        {/* Content area */}
-        {viewTab === 'portfolio' && (
-          <div
-            style={{
-              background: '#fff',
-              border: '1px solid #dee2e6',
-              borderRadius: 8,
-              padding: 20,
-            }}
-          >
-            <BlotterTable
-              rows={portfolioRows}
-              onDelete={handleDelete}
-              onSelectXccy={onSelectXccy}
-              onSelectNdf={onSelectNdf}
-              onSelectIbr={onSelectIbr}
-              canEdit={canEdit}
-              prefs={blotterPrefs}
-              onPrefsChange={setBlotterPrefs}
-            />
-          </div>
-        )}
-        {viewTab === 'marcas' && (
-          <MarksContent selectedDate={markFecha} onSelectDate={setMarkFecha} />
-        )}
 
         {/* Add Modals — adding a position changes xccyPositions/ndfPositions/
             ibrSwapPositions; useRepricePortfolio sees the new position list in
