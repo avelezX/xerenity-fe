@@ -79,6 +79,7 @@ const RIESGOS_SUBNAV: RiesgosNavItem[] = [
 
   { divider: true, name: 'POSICIONES' },
   { name: 'Commodities', path: '/risk-management', icon: faChartArea, active: false },
+  { name: 'Monitor Futuros', path: '/futures-monitor', icon: faLineChart, active: false },
   { name: 'Portafolio OTC', path: '/portfolio', icon: faBriefcase, active: false },
   { name: 'Créditos', path: '/loans', icon: faLandmark, active: false },
   { name: 'Portafolio TES', path: '/tes-portfolio', icon: faLandmark, active: false },
@@ -145,6 +146,7 @@ const SidebarNavList = ({ currentPath }: SidebarNavProps) => {
         active={
           currentPath.includes('/risk-resumen') ||
           currentPath.includes('/risk-management') ||
+          currentPath.includes('/futures-monitor') ||
           currentPath.includes('/loans') ||
           currentPath.includes('/ndf-pricer') ||
           currentPath.includes('/ibr-swap') ||
