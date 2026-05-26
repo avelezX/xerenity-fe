@@ -41,6 +41,7 @@ import CurvaTab from 'src/components/futures-monitor/CurvaTab';
 import FrontMonthTab from 'src/components/futures-monitor/FrontMonthTab';
 import SpreadsTab from 'src/components/futures-monitor/SpreadsTab';
 import SlopesTab from 'src/components/futures-monitor/SlopesTab';
+import ScannerTab from 'src/components/futures-monitor/ScannerTab';
 
 // ─────────────────────────────────────────────────────────────────
 // Design tokens (scoped a esta pagina)
@@ -277,7 +278,10 @@ function FuturesMonitorPage() {
                 />
               )}
               {activeTab === 'scanner' && (
-                <ComingSoonPanel activeTab={activeTab} snapshot={snapshot} />
+                <ScannerTab
+                  signalsOperable={snapshot.signals_operable}
+                  signalsIliquid={snapshot.signals_iliquid}
+                />
               )}
             </>
           )}
@@ -459,62 +463,6 @@ function TabBar({
           </button>
         );
       })}
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────────
-// Coming Soon Panel — placeholder hasta PR 3-5
-// ─────────────────────────────────────────────────────────────────
-function ComingSoonPanel({
-  activeTab,
-  snapshot,
-}: {
-  activeTab: TabKey;
-  snapshot: SugarSnapshot;
-}) {
-  const counts: Record<TabKey, { count: number; label: string }> = {
-    curva: { count: snapshot.curve.length, label: 'contratos' },
-    calendars: { count: snapshot.calendar_spreads.length, label: 'calendar spreads' },
-    butterflies: { count: snapshot.butterflies.length, label: 'butterflies' },
-    slopes: { count: snapshot.slopes.length, label: 'slopes' },
-    front: { count: snapshot.front_history.length, label: 'puntos de historia 5Y' },
-    scanner: {
-      count: snapshot.signals_operable.length + snapshot.signals_iliquid.length,
-      label: `señales (${snapshot.signals_operable.length} op · ${snapshot.signals_iliquid.length} il)`,
-    },
-  };
-  const c = counts[activeTab];
-
-  return (
-    <div style={{
-      padding: '32px 24px',
-      border: `1px solid ${T.hairlineSoft}`,
-      background: T.surfaceAlt,
-      textAlign: 'center',
-      fontFamily: MONO,
-    }}>
-      <div style={{
-        fontSize: 11, fontWeight: 700, letterSpacing: '0.16em',
-        color: T.accent, textTransform: 'uppercase', marginBottom: 8,
-      }}>
-        próximamente
-      </div>
-      <div style={{
-        fontSize: 13, color: T.ink, marginBottom: 6,
-        fontFamily: 'ui-sans-serif, system-ui, sans-serif',
-      }}>
-        Tab <strong>{TABS.find((t) => t.key === activeTab)?.label}</strong> — UI en construcción.
-      </div>
-      <div style={{ fontSize: 11, color: T.muted, fontVariantNumeric: 'tabular-nums' }}>
-        Backend listo: <strong style={{ color: T.ink }}>{c.count}</strong> {c.label} disponibles
-      </div>
-      <div style={{
-        marginTop: 16, paddingTop: 12, borderTop: `1px solid ${T.hairlineSoft}`,
-        fontSize: 10, color: T.mutedDim, letterSpacing: '0.06em',
-      }}>
-        PRs 3–5 conectarán cada tab con tablas, charts (Recharts) y el drawer de playbooks.
-      </div>
     </div>
   );
 }
