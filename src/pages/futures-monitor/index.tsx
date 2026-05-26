@@ -39,6 +39,8 @@ import { fetchSugarSnapshot } from 'src/lib/futures-monitor/api';
 import type { SugarSnapshot } from 'src/lib/futures-monitor/types';
 import CurvaTab from 'src/components/futures-monitor/CurvaTab';
 import FrontMonthTab from 'src/components/futures-monitor/FrontMonthTab';
+import SpreadsTab from 'src/components/futures-monitor/SpreadsTab';
+import SlopesTab from 'src/components/futures-monitor/SlopesTab';
 
 // ─────────────────────────────────────────────────────────────────
 // Design tokens (scoped a esta pagina)
@@ -250,7 +252,31 @@ function FuturesMonitorPage() {
               {activeTab === 'front' && (
                 <FrontMonthTab series={snapshot.front_history} kpis={snapshot.kpis} />
               )}
-              {activeTab !== 'curva' && activeTab !== 'front' && (
+              {activeTab === 'calendars' && (
+                <SpreadsTab
+                  label="Calendar Spread"
+                  metas={snapshot.calendar_spreads}
+                  serieses={snapshot.calendar_spread_series}
+                  showSenal={false}
+                  decimals={2}
+                />
+              )}
+              {activeTab === 'butterflies' && (
+                <SpreadsTab
+                  label="Butterfly"
+                  metas={snapshot.butterflies}
+                  serieses={snapshot.butterfly_series}
+                  showSenal
+                  decimals={3}
+                />
+              )}
+              {activeTab === 'slopes' && (
+                <SlopesTab
+                  slopes={snapshot.slopes}
+                  serieses={snapshot.slope_series}
+                />
+              )}
+              {activeTab === 'scanner' && (
                 <ComingSoonPanel activeTab={activeTab} snapshot={snapshot} />
               )}
             </>

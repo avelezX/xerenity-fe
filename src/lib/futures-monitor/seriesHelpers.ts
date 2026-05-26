@@ -121,3 +121,35 @@ export function buildVolChartData(series: NumberedPoint[]): Array<{
     vol60: vol60[i],
   }));
 }
+
+/**
+ * Spread chart con bandas Bollinger 20D ±2σ.
+ *
+ * Replica spread_chart_df(spread_series) del Streamlit:
+ *   ma = s.rolling(20).mean()
+ *   std = s.rolling(20).std()
+ *   upper = ma + 2*std
+ *   lower = ma - 2*std
+ */
+export function buildSpreadChartData(series: NumberedPoint[]): Array<{
+  date: string;
+  value: number;
+  ma20: number | null;
+  upper2: number | null;
+  lower2: number | null;
+}> {
+  const values = series.map((p) => p.value);
+  const ma = rollingMean(values, 20);
+  const std = rollingStd(values, 20);
+  return series.map((p, i) => {
+    const m = ma[i];
+    const s = std[i];
+    return {
+      date: p.date,
+      value: p.value,
+      ma20: m,
+      upper2: m != null && s != null ? m + 2 * s : null,
+      lower2: m != null && s != null ? m - 2 * s : null,
+    };
+  });
+}

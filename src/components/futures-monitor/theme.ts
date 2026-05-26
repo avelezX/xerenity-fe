@@ -66,6 +66,33 @@ export function spreadColor(v: number, maxAbs: number): string {
   return `rgba(21, 128, 61, ${alpha})`;
 }
 
+/** Background color para celdas Z-Score (escala diverge -3..+3). Rojo
+ *  para Z negativo extremo (centro caro), verde para Z positivo extremo
+ *  (centro barato), gris para |Z| pequeno. */
+export function zScoreColor(z: number | null | undefined): string {
+  if (z == null || Number.isNaN(z)) return 'transparent';
+  const clamped = Math.max(-3, Math.min(3, z));
+  const ratio = Math.abs(clamped) / 3;
+  const alpha = 0.1 + ratio * 0.5;
+  if (clamped > 0) return `rgba(21, 128, 61, ${alpha})`;
+  if (clamped < 0) return `rgba(185, 28, 28, ${alpha})`;
+  return 'transparent';
+}
+
+/** Texto color para Z-Score: enfasis cuando |Z| es alto. */
+export function zScoreTextColor(z: number | null | undefined): string {
+  if (z == null || Number.isNaN(z)) return T.muted;
+  if (Math.abs(z) >= 2) return T.ink;
+  if (Math.abs(z) >= 1.5) return T.inkSoft;
+  return T.muted;
+}
+
+export function tendenciaColor(t: string): string {
+  if (t === 'STEEPENING') return T.blue;
+  if (t === 'FLATTENING') return T.purple;
+  return T.muted;
+}
+
 export function pctColor(v: number | null | undefined): string {
   if (v == null || Number.isNaN(v)) return T.muted;
   if (v > 0) return T.green;
