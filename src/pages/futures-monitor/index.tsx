@@ -37,6 +37,8 @@ import { fetchCompanyRiskConfig } from 'src/lib/risk/companyConfig';
 import type { RiskCompanyConfig } from 'src/lib/risk/companyConfig';
 import { fetchSugarSnapshot } from 'src/lib/futures-monitor/api';
 import type { SugarSnapshot } from 'src/lib/futures-monitor/types';
+import CurvaTab from 'src/components/futures-monitor/CurvaTab';
+import FrontMonthTab from 'src/components/futures-monitor/FrontMonthTab';
 
 // ─────────────────────────────────────────────────────────────────
 // Design tokens (scoped a esta pagina)
@@ -244,7 +246,13 @@ function FuturesMonitorPage() {
 
               <TabBar activeTab={activeTab} onChange={setActiveTab} />
 
-              <ComingSoonPanel activeTab={activeTab} snapshot={snapshot} />
+              {activeTab === 'curva' && <CurvaTab curve={snapshot.curve} />}
+              {activeTab === 'front' && (
+                <FrontMonthTab series={snapshot.front_history} kpis={snapshot.kpis} />
+              )}
+              {activeTab !== 'curva' && activeTab !== 'front' && (
+                <ComingSoonPanel activeTab={activeTab} snapshot={snapshot} />
+              )}
             </>
           )}
         </Container>
