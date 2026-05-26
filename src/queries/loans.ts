@@ -269,7 +269,9 @@ function splitBulkSummary(rows: LoanData[] | undefined): {
   loanDebtData: LoanData[];
 } {
   if (!rows || rows.length === 0) return { fullLoan: undefined, loanDebtData: [] };
-  const fullLoan = rows.find((r) => r.bank === '0' || r.bank === '');
+  // Backend marca la fila de totales con bank='TOTAL' (string) o 0 (int);
+  // fetchBulkSummary ya las normaliza a '0'.
+  const fullLoan = rows.find((r) => r.bank === '0' || r.bank === '' || r.bank === 'TOTAL');
   const loanDebtData = rows.filter((r) => r !== fullLoan)
     .sort((a, b) => b.total_value - a.total_value);
   return { fullLoan, loanDebtData };
