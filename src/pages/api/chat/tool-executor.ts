@@ -508,6 +508,224 @@ async function executeDescribeLineage(
   }
 }
 
+// ─── find_and_chart_series ────────────────────────────────────────
+// One-shot: NL query → embedding → hybrid resolve → query_series →
+// auto-built ChartSpec for inline rendering in the chat bubble.
+
+async function embedQuery(text: string): Promise<number[] | null> {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) return null; // semantic layer disabled if no key
+  try {
+    const r = await fetch('https://api.openai.com/v1/embeddings', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: 'text-embedding-3-small',
+        input: text,
+        encoding_format: 'float',
+      }),
+    });
+    if (!r.ok) return null;
+    const j = (await r.json()) as { data?: { embedding: number[] }[] };
+    return j.data?.[0]?.embedding ?? null;
+  } catch {
+    return null;
+  }
+}
+
+interface ResolverMatch {
+  table_name: string;
+  table_label: string | null;
+  slice_column: string | null;
+  slice_value: string | null;
+  label: string | null;
+  category: string | null;
+  confidence: number;
+  match_source: string;
+}
+
+interface QuerySeriesResult {
+  table_name: string;
+  label: string;
+  date_column: string;
+  slice_column: string | null;
+  slice_value: string | null;
+  row_count: number;
+  rows: Record<string, unknown>[];
+}
+
+// Pick the first numeric column that isn't the date or slice. Heuristic for
+// auto-building a ChartSpec without burning agent tokens on column inspection.
+function pickValueColumn(
+  row: Record<string, unknown>,
+  dateColumn: string,
+  sliceColumn: string | null,
+): string | null {
+  const skip = new Set<string>([dateColumn, sliceColumn ?? '']);
+  const candidates = Object.entries(row).filter(
+    ([k, v]) =>
+      !skip.has(k) &&
+      (typeof v === 'number' ||
+        (typeof v === 'string' && !Number.isNaN(parseFloat(v)))),
+  );
+  if (candidates.length === 0) return null;
+  // Prefer well-known names
+  const preferred = ['valor', 'value', 'rate', 'tasa', 'indice', 'precio', 'price'];
+  const preferredHit = preferred
+    .map((name) => candidates.find(([k]) => k.toLowerCase() === name))
+    .find((hit) => hit !== undefined);
+  if (preferredHit) return preferredHit[0];
+  return candidates[0][0];
+}
+
+async function executeFindAndChartSeries(
+  input: Record<string, unknown>,
+  userSupabase?: AnySupabaseClient,
+): Promise<ToolResult> {
+  if (!userSupabase) {
+    return { success: false, error: 'Se requiere sesion de usuario' };
+  }
+  const query = ((input.query as string) || '').trim();
+  if (!query) return { success: false, error: 'query es requerido' };
+
+  const periodDays = Math.max(
+    1,
+    Math.min(3650, (input.period_days as number) ?? 365),
+  );
+  const chartType = (input.chart_type as 'line' | 'bar' | 'area') ?? 'line';
+
+  // 1. Embed (best effort)
+  const embedding = await embedQuery(query);
+
+  // 2. Resolve
+  const resolveParams: Record<string, unknown> = {
+    p_text: query,
+    p_limit: 5,
+  };
+  if (embedding) {
+    resolveParams.p_embedding = `[${embedding.join(',')}]`;
+  }
+  const { data: matches, error: resolveError } = await userSupabase
+    .schema('xerenity')
+    .rpc('resolve_query', resolveParams);
+  if (resolveError) {
+    return { success: false, error: `Resolve: ${resolveError.message}` };
+  }
+  const matchList = (matches ?? []) as ResolverMatch[];
+  if (matchList.length === 0) {
+    return {
+      success: false,
+      error: `Sin matches para "${query}". Probá otro termino o usa query_database manual.`,
+    };
+  }
+
+  const top = matchList[0];
+
+  // 3. Date range
+  const to = new Date();
+  const from = new Date(to);
+  from.setDate(from.getDate() - periodDays);
+  const fromStr = from.toISOString().slice(0, 10);
+  const toStr = to.toISOString().slice(0, 10);
+
+  // 4. Fetch
+  const { data: seriesData, error: queryError } = await userSupabase
+    .schema('xerenity')
+    .rpc('query_series', {
+      p_table: top.table_name,
+      p_slice_value: top.slice_value,
+      p_from: fromStr,
+      p_to: toStr,
+      p_limit: 5000,
+    });
+  if (queryError) {
+    return {
+      success: false,
+      error: `Fetch ${top.table_name}: ${queryError.message}`,
+    };
+  }
+  const series = seriesData as QuerySeriesResult;
+  if (!series.rows || series.rows.length === 0) {
+    return {
+      success: false,
+      error: `Sin datos para ${top.label} en el rango ${fromStr} → ${toStr}.`,
+    };
+  }
+
+  // 5. Build ChartSpec
+  const valueColumn = pickValueColumn(
+    series.rows[0],
+    series.date_column,
+    series.slice_column,
+  );
+  if (!valueColumn) {
+    return {
+      success: true,
+      data: {
+        match: top,
+        meta: {
+          table_name: series.table_name,
+          label: series.label,
+          row_count: series.row_count,
+          date_column: series.date_column,
+        },
+        rows: series.rows,
+        chart_error:
+          'No pude detectar columna de valor automaticamente — usa generate_chart con el data devuelto.',
+      },
+    };
+  }
+
+  const chartData = series.rows.map((row) => {
+    const out: Record<string, unknown> = {};
+    out[series.date_column] = row[series.date_column];
+    const raw = row[valueColumn];
+    out[valueColumn] =
+      typeof raw === 'string' ? parseFloat(raw) : (raw as number);
+    return out;
+  });
+
+  const chartTitle =
+    top.label ?? top.table_label ?? series.label ?? series.table_name;
+
+  const chartSpec = {
+    chart_type: chartType,
+    title: chartTitle,
+    x_axis_key: series.date_column,
+    series: [
+      {
+        data_key: valueColumn,
+        name: chartTitle,
+      },
+    ],
+    data: chartData,
+  };
+
+  return {
+    success: true,
+    data: {
+      match: top,
+      meta: {
+        table_name: series.table_name,
+        label: series.label,
+        row_count: series.row_count,
+        date_column: series.date_column,
+        slice_value: series.slice_value,
+        from: fromStr,
+        to: toStr,
+        value_column: valueColumn,
+        confidence: top.confidence,
+        match_source: top.match_source,
+      },
+    },
+    chartData: chartSpec,
+  };
+}
+
+
 // eslint-disable-next-line import/prefer-default-export
 export async function executeTool(
   toolName: string,
@@ -537,6 +755,8 @@ export async function executeTool(
       return executeDescribeTable(toolInput, userSupabase);
     case 'describe_lineage':
       return executeDescribeLineage(toolInput, userSupabase);
+    case 'find_and_chart_series':
+      return executeFindAndChartSeries(toolInput, userSupabase);
     default:
       return { success: false, error: `Tool desconocido: ${toolName}` };
   }
