@@ -46,3 +46,14 @@ export interface ResolverMatchScore {
   pct_positive: number | null;
   last_voted_at: string;
 }
+
+export interface ResolverSuggestion {
+  table_name: string;
+  table_label: string | null;
+  slice_column: string | null;
+  slice_value: string | null;
+  label: string | null;
+  category: string | null;
+  /** 0..1 — loose trgm similarity. Higher = more similar */
+  similarity: number;
+}

@@ -10,6 +10,8 @@ import {
   faThumbsDown,
   faFlask,
   faClock,
+  faLightbulb,
+  faChartLine,
 } from '@fortawesome/free-solid-svg-icons';
 import { toast } from 'react-toastify';
 import styled from 'styled-components';
@@ -17,12 +19,20 @@ import PageTitle from '@components/PageTitle';
 import Button from '@components/UI/Button';
 import RoleGuard from 'src/components/RoleGuard';
 import useAppStore from 'src/store';
-import type { ResolverMatch, Vote, ResolverLogEntry } from 'src/types/resolver';
+import type {
+  ResolverMatch,
+  Vote,
+  ResolverLogEntry,
+  ResolverSuggestion,
+  ResolverMatchScore,
+} from 'src/types/resolver';
 import {
   resolveQuery,
   logResolverQuery,
   rateResolverMatch,
   listRecentResolverLogs,
+  listResolverMatchScore,
+  suggestSimilar,
   embedText,
 } from 'src/models/resolver';
 
@@ -34,6 +44,12 @@ const confidenceColor = (v: number): string => {
   return '#dc3545';
 };
 
+const scorePctClass = (pct: number): 'good' | 'warn' | 'bad' => {
+  if (pct >= 70) return 'good';
+  if (pct >= 40) return 'warn';
+  return 'bad';
+};
+
 const sourceColor = (s: string): string => {
   if (s.startsWith('exact')) return '#198754';
   if (s.startsWith('alias')) return '#20c997';
@@ -42,10 +58,16 @@ const sourceColor = (s: string): string => {
   return '#6c757d';
 };
 
-const emptyMessage = (loading: boolean, searched: boolean): string => {
+const emptyMessage = (
+  loading: boolean,
+  searched: boolean,
+  hasSuggestions: boolean,
+): string => {
   if (loading) return 'Resolviendo...';
   if (searched) {
-    return 'Sin matches. Probá otra forma de escribirlo, o agregá la entrada al catálogo (data_tables_meta / data_slice_dictionary).';
+    return hasSuggestions
+      ? 'Sin matches exactos. ¿Quizás quisiste decir alguna de estas?'
+      : 'Sin matches. Probá otra forma, o agregá la entrada al catálogo (data_tables_meta / data_slice_dictionary).';
   }
   return 'Tipea una query y dale Resolve.';
 };
@@ -156,6 +178,88 @@ const SourceBadge = styled(Badge)<{ $source: string }>`
   background: ${(p) => sourceColor(p.$source)} !important;
 `;
 
+const SuggestionsPanel = styled.div`
+  background: #fff8e1;
+  border: 1px solid #ffe082;
+  border-radius: 8px;
+  padding: 14px 18px;
+  margin: 0 0 16px 0;
+
+  .heading {
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #a06b00;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .row {
+    padding: 6px 0;
+    border-bottom: 1px solid #ffe082;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+    transition: background 0.1s;
+
+    &:hover { background: #fff3c4; }
+    &:last-child { border-bottom: none; }
+  }
+  .row .label { flex: 1; min-width: 0; font-weight: 500; color: #4a3500; }
+  .row .meta  { font-size: 11px; color: #886500; }
+  .row .sim   { font-size: 11px; color: #b07900; font-weight: 600; }
+`;
+
+const ScoreboardPanel = styled.div`
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+  padding: 16px;
+  margin-top: 16px;
+
+  h5 {
+    font-size: 13px;
+    font-weight: 700;
+    margin: 0 0 12px 0;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #302b63;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  table { width: 100%; font-size: 12px; }
+  table th {
+    text-align: left;
+    color: #666;
+    text-transform: uppercase;
+    font-size: 10px;
+    letter-spacing: 0.3px;
+    padding: 4px 8px;
+    border-bottom: 1px solid #eee;
+  }
+  table td {
+    padding: 6px 8px;
+    border-bottom: 1px solid #f5f5f5;
+    vertical-align: middle;
+  }
+  table td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .pct {
+    display: inline-block;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-weight: 600;
+    font-size: 11px;
+  }
+  .pct.good { background: #d1f0e0; color: #0d5a32; }
+  .pct.warn { background: #fdf3d4; color: #7a5a00; }
+  .pct.bad  { background: #fad7d7; color: #761c1c; }
+`;
+
 const RecentQueriesPanel = styled.div`
   background: #fff;
   border-radius: 8px;
@@ -216,6 +320,13 @@ const ResolverLabPage = () => {
   const [recent, setRecent] = useState<ResolverLogEntry[]>([]);
   const [recentLoading, setRecentLoading] = useState(false);
 
+  // Empty state suggestions ("did you mean")
+  const [suggestions, setSuggestions] = useState<ResolverSuggestion[]>([]);
+
+  // Scoreboard (resolver_match_score aggregate)
+  const [scoreboard, setScoreboard] = useState<ResolverMatchScore[]>([]);
+  const [scoreboardLoading, setScoreboardLoading] = useState(false);
+
   useEffect(() => {
     if (!userProfile) loadUserProfile();
   }, [userProfile, loadUserProfile]);
@@ -231,11 +342,20 @@ const ResolverLabPage = () => {
     setRecent(r.data ?? []);
   }, []);
 
+  const loadScoreboard = useCallback(async () => {
+    setScoreboardLoading(true);
+    const r = await listResolverMatchScore();
+    setScoreboardLoading(false);
+    if (r.error) return;
+    setScoreboard(r.data ?? []);
+  }, []);
+
   useEffect(() => {
     if (userProfile?.role === 'super_admin') {
       loadRecent();
+      loadScoreboard();
     }
-  }, [userProfile, loadRecent]);
+  }, [userProfile, loadRecent, loadScoreboard]);
 
   const onResolve = useCallback(async () => {
     const q = query.trim();
@@ -268,6 +388,15 @@ const ResolverLabPage = () => {
     }
     const results = r.data ?? [];
     setMatches(results);
+    setSuggestions([]);
+
+    // If primary resolve returned nothing, fetch loose suggestions
+    if (results.length === 0) {
+      const sugg = await suggestSimilar(q, 5);
+      if (!sugg.error && sugg.data) {
+        setSuggestions(sugg.data);
+      }
+    }
 
     // Fire-and-mostly-forget the log. If it fails we still let the user vote
     // — voting will just fail too, with a clear error.
@@ -298,8 +427,10 @@ const ResolverLabPage = () => {
         return;
       }
       setVotes((prev) => ({ ...prev, [key]: vote }));
+      // Scoreboard depende del feedback; refresh sin bloquear
+      loadScoreboard();
     },
-    [logId],
+    [logId, loadScoreboard],
   );
 
   const onKeyDown = useCallback(
@@ -467,9 +598,51 @@ const ResolverLabPage = () => {
                       </tbody>
                     </table>
                   ) : (
-                    <EmptyState>{emptyMessage(loading, searched)}</EmptyState>
+                    <EmptyState>
+                      {emptyMessage(loading, searched, suggestions.length > 0)}
+                    </EmptyState>
                   )}
                 </ResultsCard>
+
+                {matches.length === 0 && suggestions.length > 0 && !loading && (
+                  <SuggestionsPanel>
+                    <div className="heading">
+                      <Icon icon={faLightbulb} /> ¿Quisiste decir...?
+                    </div>
+                    {suggestions.map((s) => {
+                      const sk = `${s.table_name}|${s.slice_value ?? ''}`;
+                      const tip = s.label ?? s.table_label ?? s.table_name;
+                      return (
+                        <div
+                          key={sk}
+                          className="row"
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => {
+                            setQuery(tip);
+                            setSuggestions([]);
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault();
+                              setQuery(tip);
+                              setSuggestions([]);
+                            }
+                          }}
+                          title={`Click para usar "${tip}"`}
+                        >
+                          <span className="label">{tip}</span>
+                          <span className="meta">
+                            <code>{s.table_name}</code>
+                            {s.slice_value ? ` · ${s.slice_value}` : ''}
+                            {s.category ? ` · ${s.category}` : ''}
+                          </span>
+                          <span className="sim">{(s.similarity * 100).toFixed(0)}%</span>
+                        </div>
+                      );
+                    })}
+                  </SuggestionsPanel>
+                )}
 
                 {matches.length > 0 && (
                   <div style={{ fontSize: 12, color: '#666', marginBottom: 24 }}>
@@ -526,6 +699,64 @@ const ResolverLabPage = () => {
                     </div>
                   ))}
                 </RecentQueriesPanel>
+
+                <ScoreboardPanel>
+                  <h5>
+                    <Icon icon={faChartLine} /> Scoreboard del cat&aacute;logo
+                  </h5>
+                  {scoreboardLoading && (
+                    <p className="text-muted" style={{ fontSize: 12 }}>
+                      Cargando...
+                    </p>
+                  )}
+                  {!scoreboardLoading && scoreboard.length === 0 && (
+                    <p className="text-muted" style={{ fontSize: 12 }}>
+                      Sin votos a&uacute;n. Marc&aacute; thumbs en algunos resultados
+                      para empezar.
+                    </p>
+                  )}
+                  {scoreboard.length > 0 && (
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Match</th>
+                          <th className="num">👍</th>
+                          <th className="num">👎</th>
+                          <th className="num">Score</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {scoreboard.slice(0, 15).map((s) => {
+                          const pct = s.pct_positive ?? 0;
+                          const pctClass = scorePctClass(pct);
+                          return (
+                            <tr key={`${s.table_name}|${s.slice_value ?? ''}`}>
+                              <td>
+                                <code style={{ fontSize: 11 }}>{s.table_name}</code>
+                                {s.slice_value && (
+                                  <div style={{ fontSize: 10, color: '#888' }}>
+                                    {s.slice_value}
+                                  </div>
+                                )}
+                              </td>
+                              <td className="num">{s.thumbs_up}</td>
+                              <td className="num">{s.thumbs_down}</td>
+                              <td className="num">
+                                {s.pct_positive !== null ? (
+                                  <span className={`pct ${pctClass}`}>
+                                    {pct.toFixed(0)}%
+                                  </span>
+                                ) : (
+                                  '—'
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  )}
+                </ScoreboardPanel>
               </Col>
             </Row>
           </Page>

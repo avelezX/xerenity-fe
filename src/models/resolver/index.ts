@@ -6,6 +6,7 @@ import type {
   ResolverMatch,
   ResolverLogEntry,
   ResolverMatchScore,
+  ResolverSuggestion,
   Vote,
 } from 'src/types/resolver';
 
@@ -164,6 +165,25 @@ export async function listResolverMatchScore(): Promise<
       .limit(50);
     if (error) return { data: null, error: error.message };
     return { data: (data ?? []) as ResolverMatchScore[] };
+  } catch (e) {
+    return { data: null, error: e instanceof Error ? e.message : 'Error' };
+  }
+}
+
+/**
+ * Loose pg_trgm fallback. Used by the lab when resolveQuery returns []
+ * to show "¿quisiste decir...?" suggestions.
+ */
+export async function suggestSimilar(
+  text: string,
+  limit = 5,
+): Promise<DataResponse<ResolverSuggestion[]>> {
+  try {
+    const { data, error } = await supabase
+      .schema(SCHEMA)
+      .rpc('suggest_similar', { p_text: text, p_limit: limit });
+    if (error) return { data: null, error: error.message };
+    return { data: (data ?? []) as ResolverSuggestion[] };
   } catch (e) {
     return { data: null, error: e instanceof Error ? e.message : 'Error' };
   }
