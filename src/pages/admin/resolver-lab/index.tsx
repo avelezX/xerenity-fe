@@ -23,6 +23,7 @@ import {
   logResolverQuery,
   rateResolverMatch,
   listRecentResolverLogs,
+  embedText,
 } from 'src/models/resolver';
 
 const RESULT_LIMIT = 15;
@@ -36,6 +37,7 @@ const confidenceColor = (v: number): string => {
 const sourceColor = (s: string): string => {
   if (s.startsWith('exact')) return '#198754';
   if (s.startsWith('alias')) return '#20c997';
+  if (s.startsWith('semantic')) return '#6610f2';
   if (s.startsWith('trgm')) return '#0d6efd';
   return '#6c757d';
 };
@@ -247,7 +249,18 @@ const ResolverLabPage = () => {
     setVotes({});
     setLogId(null);
 
-    const r = await resolveQuery(q, RESULT_LIMIT);
+    // Hybrid path: try to get an embedding first. If it fails (no API key,
+    // OpenAI down, no super_admin profile yet), the resolver falls back
+    // gracefully to literal-only via the embedding=null branch.
+    const embedRes = await embedText(q);
+    let embedding: number[] | null = null;
+    if (embedRes.error) {
+      toast.info(`Sin capa semántica para esta query: ${embedRes.error}`);
+    } else {
+      embedding = embedRes.data;
+    }
+
+    const r = await resolveQuery(q, RESULT_LIMIT, embedding);
     if (r.error) {
       toast.error(r.error);
       setLoading(false);
