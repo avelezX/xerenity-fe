@@ -35,6 +35,7 @@ const confidenceColor = (v: number): string => {
 
 const sourceColor = (s: string): string => {
   if (s.startsWith('exact')) return '#198754';
+  if (s.startsWith('alias')) return '#20c997';
   if (s.startsWith('trgm')) return '#0d6efd';
   return '#6c757d';
 };
