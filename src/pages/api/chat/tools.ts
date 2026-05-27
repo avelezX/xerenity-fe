@@ -277,16 +277,22 @@ export const tools: Anthropic.Tool[] = [
   {
     name: 'find_and_chart_series',
     description:
-      'Una sola llamada: busca la serie por nombre/concepto (NL), trae los datos y devuelve un grafico listo para mostrar inline en el chat. ' +
-      'Usar este tool cuando el usuario pide "muestrame X", "graficame Y", "como va Z" — cualquier solicitud que termine en una visualizacion de una serie historica. ' +
+      'Una sola llamada: busca series por nombre/concepto (NL), trae los datos y devuelve un grafico listo para mostrar inline en el chat. ' +
+      'Usar este tool cuando el usuario pide "muestrame X", "graficame Y", "como va Z", "comparame X vs Y". ' +
       'Combina resolve_query (hybrid: literal + alias + trgm + FTS + semantic) + query_series en un solo round-trip. ' +
+      'Soporta multi-serie: pasa hasta 5 queries en `queries` para graficar en el mismo eje (joined por fecha). ' +
       'Solo super_admin (MVP). Si el usuario NO es super_admin, este tool falla — usar query_database manual entonces.',
     input_schema: {
       type: 'object' as const,
       properties: {
         query: {
           type: 'string',
-          description: 'Query en lenguaje natural. Ej: "IBR 3M", "TRM hoy", "inflacion Colombia", "base monetaria", "papel del gobierno".',
+          description: 'Una sola serie. Ej: "IBR 3M". Usar este O queries — no ambos.',
+        },
+        queries: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Hasta 5 series para graficar juntas (comparacion). Ej: ["IBR 3M", "SOFR 3M"]. Si pasas esto, ignora "query".',
         },
         period_days: {
           type: 'number',
@@ -298,7 +304,6 @@ export const tools: Anthropic.Tool[] = [
           description: 'Tipo de grafico. Default "line".',
         },
       },
-      required: ['query'],
     },
   },
   {

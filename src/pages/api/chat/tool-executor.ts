@@ -581,6 +581,112 @@ function pickValueColumn(
   return candidates[0][0];
 }
 
+// Resolve + fetch ONE query. Returns null on failure (caller decides
+// whether to abort the whole multi-call or just skip this one).
+interface ResolveAndFetchOk {
+  ok: true;
+  query: string;
+  match: ResolverMatch;
+  series: QuerySeriesResult;
+  valueColumn: string | null;
+  dataKey: string; // Unique key for charting (table|slice|query)
+  displayName: string;
+}
+interface ResolveAndFetchErr {
+  ok: false;
+  query: string;
+  error: string;
+}
+type ResolveAndFetchResult = ResolveAndFetchOk | ResolveAndFetchErr;
+
+async function resolveAndFetchOne(
+  query: string,
+  periodDays: number,
+  userSupabase: AnySupabaseClient,
+): Promise<ResolveAndFetchResult> {
+  const embedding = await embedQuery(query);
+
+  const resolveParams: Record<string, unknown> = { p_text: query, p_limit: 5 };
+  if (embedding) resolveParams.p_embedding = `[${embedding.join(',')}]`;
+
+  const { data: matches, error: resolveError } = await userSupabase
+    .schema('xerenity')
+    .rpc('resolve_query', resolveParams);
+  if (resolveError) {
+    return { ok: false, query, error: `Resolve: ${resolveError.message}` };
+  }
+  const matchList = (matches ?? []) as ResolverMatch[];
+  if (matchList.length === 0) {
+    return { ok: false, query, error: `Sin matches para "${query}"` };
+  }
+  const top = matchList[0];
+
+  const to = new Date();
+  const from = new Date(to);
+  from.setDate(from.getDate() - periodDays);
+
+  const { data: seriesData, error: queryError } = await userSupabase
+    .schema('xerenity')
+    .rpc('query_series', {
+      p_table: top.table_name,
+      p_slice_value: top.slice_value,
+      p_from: from.toISOString().slice(0, 10),
+      p_to: to.toISOString().slice(0, 10),
+      p_limit: 5000,
+    });
+  if (queryError) {
+    return { ok: false, query, error: `Fetch ${top.table_name}: ${queryError.message}` };
+  }
+  const series = seriesData as QuerySeriesResult;
+  if (!series.rows || series.rows.length === 0) {
+    return { ok: false, query, error: `Sin datos para ${top.label}` };
+  }
+
+  const valueColumn = pickValueColumn(
+    series.rows[0],
+    series.date_column,
+    series.slice_column,
+  );
+
+  const displayName = top.label ?? top.table_label ?? series.label ?? series.table_name;
+  // dataKey must be unique across multi-series. If two queries resolve to
+  // the same (table, slice), the second's data overrides — that's fine
+  // since they ARE the same series.
+  const dataKey = `${top.table_name}|${top.slice_value ?? '_'}`;
+
+  return { ok: true, query, match: top, series, valueColumn, dataKey, displayName };
+}
+
+// Merge multiple series into a single chart-ready dataset, joined by date.
+function mergeByDate(
+  results: ResolveAndFetchOk[],
+): Record<string, unknown>[] {
+  const byDate = new Map<string, Record<string, unknown>>();
+
+  results
+    .filter((r) => r.valueColumn !== null)
+    .forEach((r) => {
+      const dateCol = r.series.date_column;
+      const valCol = r.valueColumn as string; // narrowed by filter
+      r.series.rows.forEach((row) => {
+        const dateRaw = row[dateCol];
+        const dateKey = String(dateRaw).slice(0, 10);
+        let entry = byDate.get(dateKey);
+        if (!entry) {
+          entry = { date: dateKey };
+          byDate.set(dateKey, entry);
+        }
+        const raw = row[valCol];
+        entry[r.dataKey] =
+          typeof raw === 'string' ? parseFloat(raw) : (raw as number);
+      });
+    });
+
+  return Array.from(byDate.values()).sort((a, b) =>
+    String(a.date).localeCompare(String(b.date)),
+  );
+}
+
 async function executeFindAndChartSeries(
   input: Record<string, unknown>,
   userSupabase?: AnySupabaseClient,
@@ -588,8 +694,26 @@ async function executeFindAndChartSeries(
   if (!userSupabase) {
     return { success: false, error: 'Se requiere sesion de usuario' };
   }
-  const query = ((input.query as string) || '').trim();
-  if (!query) return { success: false, error: 'query es requerido' };
+
+  // Accept either query (single string) or queries (array). queries wins.
+  const rawQueries = input.queries as string[] | undefined;
+  const rawQuery = input.query as string | undefined;
+  const queryList: string[] = (() => {
+    if (Array.isArray(rawQueries) && rawQueries.length > 0) {
+      return rawQueries.map((q) => q.trim()).filter((q) => q.length > 0);
+    }
+    if (typeof rawQuery === 'string' && rawQuery.trim().length > 0) {
+      return [rawQuery.trim()];
+    }
+    return [];
+  })();
+
+  if (queryList.length === 0) {
+    return { success: false, error: 'query o queries es requerido' };
+  }
+  if (queryList.length > 5) {
+    return { success: false, error: 'Máximo 5 series por llamada' };
+  }
 
   const periodDays = Math.max(
     1,
@@ -597,129 +721,72 @@ async function executeFindAndChartSeries(
   );
   const chartType = (input.chart_type as 'line' | 'bar' | 'area') ?? 'line';
 
-  // 1. Embed (best effort)
-  const embedding = await embedQuery(query);
-
-  // 2. Resolve
-  const resolveParams: Record<string, unknown> = {
-    p_text: query,
-    p_limit: 5,
-  };
-  if (embedding) {
-    resolveParams.p_embedding = `[${embedding.join(',')}]`;
-  }
-  const { data: matches, error: resolveError } = await userSupabase
-    .schema('xerenity')
-    .rpc('resolve_query', resolveParams);
-  if (resolveError) {
-    return { success: false, error: `Resolve: ${resolveError.message}` };
-  }
-  const matchList = (matches ?? []) as ResolverMatch[];
-  if (matchList.length === 0) {
-    return {
-      success: false,
-      error: `Sin matches para "${query}". Probá otro termino o usa query_database manual.`,
-    };
-  }
-
-  const top = matchList[0];
-
-  // 3. Date range
-  const to = new Date();
-  const from = new Date(to);
-  from.setDate(from.getDate() - periodDays);
-  const fromStr = from.toISOString().slice(0, 10);
-  const toStr = to.toISOString().slice(0, 10);
-
-  // 4. Fetch
-  const { data: seriesData, error: queryError } = await userSupabase
-    .schema('xerenity')
-    .rpc('query_series', {
-      p_table: top.table_name,
-      p_slice_value: top.slice_value,
-      p_from: fromStr,
-      p_to: toStr,
-      p_limit: 5000,
-    });
-  if (queryError) {
-    return {
-      success: false,
-      error: `Fetch ${top.table_name}: ${queryError.message}`,
-    };
-  }
-  const series = seriesData as QuerySeriesResult;
-  if (!series.rows || series.rows.length === 0) {
-    return {
-      success: false,
-      error: `Sin datos para ${top.label} en el rango ${fromStr} → ${toStr}.`,
-    };
-  }
-
-  // 5. Build ChartSpec
-  const valueColumn = pickValueColumn(
-    series.rows[0],
-    series.date_column,
-    series.slice_column,
+  // Fan out: resolve + fetch each query in parallel
+  const results = await Promise.all(
+    queryList.map((q) => resolveAndFetchOne(q, periodDays, userSupabase)),
   );
-  if (!valueColumn) {
+
+  const oks = results.filter((r): r is ResolveAndFetchOk => r.ok);
+  const errs = results.filter((r): r is ResolveAndFetchErr => !r.ok);
+
+  if (oks.length === 0) {
+    return {
+      success: false,
+      error: `Sin resultados para ninguna query. Errores: ${errs.map((e) => `${e.query}: ${e.error}`).join('; ')}`,
+    };
+  }
+
+  // Build merged ChartSpec
+  const chartData = mergeByDate(oks);
+  const seriesSpec = oks
+    .filter((r) => r.valueColumn !== null)
+    .map((r) => ({
+      data_key: r.dataKey,
+      name: r.displayName,
+    }));
+
+  if (seriesSpec.length === 0) {
     return {
       success: true,
       data: {
-        match: top,
-        meta: {
-          table_name: series.table_name,
-          label: series.label,
-          row_count: series.row_count,
-          date_column: series.date_column,
-        },
-        rows: series.rows,
-        chart_error:
-          'No pude detectar columna de valor automaticamente — usa generate_chart con el data devuelto.',
+        matches: oks.map((r) => r.match),
+        warnings: errs.map((e) => `${e.query}: ${e.error}`),
+        note: 'Ninguna serie devolvió columna de valor detectable — usa generate_chart manual.',
+        raw_series: oks.map((r) => ({
+          query: r.query,
+          rows: r.series.rows,
+        })),
       },
     };
   }
 
-  const chartData = series.rows.map((row) => {
-    const out: Record<string, unknown> = {};
-    out[series.date_column] = row[series.date_column];
-    const raw = row[valueColumn];
-    out[valueColumn] =
-      typeof raw === 'string' ? parseFloat(raw) : (raw as number);
-    return out;
-  });
-
-  const chartTitle =
-    top.label ?? top.table_label ?? series.label ?? series.table_name;
+  const chartTitle = oks.length === 1
+    ? oks[0].displayName
+    : oks.map((r) => r.displayName).join(' vs ');
 
   const chartSpec = {
     chart_type: chartType,
     title: chartTitle,
-    x_axis_key: series.date_column,
-    series: [
-      {
-        data_key: valueColumn,
-        name: chartTitle,
-      },
-    ],
+    x_axis_key: 'date',
+    series: seriesSpec,
     data: chartData,
   };
 
   return {
     success: true,
     data: {
-      match: top,
-      meta: {
-        table_name: series.table_name,
-        label: series.label,
-        row_count: series.row_count,
-        date_column: series.date_column,
-        slice_value: series.slice_value,
-        from: fromStr,
-        to: toStr,
-        value_column: valueColumn,
-        confidence: top.confidence,
-        match_source: top.match_source,
-      },
+      matches: oks.map((r) => ({
+        query: r.query,
+        table_name: r.match.table_name,
+        label: r.displayName,
+        confidence: r.match.confidence,
+        match_source: r.match.match_source,
+        row_count: r.series.row_count,
+      })),
+      warnings: errs.length > 0
+        ? errs.map((e) => `${e.query}: ${e.error}`)
+        : undefined,
+      period_days: periodDays,
     },
     chartData: chartSpec,
   };
