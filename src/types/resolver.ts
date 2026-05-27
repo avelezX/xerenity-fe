@@ -9,7 +9,9 @@ export type MatchSource =
   | 'alias:table'
   | 'trgm:slice'
   | 'trgm:table'
-  | 'fts:description';
+  | 'fts:description'
+  | 'semantic:slice'
+  | 'semantic:table';
 
 export interface ResolverMatch {
   table_name: string;

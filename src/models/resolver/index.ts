@@ -24,18 +24,57 @@ export interface ActionResponse {
 }
 
 /**
- * Call xerenity.resolve_query(text, int). Returns ranked matches.
+ * Call xerenity.resolve_query(text, int, vector). Returns ranked matches.
+ * If `embedding` is provided, the engine adds the semantic layer
+ * (cosine similarity over pgvector) on top of the literal layers.
  */
 export async function resolveQuery(
   text: string,
   limit = 10,
+  embedding: number[] | null = null,
 ): Promise<DataResponse<ResolverMatch[]>> {
   try {
+    const params: Record<string, unknown> = {
+      p_text: text,
+      p_limit: limit,
+    };
+    if (embedding && embedding.length > 0) {
+      // Postgres accepts vector(...) as a string literal '[1,2,3,...]'.
+      // postgrest-js forwards this through; cast to vector happens on the
+      // server side based on the column/parameter type.
+      params.p_embedding = `[${embedding.join(',')}]`;
+    }
     const { data, error } = await supabase
       .schema(SCHEMA)
-      .rpc('resolve_query', { p_text: text, p_limit: limit });
+      .rpc('resolve_query', params);
     if (error) return { data: null, error: error.message };
     return { data: (data ?? []) as ResolverMatch[] };
+  } catch (e) {
+    return { data: null, error: e instanceof Error ? e.message : 'Error' };
+  }
+}
+
+/**
+ * Get OpenAI embedding for an arbitrary text via the server-side proxy.
+ * Used by the lab to embed user queries before calling resolveQuery.
+ */
+export async function embedText(
+  text: string,
+): Promise<DataResponse<number[]>> {
+  try {
+    const r = await fetch('/api/resolver/embed', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text }),
+    });
+    const json = (await r.json()) as { embedding?: number[]; error?: string };
+    if (!r.ok) {
+      return { data: null, error: json.error ?? `HTTP ${r.status}` };
+    }
+    if (!Array.isArray(json.embedding)) {
+      return { data: null, error: 'No embedding in response' };
+    }
+    return { data: json.embedding };
   } catch (e) {
     return { data: null, error: e instanceof Error ? e.message : 'Error' };
   }
