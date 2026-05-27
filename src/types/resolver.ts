@@ -5,6 +5,8 @@
 export type MatchSource =
   | 'exact:slice'
   | 'exact:table'
+  | 'alias:slice'
+  | 'alias:table'
   | 'trgm:slice'
   | 'trgm:table'
   | 'fts:description';
