@@ -42,15 +42,20 @@ export default async function handler(
     return res.status(401).json({ error: 'Not authenticated' });
   }
 
-  const { data: profile, error: profileError } = await supabase
+  // Use the DB-level is_super_admin() RPC so this gate matches what the
+  // resolver/query_series functions check internally — single source of truth.
+  // Reading user_profiles directly proved fragile in serverless context
+  // (cookie/schema header handling); the RPC just works.
+  const { data: isAdmin, error: adminError } = await supabase
     .schema('xerenity')
-    .from('user_profiles')
-    .select('role')
-    .eq('id', session.user.id)
-    .maybeSingle();
+    .rpc('is_super_admin');
 
-  if (profileError || profile?.role !== 'super_admin') {
-    return res.status(403).json({ error: 'super_admin required' });
+  if (adminError || !isAdmin) {
+    return res.status(403).json({
+      error: adminError
+        ? `super_admin check failed: ${adminError.message}`
+        : 'super_admin required',
+    });
   }
 
   // Validate body
