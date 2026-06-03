@@ -2097,10 +2097,30 @@ function PortfolioPage() {
 
   const handleDelete = useCallback(
     (id: string, type: string) => {
-      if (type === 'XCCY') removeXccyMutation.mutate([id]);
-      else if (type === 'NDF') removeNdfMutation.mutate([id]);
-      else if (type === 'IBR') removeIbrSwapMutation.mutate([id]);
-      toast.info('Posicion eliminada');
+      // Confirm + toast solo despues de que el RPC retorne. Antes mostraba
+      // "Posicion eliminada" inmediatamente — pero la RPC podia retornar
+      // deleted_count=0 (silent fail por permisos). Ahora esperamos la
+      // respuesta y damos feedback honesto.
+      const mutation =
+        type === 'XCCY' ? removeXccyMutation :
+          type === 'NDF' ? removeNdfMutation :
+            type === 'IBR' ? removeIbrSwapMutation : null;
+      if (!mutation) return;
+      mutation.mutate([id], {
+        onSuccess: (res) => {
+          const count = (res?.data as { deleted_count?: number } | undefined)?.deleted_count;
+          if (res?.error) {
+            toast.error(`Error eliminando: ${res.error}`);
+          } else if (count === 0) {
+            toast.warn('No se pudo eliminar — sin permisos sobre esta posicion');
+          } else {
+            toast.success('Posicion eliminada');
+          }
+        },
+        onError: (e: unknown) => {
+          toast.error(`Error eliminando: ${e instanceof Error ? e.message : 'desconocido'}`);
+        },
+      });
     },
     [removeXccyMutation, removeNdfMutation, removeIbrSwapMutation]
   );
