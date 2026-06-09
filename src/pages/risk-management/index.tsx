@@ -53,8 +53,8 @@ import { fetchCompanyRiskConfig, getAssetsWithCurrency, getChartColors, saveComp
 import type { RiskCompanyConfig } from 'src/lib/risk/companyConfig';
 import { parseContractMaturity } from 'src/lib/risk/futuresCalculator';
 import { lastBusinessDay, MONTH_NAMES } from 'src/lib/risk/dateHelpers';
-import BlotterCafe from 'src/components/risk/BlotterCafe';
 import BlotterCompraCafe from 'src/components/risk/BlotterCompraCafe';
+import BlotterVentasCafe from 'src/components/risk/BlotterVentasCafe';
 import LoteSelector from 'src/components/risk/LoteSelector';
 
 const PAGE_TITLE = 'Gestión de Riesgos';
@@ -1698,7 +1698,7 @@ function RiskManagement() {
                   precioKcCents={benchmarkFactors?.factors?.CAFE?.price_end ?? null}
                   precioKcDate={benchmarkFactors?.period?.end ?? null}
                 />
-                <BlotterCafe
+                <BlotterVentasCafe
                   companyId={selectedCompanyId}
                   precioKcCents={benchmarkFactors?.factors?.CAFE?.price_end ?? null}
                   precioKcDate={benchmarkFactors?.period?.end ?? null}
