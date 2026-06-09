@@ -6,7 +6,11 @@
  */
 import type { LiquidityThresholdsDTO, SugarSnapshot } from './types';
 
-const PYSDK_URL = process.env.NEXT_PUBLIC_PYSDK_URL ?? 'http://localhost:8000';
+// Fallback a prod (pysdk.fly.dev) si NEXT_PUBLIC_PYSDK_URL no esta en
+// el build de Vercel. Mismo patron que models/pricing/pricingApi.ts.
+// En dev local se sobreescribe con .env.local (NEXT_PUBLIC_PYSDK_URL=
+// http://localhost:8000).
+const PYSDK_URL = process.env.NEXT_PUBLIC_PYSDK_URL || 'https://pysdk.fly.dev';
 
 export interface FetchSugarOptions {
   thresholds?: Partial<LiquidityThresholdsDTO>;
