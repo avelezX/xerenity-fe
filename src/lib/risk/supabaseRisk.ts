@@ -378,75 +378,79 @@ export async function fetchCoffeePrices(
   return (data ?? []) as CoffeePriceRow[];
 }
 
-// ── Cafe Fijaciones (blotter por empresa) ──
+// ── Cafe Ventas (blotter de venta a Sucafina / clientes finales) ──
+//
+// Reemplazo (jun 2026) del antiguo Blotter Fijaciones que vivia ligado a
+// cafe_lotes. El blotter de ventas es independiente del lote de compra
+// y trae campos extra para identificar el contrato externo:
+//   - ref_contrato (e.g. "MPEX-18066")
+//   - ny_mes (mes del contrato NY al que se fija: "U6", "Z6", ...)
+//   - calidad (e.g. "Mr Hat (Excelso)")
+//   - estado (texto libre)
+// Calculos numericos por fila: precio_final = ny + prima, etc. (ver
+// BlotterVentasCafe.tsx).
 
-export interface CafeFijacionRow {
+export interface CafeVentaRow {
   id: string;
   company_id: string;
-  lote_id: string;          // FK a cafe_lotes — NOT NULL desde mayo 2026
-  sacos_fijados: number;
+  ref_contrato: string;      // "MPEX-18066"
+  ny_mes: string;            // "U6", "Z6", ...
+  calidad: string;           // "Mr Hat (Excelso)"
+  fecha_fijacion: string;    // YYYY-MM-DD
+  sacos: number;
   kg: number;
-  fijacion_ny: number;     // cents/lb del NY base
-  prima: number;            // cents/lb del premio
-  fijacion_cop: number;     // TRM al momento de fijar (siempre se guarda; en USD es informativa)
-  fecha_fijacion: string;   // YYYY-MM-DD
-  moneda: 'COP' | 'USD';    // moneda de la venta
+  fijacion_ny: number;       // cents/lb del NY base
+  prima: number;             // diferencial cents/lb
+  fijacion_cop: number;      // TRM al fijar
+  moneda: 'COP' | 'USD';
+  estado: string;
   created_at?: string;
   updated_at?: string;
 }
 
-/**
- * Lee fijaciones de cafe.
- * - Si se pasa `loteId`: filtra solo las de ese lote.
- * - Si no: retorna TODAS las de la empresa (util para Resumen Empresa).
- */
-export async function fetchCafeFijaciones(
-  companyId: string,
-  loteId?: string,
-): Promise<CafeFijacionRow[]> {
-  let query = supabase
-    .schema(SCHEMA)
-    .from('cafe_fijaciones')
-    .select('*')
-    .eq('company_id', companyId);
-  if (loteId) query = query.eq('lote_id', loteId);
-  const { data, error } = await query.order('fecha_fijacion', { ascending: true });
-  if (error) throw new Error(`Failed to fetch cafe_fijaciones: ${error.message}`);
-  return (data ?? []) as CafeFijacionRow[];
-}
-
-export async function insertCafeFijacion(
-  row: Omit<CafeFijacionRow, 'id' | 'created_at' | 'updated_at'>,
-): Promise<CafeFijacionRow> {
+export async function fetchCafeVentas(companyId: string): Promise<CafeVentaRow[]> {
   const { data, error } = await supabase
     .schema(SCHEMA)
-    .from('cafe_fijaciones')
+    .from('cafe_ventas')
+    .select('*')
+    .eq('company_id', companyId)
+    .order('fecha_fijacion', { ascending: true });
+  if (error) throw new Error(`Failed to fetch cafe_ventas: ${error.message}`);
+  return (data ?? []) as CafeVentaRow[];
+}
+
+export async function insertCafeVenta(
+  row: Omit<CafeVentaRow, 'id' | 'created_at' | 'updated_at'>,
+): Promise<CafeVentaRow> {
+  const { data, error } = await supabase
+    .schema(SCHEMA)
+    .from('cafe_ventas')
     .insert(row)
     .select()
     .single();
-  if (error) throw new Error(`Failed to insert cafe_fijacion: ${error.message}`);
-  return data as CafeFijacionRow;
+  if (error) throw new Error(`Failed to insert cafe_venta: ${error.message}`);
+  return data as CafeVentaRow;
 }
 
-export async function updateCafeFijacion(
+export async function updateCafeVenta(
   id: string,
-  updates: Partial<Omit<CafeFijacionRow, 'id' | 'company_id' | 'created_at' | 'updated_at'>>,
+  updates: Partial<Omit<CafeVentaRow, 'id' | 'company_id' | 'created_at' | 'updated_at'>>,
 ): Promise<void> {
   const { error } = await supabase
     .schema(SCHEMA)
-    .from('cafe_fijaciones')
+    .from('cafe_ventas')
     .update(updates)
     .eq('id', id);
-  if (error) throw new Error(`Failed to update cafe_fijacion: ${error.message}`);
+  if (error) throw new Error(`Failed to update cafe_venta: ${error.message}`);
 }
 
-export async function deleteCafeFijacion(id: string): Promise<void> {
+export async function deleteCafeVenta(id: string): Promise<void> {
   const { error } = await supabase
     .schema(SCHEMA)
-    .from('cafe_fijaciones')
+    .from('cafe_ventas')
     .delete()
     .eq('id', id);
-  if (error) throw new Error(`Failed to delete cafe_fijacion: ${error.message}`);
+  if (error) throw new Error(`Failed to delete cafe_venta: ${error.message}`);
 }
 
 // Factor de conversion (vive en risk_company_config.cafe_factor_conversion)
