@@ -72,11 +72,38 @@ const SAVE_STATE_LABEL: Record<SaveState, string> = {
   error: 'Error al guardar',
 };
 
+export interface VentasTotals {
+  kgTotal: number;        // sacos × 70 sumado
+  totalCop: number;       // suma directa de los Total COP por fila
+  precioKgCopPond: number; // ponderado por kg
+  precioSacoCopPond: number;
+  filas: number;
+}
+
 interface Props {
   companyId: string;
   // Precio actual de CAFE KC (cents/lb) para calcular exposicion USD por fila.
   precioKcCents?: number | null;
   precioKcDate?: string | null;
+  // Callback opcional para que el padre (CafeMarginCard) reciba los
+  // totales de ventas al cambio (auto-save flush incluido).
+  onTotalsChange?: (t: VentasTotals) => void;
+}
+
+// ISO week number — mismo helper que BlotterCompraCafe, para que ambas
+// tablas reporten "Sem" en la misma convencion.
+function isoWeek(dateStr: string): number {
+  if (!dateStr) return 0;
+  const d = new Date(`${dateStr}T12:00:00`);
+  const target = new Date(d.valueOf());
+  const dayNr = (d.getDay() + 6) % 7;
+  target.setDate(target.getDate() - dayNr + 3);
+  const firstThursday = target.valueOf();
+  target.setMonth(0, 1);
+  if (target.getDay() !== 4) {
+    target.setMonth(0, 1 + ((4 - target.getDay()) + 7) % 7);
+  }
+  return 1 + Math.ceil((firstThursday - target.valueOf()) / 604800000);
 }
 
 const fmtCop = (v: number): string =>
@@ -114,7 +141,7 @@ function emptyRow(companyId: string): Omit<Row, 'id' | 'created_at' | 'updated_a
   };
 }
 
-export default function BlotterVentasCafe({ companyId, precioKcCents, precioKcDate }: Props) {
+export default function BlotterVentasCafe({ companyId, precioKcCents, precioKcDate, onTotalsChange }: Props) {
   const [rows, setRows] = useState<Row[]>([]);
   const [factor, setFactor] = useState<number>(1.5432);
   const [lbsPorContrato, setLbsPorContrato] = useState<number>(37500);
@@ -179,6 +206,7 @@ export default function BlotterVentasCafe({ companyId, precioKcCents, precioKcDa
       : 0;
     return {
       row: r,
+      semana: isoWeek(r.fecha_fijacion),
       kg,
       precioFinal,
       precioPorSacoCop,
@@ -211,15 +239,42 @@ export default function BlotterVentasCafe({ companyId, precioKcCents, precioKcDa
       },
       { totalCop: 0, totalUsd: 0 },
     );
+    const kgTotal = computed.reduce((s, c) => s + c.kg, 0);
+    // Precio/Kg ponderado por kg (mismo patron que BlotterCompraCafe).
+    // Lo usa el CafeMarginCard para comparar contra compras.
+    const precioKgCopPond = kgTotal > 0 ? totalCop / kgTotal : 0;
     return {
       sacos: computed.reduce((s, c) => s + (c.row.sacos ?? 0), 0),
-      kg: computed.reduce((s, c) => s + c.kg, 0),
+      kg: kgTotal,
       totalCop,
       totalUsd,
+      precioKgCopPond,
+      precioSacoCopPond: precioKgCopPond * KG_PER_SACO,
       contratosKc: computed.reduce((s, c) => s + c.contratosKc, 0),
       exposicionUsd: computed.reduce((s, c) => s + c.exposicionUsd, 0),
     };
   }, [computed]);
+
+  // Emitir totales al padre (CafeMarginCard). Evitamos un useEffect-on-prop
+  // por la condicion de loop: en su lugar disparamos solo cuando cambian
+  // los numbers que importan.
+  useEffect(() => {
+    if (!onTotalsChange) return;
+    onTotalsChange({
+      kgTotal: totals.kg,
+      totalCop: totals.totalCop,
+      precioKgCopPond: totals.precioKgCopPond,
+      precioSacoCopPond: totals.precioSacoCopPond,
+      filas: computed.length,
+    });
+  }, [
+    onTotalsChange,
+    totals.kg,
+    totals.totalCop,
+    totals.precioKgCopPond,
+    totals.precioSacoCopPond,
+    computed.length,
+  ]);
 
   const commitRow = useCallback(async (id: string) => {
     const r = rowsRef.current.find((x) => x.id === id);
@@ -329,41 +384,48 @@ export default function BlotterVentasCafe({ companyId, precioKcCents, precioKcDa
             }}
           >
             <colgroup>
+              {/* Bloque IDENTIFICACION (compartido con Blotter Compras): Fecha, Sem, Estado */}
+              <col style={{ width: 120 }} />{/* Fecha */}
+              <col style={{ width: 50 }} />{/* Sem */}
+              <col style={{ width: 110 }} />{/* Estado */}
+              {/* Bloque METADATA VENTA (solo aplica aqui) */}
               <col style={{ width: 130 }} />{/* Ref Contrato */}
               <col style={{ width: 70 }} />{/* NY Mes */}
               <col style={{ width: 140 }} />{/* Calidad */}
-              <col style={{ width: 120 }} />{/* Fecha */}
+              {/* Bloque VOLUMEN + PRECIO INPUT */}
               <col style={{ width: 70 }} />{/* Moneda */}
               <col style={{ width: 70 }} />{/* Sacos */}
               <col style={{ width: 85 }} />{/* KG */}
               <col style={{ width: 90 }} />{/* Fij NY */}
               <col style={{ width: 80 }} />{/* Prima */}
-              <col style={{ width: 100 }} />{/* Precio Final */}
+              <col style={{ width: 100 }} />{/* ¢/lb NY */}
               <col style={{ width: 95 }} />{/* TRM */}
+              {/* Bloque NORMALIZADO + TOTAL + HEDGING (compartido con Compras) */}
               <col style={{ width: 120 }} />{/* Precio/KG */}
               <col style={{ width: 120 }} />{/* Precio/Saco */}
               <col style={{ width: 135 }} />{/* Total */}
               <col style={{ width: 95 }} />{/* # Ctos KC */}
               <col style={{ width: 130 }} />{/* Exp USD */}
-              <col style={{ width: 110 }} />{/* Estado */}
               <col style={{ width: 50 }} />{/* X */}
             </colgroup>
             <thead style={{ background: '#f8fafc' }}>
               <tr style={{ fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.04em', color: '#475569' }}>
+                <th style={{ padding: '8px 10px' }}>Fecha</th>
+                <th className="text-end" style={{ padding: '8px 6px' }}>Sem</th>
+                <th style={{ padding: '8px 10px' }}>Estado</th>
                 <th style={{ padding: '8px 10px' }}>Ref Contrato</th>
                 <th className="text-center" style={{ padding: '8px 6px' }}>NY Mes</th>
                 <th style={{ padding: '8px 10px' }}>Calidad</th>
-                <th style={{ padding: '8px 10px' }}>Fecha</th>
                 <th className="text-center" style={{ padding: '8px 6px' }}>Moneda</th>
                 <th className="text-end" style={{ padding: '8px 10px' }}>Sacos</th>
                 <th className="text-end" style={{ padding: '8px 10px', background: '#f1f5f9' }}>KG <span style={{ textTransform: 'none', fontWeight: 400, color: '#94a3b8' }}>(auto)</span></th>
                 <th className="text-end" style={{ padding: '8px 10px' }}>Fij. NY <span style={{ textTransform: 'none', fontWeight: 400 }}>(¢/lb)</span></th>
                 <th className="text-end" style={{ padding: '8px 10px' }}>Prima <span style={{ textTransform: 'none', fontWeight: 400 }}>(¢/lb)</span></th>
-                <th className="text-end" style={{ padding: '8px 10px', background: '#f1f5f9' }}>P. Final <span style={{ textTransform: 'none', fontWeight: 400 }}>(¢/lb)</span></th>
+                <th className="text-end" style={{ padding: '8px 10px', background: '#f1f5f9' }}>¢/lb NY <span style={{ textTransform: 'none', fontWeight: 400, color: '#94a3b8' }}>(final)</span></th>
                 <th className="text-end" style={{ padding: '8px 10px' }}>TRM</th>
-                <th className="text-end" style={{ padding: '8px 10px', background: '#f1f5f9' }}>Precio / KG</th>
-                <th className="text-end" style={{ padding: '8px 10px', background: '#f1f5f9' }}>Precio / Saco</th>
-                <th className="text-end" style={{ padding: '8px 10px', background: '#f1f5f9' }}>Total</th>
+                <th className="text-end" style={{ padding: '8px 10px', background: '#f1f5f9' }}>Precio / Kg <span style={{ textTransform: 'none', fontWeight: 400 }}>(COP)</span></th>
+                <th className="text-end" style={{ padding: '8px 10px', background: '#f1f5f9' }}>Precio / Saco <span style={{ textTransform: 'none', fontWeight: 400 }}>(COP)</span></th>
+                <th className="text-end" style={{ padding: '8px 10px', background: '#dcfce7', color: '#15803d' }}>Total</th>
                 <th
                   className="text-end"
                   style={{ padding: '8px 10px', background: '#fef3c7', color: '#854d0e' }}
@@ -378,7 +440,6 @@ export default function BlotterVentasCafe({ companyId, precioKcCents, precioKcDa
                 >
                   Exp. USD
                 </th>
-                <th style={{ padding: '8px 10px' }}>Estado</th>
                 <th style={{ padding: '8px 4px' }} aria-label="Acciones" />
               </tr>
             </thead>
@@ -391,6 +452,31 @@ export default function BlotterVentasCafe({ companyId, precioKcCents, precioKcDa
                 const monedaPrefix = isUsd ? '$' : '$';
                 return (
                 <tr key={c.row.id}>
+                  {/* Bloque IDENTIFICACION: Fecha · Sem · Estado (idem Blotter Compras) */}
+                  <td style={{ padding: '4px 6px' }}>
+                    <Form.Control
+                      type="date"
+                      size="sm"
+                      value={c.row.fecha_fijacion}
+                      onChange={(e) => patchRow(c.row.id, { fecha_fijacion: e.target.value })}
+                      onBlur={() => flushRow(c.row.id)}
+                      className="w-100"
+                      style={{ fontVariantNumeric: 'tabular-nums' }}
+                    />
+                  </td>
+                  <td className="text-end text-muted" style={{ padding: '4px 6px' }}>{c.semana || '—'}</td>
+                  <td style={{ padding: '4px 6px' }}>
+                    <Form.Control
+                      type="text"
+                      size="sm"
+                      value={c.row.estado}
+                      onChange={(e) => patchRow(c.row.id, { estado: e.target.value })}
+                      onBlur={() => flushRow(c.row.id)}
+                      placeholder="Fijada"
+                      className="w-100"
+                    />
+                  </td>
+                  {/* Bloque METADATA VENTA: Ref Contrato · NY Mes · Calidad */}
                   <td style={{ padding: '4px 6px' }}>
                     <Form.Control
                       type="text"
@@ -422,17 +508,6 @@ export default function BlotterVentasCafe({ companyId, precioKcCents, precioKcDa
                       onBlur={() => flushRow(c.row.id)}
                       placeholder="Mr Hat (Excelso)"
                       className="w-100"
-                    />
-                  </td>
-                  <td style={{ padding: '4px 6px' }}>
-                    <Form.Control
-                      type="date"
-                      size="sm"
-                      value={c.row.fecha_fijacion}
-                      onChange={(e) => patchRow(c.row.id, { fecha_fijacion: e.target.value })}
-                      onBlur={() => flushRow(c.row.id)}
-                      className="w-100"
-                      style={{ fontVariantNumeric: 'tabular-nums' }}
                     />
                   </td>
                   <td style={{ padding: '4px 6px' }}>
@@ -528,17 +603,6 @@ export default function BlotterVentasCafe({ companyId, precioKcCents, precioKcDa
                   <td className="text-end fw-semibold" style={{ background: '#fef3c7', color: c.exposicionUsd >= 0 ? '#15803d' : '#b91c1c', padding: '4px 12px', fontVariantNumeric: 'tabular-nums' }}>
                     {fmtSignedUsd(c.exposicionUsd)}
                   </td>
-                  <td style={{ padding: '4px 6px' }}>
-                    <Form.Control
-                      type="text"
-                      size="sm"
-                      value={c.row.estado}
-                      onChange={(e) => patchRow(c.row.id, { estado: e.target.value })}
-                      onBlur={() => flushRow(c.row.id)}
-                      placeholder="Fijada"
-                      className="w-100"
-                    />
-                  </td>
                   <td style={{ padding: '4px 4px', textAlign: 'center', whiteSpace: 'nowrap' }}>
                     <span
                       style={{
@@ -568,27 +632,28 @@ export default function BlotterVentasCafe({ companyId, precioKcCents, precioKcDa
               })}
             </tbody>
             <tfoot>
-              {/* 18 columnas: RefCtto, NYMes, Calidad, Fecha, Moneda, Sacos, KG,
-                  FijNY, Prima, PFinal, TRM, PrecioKG, PrecioSaco, Total,
-                  #CtosKC, ExpUSD, Estado, X.
-                  Simple sums: sacos y kg suman directo; total COP/USD acumulan
-                  via TRM por fila. */}
+              {/* 19 columnas: Fecha, Sem, Estado, RefCtto, NYMes, Calidad, Moneda,
+                  Sacos, KG, FijNY, Prima, ¢/lbNY, TRM, Pre/Kg, Pre/Saco, Total,
+                  #CtosKC, ExpUSD, X.
+                  Pre/Kg y Pre/Saco son PONDERADOS por kg (mismo patron que
+                  BlotterCompraCafe); el resto son sumas directas. */}
               <tr style={{ background: '#f1f5f9', fontWeight: 600, borderTop: '2px solid #cbd5e1' }}>
-                <td colSpan={5} style={{ padding: '8px 10px', textTransform: 'uppercase', letterSpacing: '0.04em', fontSize: '0.72rem', color: '#475569' }}>Total <span style={{ color: '#15803d' }}>COP</span></td>
+                <td colSpan={7} style={{ padding: '8px 10px', textTransform: 'uppercase', letterSpacing: '0.04em', fontSize: '0.72rem', color: '#475569' }}>Total <span style={{ color: '#15803d' }}>COP</span> <span style={{ textTransform: 'none', fontWeight: 400, color: '#94a3b8' }}>(Pre/Kg pond.)</span></td>
                 <td className="text-end" style={{ padding: '8px 12px', fontVariantNumeric: 'tabular-nums' }}>{fmtCop(totals.sacos)}</td>
                 <td className="text-end" style={{ padding: '8px 12px', fontVariantNumeric: 'tabular-nums' }}>{fmtCop(totals.kg)}</td>
-                <td colSpan={6} />
+                <td colSpan={4} />
+                <td className="text-end" style={{ padding: '8px 12px', fontVariantNumeric: 'tabular-nums' }}>${fmtCop(totals.precioKgCopPond)}</td>
+                <td className="text-end" style={{ padding: '8px 12px', fontVariantNumeric: 'tabular-nums' }}>${fmtCop(totals.precioSacoCopPond)}</td>
                 <td className="text-end" style={{ color: '#15803d', padding: '8px 12px', fontVariantNumeric: 'tabular-nums', fontSize: '0.95rem' }}>${fmtCop(totals.totalCop)}</td>
                 <td className="text-end" style={{ color: totals.contratosKc >= 0 ? '#15803d' : '#b91c1c', padding: '8px 12px', fontVariantNumeric: 'tabular-nums', fontSize: '0.95rem' }}>{fmtSignedNum4(totals.contratosKc)}</td>
                 <td className="text-end" style={{ color: totals.exposicionUsd >= 0 ? '#15803d' : '#b91c1c', padding: '8px 12px', fontVariantNumeric: 'tabular-nums', fontSize: '0.95rem' }}>{fmtSignedUsd(totals.exposicionUsd)}</td>
-                <td colSpan={2} />
+                <td />
               </tr>
               <tr style={{ background: '#f8fafc', fontWeight: 600, borderTop: '1px solid #e2e8f0' }}>
-                <td colSpan={5} style={{ padding: '8px 10px', textTransform: 'uppercase', letterSpacing: '0.04em', fontSize: '0.72rem', color: '#475569' }}>Total <span style={{ color: '#1d4ed8' }}>USD</span></td>
+                <td colSpan={7} style={{ padding: '8px 10px', textTransform: 'uppercase', letterSpacing: '0.04em', fontSize: '0.72rem', color: '#475569' }}>Total <span style={{ color: '#1d4ed8' }}>USD</span></td>
                 <td colSpan={8} />
                 <td className="text-end" style={{ color: '#1d4ed8', padding: '8px 12px', fontVariantNumeric: 'tabular-nums', fontSize: '0.95rem' }}>${fmtUsd(totals.totalUsd)}</td>
-                <td colSpan={2} />
-                <td colSpan={2} />
+                <td colSpan={3} />
               </tr>
             </tfoot>
           </Table>

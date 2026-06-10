@@ -72,6 +72,14 @@ const SAVE_STATE_LABEL: Record<SaveState, string> = {
   error: 'Error al guardar',
 };
 
+export interface ComprasTotals {
+  kgVerdeTotal: number;
+  totalCop: number;       // suma directa de Total Compra (COP) por fila
+  precioKgCopPond: number; // ponderado por kg verde
+  precioSacoCopPond: number;
+  filas: number;
+}
+
 interface Props {
   companyId: string;
   // Precio actual de CAFE (cents/lb) — viene de benchmarkFactors.factors.CAFE.price_end
@@ -79,6 +87,8 @@ interface Props {
   // Evita un fetch extra que puede estar bloqueado por RLS u otra cosa.
   precioKcCents?: number | null;
   precioKcDate?: string | null;
+  // Callback opcional para que el CafeMarginCard reciba los totales.
+  onTotalsChange?: (t: ComprasTotals) => void;
 }
 
 const fmtCop = (v: number): string =>
@@ -127,7 +137,7 @@ function emptyRow(companyId: string, loteId: string): Omit<Row, 'id' | 'created_
   };
 }
 
-export default function BlotterCompraCafe({ companyId, precioKcCents, precioKcDate }: Props) {
+export default function BlotterCompraCafe({ companyId, precioKcCents, precioKcDate, onTotalsChange }: Props) {
   const selectedLoteId = useAppStore((s) => s.selectedLoteId);
   const [rows, setRows] = useState<Row[]>([]);
   const [kgPerAt, setKgPerAt] = useState<number>(60);
@@ -188,12 +198,16 @@ export default function BlotterCompraCafe({ companyId, precioKcCents, precioKcDa
     })();
   }, [companyId, selectedLoteId]);
 
-  // Calc derived per row — factor_humedo ahora es per-fila
+  // Calc derived per row — factor_humedo ahora es per-fila.
+  // Precio/Kg verde y Precio/Saco son los normalizadores que permiten
+  // comparar contra el Blotter Ventas (que ya los expone).
   const computed = useMemo(() => rows.map((r) => {
     const factor = r.factor_humedo ?? 0.1431;
     const kgVerde = r.total_kg * factor;
     const totalAtCompradas = kgPerAt > 0 ? r.total_kg / kgPerAt : 0;
     const totalValorCompra = totalAtCompradas * r.valor_compra_at;
+    const precioKgVerdeCop = kgVerde > 0 ? totalValorCompra / kgVerde : 0;
+    const precioSacoCop = precioKgVerdeCop * 70;
     // Hedging se calcula con cafe VERDE (no total kg humedo)
     const contratosKc = lbsPorContrato > 0 ? (kgVerde * LB_PER_KG) / lbsPorContrato : 0;
     const exposicionUsd = precioKc?.price != null
@@ -205,20 +219,50 @@ export default function BlotterCompraCafe({ companyId, precioKcCents, precioKcDa
       kgVerde,
       totalAtCompradas,
       totalValorCompra,
+      precioKgVerdeCop,
+      precioSacoCop,
       contratosKc,
       exposicionUsd,
     };
   }), [rows, kgPerAt, lbsPorContrato, precioKc]);
 
-  // Totals
-  const totals = useMemo(() => ({
-    totalKg: rows.reduce((s, r) => s + (r.total_kg ?? 0), 0),
-    kgVerde: computed.reduce((s, c) => s + c.kgVerde, 0),
-    totalAtCompradas: computed.reduce((s, c) => s + c.totalAtCompradas, 0),
-    totalValorCompra: computed.reduce((s, c) => s + c.totalValorCompra, 0),
-    contratosKc: computed.reduce((s, c) => s + c.contratosKc, 0),
-    exposicionUsd: computed.reduce((s, c) => s + c.exposicionUsd, 0),
-  }), [rows, computed]);
+  // Totals — Precio/Kg y Precio/Saco se ponderan por kg verde (no
+  // simple sum) porque son medias, no acumuladores.
+  const totals = useMemo(() => {
+    const totalKgVerde = computed.reduce((s, c) => s + c.kgVerde, 0);
+    const totalValor = computed.reduce((s, c) => s + c.totalValorCompra, 0);
+    const precioKgPond = totalKgVerde > 0 ? totalValor / totalKgVerde : 0;
+    return {
+      totalKg: rows.reduce((s, r) => s + (r.total_kg ?? 0), 0),
+      kgVerde: totalKgVerde,
+      totalAtCompradas: computed.reduce((s, c) => s + c.totalAtCompradas, 0),
+      totalValorCompra: totalValor,
+      precioKgVerdeCop: precioKgPond,
+      precioSacoCop: precioKgPond * 70,
+      contratosKc: computed.reduce((s, c) => s + c.contratosKc, 0),
+      exposicionUsd: computed.reduce((s, c) => s + c.exposicionUsd, 0),
+    };
+  }, [rows, computed]);
+
+  // Emitir totales al padre (CafeMarginCard). Mismo patron que en
+  // BlotterVentasCafe; el card calcula el margen restando ambos.
+  useEffect(() => {
+    if (!onTotalsChange) return;
+    onTotalsChange({
+      kgVerdeTotal: totals.kgVerde,
+      totalCop: totals.totalValorCompra,
+      precioKgCopPond: totals.precioKgVerdeCop,
+      precioSacoCopPond: totals.precioSacoCop,
+      filas: computed.length,
+    });
+  }, [
+    onTotalsChange,
+    totals.kgVerde,
+    totals.totalValorCompra,
+    totals.precioKgVerdeCop,
+    totals.precioSacoCop,
+    computed.length,
+  ]);
 
   const commitRow = useCallback(async (id: string) => {
     const r = rowsRef.current.find((x) => x.id === id);
@@ -380,17 +424,22 @@ export default function BlotterCompraCafe({ companyId, precioKcCents, precioKcDa
             style={{ tableLayout: 'fixed', fontVariantNumeric: 'tabular-nums' }}
           >
             <colgroup>
-              <col style={{ width: 130 }} />{/* Fecha */}
-              <col style={{ width: 55 }} />{/* Sem */}
-              <col style={{ width: 110 }} />{/* Total Kg */}
+              {/* Bloque IDENTIFICACION */}
+              <col style={{ width: 120 }} />{/* Fecha */}
+              <col style={{ width: 50 }} />{/* Sem */}
+              {/* Bloque VOLUMEN + PRECIO INPUT */}
+              <col style={{ width: 110 }} />{/* Total Kg humedo */}
               <col style={{ width: 85 }} />{/* Factor */}
-              <col style={{ width: 110 }} />{/* Kg × Factor */}
-              <col style={{ width: 120 }} />{/* Valor @ */}
-              <col style={{ width: 95 }} />{/* @ Compradas */}
-              <col style={{ width: 150 }} />{/* Total Compra */}
+              <col style={{ width: 105 }} />{/* Kg verde */}
+              <col style={{ width: 115 }} />{/* Valor @ */}
+              <col style={{ width: 90 }} />{/* @ Compradas */}
+              {/* Bloque NORMALIZADO + TOTAL + HEDGING (compartido con Ventas) */}
+              <col style={{ width: 110 }} />{/* Precio/Kg COP */}
+              <col style={{ width: 125 }} />{/* Precio/Saco COP */}
+              <col style={{ width: 145 }} />{/* Total Compra COP */}
               <col style={{ width: 95 }} />{/* # Ctos KC */}
-              <col style={{ width: 150 }} />{/* Exp USD */}
-              <col style={{ width: 70 }} />{/* Estado + X */}
+              <col style={{ width: 135 }} />{/* Exp USD */}
+              <col style={{ width: 50 }} />{/* X */}
             </colgroup>
             <thead style={{ background: '#f8fafc' }}>
               <tr style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.04em', color: '#475569' }}>
@@ -398,9 +447,11 @@ export default function BlotterCompraCafe({ companyId, precioKcCents, precioKcDa
                 <th className="text-end" style={{ padding: '8px 6px' }}>Sem</th>
                 <th className="text-end" style={{ padding: '8px 10px' }}>Total Kg <span style={{ textTransform: 'none', fontWeight: 400 }}>(húmedo)</span></th>
                 <th className="text-end" style={{ padding: '8px 10px' }} title="Factor de conversion humedo a verde (editable per fila)">Factor <span style={{ textTransform: 'none', fontWeight: 400 }}>conv.</span></th>
-                <th className="text-end" style={{ padding: '8px 10px', background: '#f1f5f9' }}>Kg × Factor <span style={{ textTransform: 'none', fontWeight: 400 }}>(verde)</span></th>
+                <th className="text-end" style={{ padding: '8px 10px', background: '#f1f5f9' }}>Kg verde <span style={{ textTransform: 'none', fontWeight: 400 }}>(auto)</span></th>
                 <th className="text-end" style={{ padding: '8px 10px' }}>Valor @ <span style={{ textTransform: 'none', fontWeight: 400 }}>(COP)</span></th>
                 <th className="text-end" style={{ padding: '8px 10px', background: '#f1f5f9' }}>@ Compradas</th>
+                <th className="text-end" style={{ padding: '8px 10px', background: '#f1f5f9' }}>Precio / Kg <span style={{ textTransform: 'none', fontWeight: 400 }}>(COP)</span></th>
+                <th className="text-end" style={{ padding: '8px 10px', background: '#f1f5f9' }}>Precio / Saco <span style={{ textTransform: 'none', fontWeight: 400 }}>(COP)</span></th>
                 <th className="text-end" style={{ padding: '8px 10px', background: '#dcfce7', color: '#15803d' }}>Total Compra <span style={{ textTransform: 'none', fontWeight: 400 }}>(COP)</span></th>
                 <th className="text-end" style={{ padding: '8px 10px', background: '#fef3c7', color: '#854d0e' }} title="+ = LONG café (compraste, tienes inventario)">
                   # Ctos KC <span style={{ textTransform: 'none', fontWeight: 400 }}>(café)</span>
@@ -471,6 +522,12 @@ export default function BlotterCompraCafe({ companyId, precioKcCents, precioKcDa
                   <td className="text-end" style={{ background: '#f1f5f9', padding: '4px 12px' }}>
                     {fmtNum2(c.totalAtCompradas)}
                   </td>
+                  <td className="text-end" style={{ background: '#f1f5f9', padding: '4px 12px', fontVariantNumeric: 'tabular-nums' }}>
+                    ${fmtCop(c.precioKgVerdeCop)}
+                  </td>
+                  <td className="text-end" style={{ background: '#f1f5f9', padding: '4px 12px', fontVariantNumeric: 'tabular-nums' }}>
+                    ${fmtCop(c.precioSacoCop)}
+                  </td>
                   <td className="text-end fw-bold" style={{ background: '#dcfce7', color: '#15803d', padding: '4px 12px' }}>
                     ${fmtCop(c.totalValorCompra)}
                   </td>
@@ -508,13 +565,19 @@ export default function BlotterCompraCafe({ companyId, precioKcCents, precioKcDa
               ))}
             </tbody>
             <tfoot>
+              {/* 13 cols: Fecha, Sem, Total Kg, Factor, Kg verde, Valor @,
+                  @ Compradas, Precio/Kg, Precio/Saco, Total Compra, # Ctos KC,
+                  Exp USD, X. Precio/Kg y Precio/Saco son PONDERADOS (no simple
+                  sum) — son medias por kg verde. */}
               <tr style={{ background: '#f1f5f9', fontWeight: 600, borderTop: '2px solid #cbd5e1' }}>
-                <td style={{ padding: '8px 8px', textTransform: 'uppercase', letterSpacing: '0.04em', fontSize: '0.7rem', color: '#475569' }} colSpan={2}>Total</td>
+                <td style={{ padding: '8px 8px', textTransform: 'uppercase', letterSpacing: '0.04em', fontSize: '0.7rem', color: '#475569' }} colSpan={2}>Total <span style={{ textTransform: 'none', fontWeight: 400, color: '#94a3b8' }}>(Pre/Kg pond.)</span></td>
                 <td className="text-end" style={{ padding: '8px 10px' }}>{fmtKg(totals.totalKg)}</td>
                 <td />{/* Factor (no aplica suma) */}
                 <td className="text-end" style={{ padding: '8px 12px' }}>{fmtKg(totals.kgVerde)}</td>
                 <td />
                 <td className="text-end" style={{ padding: '8px 12px' }}>{fmtNum2(totals.totalAtCompradas)}</td>
+                <td className="text-end" style={{ padding: '8px 12px' }}>${fmtCop(totals.precioKgVerdeCop)}</td>
+                <td className="text-end" style={{ padding: '8px 12px' }}>${fmtCop(totals.precioSacoCop)}</td>
                 <td className="text-end" style={{ color: '#15803d', padding: '8px 12px', fontSize: '0.95rem' }}>${fmtCop(totals.totalValorCompra)}</td>
                 <td className="text-end" style={{ color: totals.contratosKc >= 0 ? '#15803d' : '#b91c1c', padding: '8px 12px', fontSize: '0.95rem' }}>{fmtSignedNum4(totals.contratosKc)}</td>
                 <td className="text-end" style={{ color: totals.exposicionUsd >= 0 ? '#15803d' : '#b91c1c', padding: '8px 12px', fontSize: '0.95rem' }}>{fmtSignedCop(totals.exposicionUsd)}</td>
