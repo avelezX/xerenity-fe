@@ -488,6 +488,11 @@ export interface CafeCompraRow {
   total_kg: number;              // kg de cafe humedo comprado
   valor_compra_at: number;       // COP por @
   factor_humedo: number;         // conversion humedo -> verde (default 0.1431, editable per fila)
+  // estado/finca/calidad existen en la DB con defaults pero la UI no
+  // las muestra (decision de jun-2026: blotter consolidado por semana).
+  estado?: string;
+  finca?: string;
+  calidad?: string;
   created_at?: string;
   updated_at?: string;
 }

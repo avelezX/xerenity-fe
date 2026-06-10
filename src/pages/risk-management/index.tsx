@@ -54,7 +54,10 @@ import type { RiskCompanyConfig } from 'src/lib/risk/companyConfig';
 import { parseContractMaturity } from 'src/lib/risk/futuresCalculator';
 import { lastBusinessDay, MONTH_NAMES } from 'src/lib/risk/dateHelpers';
 import BlotterCompraCafe from 'src/components/risk/BlotterCompraCafe';
+import type { ComprasTotals } from 'src/components/risk/BlotterCompraCafe';
 import BlotterVentasCafe from 'src/components/risk/BlotterVentasCafe';
+import type { VentasTotals } from 'src/components/risk/BlotterVentasCafe';
+import CafeMarginCard from 'src/components/risk/CafeMarginCard';
 import LoteSelector from 'src/components/risk/LoteSelector';
 
 const PAGE_TITLE = 'Gestión de Riesgos';
@@ -883,6 +886,10 @@ function RiskManagement() {
   const [fncDateFrom, setFncDateFrom] = useState('');
   const [fncDateTo, setFncDateTo] = useState('');
 
+  // Totales que cada blotter de cafe emite -> alimentan al CafeMarginCard.
+  const [comprasTotals, setComprasTotals] = useState<ComprasTotals | null>(null);
+  const [ventasTotals, setVentasTotals] = useState<VentasTotals | null>(null);
+
 
   // Fecha global del modulo de Riesgos. Viene del selector en CoreLayout
   // (persistido en localStorage). Todas las pestañas de esta pagina y todas
@@ -1697,12 +1704,15 @@ function RiskManagement() {
                   companyId={selectedCompanyId}
                   precioKcCents={benchmarkFactors?.factors?.CAFE?.price_end ?? null}
                   precioKcDate={benchmarkFactors?.period?.end ?? null}
+                  onTotalsChange={setComprasTotals}
                 />
                 <BlotterVentasCafe
                   companyId={selectedCompanyId}
                   precioKcCents={benchmarkFactors?.factors?.CAFE?.price_end ?? null}
                   precioKcDate={benchmarkFactors?.period?.end ?? null}
+                  onTotalsChange={setVentasTotals}
                 />
+                <CafeMarginCard compras={comprasTotals} ventas={ventasTotals} />
               </>
             )}
           </div>
