@@ -149,11 +149,13 @@ export const MARKET_PRICE_KEYS = new Set<string>([
 export function pickPersistableExposureParams(
   params: Record<string, unknown>,
 ): Record<string, unknown> {
-  const out: Record<string, unknown> = {};
-  for (const [k, v] of Object.entries(params)) {
-    if (!MARKET_PRICE_KEYS.has(k)) out[k] = v;
-  }
-  return out;
+  return Object.entries(params).reduce<Record<string, unknown>>(
+    (acc, [k, v]) => {
+      if (!MARKET_PRICE_KEYS.has(k)) acc[k] = v;
+      return acc;
+    },
+    {},
+  );
 }
 
 // ── Default exposure parameters (used as initial state in /risk-management

@@ -857,17 +857,7 @@ function RiskManagement() {
     if (!selectedCompanyId) return;
     setConfigLoading(true);
     fetchCompanyRiskConfig(selectedCompanyId)
-      .then((cfg) => {
-        setCompanyConfig(cfg);
-        // Hidratar exposureParams desde exposure_defaults persistidos.
-        // Si la empresa tiene defaults guardados, los mergeamos sobre
-        // DEFAULT_EXPOSURE_PARAMS para que se mantengan los inputs del usuario
-        // (KG anuales, proyecciones, fletes, etc.) entre sesiones.
-        const defaults = cfg?.exposure_defaults as Record<string, unknown> | undefined;
-        if (defaults && Object.keys(defaults).length > 0) {
-          setExposureParams((prev) => ({ ...prev, ...defaults } as ExposureParams));
-        }
-      })
+      .then((cfg) => setCompanyConfig(cfg))
       .catch(() => setCompanyConfig(null))
       .finally(() => setConfigLoading(false));
   }, [selectedCompanyId]);
@@ -1052,6 +1042,20 @@ function RiskManagement() {
   const [exposureResult, setExposureResult] = useState<ExposureResponse | null>(null);
   const [exposureLoading, setExposureLoading] = useState(false);
 
+  // Hidrata exposureParams desde companyConfig.exposure_defaults al cargar
+  // la empresa. Si la empresa tiene defaults guardados, se mergean sobre
+  // DEFAULT_EXPOSURE_PARAMS para que se mantengan los inputs del usuario
+  // (KG anuales, proyecciones, fletes, etc.) entre sesiones.
+  //
+  // Corre cuando llega un nuevo companyConfig — esto cubre:
+  //   - primera carga de la pagina
+  //   - cambio de empresa (super_admin con el global picker)
+  useEffect(() => {
+    const defaults = companyConfig?.exposure_defaults as Record<string, unknown> | undefined;
+    if (!defaults || Object.keys(defaults).length === 0) return;
+    setExposureParams((prev) => ({ ...prev, ...defaults } as ExposureParams));
+  }, [companyConfig]);
+
   // Auto-save de exposureParams a risk_company_config.exposure_defaults con
   // debounce de 800ms. Excluye precios de mercado (precio_*, base_*, trm)
   // porque esos vienen de market_prices en cada fetch. Solo persistimos lo
@@ -1060,7 +1064,7 @@ function RiskManagement() {
   // Skip cuando companyConfig todavia no se cargo — guardarlos seria pisar
   // los defaults reales con el snapshot inicial.
   useEffect(() => {
-    if (!selectedCompanyId || !companyConfig) return;
+    if (!selectedCompanyId || !companyConfig) return undefined;
     const persistable = pickPersistableExposureParams(
       exposureParams as unknown as Record<string, unknown>,
     );
