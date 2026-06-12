@@ -49,7 +49,7 @@ import type { RollingVarResponse, BenchmarkFactorsResponse, ExposureParams, Expo
 import useAppStore from 'src/store';
 // Company type no longer needed — global selector in CoreLayout
 import RoleGuard from 'src/components/RoleGuard';
-import { fetchCompanyRiskConfig, getAssetsWithCurrency, getChartColors, saveCompanyRiskConfig, COMMODITY_TEMPLATES, DEFAULT_EXPOSURE_PARAMS } from 'src/lib/risk/companyConfig';
+import { fetchCompanyRiskConfig, getAssetsWithCurrency, getChartColors, saveCompanyRiskConfig, saveExposureDefaults, pickPersistableExposureParams, COMMODITY_TEMPLATES, DEFAULT_EXPOSURE_PARAMS } from 'src/lib/risk/companyConfig';
 import type { RiskCompanyConfig } from 'src/lib/risk/companyConfig';
 import { parseContractMaturity } from 'src/lib/risk/futuresCalculator';
 import { lastBusinessDay, MONTH_NAMES } from 'src/lib/risk/dateHelpers';
@@ -857,10 +857,21 @@ function RiskManagement() {
     if (!selectedCompanyId) return;
     setConfigLoading(true);
     fetchCompanyRiskConfig(selectedCompanyId)
-      .then((cfg) => setCompanyConfig(cfg))
+      .then((cfg) => {
+        setCompanyConfig(cfg);
+        // Hidratar exposureParams desde exposure_defaults persistidos.
+        // Si la empresa tiene defaults guardados, los mergeamos sobre
+        // DEFAULT_EXPOSURE_PARAMS para que se mantengan los inputs del usuario
+        // (KG anuales, proyecciones, fletes, etc.) entre sesiones.
+        const defaults = cfg?.exposure_defaults as Record<string, unknown> | undefined;
+        if (defaults && Object.keys(defaults).length > 0) {
+          setExposureParams((prev) => ({ ...prev, ...defaults } as ExposureParams));
+        }
+      })
       .catch(() => setCompanyConfig(null))
       .finally(() => setConfigLoading(false));
   }, [selectedCompanyId]);
+
 
   // Dynamic assets and colors from config (fallback to defaults)
   const dynamicAssets = companyConfig ? getAssetsWithCurrency(companyConfig) : DEFAULT_ASSETS;
@@ -1040,6 +1051,27 @@ function RiskManagement() {
   const [exposureParams, setExposureParams] = useState<ExposureParams>(DEFAULT_EXPOSURE_PARAMS);
   const [exposureResult, setExposureResult] = useState<ExposureResponse | null>(null);
   const [exposureLoading, setExposureLoading] = useState(false);
+
+  // Auto-save de exposureParams a risk_company_config.exposure_defaults con
+  // debounce de 800ms. Excluye precios de mercado (precio_*, base_*, trm)
+  // porque esos vienen de market_prices en cada fetch. Solo persistimos lo
+  // que el usuario ingresa manualmente.
+  //
+  // Skip cuando companyConfig todavia no se cargo — guardarlos seria pisar
+  // los defaults reales con el snapshot inicial.
+  useEffect(() => {
+    if (!selectedCompanyId || !companyConfig) return;
+    const persistable = pickPersistableExposureParams(
+      exposureParams as unknown as Record<string, unknown>,
+    );
+    const timer = setTimeout(() => {
+      saveExposureDefaults(selectedCompanyId, persistable).catch((e) => {
+        // eslint-disable-next-line no-console
+        console.warn('saveExposureDefaults failed:', e);
+      });
+    }, 800);
+    return () => clearTimeout(timer);
+  }, [exposureParams, selectedCompanyId, companyConfig]);
 
   // Futures Portfolio state
   const [futuresPortfolio, setFuturesPortfolio] = useState<FuturesPosition[]>([]);
