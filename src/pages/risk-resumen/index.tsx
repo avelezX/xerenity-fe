@@ -240,12 +240,18 @@ function RiskResumenPage() {
       //    ($82.7M de exposicion USD que es de Super, no del Embrujo).
       const hasExposureConfig = companyConfig?.exposure_defaults
         && Object.keys(companyConfig.exposure_defaults).length > 0;
+      // Mergea los exposure_defaults persistidos por la empresa sobre el
+      // DEFAULT base (Super de Alimentos) — asi cada empresa usa SUS KG
+      // anuales, proyecciones y fletes, no los de Super.
+      const mergedExposureParams = hasExposureConfig
+        ? { ...DEFAULT_EXPOSURE_PARAMS, ...(companyConfig!.exposure_defaults as Partial<typeof DEFAULT_EXPOSURE_PARAMS>) }
+        : DEFAULT_EXPOSURE_PARAMS;
 
       const [factors, futResp, exposure] = await Promise.all([
         fetchBenchmarkFactors(filterDate, 0.99, companyConfig).catch(() => null),
         fetchFuturesPortfolio(filterDate, true, selectedCompanyId, commodityCfg).catch(() => ({ portfolio: [] as FuturesPosition[] })),
         hasExposureConfig
-          ? fetchExposure(filterDate, DEFAULT_EXPOSURE_PARAMS).catch(() => null as ExposureResponse | null)
+          ? fetchExposure(filterDate, mergedExposureParams).catch(() => null as ExposureResponse | null)
           : Promise.resolve(null as ExposureResponse | null),
       ]);
 

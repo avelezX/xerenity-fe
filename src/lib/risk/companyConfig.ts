@@ -105,6 +105,59 @@ export async function saveCompanyRiskConfig(
   return parseConfigRow(insertData);
 }
 
+/**
+ * Guarda los parametros de exposicion del usuario (KG anuales, proyecciones,
+ * factores, fletes, etc.) en risk_company_config.exposure_defaults.
+ *
+ * NO incluye los precios de mercado (precio_*, base_*, trm) — esos se
+ * sobreescriben en cada fetchExposure desde market_prices.
+ *
+ * Si la fila para la empresa no existe en risk_company_config, se ignora
+ * (asumimos que el usuario nunca configuro commodities; sin commodities
+ * el calculo de exposicion tampoco existe).
+ */
+export async function saveExposureDefaults(
+  companyId: string,
+  exposureDefaults: Record<string, unknown>,
+): Promise<void> {
+  const { error } = await supabase
+    .schema(SCHEMA)
+    .from('risk_company_config')
+    .update({
+      exposure_defaults: exposureDefaults,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('company_id', companyId);
+  if (error) throw new Error(`Failed to save exposure defaults: ${error.message}`);
+}
+
+// Claves de precio de mercado que NO deben persistirse en exposure_defaults
+// porque se rehidratan automaticamente desde market_prices en cada fetchExposure.
+export const MARKET_PRICE_KEYS = new Set<string>([
+  'precio_azucar_cent_lb',
+  'precio_maiz_cent_bu',
+  'base_maiz_cent_bu',
+  'precio_cocoa_usd_ton',
+  'trm',
+]);
+
+/**
+ * Filtra los exposureParams para quedarse SOLO con los campos que el
+ * usuario edita (no los precios de mercado live). Se usa antes de
+ * persistir a Supabase.
+ */
+export function pickPersistableExposureParams(
+  params: Record<string, unknown>,
+): Record<string, unknown> {
+  return Object.entries(params).reduce<Record<string, unknown>>(
+    (acc, [k, v]) => {
+      if (!MARKET_PRICE_KEYS.has(k)) acc[k] = v;
+      return acc;
+    },
+    {},
+  );
+}
+
 // ── Default exposure parameters (used as initial state in /risk-management
 //    Exposicion tab and as the source for /risk-resumen) ──
 //
