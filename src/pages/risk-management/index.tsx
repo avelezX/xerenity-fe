@@ -854,12 +854,27 @@ function RiskManagement() {
   const [, setConfigLoading] = useState(false);
 
   useEffect(() => {
-    if (!selectedCompanyId) return;
-    setConfigLoading(true);
-    fetchCompanyRiskConfig(selectedCompanyId)
-      .then((cfg) => setCompanyConfig(cfg))
-      .catch(() => setCompanyConfig(null))
-      .finally(() => setConfigLoading(false));
+    if (!selectedCompanyId) return undefined;
+    let cancelled = false;
+    const refetch = () => {
+      setConfigLoading(true);
+      fetchCompanyRiskConfig(selectedCompanyId)
+        .then((cfg) => { if (!cancelled) setCompanyConfig(cfg); })
+        .catch(() => { if (!cancelled) setCompanyConfig(null); })
+        .finally(() => { if (!cancelled) setConfigLoading(false); });
+    };
+    refetch();
+    // Refetch cuando el usuario vuelve a la pestaña. Cubre el caso multi-user
+    // donde el usuario A edito desde otra sesion y el usuario B necesita ver
+    // los nuevos valores sin tener que recargar la pagina manualmente.
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') refetch();
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      cancelled = true;
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
   }, [selectedCompanyId]);
 
 
