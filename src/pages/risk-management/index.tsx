@@ -99,7 +99,10 @@ function getExposureForAsset(asset: string, result: ExposureResponse | null): nu
   switch (asset) {
     // Commodities: exposición natural corta (negativo)
     case 'AZUCAR': return -Math.abs(find('AZUCAR'));
-    case 'MAIZ': return -Math.abs(find('MAIZ'));
+    // MAIZ: Glucosa (calcularMaiz) + Almidon (formulacion Super). Ambos
+    // derivan del precio del futuro ZC, asi que su exposicion al maiz
+    // se consolida en una sola fila del Benchmark.
+    case 'MAIZ': return -Math.abs(find('MAIZ') + find('ALMIDON'));
     case 'CACAO': return -Math.abs(find('COCOA_POLVO') + find('MANTECA_CACAO') + find('LICOR_CACAO'));
     // USD: exposición natural larga (positivo)
     case 'USD': return Math.abs(result.exposicion_real_usd ?? 0);
@@ -2059,8 +2062,29 @@ function RiskManagement() {
                         <tr><td style={labelTd}>Conversión bu/ton</td><td style={{ ...valTd, ...calcStyle }}>0.3937</td></tr>
                         <tr><td style={labelTd}>Precio Maíz (¢/ton)</td><td style={{ ...valTd, ...calcStyle, fontWeight: 600 }}>{mz ? n((mz.detalle as Record<string, number>).precio_cent_ton) : '—'}</td></tr>
                         <tr><td style={labelTd}>Precio Maíz (USD/ton)</td><td style={{ ...valTd, ...calcStyle, fontWeight: 600 }}>{mz ? n((mz.detalle as Record<string, number>).precio_usd_ton, 4) : '—'}</td></tr>
-                        <tr><td style={labelTd}>Flete Oceánico (USD/ton)</td><td style={inputTd}>{numInput('flete_usd_ton')}</td></tr>
-                        <tr><td style={labelTd}>Crédito Subproductos</td><td style={{ ...valTd, ...calcStyle }}>{mz ? n((mz.detalle as Record<string, number>).credito_subproductos) : '—'}</td></tr>
+                        <tr>
+                          <td style={labelTd}>
+                            Flete Oceánico (USD/ton)
+                            <div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 400, marginTop: 2 }}>
+                              (informativo, no entra al cálculo del crédito)
+                            </div>
+                          </td>
+                          <td style={inputTd}>{numInput('flete_usd_ton')}</td>
+                        </tr>
+                        <tr>
+                          <td style={labelTd}>
+                            Crédito Subproductos
+                            <div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 400, marginTop: 2 }}>
+                              = Precio Maíz (USD/ton) × 26%
+                            </div>
+                          </td>
+                          <td
+                            style={{ ...valTd, ...calcStyle }}
+                            title="Credito = precio_maiz_usd_ton × 0.26. Solo sobre maiz; flete no participa."
+                          >
+                            {mz ? n((mz.detalle as Record<string, number>).credito_subproductos, 4) : '—'}
+                          </td>
+                        </tr>
                         <tr><td style={labelTd}>Factor Maíz→Glucosa</td><td style={inputTd}>{numInput('factor_maiz_glucosa', '0.001')}</td></tr>
                         <tr><td style={labelTd}>Glucosa Materia (USD/ton)</td><td style={{ ...valTd, ...calcStyle, fontWeight: 600 }}>{mz ? n((mz.detalle as Record<string, number>).glucosa_materia) : '—'}</td></tr>
                         <tr><td style={labelTd}>Processing Fee (USD/ton)</td><td style={inputTd}>{numInput('processing_fee_usd')}</td></tr>

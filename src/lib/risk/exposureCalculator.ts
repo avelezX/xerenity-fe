@@ -11,8 +11,19 @@ import type { ExposureParams } from 'src/types/risk';
 
 const LIBRAS_CONTRATO = 112_000; // lbs per sugar contract
 const LBS_PER_TON = 2204.62;
-const CONV_BU_TON = 0.3936825; // combined factor: cents/bu → USD/ton (= 1/(100×0.0254))
-const TON_PER_BUSHEL = 0.0254; // 1 bushel de maiz = 0.0254 toneladas
+// Factor "Conversión bu/ton" del modelo Excel/Python (instructivo de
+// Super de Alimentos). Es el factor que se multiplica al precio en
+// cents/bushel para llegar a la unidad "cents/ton" del modelo. NO es
+// el bu/ton fisico (que seria 39.37); es el factor convencional que la
+// hoja de calculo usa y que luego pide division por 100 para llegar a
+// la unidad "USD/ton" del modelo.
+//
+// Cadena del modelo:
+//   precio_cent_bu × CONV_BU_TON          -> "cent/ton" del modelo
+//   "cent/ton"     / CENT_PER_USD         -> "USD/ton"  del modelo
+const CONV_BU_TON = 0.3936825;
+const TON_PER_BUSHEL = 0.0254;          // fisico real (bushel → ton) — solo para CBOT contract size
+const CENT_PER_USD = 100;
 const CORN_BUSHELS_CONTRATO = 5000; // CBOT Corn futures: 5,000 bushels per contract
 const CORN_TON_CONTRATO = CORN_BUSHELS_CONTRATO * TON_PER_BUSHEL; // = 127 tons
 const CREDITO_PCT = 0.26; // corn byproduct credit percentage
@@ -76,10 +87,23 @@ function calcularMaiz(params: ExposureParams): CommodityExposure {
   const tonTotalGlucosa = (params.proyeccion_glucosa ?? []).reduce((a: number, b: number) => a + b, 0);
   const factorMaizGlucosa = params.factor_maiz_glucosa ?? 1.495;
   const precioCentBu = (params.precio_maiz_cent_bu ?? 0) + (params.base_maiz_cent_bu ?? 0);
-  const precioUsdTon = precioCentBu * CONV_BU_TON; // CONV_BU_TON ya combina cents→USD × bu→ton
-  const precioCentTon = precioUsdTon * 100;
-  const precioNet = (params.flete_usd_ton ?? 0) + precioUsdTon;
-  const creditoSubproductos = precioNet * CREDITO_PCT;
+
+  // Cadena del modelo Excel/Python (instructivo Super de Alimentos):
+  //   precio_cent_bu × CONV_BU_TON = "cent/ton" del modelo
+  //   "cent/ton" / 100             = "USD/ton"  del modelo
+  // Donde CONV_BU_TON = 0.3936825 es el factor convencional del modelo
+  // (no es el bu/ton fisico de 39.37). Esta convencion es la que el
+  // usuario adopta como fuente de verdad para conciliar con el reporte
+  // gerencial.
+  const precioCentTon = precioCentBu * CONV_BU_TON;       // "cent/ton" modelo
+  const precioUsdTon = precioCentTon / CENT_PER_USD;       // "USD/ton" modelo
+
+  // Credito Subproductos = precio_maiz_usd_ton × 26%
+  // SOLO sobre el precio del maiz; el flete oceanico es informativo y
+  // NO entra al credito (decision jun-2026 alineada con el instructivo
+  // Python de Super de Alimentos).
+  const creditoSubproductos = precioUsdTon * CREDITO_PCT;
+
   const precioNeto = precioUsdTon + creditoSubproductos;
   const glucosaMateria = factorMaizGlucosa * precioNeto;
   const procFeeUsdTon = ((params.proc_fee_cop_kg ?? 0) / (params.trm ?? 1)) * 1000;
@@ -348,8 +372,15 @@ export function calcularAlmidon(p: ExposureParams): AlmidonResult {
   const creditoPct = p.almidon_credito_subproductos_pct ?? 0.26;
   const factorMaizAlmidon = p.almidon_factor_conversion_maiz_almidon ?? 1.6;
 
+  // FIX jun-2026: misma cadena de unidades que calcularMaiz.
+  //   precio_cent_bu × conv = "cent/ton" del modelo (instructivo Excel/Python)
+  //   "cent/ton"     / 100  = "USD/ton"  del modelo
+  // Antes se interpretaba precioFobCentBu × 0.3937 directo como USD/ton,
+  // lo que daba un valor 100× mayor que el del modelo. Ahora se respeta
+  // la convencion del instructivo.
   const precioFobUsc = precioFut + base;
-  const precioFobUsdTon = precioFobUsc * conv;
+  const precioFobCentTon = precioFobUsc * conv;            // "cent/ton" modelo
+  const precioFobUsdTon = precioFobCentTon / CENT_PER_USD;  // "USD/ton" modelo
   const precioMaizUsdTon = precioFobUsdTon + fleteMaritimo;
   const credito = creditoPct * precioMaizUsdTon;
   const precioNeto = precioMaizUsdTon - credito;

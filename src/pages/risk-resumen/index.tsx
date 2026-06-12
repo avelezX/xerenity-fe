@@ -63,7 +63,8 @@ function getExposureForAsset(asset: string, result: ExposureResponse | null): nu
   const find = (name: string) => result.commodities.find((c) => c.nombre === name)?.exposicion_usd ?? 0;
   switch (asset) {
     case 'AZUCAR': return -Math.abs(find('AZUCAR'));
-    case 'MAIZ': return -Math.abs(find('MAIZ'));
+    // MAIZ: Glucosa + Almidon (ambos derivan del precio del futuro ZC).
+    case 'MAIZ': return -Math.abs(find('MAIZ') + find('ALMIDON'));
     case 'CACAO': return -Math.abs(find('COCOA_POLVO') + find('MANTECA_CACAO') + find('LICOR_CACAO'));
     case 'USD': return Math.abs(result.exposicion_real_usd ?? 0);
     default: return null;
