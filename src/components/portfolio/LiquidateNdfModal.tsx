@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary, no-underscore-dangle, arrow-body-style */
 /**
  * Modal de liquidacion de NDF — v2 basada en datos del banco.
  *

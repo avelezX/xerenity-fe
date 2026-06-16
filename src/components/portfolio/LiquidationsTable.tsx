@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, jsx-a11y/control-has-associated-label */
 /**
  * Tabla de eventos de liquidacion de NDFs.
  *
@@ -108,7 +108,7 @@ export default function LiquidationsTable({ liquidations }: Props) {
       >
         Sin liquidaciones registradas.
         <div style={{ fontSize: 11, marginTop: 6, color: '#adb5bd' }}>
-          Liquida una posicion desde el blotter de "Activo" para verla aqui.
+          Liquida una posicion desde el blotter de &quot;Activo&quot; para verla aqui.
         </div>
       </div>
     );
