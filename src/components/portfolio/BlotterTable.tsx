@@ -10,6 +10,9 @@ import {
   flexRender,
   createColumnHelper,
   type VisibilityState,
+  type FilterFn,
+  type Column,
+  type Table,
 } from '@tanstack/react-table';
 import {
   DndContext,
@@ -30,6 +33,9 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import type { PricedXccy, PricedNdf, PricedIbrSwap } from 'src/types/trading';
 import type { BlotterPreferences } from 'src/models/user/blotter-preferences';
+import type { NdfLiquidationRow } from 'src/models/trading';
+import ColumnFilterDropdown from './ColumnFilterDropdown';
+import LiquidationsTable from './LiquidationsTable';
 
 // ─── Tipos ──────────────────────────────────────────────────────────────────
 
@@ -72,12 +78,18 @@ export type PortfolioRow = {
 export type BlotterTableProps = {
   rows: PortfolioRow[];
   onDelete: (id: string, type: string) => void;
+  onLiquidate?: (row: PortfolioRow) => void;
   onSelectXccy: (r: PricedXccy) => void;
   onSelectNdf: (r: PricedNdf) => void;
   onSelectIbr: (r: PricedIbrSwap) => void;
   canEdit?: boolean;
+  canLiquidate?: boolean;
   prefs: BlotterPreferences;
   onPrefsChange: (p: BlotterPreferences | ((prev: BlotterPreferences) => BlotterPreferences)) => void;
+  // Solo se pasa para el blotter de NDF. Cuando estadoFilter === 'Liquidado'
+  // y este prop esta definido, se renderiza la tabla de eventos de liquidacion
+  // en vez del table normal.
+  liquidations?: NdfLiquidationRow[];
 };
 
 // ─── Helpers de formato ─────────────────────────────────────────────────────
@@ -105,7 +117,48 @@ const ESTADO_STYLES: Record<string, { bg: string; color: string }> = {
   Activo:    { bg: '#d4edda', color: '#155724' },
   Vencido:   { bg: '#f8d7da', color: '#721c24' },
   Cancelado: { bg: '#e2e3e5', color: '#383d41' },
+  Liquidado: { bg: '#e9d5ff', color: '#6b21a8' },
 };
+
+// ─── Filter / sort helpers ──────────────────────────────────────────────────
+
+// FilterFn que aplica "value-in-array": el valor de la fila tiene que estar
+// en el array filterValue. Si el array es vacio/undefined, no filtra.
+// Se usa para el dropdown tipo Excel de las primeras 9 columnas.
+const inSetFilter: FilterFn<PortfolioRow> = (row, columnId, filterValue) => {
+  if (!Array.isArray(filterValue) || filterValue.length === 0) return true;
+  const v = row.getValue(columnId);
+  return filterValue.includes(String(v ?? ''));
+};
+
+// Helper que construye el header de una columna filtrable. Renderiza el
+// titulo + el dropdown de filtros (ColumnFilterDropdown). El click en el
+// titulo sigue disparando el toggle de sort (heredado del DraggableHeader);
+// el dropdown usa stopPropagation para no interferir.
+//
+// Devuelve un objeto con `render` (la funcion que tanstack llama). Se evita
+// definir un componente anonimo para no chocar con react/function-component-definition.
+function makeFilterableHeader(
+  title: string,
+  rowAccessor: (r: PortfolioRow) => string | number | null | undefined,
+) {
+  // eslint-disable-next-line react/display-name
+  return function FilterableHeader({ column, table }: {
+    column: Column<PortfolioRow, unknown>;
+    table: Table<PortfolioRow>;
+  }) {
+    return (
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+        {title}
+        <ColumnFilterDropdown<PortfolioRow>
+          column={column}
+          rows={table.options.data}
+          accessor={rowAccessor}
+        />
+      </span>
+    );
+  };
+}
 
 // ─── Column definitions ─────────────────────────────────────────────────────
 
@@ -115,10 +168,13 @@ const buildColumns = (
   onSelect: (r: PortfolioRow) => void,
   onDelete: (id: string, type: string) => void,
   canEdit: boolean,
+  onLiquidate?: (row: PortfolioRow) => void,
+  canLiquidate?: boolean,
 ) => [
   columnHelper.accessor('type', {
     id: 'type',
-    header: 'Tipo',
+    header: makeFilterableHeader('Tipo', (r) => r.type),
+    filterFn: inSetFilter,
     size: 60,
     cell: (info) => {
       const tc = TYPE_COLORS[info.getValue()];
@@ -131,7 +187,8 @@ const buildColumns = (
   }),
   columnHelper.accessor('id_operacion', {
     id: 'id_operacion',
-    header: 'ID Op',
+    header: makeFilterableHeader('ID Op', (r) => r.id_operacion ?? r.label ?? ''),
+    filterFn: inSetFilter,
     size: 110,
     cell: (info) => {
       const r = info.row.original;
@@ -145,59 +202,104 @@ const buildColumns = (
   }),
   columnHelper.accessor('counterparty', {
     id: 'counterparty',
-    header: 'Contraparte',
+    header: makeFilterableHeader('Contraparte', (r) => r.counterparty),
+    filterFn: inSetFilter,
     size: 110,
     cell: (info) => <span style={{ fontSize: 11 }}>{info.getValue() || '—'}</span>,
   }),
   columnHelper.accessor('sociedad', {
     id: 'sociedad',
-    header: 'Sociedad',
+    header: makeFilterableHeader('Sociedad', (r) => r.sociedad ?? ''),
+    filterFn: inSetFilter,
     size: 80,
     cell: (info) => <span style={{ fontSize: 11 }}>{info.getValue() || '—'}</span>,
   }),
-  columnHelper.display({
-    id: 'notional',
-    header: 'Nocional',
-    size: 100,
-    cell: (info) => {
-      const r = info.row.original;
-      const val = r.type === 'IBR' ? (r._ibr?.notional ?? 0) : r.notional_usd;
-      const ccy = r.type === 'IBR' ? 'COP' : 'USD';
-      return (
-        <span style={{ fontFamily: 'monospace', fontSize: 11 }}>
-          {fmtMM(val)} <span style={{ fontSize: 9, color: '#6c757d' }}>{ccy}</span>
-        </span>
-      );
+  // Nocional: convertido de display a accessor para soportar sort y filtro.
+  // El accessor retorna el numero (notional_usd o notional_cop segun tipo).
+  columnHelper.accessor(
+    (r) => (r.type === 'IBR' ? (r._ibr?.notional ?? 0) : r.notional_usd),
+    {
+      id: 'notional',
+      header: makeFilterableHeader(
+        'Nocional',
+        (r) => fmtMM(r.type === 'IBR' ? (r._ibr?.notional ?? 0) : r.notional_usd),
+      ),
+      filterFn: (row, _columnId, filterValue) => {
+        if (!Array.isArray(filterValue) || filterValue.length === 0) return true;
+        const r = row.original as PortfolioRow;
+        const display = fmtMM(r.type === 'IBR' ? (r._ibr?.notional ?? 0) : r.notional_usd);
+        return filterValue.includes(display);
+      },
+      size: 100,
+      cell: (info) => {
+        const r = info.row.original;
+        const val = r.type === 'IBR' ? (r._ibr?.notional ?? 0) : r.notional_usd;
+        const ccy = r.type === 'IBR' ? 'COP' : 'USD';
+        return (
+          <span style={{ fontFamily: 'monospace', fontSize: 11 }}>
+            {fmtMM(val)} <span style={{ fontSize: 9, color: '#6c757d' }}>{ccy}</span>
+          </span>
+        );
+      },
     },
-  }),
-  columnHelper.display({
-    id: 'tasa_strike',
-    header: 'Tasa/Strike',
-    size: 100,
-    cell: (info) => {
-      const r = info.row.original;
-      let label = '—';
-      if (r._ndf) label = fmt(r._ndf.strike, 2);
-      else if (r._xccy) label = `${fmt(r._xccy.usd_spread_bps, 0)}bps`;
-      else if (r._ibr) label = `${fmt(r._ibr.fixed_rate * 100, 2)}%`;
-      return <span style={{ fontFamily: 'monospace', fontSize: 11 }}>{label}</span>;
+  ),
+  // Tasa/Strike: igual que Nocional — accessor que retorna el label formateado.
+  columnHelper.accessor(
+    (r) => {
+      if (r._ndf) return r._ndf.strike;
+      if (r._xccy) return r._xccy.usd_spread_bps;
+      if (r._ibr) return r._ibr.fixed_rate;
+      return 0;
     },
-  }),
+    {
+      id: 'tasa_strike',
+      header: makeFilterableHeader(
+        'Tasa/Strike',
+        (r) => {
+          if (r._ndf) return fmt(r._ndf.strike, 2);
+          if (r._xccy) return `${fmt(r._xccy.usd_spread_bps, 0)}bps`;
+          if (r._ibr) return `${fmt(r._ibr.fixed_rate * 100, 2)}%`;
+          return '—';
+        },
+      ),
+      filterFn: (row, _columnId, filterValue) => {
+        if (!Array.isArray(filterValue) || filterValue.length === 0) return true;
+        const r = row.original as PortfolioRow;
+        let label = '—';
+        if (r._ndf) label = fmt(r._ndf.strike, 2);
+        else if (r._xccy) label = `${fmt(r._xccy.usd_spread_bps, 0)}bps`;
+        else if (r._ibr) label = `${fmt(r._ibr.fixed_rate * 100, 2)}%`;
+        return filterValue.includes(label);
+      },
+      size: 100,
+      cell: (info) => {
+        const r = info.row.original;
+        let label = '—';
+        if (r._ndf) label = fmt(r._ndf.strike, 2);
+        else if (r._xccy) label = `${fmt(r._xccy.usd_spread_bps, 0)}bps`;
+        else if (r._ibr) label = `${fmt(r._ibr.fixed_rate * 100, 2)}%`;
+        return <span style={{ fontFamily: 'monospace', fontSize: 11 }}>{label}</span>;
+      },
+    },
+  ),
   columnHelper.accessor('trade_date', {
     id: 'trade_date',
-    header: 'F. Celebr.',
+    header: makeFilterableHeader('F. Celebr.', (r) => r.trade_date ?? ''),
+    filterFn: inSetFilter,
     size: 90,
     cell: (info) => <span style={{ fontSize: 11 }}>{info.getValue() || '—'}</span>,
   }),
   columnHelper.accessor('maturity_date', {
     id: 'maturity_date',
-    header: 'Vencimiento',
+    header: makeFilterableHeader('Vencimiento', (r) => r.maturity_date),
+    filterFn: inSetFilter,
     size: 95,
     cell: (info) => <span style={{ fontSize: 11 }}>{info.getValue()}</span>,
   }),
   columnHelper.accessor('estado', {
     id: 'estado',
-    header: 'Estado',
+    header: makeFilterableHeader('Estado', (r) => r.estado ?? ''),
+    filterFn: inSetFilter,
     size: 85,
     cell: (info) => {
       const v = info.getValue();
@@ -471,25 +573,54 @@ const buildColumns = (
     },
   }),
   // ── Columna de acciones ──
+  // Liquidar (solo NDF Activo): congela el NPV actual como P&G realizado.
+  // Eliminar: borra la fila para siempre.
   columnHelper.display({
     id: 'actions',
     header: '',
-    size: 40,
+    size: 100,
     enableHiding: false,
     enableSorting: false,
     enableResizing: false,
     cell: (info) => {
       const r = info.row.original;
       if (!canEdit) return null;
+      const showLiquidate = canLiquidate
+        && r.type === 'NDF'
+        && r.estado === 'Activo'
+        && onLiquidate != null;
       return (
-        <button
-          type="button"
-          title="Eliminar"
-          onClick={() => onDelete(r.id, r.type)}
-          style={{ background: 'none', border: 'none', color: '#dc3545', cursor: 'pointer', fontSize: 12, padding: 2 }}
-        >
-          ✕
-        </button>
+        <div style={{ display: 'flex', gap: 4, alignItems: 'center', justifyContent: 'flex-end' }}>
+          {showLiquidate && (
+            <button
+              type="button"
+              title="Liquidar — congela el NPV actual como P&G realizado"
+              onClick={(e) => { e.stopPropagation(); onLiquidate!(r); }}
+              style={{
+                background: '#d4edda',
+                border: '1px solid #c3e6cb',
+                color: '#155724',
+                cursor: 'pointer',
+                fontSize: 10,
+                padding: '2px 8px',
+                borderRadius: 3,
+                fontWeight: 600,
+                letterSpacing: '0.02em',
+                lineHeight: 1.4,
+              }}
+            >
+              Liquidar
+            </button>
+          )}
+          <button
+            type="button"
+            title="Eliminar"
+            onClick={() => onDelete(r.id, r.type)}
+            style={{ background: 'none', border: 'none', color: '#dc3545', cursor: 'pointer', fontSize: 12, padding: 2 }}
+          >
+            ✕
+          </button>
+        </div>
       );
     },
   }),
@@ -647,12 +778,15 @@ function ColumnVisibilityDropdown({
 export default function BlotterTable({
   rows,
   onDelete,
+  onLiquidate,
   onSelectXccy,
   onSelectNdf,
   onSelectIbr,
   canEdit = true,
+  canLiquidate = false,
   prefs,
   onPrefsChange,
+  liquidations,
 }: BlotterTableProps) {
   // Derived state from prefs
   const {
@@ -671,8 +805,8 @@ export default function BlotterTable({
   }, [onSelectXccy, onSelectNdf, onSelectIbr]);
 
   const columns = useMemo(
-    () => buildColumns(handleSelect, onDelete, canEdit),
-    [handleSelect, onDelete, canEdit],
+    () => buildColumns(handleSelect, onDelete, canEdit, onLiquidate, canLiquidate),
+    [handleSelect, onDelete, canEdit, onLiquidate, canLiquidate],
   );
 
   // Filter rows by estado first
@@ -682,7 +816,7 @@ export default function BlotterTable({
   );
 
   const counts = useMemo(() => {
-    const c = { Activo: 0, Vencido: 0, Cancelado: 0 };
+    const c = { Activo: 0, Vencido: 0, Cancelado: 0, Liquidado: 0 };
     rows.forEach((r) => { if (r.estado && r.estado in c) c[r.estado as keyof typeof c] += 1; });
     return c;
   }, [rows]);
@@ -723,9 +857,11 @@ export default function BlotterTable({
     enableColumnResizing: true,
   });
 
-  // DnD sensors
+  // DnD sensors. activationConstraint exige mover el mouse 5px antes de
+  // iniciar el drag — asi un click corto sobre el ▾ del filtro (o sobre
+  // el header para hacer sort) NO se interpreta como inicio de drag.
   const sensors = useSensors(
-    useSensor(PointerSensor),
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
 
@@ -759,7 +895,11 @@ export default function BlotterTable({
     };
   }, [filteredByEstado]);
 
-  if (rows.length === 0) {
+  // Cuando se está en Liquidado y hay liquidaciones, NO bloquear con empty
+  // state aunque no haya rows: el LiquidationsTable maneja su propio vacio.
+  const showLiquidationsView = estadoFilter === 'Liquidado' && liquidations !== undefined;
+
+  if (rows.length === 0 && !showLiquidationsView) {
     return (
       <div style={{ padding: 40, textAlign: 'center', color: '#6c757d', border: '2px dashed #dee2e6', borderRadius: 8 }}>
         No hay posiciones. Agrega una desde el botón o desde los pricers individuales.
@@ -776,7 +916,7 @@ export default function BlotterTable({
         {/* Filtro Estado */}
         <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
           <span style={{ fontSize: 11, color: '#6c757d', fontWeight: 600 }}>Estado:</span>
-          {(['Todos', 'Activo', 'Vencido', 'Cancelado'] as const).map((opt) => {
+          {(['Todos', 'Activo', 'Vencido', 'Cancelado', 'Liquidado'] as const).map((opt) => {
             const count = opt === 'Todos' ? rows.length : counts[opt];
             const active = estadoFilter === opt;
             const s = opt !== 'Todos' ? ESTADO_STYLES[opt] : null;
@@ -828,7 +968,10 @@ export default function BlotterTable({
         </div>
       </div>
 
-      {/* Table */}
+      {/* Table — switch a vista de eventos cuando estadoFilter='Liquidado' y se pasaron liquidations */}
+      {showLiquidationsView ? (
+        <LiquidationsTable liquidations={liquidations!} />
+      ) : (
       <div style={{ overflowX: 'auto' }}>
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
           <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse', tableLayout: 'fixed' }}>
@@ -887,6 +1030,7 @@ export default function BlotterTable({
           </table>
         </DndContext>
       </div>
+      )}
     </div>
   );
 }

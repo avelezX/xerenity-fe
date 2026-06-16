@@ -3,7 +3,7 @@
 /* eslint-disable no-nested-ternary, no-underscore-dangle, no-restricted-syntax, prefer-template, jsx-a11y/control-has-associated-label */
 import { CoreLayout } from '@layout';
 import { Row, Col, Form, Modal } from 'react-bootstrap';
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import Container from 'react-bootstrap/Container';
 import { FontAwesomeIcon as Icon } from '@fortawesome/react-fontawesome';
 import {
@@ -58,6 +58,8 @@ import type {
 } from 'src/types/trading';
 import useAppStore from 'src/store';
 import BlotterTable, { type PortfolioRow } from '@components/portfolio/BlotterTable';
+import LiquidateNdfModal from '@components/portfolio/LiquidateNdfModal';
+import { fetchNdfLiquidations, type NdfLiquidationRow } from 'src/models/trading';
 import { useBlotterPreferences } from 'src/models/user/blotter-preferences';
 import MarketDataConfigModal from './_MarketDataConfigModal';
 // MarksContent ya no se importa aqui (mayo 2026): vive standalone en /marks.
@@ -263,22 +265,28 @@ function SummaryBar({
   summary,
   pricedAt,
   pnlTotals,
+  realizedPnlCop,
 }: {
   summary: PortfolioSummary | null;
   pricedAt: string | undefined;
   pnlTotals?: { daily: number | null; mtd: number | null; ytd: number | null };
+  // Suma historica del P&G realizado bruto (COP) de NDFs liquidadas.
+  // null si todavia no se carga; 0 si no hay liquidaciones.
+  realizedPnlCop?: number | null;
 }) {
   if (!summary) return null;
-  const items: [string, string, string][] = [
-    ['NPV COP', fmtMM(summary.total_npv_cop), npvColor(summary.total_npv_cop)],
-    ['NPV USD', fmtMM(summary.total_npv_usd), npvColor(summary.total_npv_usd)],
-    ['Carry COP', fmtMM(summary.total_carry_cop), npvColor(summary.total_carry_cop)],
-    ['P&L Tasas', fmtMM(summary.total_pnl_rate_cop), npvColor(summary.total_pnl_rate_cop)],
-    ['P&L FX', fmtMM(summary.total_pnl_fx_cop), npvColor(summary.total_pnl_fx_cop)],
-    ...(summary.fx_spot ? [['Spot USD/COP', fmt(summary.fx_spot, 2), '#212529'] as [string, string, string]] : []),
-    ...(pnlTotals?.daily != null ? [['P&L 1D', fmtMM(pnlTotals.daily), npvColor(pnlTotals.daily)] as [string, string, string]] : []),
-    ...(pnlTotals?.mtd != null ? [['P&L MTD', fmtMM(pnlTotals.mtd), npvColor(pnlTotals.mtd)] as [string, string, string]] : []),
-    ...(pnlTotals?.ytd != null ? [['P&L YTD', fmtMM(pnlTotals.ytd), npvColor(pnlTotals.ytd)] as [string, string, string]] : []),
+  type Item = { label: string; value: string; color: string; unit?: string };
+  const items: Item[] = [
+    { label: 'NPV COP',   value: fmtMM(summary.total_npv_cop), color: npvColor(summary.total_npv_cop) },
+    { label: 'NPV USD',   value: fmtMM(summary.total_npv_usd), color: npvColor(summary.total_npv_usd) },
+    { label: 'Carry COP', value: fmtMM(summary.total_carry_cop), color: npvColor(summary.total_carry_cop) },
+    { label: 'P&L Tasas', value: fmtMM(summary.total_pnl_rate_cop), color: npvColor(summary.total_pnl_rate_cop) },
+    { label: 'P&L FX',    value: fmtMM(summary.total_pnl_fx_cop), color: npvColor(summary.total_pnl_fx_cop) },
+    ...(summary.fx_spot != null ? [{ label: 'Spot USD/COP', value: fmt(summary.fx_spot, 2), color: '#212529' } as Item] : []),
+    ...(pnlTotals?.daily != null ? [{ label: 'P&L 1D',  value: fmtMM(pnlTotals.daily), color: npvColor(pnlTotals.daily) } as Item] : []),
+    ...(pnlTotals?.mtd   != null ? [{ label: 'P&L MTD', value: fmtMM(pnlTotals.mtd),   color: npvColor(pnlTotals.mtd) } as Item] : []),
+    ...(pnlTotals?.ytd   != null ? [{ label: 'P&L YTD', value: fmtMM(pnlTotals.ytd),   color: npvColor(pnlTotals.ytd) } as Item] : []),
+    ...(realizedPnlCop   != null ? [{ label: 'P&G Realizado COP', value: fmtMM(realizedPnlCop), color: npvColor(realizedPnlCop) } as Item] : []),
   ];
   return (
     <div
@@ -294,11 +302,16 @@ function SummaryBar({
         alignItems: 'center',
       }}
     >
-      {items.map(([label, value, color]) => (
+      {items.map(({ label, value, color, unit }) => (
         <div key={label} style={{ minWidth: 120 }}>
           <div style={{ fontSize: 10, color: '#6c757d', textTransform: 'uppercase' }}>{label}</div>
           <div style={{ fontSize: 16, fontWeight: 700, fontFamily: 'monospace', color }}>
             {value}
+            {unit && (
+              <span style={{ fontSize: 9, color: '#6c757d', fontWeight: 400, marginLeft: 4 }}>
+                {unit}
+              </span>
+            )}
           </div>
         </div>
       ))}
@@ -1947,6 +1960,54 @@ function PortfolioPage() {
     userProfile?.role === 'gestor' ||
     userRole.role === 'admin' ||
     userRole.role === 'manager';
+  // canLiquidate = mismos roles que acepta xerenity.liquidate_ndf_position.
+  // No incluye 'admin'/'manager' legacy: la RPC los rechaza con permission
+  // denied, mejor no mostrar el boton.
+  const canLiquidate =
+    userProfile?.role === 'super_admin' ||
+    userProfile?.role === 'corp_admin' ||
+    userProfile?.role === 'gestor';
+
+  // Estado del modal de liquidacion + cache de liquidaciones para el card.
+  const [liquidateRow, setLiquidateRow] = useState<PortfolioRow | null>(null);
+  const [showLiquidate, setShowLiquidate] = useState(false);
+  const [liquidations, setLiquidations] = useState<NdfLiquidationRow[]>([]);
+  const [liquidationsLoading, setLiquidationsLoading] = useState(false);
+
+  // Total historico de P&G realizado bruto en COP, agregado en una sola cifra
+  // para mostrarla en el SummaryBar. null mientras se carga (asi el SummaryBar
+  // no muestra el item) y un numero (0 incluido) cuando ya hay data.
+  const realizedPnlTotalCop = useMemo<number | null>(() => {
+    if (liquidationsLoading) return null;
+    return liquidations.reduce((s, l) => s + (Number(l.realized_pnl_cop) || 0), 0);
+  }, [liquidations, liquidationsLoading]);
+
+  const reloadLiquidations = useCallback(async () => {
+    setLiquidationsLoading(true);
+    try {
+      const r = await fetchNdfLiquidations();
+      if (r.error) {
+        // No comer el error en silencio: una RPC rota deja el state vacio
+        // y la tabla aparece "sin liquidaciones" sin pistas.
+        console.error('[liquidations] fetch error:', r.error);
+        toast.error(`Error cargando liquidaciones: ${r.error}`, { autoClose: 5000 });
+      } else {
+        setLiquidations(r.data);
+      }
+    } finally {
+      setLiquidationsLoading(false);
+    }
+  }, []);
+
+  // Carga inicial + cuando cambia la empresa activa.
+  useEffect(() => {
+    reloadLiquidations();
+  }, [reloadLiquidations, activeCompanyId]);
+
+  const handleOpenLiquidate = useCallback((row: PortfolioRow) => {
+    setLiquidateRow(row);
+    setShowLiquidate(true);
+  }, []);
 
   // #317 — Position lists now come from TanStack Query. Their cache key
   // includes companyId so switching companies invalidates correctly. The
@@ -2281,8 +2342,13 @@ function PortfolioPage() {
           </div>
         )}
 
-        {/* Summary */}
-        <SummaryBar summary={summary} pricedAt={pricedAt} pnlTotals={pnlTotals} />
+        {/* Summary — incluye P&G Realizado total (COP) de NDFs liquidadas */}
+        <SummaryBar
+          summary={summary}
+          pricedAt={pricedAt}
+          pnlTotals={pnlTotals}
+          realizedPnlCop={realizedPnlTotalCop}
+        />
 
         {/* Portafolio (anteriormente habia un toggle Portafolio/Marcas;
             Marcas ahora vive como entrada propia en el sidebar -> /marks) */}
@@ -2297,12 +2363,15 @@ function PortfolioPage() {
           <BlotterTable
             rows={portfolioRows}
             onDelete={handleDelete}
+            onLiquidate={handleOpenLiquidate}
             onSelectXccy={onSelectXccy}
             onSelectNdf={onSelectNdf}
             onSelectIbr={onSelectIbr}
             canEdit={canEdit}
+            canLiquidate={canLiquidate}
             prefs={blotterPrefs}
             onPrefsChange={setBlotterPrefs}
+            liquidations={liquidations}
           />
         </div>
 
@@ -2345,6 +2414,23 @@ function PortfolioPage() {
           onHide={() => setShowConfigModal(false)}
           config={marketDataConfig}
           onSave={updateMarketDataConfig}
+        />
+
+        {/* Liquidate NDF Modal — abierto desde el boton verde de cada fila
+            NDF Activa. Al confirmar invalida queries y refetcha
+            liquidaciones para que el card P&G Realizado se actualice. */}
+        <LiquidateNdfModal
+          show={showLiquidate}
+          row={liquidateRow}
+          onHide={() => setShowLiquidate(false)}
+          onSuccess={() => {
+            // Invalidar la query de NDF positions para que el blotter
+            // refresque y muestre estado='Liquidado'. Tambien refetchar
+            // liquidaciones para el card P&G Realizado.
+            queryClient.invalidateQueries({ queryKey: ['positions', 'ndf'] });
+            queryClient.invalidateQueries({ queryKey: ['pricing', 'reprice'] });
+            reloadLiquidations();
+          }}
         />
       </Container>
     </CoreLayout>

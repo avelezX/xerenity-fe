@@ -20,6 +20,14 @@ import {
   deleteTesPositions,
   DeletePositionResponse,
 } from './deletePosition';
+import {
+  liquidateNdfPosition,
+  fetchNdfLiquidations,
+  type LiquidateNdfInput,
+  type LiquidateResponse,
+  type LiquidationsResponse,
+  type NdfLiquidationRow,
+} from './liquidatePosition';
 import { repricePortfolio } from './repricePortfolio';
 import {
   fetchMarketDataConfig,
@@ -27,7 +35,15 @@ import {
 } from './market-data-config';
 import { fetchHistoricalMark } from './fetchHistoricalMark';
 
-export type { PositionsResponse, CreatePositionResponse, DeletePositionResponse };
+export type {
+  PositionsResponse,
+  CreatePositionResponse,
+  DeletePositionResponse,
+  LiquidateNdfInput,
+  LiquidateResponse,
+  LiquidationsResponse,
+  NdfLiquidationRow,
+};
 
 export {
   fetchXccyPositions,
@@ -43,6 +59,8 @@ export {
   deleteNdfPositions,
   deleteIbrSwapPositions,
   deleteTesPositions,
+  liquidateNdfPosition,
+  fetchNdfLiquidations,
   repricePortfolio,
   fetchMarketDataConfig,
   saveMarketDataConfig,
