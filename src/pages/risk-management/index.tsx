@@ -2,7 +2,7 @@
 
 import { CoreLayout } from '@layout';
 import { Row, Col, Form, Modal } from 'react-bootstrap';
-import React, { useState, useCallback, useEffect, useMemo } from 'react';
+import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import Container from 'react-bootstrap/Container';
 import { FontAwesomeIcon as Icon } from '@fortawesome/react-fontawesome';
 import {
@@ -854,27 +854,12 @@ function RiskManagement() {
   const [, setConfigLoading] = useState(false);
 
   useEffect(() => {
-    if (!selectedCompanyId) return undefined;
-    let cancelled = false;
-    const refetch = () => {
-      setConfigLoading(true);
-      fetchCompanyRiskConfig(selectedCompanyId)
-        .then((cfg) => { if (!cancelled) setCompanyConfig(cfg); })
-        .catch(() => { if (!cancelled) setCompanyConfig(null); })
-        .finally(() => { if (!cancelled) setConfigLoading(false); });
-    };
-    refetch();
-    // Refetch cuando el usuario vuelve a la pestaña. Cubre el caso multi-user
-    // donde el usuario A edito desde otra sesion y el usuario B necesita ver
-    // los nuevos valores sin tener que recargar la pagina manualmente.
-    const onVisibility = () => {
-      if (document.visibilityState === 'visible') refetch();
-    };
-    document.addEventListener('visibilitychange', onVisibility);
-    return () => {
-      cancelled = true;
-      document.removeEventListener('visibilitychange', onVisibility);
-    };
+    if (!selectedCompanyId) return;
+    setConfigLoading(true);
+    fetchCompanyRiskConfig(selectedCompanyId)
+      .then((cfg) => setCompanyConfig(cfg))
+      .catch(() => setCompanyConfig(null))
+      .finally(() => setConfigLoading(false));
   }, [selectedCompanyId]);
 
 
@@ -1057,29 +1042,41 @@ function RiskManagement() {
   const [exposureResult, setExposureResult] = useState<ExposureResponse | null>(null);
   const [exposureLoading, setExposureLoading] = useState(false);
 
-  // Hidrata exposureParams desde companyConfig.exposure_defaults al cargar
-  // la empresa. Si la empresa tiene defaults guardados, se mergean sobre
-  // DEFAULT_EXPOSURE_PARAMS para que se mantengan los inputs del usuario
-  // (KG anuales, proyecciones, fletes, etc.) entre sesiones.
+  // Hidrata exposureParams desde companyConfig.exposure_defaults UNA SOLA VEZ
+  // por empresa. Despues de hidratar, el usuario controla los valores y NO se
+  // sobreescriben aunque companyConfig cambie por otro motivo (ej. cache busted).
   //
-  // Corre cuando llega un nuevo companyConfig — esto cubre:
-  //   - primera carga de la pagina
-  //   - cambio de empresa (super_admin con el global picker)
+  // hydratedForCompanyRef: track de cual empresa ya hidratamos. Cuando cambia
+  // de empresa (super_admin global picker) re-hidrata.
+  // isHydratingRef: bandera para que el auto-save skip el ciclo posterior a
+  // la hidratacion (sino haria un guardado redundante con el valor ya en DB
+  // y se perderia el debounce de cambios del usuario que se solapen).
+  const hydratedForCompanyRef = useRef<string | null>(null);
+  const isHydratingRef = useRef(false);
+
   useEffect(() => {
-    const defaults = companyConfig?.exposure_defaults as Record<string, unknown> | undefined;
+    if (!selectedCompanyId || !companyConfig) return;
+    if (hydratedForCompanyRef.current === selectedCompanyId) return;
+    const defaults = companyConfig.exposure_defaults as Record<string, unknown> | undefined;
+    hydratedForCompanyRef.current = selectedCompanyId;
     if (!defaults || Object.keys(defaults).length === 0) return;
+    isHydratingRef.current = true;
     setExposureParams((prev) => ({ ...prev, ...defaults } as ExposureParams));
-  }, [companyConfig]);
+  }, [companyConfig, selectedCompanyId]);
 
   // Auto-save de exposureParams a risk_company_config.exposure_defaults con
   // debounce de 800ms. Excluye precios de mercado (precio_*, base_*, trm)
-  // porque esos vienen de market_prices en cada fetch. Solo persistimos lo
-  // que el usuario ingresa manualmente.
+  // porque esos vienen de market_prices en cada fetch.
   //
-  // Skip cuando companyConfig todavia no se cargo — guardarlos seria pisar
-  // los defaults reales con el snapshot inicial.
+  // Skip cuando:
+  //   - No hay empresa / companyConfig todavia no se cargo
+  //   - El cambio de exposureParams vino de la hidratacion (no es user input)
   useEffect(() => {
     if (!selectedCompanyId || !companyConfig) return undefined;
+    if (isHydratingRef.current) {
+      isHydratingRef.current = false;
+      return undefined;
+    }
     const persistable = pickPersistableExposureParams(
       exposureParams as unknown as Record<string, unknown>,
     );
