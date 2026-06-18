@@ -40,6 +40,8 @@ import {
 } from 'src/models/trading';
 import { priceTesBond } from 'src/models/pricing/pricingApi';
 import { telemetry, isAbortError } from 'src/lib/telemetry';
+import type { NdfLiquidationRow } from 'src/models/trading';
+import { reconstructNdfNotionalAt } from 'src/lib/trading/historicalPositions';
 
 const genId = () => crypto.randomUUID();
 
@@ -89,7 +91,7 @@ export interface TradingSlice {
   loadUserRole: () => Promise<void>;
   loadPositions: (companyId?: string) => Promise<void>;
   repriceAll: () => Promise<void>;
-  repriceAllWithMark: (fecha: string) => Promise<void>;
+  repriceAllWithMark: (fecha: string, liquidations?: NdfLiquidationRow[]) => Promise<void>;
   addXccyPosition: (values: NewXccyPosition) => Promise<void>;
   addNdfPosition: (values: NewNdfPosition) => Promise<void>;
   addIbrSwapPosition: (values: NewIbrSwapPosition) => Promise<void>;
@@ -98,7 +100,7 @@ export interface TradingSlice {
   removeIbrSwapPositions: (ids: string[]) => Promise<void>;
   loadMarketDataConfig: () => Promise<void>;
   updateMarketDataConfig: (config: MarketDataConfig) => Promise<void>;
-  loadReferencePrices: (fechaMarca: string) => Promise<void>;
+  loadReferencePrices: (fechaMarca: string, liquidations?: NdfLiquidationRow[]) => Promise<void>;
   resetTradingStore: () => void;
   // TES actions
   loadTesPositions: (companyId?: string) => Promise<void>;
@@ -302,14 +304,20 @@ const createTradingSlice: StateCreator<TradingSlice> = (set, get) => {
     }
   },
 
-  repriceAllWithMark: async (fecha: string) => {
+  repriceAllWithMark: async (fecha: string, liquidations: NdfLiquidationRow[] = []) => {
     const { xccyPositions, ndfPositions, ibrSwapPositions, tesPositions } = get();
     const { myToken, signal } = startReprice(`repriceAllWithMark(${fecha})`);
     set({ tradingLoading: true, tesLoading: true, tradingError: undefined });
     await withInFlight(`repriceAllWithMark(${fecha})`, async () => {
     try {
-      // Excluir instrumentos cuya fecha de celebración es posterior a la fecha de marca
-      const filteredNdf  = ndfPositions.filter((p) => !p.trade_date || p.trade_date <= fecha);
+      // Excluir instrumentos cuya fecha de celebración es posterior a la fecha de marca,
+      // y reconstruir notional historico para NDFs liquidados despues de `fecha`.
+      const filteredNdf  = ndfPositions
+        .filter((p) => !p.trade_date || p.trade_date <= fecha)
+        .map((p) => {
+          const n = reconstructNdfNotionalAt(p, liquidations, fecha);
+          return n === p.notional_usd ? p : { ...p, notional_usd: n };
+        });
       const filteredXccy = xccyPositions.filter((p) => p.start_date <= fecha);
       const filteredIbr  = ibrSwapPositions.filter((p) => p.start_date <= fecha);
 
@@ -511,11 +519,15 @@ const createTradingSlice: StateCreator<TradingSlice> = (set, get) => {
     await saveMarketDataConfig(config);
   },
 
-  loadReferencePrices: async (fechaMarca: string) => {
+  loadReferencePrices: async (fechaMarca: string, liquidations: NdfLiquidationRow[] = []) => {
     const { refPricesForDate, xccyPositions, ndfPositions, ibrSwapPositions } = get();
 
-    // Caché: no recargar si la fecha de marca no cambió
-    if (refPricesForDate === fechaMarca) return;
+    // Cache invalidacion: si liquidations cambia, reconstruccion cambia, asi
+    // que NO usamos `refPricesForDate === fechaMarca` como skip. La caller
+    // (resumen) ya tiene su propio control via deps de useEffect/useMemo.
+    // (Mantengo el skip solo cuando no hay liquidaciones, para compatibilidad
+    // con el patron viejo del store-only).
+    if (refPricesForDate === fechaMarca && liquidations.length === 0) return;
 
     const { myToken, signal } = startRefPrices(`loadReferencePrices(${fechaMarca})`);
     set({ refPricesLoading: true });
@@ -523,11 +535,16 @@ const createTradingSlice: StateCreator<TradingSlice> = (set, get) => {
     try {
       const refDates = await computePnlRefDates(fechaMarca);
 
-      // Filtrar posiciones por fecha (excluir las que no existían en la fecha de referencia)
+      // Filtrar por fecha + reconstruir notional historico de NDFs.
       const filterXccy = (fecha: string) =>
         xccyPositions.filter((p) => p.start_date <= fecha);
       const filterNdf = (fecha: string) =>
-        ndfPositions.filter((p) => !p.trade_date || p.trade_date <= fecha);
+        ndfPositions
+          .filter((p) => !p.trade_date || p.trade_date <= fecha)
+          .map((p) => {
+            const n = reconstructNdfNotionalAt(p, liquidations, fecha);
+            return n === p.notional_usd ? p : { ...p, notional_usd: n };
+          });
       const filterIbr = (fecha: string) =>
         ibrSwapPositions.filter((p) => p.start_date <= fecha);
 

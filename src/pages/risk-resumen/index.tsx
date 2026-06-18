@@ -28,6 +28,8 @@ import type {
 } from 'src/types/risk';
 import { fetchResumenData } from 'src/lib/risk/resumenCalculator';
 import { fetchCompanyRiskConfig, getAssetsWithCurrency, DEFAULT_EXPOSURE_PARAMS } from 'src/lib/risk/companyConfig';
+import { fetchNdfLiquidations } from 'src/models/trading';
+import { sumLiquidationsInMonth } from 'src/lib/trading/historicalPositions';
 import type { RiskCompanyConfig } from 'src/lib/risk/companyConfig';
 
 const PAGE_TITLE = 'Resumen — Gestión de Riesgos';
@@ -82,6 +84,10 @@ function buildCommoditiesResumen(
   exposure: ExposureResponse | null,
   otcFxDelta: number,
   otcPnlMtdUsd: number | null,
+  // Suma realized_pnl_usd de las liquidaciones NDF del mes (yearMonth de filterDate).
+  // Se agrega al pnl_gr de la fila USD para que el realized de NDFs liquidados
+  // ese mes sume al P&G GR del USD row (al lado del unrealized MTD del OTC).
+  liquidationsThisMonthUsd: number,
   filterDate: string,
 ): CommoditiesResumen {
   const PRICE_TO_USD: Record<string, number> = { MAIZ: 0.01, AZUCAR: 0.01, CACAO: 1 };
@@ -97,9 +103,10 @@ function buildCommoditiesResumen(
     let pnlGr = 0;
 
     if (asset === 'USD') {
-      // USD row: Portafolio GR = FX Delta total, P&G GR = P&L MTD USD
+      // USD row: Portafolio GR = FX Delta total, P&G GR = P&L MTD USD +
+      // liquidaciones realizadas en el mes (unrealized + realized del periodo).
       positionGr = otcFxDelta;
-      pnlGr = otcPnlMtdUsd ?? 0;
+      pnlGr = (otcPnlMtdUsd ?? 0) + liquidationsThisMonthUsd;
     } else {
       // Commodity rows: from futures portfolio (entry_price × multiplier × nominal × toUsd)
       const positions = futures.filter(
@@ -230,8 +237,14 @@ function RiskResumenPage() {
       if (!hasOtc) {
         await loadOtcPositions(selectedCompanyId);
       }
-      await repriceWithMark(filterDate);
-      await loadOtcRefPrices(filterDate);
+      // Cargar liquidaciones NDF (audit trail) para reconstruir notional
+      // historico de NDFs liquidados despues de filterDate. Sin esto, los
+      // valores de NPV/FX Delta/P&L MTD para meses pasados quedan
+      // subestimados porque ndf_position.notional_usd ya esta en 0.
+      const liqResult = await fetchNdfLiquidations();
+      const liquidationsList = liqResult.error ? [] : liqResult.data;
+      await repriceWithMark(filterDate, liquidationsList);
+      await loadOtcRefPrices(filterDate, liquidationsList);
 
       // 2) Commodities: benchmark factors + futures + exposicion (condicional)
       //    Solo llamar fetchExposure si la empresa tiene exposure_defaults
@@ -268,7 +281,10 @@ function RiskResumenPage() {
         ? summary.total_npv_usd - mtdRef.summary.total_npv_usd
         : undefined;
 
-      // 4) Build the commodities table — feeds USD row from OTC store
+      // 4) Build the commodities table — feeds USD row from OTC store +
+      // suma de liquidaciones NDF realizadas en el mes de filterDate.
+      const filterMonth = filterDate.slice(0, 7);
+      const liquidationsThisMonthUsd = sumLiquidationsInMonth(liquidationsList, filterMonth).usd;
       const commodities = buildCommoditiesResumen(
         dynamicAssets,
         factors,
@@ -276,6 +292,7 @@ function RiskResumenPage() {
         exposure,
         fxDeltaTotal,
         pnlMtdUsd ?? null,
+        liquidationsThisMonthUsd,
         filterDate,
       );
 
