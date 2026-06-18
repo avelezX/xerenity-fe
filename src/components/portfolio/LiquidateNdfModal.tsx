@@ -1,17 +1,19 @@
 /* eslint-disable no-nested-ternary, no-underscore-dangle, arrow-body-style */
 /**
- * Modal de liquidacion de NDF — v2 basada en datos del banco.
+ * Modal de liquidacion de NDF — v3 con TRM auto-fetched de BanRep.
  *
- * Inputs requeridos (que llegan en el documento de liquidacion del banco):
+ * Inputs del usuario (del documento de liquidacion del banco):
  *   - Fecha de liquidacion
  *   - Monto a liquidar (USD)
- *   - Tasa negociada (strike efectivo, suele ser = strike de la posicion)
- *   - Tasa referencia (TRM al cierre)
+ *   - Tasa negociada (la del banco — strike efectivo del cierre)
  *   - Nota (opcional)
  *
- * El P&G bruto se calcula EN VIVO en la UI para feedback inmediato y
- * lo recalcula la RPC al confirmar (fuente de verdad). Formula:
+ * Auto-traido:
+ *   - Tasa referencia (TRM): BanRep serie 25 con la misma convencion que
+ *     el auto-settlement (fecha = liquidation_date + 1, gte + asc + limit 1).
+ *     Read-only. Si no hay TRM disponible, no se puede confirmar.
  *
+ * Formula del P&G bruto:
  *   signo  = +1 si direction='sell', -1 si direction='buy'
  *   PnL_COP = monto × (tasa_neg − tasa_ref) × signo
  *   PnL_USD = PnL_COP / tasa_ref
@@ -23,6 +25,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Modal, Form, Button, Alert, Spinner, Row, Col } from 'react-bootstrap';
 import { toast } from 'react-toastify';
 import { liquidateNdfPosition } from 'src/models/trading';
+import { fetchBanRepTrmForLiquidation } from 'src/models/trading/fetchBanRepTrm';
 import type { PortfolioRow } from './BlotterTable';
 
 interface Props {
@@ -75,10 +78,15 @@ export default function LiquidateNdfModal({ show, onHide, row, onSuccess }: Prop
   const [liquidationDate, setLiquidationDate] = useState<string>(todayIso());
   const [montoStr, setMontoStr] = useState<string>('');
   const [tasaNegStr, setTasaNegStr] = useState<string>('');
-  const [tasaRefStr, setTasaRefStr] = useState<string>('');
   const [note, setNote] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // TRM auto-traida de BanRep (read-only). Estado: cargando | valor + fecha real | error.
+  const [trmLoading, setTrmLoading] = useState(false);
+  const [trmValor, setTrmValor] = useState<number | null>(null);
+  const [trmFecha, setTrmFecha] = useState<string | null>(null);
+  const [trmError, setTrmError] = useState<string | null>(null);
 
   // Reinicializa los inputs cuando se abre con una fila nueva
   useEffect(() => {
@@ -86,15 +94,45 @@ export default function LiquidateNdfModal({ show, onHide, row, onSuccess }: Prop
     setLiquidationDate(todayIso());
     setMontoStr(String(notionalActual));
     setTasaNegStr(strikePosicion ? String(strikePosicion) : '');
-    setTasaRefStr('');
     setNote('');
     setError(null);
+    setTrmValor(null);
+    setTrmFecha(null);
+    setTrmError(null);
   }, [show, ndf, notionalActual, strikePosicion]);
+
+  // Auto-fetch de TRM cada vez que cambia la fecha de liquidacion.
+  // Convencion: BanRep serie 25, fecha = liquidation_date + 1 (gte + asc + limit 1),
+  // identica al auto-settlement de NDFs vencidos.
+  useEffect(() => {
+    if (!show || !liquidationDate) return undefined;
+    let cancelled = false;
+    setTrmLoading(true);
+    setTrmError(null);
+    setTrmValor(null);
+    setTrmFecha(null);
+    fetchBanRepTrmForLiquidation(liquidationDate)
+      .then((r) => {
+        if (cancelled) return;
+        if (r.error) {
+          setTrmError(r.error);
+        } else if (r.data) {
+          setTrmValor(r.data.valor);
+          setTrmFecha(r.data.fecha);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setTrmLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [show, liquidationDate]);
 
   // Parseo numerico
   const monto = parseFloat(montoStr) || 0;
   const tasaNeg = parseFloat(tasaNegStr) || 0;
-  const tasaRef = parseFloat(tasaRefStr) || 0;
+  const tasaRef = trmValor ?? 0;
 
   // ── Calculo en vivo del P&G bruto ──
   // signo = +1 si sell, -1 si buy
@@ -116,10 +154,12 @@ export default function LiquidateNdfModal({ show, onHide, row, onSuccess }: Prop
     if (monto <= 0) return 'Monto debe ser mayor a 0';
     if (monto > notionalActual) return `Monto excede el notional disponible (${fmtUsd(notionalActual)} USD)`;
     if (tasaNeg <= 0) return 'Tasa negociada debe ser mayor a 0';
-    if (tasaRef <= 0) return 'Tasa referencia debe ser mayor a 0';
+    if (trmLoading) return 'Cargando TRM de BanRep…';
+    if (trmError) return `TRM no disponible: ${trmError}`;
+    if (tasaRef <= 0) return 'TRM de BanRep no disponible para esta fecha';
     if (note.length > 500) return 'Nota muy larga (max 500)';
     return null;
-  }, [liquidationDate, monto, notionalActual, tasaNeg, tasaRef, note]);
+  }, [liquidationDate, monto, notionalActual, tasaNeg, tasaRef, trmLoading, trmError, note]);
 
   const handleClose = useCallback(() => {
     if (loading) return;
@@ -279,22 +319,44 @@ export default function LiquidateNdfModal({ show, onHide, row, onSuccess }: Prop
           <Col md={6}>
             <Form.Group>
               <Form.Label style={{ fontSize: 12, marginBottom: 2 }}>
-                Tasa referencia
+                Tasa referencia (TRM BanRep)
                 <span style={{ color: '#6c757d', fontSize: 10, marginLeft: 4 }}>
-                  (TRM al cierre)
+                  (auto, serie 25)
                 </span>
               </Form.Label>
-              <Form.Control
-                type="number"
-                size="sm"
-                step="0.01"
-                min={0.01}
-                value={tasaRefStr}
-                onChange={(e) => setTasaRefStr(e.target.value)}
-                disabled={loading || !isActivo}
-                style={{ fontFamily: 'monospace' }}
-                placeholder="ej. 3,475.72"
-              />
+              <div style={{
+                background: trmError ? '#f8d7da' : '#e9ecef',
+                border: `1px solid ${trmError ? '#f5c2c7' : '#ced4da'}`,
+                borderRadius: 4,
+                padding: '6px 10px',
+                fontFamily: 'monospace',
+                fontSize: 14,
+                fontWeight: 600,
+                color: trmError ? '#842029' : trmValor != null ? '#212529' : '#6c757d',
+                minHeight: 31,
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              }}
+              >
+                {trmLoading && (
+                  <span style={{ fontSize: 12, color: '#6c757d', fontWeight: 400 }}>
+                    <Spinner size="sm" animation="border" className="me-2" />
+                    Cargando TRM…
+                  </span>
+                )}
+                {!trmLoading && trmValor != null && (
+                  <>
+                    <span>{fmtUsd(trmValor)}</span>
+                    <span style={{ fontSize: 10, color: '#6c757d', fontWeight: 400 }}>
+                      {trmFecha}
+                    </span>
+                  </>
+                )}
+                {!trmLoading && trmError && (
+                  <span style={{ fontSize: 11, fontWeight: 400 }}>
+                    No disponible
+                  </span>
+                )}
+              </div>
             </Form.Group>
           </Col>
         </Row>
