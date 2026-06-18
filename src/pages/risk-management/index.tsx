@@ -41,6 +41,8 @@ import type { CoffeePriceRow } from 'src/lib/risk/supabaseRisk';
 // esto cada pagina tendria su propio cache y los valores divergian.
 import { useXccyPositions, useNdfPositions, useIbrSwapPositions } from 'src/queries/trading';
 import { useRepricePortfolio, useReferencePrices } from 'src/queries/pricing';
+import { fetchNdfLiquidations, type NdfLiquidationRow } from 'src/models/trading';
+import { sumLiquidationsInMonth } from 'src/lib/trading/historicalPositions';
 import { buildCurves, getCurveStatus } from 'src/models/pricing/pricingApi';
 import type { CurveStatus } from 'src/types/pricing';
 // Calculadora USDCOP movida a /usdcop-calculator (mayo 2026)
@@ -949,11 +951,35 @@ function RiskManagement() {
   const otcNdfPositions = useMemo(() => ndfPositionsQuery.data ?? [], [ndfPositionsQuery.data]);
   const otcIbrPositions = useMemo(() => ibrSwapPositionsQuery.data ?? [], [ibrSwapPositionsQuery.data]);
 
+  // Liquidaciones de NDF (audit trail) — usadas por:
+  //  - Reprice/RefPrices: reconstruir notional historico cuando filterDate
+  //    es de un mes en que el NDF aun no se habia liquidado.
+  //  - Benchmark USD row: sumar realized_pnl_usd del mes al pnl_gr.
+  // Una sola carga; no cambia con filterDate.
+  const [ndfLiquidations, setNdfLiquidations] = useState<NdfLiquidationRow[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    fetchNdfLiquidations().then((r) => {
+      if (cancelled) return;
+      if (r.error) {
+        // eslint-disable-next-line no-console
+        console.warn('[benchmark] error cargando liquidaciones:', r.error);
+      } else {
+        setNdfLiquidations(r.data);
+      }
+    });
+    return () => { cancelled = true; };
+  }, [selectedCompanyId]);
+
   const otcReprice = useRepricePortfolio({
     xccy: otcXccyPositions,
     ndf: otcNdfPositions,
     ibr: otcIbrPositions,
     valuationDate: filterDate,
+    // Para que la fila USD del Benchmark refleje el portafolio "as-of" el
+    // mes seleccionado: reconstruye notional historico para NDFs liquidados
+    // despues de filterDate.
+    liquidations: ndfLiquidations,
     enabled: otcCurvesReady,
   });
   // Memoize para que la identidad del array no cambie en cada render
@@ -967,6 +993,7 @@ function RiskManagement() {
     ndf: otcNdfPositions,
     ibr: otcIbrPositions,
     fechaMarca: filterDate,
+    liquidations: ndfLiquidations,
     enabled: otcCurvesReady,
   });
   // CRITICAL: useReferencePrices construye un objeto NUEVO `{daily, mtd, ytd}`
@@ -1013,6 +1040,16 @@ function RiskManagement() {
   }, [benchmarkFactors]);
   // Cache: positions per month so user doesn't lose data when navigating
   const [monthCache, setMonthCache] = useState<Record<string, BenchmarkRow[]>>({});
+
+  // Suma realized_pnl_usd de las liquidaciones cuyo mes coincide con el
+  // benchmarkMonth seleccionado. Esto se agrega al pnl_gr de la fila USD
+  // del Benchmark (junto al MTD del OTC ya reconstruido as-of).
+  // (ndfLiquidations esta declarada arriba, antes de los hooks de reprice,
+  // porque tambien lo necesitan para reconstruir notional historico.)
+  const liquidationsThisMonthUsd = useMemo(() => {
+    const yearMonth = `${benchmarkMonth.year}-${String(benchmarkMonth.month + 1).padStart(2, '0')}`;
+    return sumLiquidationsInMonth(ndfLiquidations, yearMonth).usd;
+  }, [ndfLiquidations, benchmarkMonth]);
 
   // Rolling VaR state
   const [rollingData, setRollingData] = useState<RollingVarResponse | null>(null);
@@ -1489,8 +1526,14 @@ function RiskManagement() {
 
           const pnlMtdUsd = pnlForXccy + pnlForNdf + pnlForIbr;
 
+          // Sumamos las liquidaciones NDF que cayeron en el mes seleccionado.
+          // El pnlMtdUsd captura el unrealized del portafolio activo (con
+          // notional historico reconstruido si el mes es pasado). Las
+          // liquidaciones aportan el realized cash P&L del mismo periodo.
+          const totalPnlGrUsd = pnlMtdUsd + liquidationsThisMonthUsd;
+
           next[i].position_gr = String(Math.round(fxDeltaTotal));
-          next[i].pnl_gr = String(Math.round(pnlMtdUsd));
+          next[i].pnl_gr = String(Math.round(totalPnlGrUsd));
           return;
         }
 
@@ -1519,7 +1562,7 @@ function RiskManagement() {
       return recalcBenchmark(next, varianceMap);
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [futuresPortfolio, varianceMap, benchmarkDateStr, pricedXccyStore, pricedNdfStore, pricedIbrSwapStore, refPricesStore]);
+  }, [futuresPortfolio, varianceMap, benchmarkDateStr, pricedXccyStore, pricedNdfStore, pricedIbrSwapStore, refPricesStore, liquidationsThisMonthUsd]);
 
   // Build chart data for rolling var
   const buildChartData = (asset: string, field: 'prices' | 'rolling_var') => {

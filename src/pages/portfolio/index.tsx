@@ -436,7 +436,12 @@ function buildPortfolioRows(
   }
 
   for (const r of ndf) {
-    const estado = resolveEstado(r.maturity_date, r.estado, valuationDate);
+    // r.notional_usd aqui es el RECONSTRUIDO para valuationDate (el hook
+    // de reprice ya lo recalculo). Si > 0, la posicion estaba activa al
+    // markFecha aunque el estado HOY sea 'Liquidado'. Reemplazamos el
+    // stored estado por 'Activo' para que la vista historica sea coherente.
+    const storedEstado = r.notional_usd > 0 ? 'Activo' : r.estado;
+    const estado = resolveEstado(r.maturity_date, storedEstado, valuationDate);
     const settlementEntry = settlementMap[r.id];
     const settlement = settlementEntry != null && settlementEntry !== 'error' ? settlementEntry : null;
     const isSettled = estado === 'Vencido' && settlement != null;
@@ -1921,13 +1926,11 @@ function CurvesPanel({ status }: { status: CurveStatus | null }) {
 function PortfolioPage() {
   const [loading, setLoading] = useState(false);
   const [markRepricing, setMarkRepricing] = useState(false);
-  // Fecha global del modulo de Riesgos. El blotter OTC se anclla 100% a
-  // esta fecha — sin override local (mismo comportamiento que Resumen y
-  // Exposicion). Si el usuario quiere cambiar la fecha, lo hace desde el
-  // selector global de CoreLayout (con toggle Mes/Dia).
-  const markFecha = useAppStore((s) => s.globalEvaluationDate);
-  // setMarkFecha removido: el unico setter era MarksContent que ya no vive
-  // aqui. El selector global de CoreLayout es el que mueve la fecha.
+  // markFecha esta declarado mas abajo (cerca de liquidations) ahora que
+  // liquidationsAsOf depende de el. Fecha global del modulo de Riesgos:
+  // el blotter OTC se anclla 100% a ella, sin override local (mismo
+  // comportamiento que Resumen y Exposicion). Cambia via selector global
+  // de CoreLayout (toggle Mes/Dia).
   const [curveStatus, setCurveStatus] = useState<CurveStatus | null>(null);
   const [addType, setAddType] = useState<string | null>(null); // 'xccy' | 'ndf' | 'ibr' | null
   // (#313 removed repriceTrigger — useRepricePortfolio's key includes position
@@ -1974,13 +1977,29 @@ function PortfolioPage() {
   const [liquidations, setLiquidations] = useState<NdfLiquidationRow[]>([]);
   const [liquidationsLoading, setLiquidationsLoading] = useState(false);
 
-  // Total historico de P&G realizado bruto en COP, agregado en una sola cifra
-  // para mostrarla en el SummaryBar. null mientras se carga (asi el SummaryBar
-  // no muestra el item) y un numero (0 incluido) cuando ya hay data.
+  // markFecha = global evaluation date desde el CoreLayout selector. Single
+  // source of truth para TODA la pagina (incluye reprice, refPrices,
+  // liquidations as-of, banderita historica).
+  const markFecha = useAppStore((s) => s.globalEvaluationDate);
+
+  // Liquidaciones "as-of" la fecha seleccionada: solo las que ya habian
+  // ocurrido al markFecha. Para el SummaryBar y el tab Liquidado del blotter,
+  // asi la vista historica es coherente.
+  const liquidationsAsOf = useMemo(
+    () => liquidations.filter((l) => l.liquidation_date <= markFecha),
+    [liquidations, markFecha],
+  );
+
+  // Total P&G realizado bruto en COP HASTA markFecha. null mientras carga.
   const realizedPnlTotalCop = useMemo<number | null>(() => {
     if (liquidationsLoading) return null;
-    return liquidations.reduce((s, l) => s + (Number(l.realized_pnl_cop) || 0), 0);
-  }, [liquidations, liquidationsLoading]);
+    return liquidationsAsOf.reduce((s, l) => s + (Number(l.realized_pnl_cop) || 0), 0);
+  }, [liquidationsAsOf, liquidationsLoading]);
+
+  // Vista historica = markFecha < hoy. Util para mostrar la banderita
+  // informativa y para que el usuario entienda por que los numeros difieren.
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const isHistoricalView = !!markFecha && markFecha < todayIso;
 
   const reloadLiquidations = useCallback(async () => {
     setLiquidationsLoading(true);
@@ -2061,6 +2080,9 @@ function PortfolioPage() {
     ndf: ndfPositions,
     ibr: ibrSwapPositions,
     valuationDate: markFecha,
+    // Pasamos liquidations para que el hook reconstruya notional_usd
+    // historicamente cuando markFecha < liquidation_date.
+    liquidations,
     enabled: !!(curveStatus?.ibr.built && curveStatus?.sofr.built),
   });
   const pricedXccy = reprice.data?.xccy_results ?? [];
@@ -2082,6 +2104,9 @@ function PortfolioPage() {
     ndf: ndfPositions,
     ibr: ibrSwapPositions,
     fechaMarca: markFecha,
+    // Mismo motivo: cada periodo (daily/MTD/YTD) reconstruye contra su
+    // fecha especifica para que los P&L derivados sean consistentes as-of.
+    liquidations,
     enabled: !!(curveStatus?.ibr.built && curveStatus?.sofr.built),
   });
 
@@ -2342,6 +2367,34 @@ function PortfolioPage() {
           </div>
         )}
 
+        {/* Banderita "vista historica" — solo cuando markFecha < hoy. Avisa al
+            usuario que el blotter, NPV, FX Delta y P&G estan reconstruidos
+            "as-of" esa fecha (no es el estado actual del portafolio). */}
+        {isHistoricalView && (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+              padding: '8px 14px',
+              background: '#fff3cd',
+              border: '1px solid #ffeeba',
+              borderRadius: 6,
+              fontSize: 12,
+              color: '#856404',
+              marginBottom: 12,
+            }}
+          >
+            <span style={{ fontSize: 14 }}>📅</span>
+            <span>
+              Viendo el portafolio como era al{' '}
+              <strong style={{ fontFamily: 'monospace' }}>{markFecha}</strong>{' '}
+              (vista historica reconstruida). NPV, FX Delta, P&G y estado de
+              cada posicion reflejan ese dia, no el estado actual.
+            </span>
+          </div>
+        )}
+
         {/* Summary — incluye P&G Realizado total (COP) de NDFs liquidadas */}
         <SummaryBar
           summary={summary}
@@ -2371,7 +2424,7 @@ function PortfolioPage() {
             canLiquidate={canLiquidate}
             prefs={blotterPrefs}
             onPrefsChange={setBlotterPrefs}
-            liquidations={liquidations}
+            liquidations={liquidationsAsOf}
           />
         </div>
 

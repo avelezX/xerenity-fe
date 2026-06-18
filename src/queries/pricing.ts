@@ -32,6 +32,8 @@ import type {
   IbrSwapPosition,
   PortfolioRepriceResponse,
 } from 'src/types/trading';
+import type { NdfLiquidationRow } from 'src/models/trading';
+import { reconstructNdfNotionalAt } from 'src/lib/trading/historicalPositions';
 
 export const pricingKeys = {
   curveStatus: ['pricing', 'curveStatus'] as const,
@@ -44,22 +46,24 @@ export const pricingKeys = {
   reprice: (
     valuationDate: string,
     xccyIds: string[],
-    ndfIds: string[],
+    // NDF signatures = `${id}:${notional_at_date}` para que el cache
+    // invalide cuando reconstruimos notional historico (as-of vista).
+    ndfSigs: string[],
     ibrIds: string[],
   ) => [
     'pricing', 'reprice', valuationDate,
-    [...xccyIds].sort(), [...ndfIds].sort(), [...ibrIds].sort(),
+    [...xccyIds].sort(), [...ndfSigs].sort(), [...ibrIds].sort(),
   ] as const,
   refDates: (fechaMarca: string) => ['pricing', 'refDates', fechaMarca] as const,
   refPrice: (
     period: 'daily' | 'mtd' | 'ytd',
     fecha: string,
     xccyIds: string[],
-    ndfIds: string[],
+    ndfSigs: string[],
     ibrIds: string[],
   ) => [
     'pricing', 'refPrice', period, fecha,
-    [...xccyIds].sort(), [...ndfIds].sort(), [...ibrIds].sort(),
+    [...xccyIds].sort(), [...ndfSigs].sort(), [...ibrIds].sort(),
   ] as const,
 };
 
@@ -159,25 +163,42 @@ export interface UseRepricePortfolioInput {
   ibr: IbrSwapPosition[];
   /** Valuation date in YYYY-MM-DD. */
   valuationDate: string;
+  /**
+   * Liquidaciones de NDF (audit trail). Si se proveen y la valuation date
+   * es anterior a alguna, se reconstruye `notional_usd` historico para
+   * obtener el portafolio "as-of" (vista de mes pasado).
+   */
+  liquidations?: NdfLiquidationRow[];
   enabled?: boolean;
 }
 
 export function useRepricePortfolio(input: UseRepricePortfolioInput) {
-  const { xccy, ndf, ibr, valuationDate, enabled = true } = input;
+  const {
+    xccy, ndf, ibr, valuationDate, liquidations = [], enabled = true,
+  } = input;
 
   // Filter positions whose start/trade date is after the valuation date —
   // those instruments did not exist as of `valuationDate` and pysdk would
   // either error or produce nonsense for them. Same logic as the legacy
   // `repriceAllWithMark` action in the store.
   const filteredXccy = xccy.filter((p) => p.start_date <= valuationDate);
-  const filteredNdf = ndf.filter((p) => !p.trade_date || p.trade_date <= valuationDate);
+  // NDF: filter by trade_date + reconstruct historical notional. Si no hay
+  // liquidaciones la reconstruccion es identidad (no allocations).
+  const filteredNdf = ndf
+    .filter((p) => !p.trade_date || p.trade_date <= valuationDate)
+    .map((p) => {
+      const n = reconstructNdfNotionalAt(p, liquidations, valuationDate);
+      return n === p.notional_usd ? p : { ...p, notional_usd: n };
+    });
   const filteredIbr = ibr.filter((p) => p.start_date <= valuationDate);
 
   return useQuery({
     queryKey: pricingKeys.reprice(
       valuationDate,
       filteredXccy.map((p) => p.id),
-      filteredNdf.map((p) => p.id),
+      // NDF firma = id:notional para que cambios de notional (liquidacion
+      // o reconstruccion historica) invaliden el cache automaticamente.
+      filteredNdf.map((p) => `${p.id}:${p.notional_usd}`),
       filteredIbr.map((p) => p.id),
     ),
     queryFn: ({ signal }) =>
@@ -215,6 +236,12 @@ export interface UseReferencePricesInput {
   ndf: NdfPosition[];
   ibr: IbrSwapPosition[];
   fechaMarca: string;
+  /**
+   * Liquidaciones de NDF. Si se proveen, cada periodo (daily/MTD/YTD)
+   * reconstruye `notional_usd` para su propia fecha de referencia, asi el
+   * P&L derivado refleja el portafolio "as-of" en cada snapshot.
+   */
+  liquidations?: NdfLiquidationRow[];
   enabled?: boolean;
 }
 
@@ -229,7 +256,9 @@ export interface UseReferencePricesResult {
 }
 
 export function useReferencePrices(input: UseReferencePricesInput): UseReferencePricesResult {
-  const { xccy, ndf, ibr, fechaMarca, enabled = true } = input;
+  const {
+    xccy, ndf, ibr, fechaMarca, liquidations = [], enabled = true,
+  } = input;
 
   const refDatesQuery = useQuery({
     queryKey: pricingKeys.refDates(fechaMarca),
@@ -247,8 +276,15 @@ export function useReferencePrices(input: UseReferencePricesInput): UseReference
     queries: periods.map((period) => {
       const fecha = refDates?.[period];
       const filteredXccy = fecha ? xccy.filter((p) => p.start_date <= fecha) : [];
+      // NDF: trade_date filter + reconstruccion de notional por la fecha
+      // especifica de este periodo (daily/MTD/YTD tienen fechas distintas).
       const filteredNdf = fecha
-        ? ndf.filter((p) => !p.trade_date || p.trade_date <= fecha)
+        ? ndf
+          .filter((p) => !p.trade_date || p.trade_date <= fecha)
+          .map((p) => {
+            const n = reconstructNdfNotionalAt(p, liquidations, fecha);
+            return n === p.notional_usd ? p : { ...p, notional_usd: n };
+          })
         : [];
       const filteredIbr = fecha ? ibr.filter((p) => p.start_date <= fecha) : [];
       return {
@@ -256,7 +292,7 @@ export function useReferencePrices(input: UseReferencePricesInput): UseReference
           period,
           fecha ?? '',
           filteredXccy.map((p) => p.id),
-          filteredNdf.map((p) => p.id),
+          filteredNdf.map((p) => `${p.id}:${p.notional_usd}`),
           filteredIbr.map((p) => p.id),
         ),
         queryFn: ({ signal }: { signal: AbortSignal }) =>
