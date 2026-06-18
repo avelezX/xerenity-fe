@@ -956,9 +956,17 @@ function RiskManagement() {
   //    es de un mes en que el NDF aun no se habia liquidado.
   //  - Benchmark USD row: sumar realized_pnl_usd del mes al pnl_gr.
   // Una sola carga; no cambia con filterDate.
+  //
+  // ndfLiquidationsLoaded: flag para ANTI-FLICKER. Sin este, la fila USD
+  // del Benchmark calcula pnl_gr en el primer render con ndfLiquidations=[]
+  // (no cargadas todavia). Cuando llegan, el queryKey de reprice cambia,
+  // refetcha con notional reconstruido, y el pnl_gr SALTA al valor correcto.
+  // El guard espera a que tengamos data para calcular una sola vez.
   const [ndfLiquidations, setNdfLiquidations] = useState<NdfLiquidationRow[]>([]);
+  const [ndfLiquidationsLoaded, setNdfLiquidationsLoaded] = useState(false);
   useEffect(() => {
     let cancelled = false;
+    setNdfLiquidationsLoaded(false);
     fetchNdfLiquidations().then((r) => {
       if (cancelled) return;
       if (r.error) {
@@ -967,6 +975,7 @@ function RiskManagement() {
       } else {
         setNdfLiquidations(r.data);
       }
+      setNdfLiquidationsLoaded(true);
     });
     return () => { cancelled = true; };
   }, [selectedCompanyId]);
@@ -1091,14 +1100,29 @@ function RiskManagement() {
   const hydratedForCompanyRef = useRef<string | null>(null);
   const isHydratingRef = useRef(false);
 
+  // hydratedFor: state reactivo que indica cual empresa ya completo
+  // la hidratacion de exposureParams desde companyConfig.exposure_defaults.
+  // Usado por el post-hydrate refetch (mas abajo) para disparar
+  // handleFetchExposure UNA VEZ con los params correctos.
+  const [hydratedFor, setHydratedFor] = useState<string | null>(null);
+
   useEffect(() => {
     if (!selectedCompanyId || !companyConfig) return;
     if (hydratedForCompanyRef.current === selectedCompanyId) return;
     const defaults = companyConfig.exposure_defaults as Record<string, unknown> | undefined;
     hydratedForCompanyRef.current = selectedCompanyId;
-    if (!defaults || Object.keys(defaults).length === 0) return;
+    if (!defaults || Object.keys(defaults).length === 0) {
+      // Sin defaults persistidos: marcamos hidratado igual para que el
+      // post-hydrate refetch dispare aunque no haya params custom.
+      setHydratedFor(selectedCompanyId);
+      return;
+    }
     isHydratingRef.current = true;
     setExposureParams((prev) => ({ ...prev, ...defaults } as ExposureParams));
+    // Batched con el setExposureParams: en el next render exposureParams
+    // ya esta hidratado Y hydratedFor cambio, asi el useEffect de refetch
+    // (que depende de hydratedFor) corre con la closure correcta.
+    setHydratedFor(selectedCompanyId);
   }, [companyConfig, selectedCompanyId]);
 
   // Auto-save de exposureParams a risk_company_config.exposure_defaults con
@@ -1290,12 +1314,29 @@ function RiskManagement() {
   // Solo cargar datos cuando el companyConfig este listo (para filtrar por
   // los commodities de la empresa). Si se dispara con companyConfig=null,
   // fetchBenchmarkFactors trae TODOS los assets de risk_prices (data leak).
+  // NOTA: handleFetchExposure NO se llama aqui — se llama desde el
+  // post-hydrate useEffect mas abajo, que espera a que exposureParams se
+  // hidrate desde companyConfig.exposure_defaults. Si lo llamaramos aqui,
+  // la closure de handleFetchExposure captura DEFAULT_EXPOSURE_PARAMS y
+  // el resultado le falta ALMIDON con su KG real → MAIZ Exp.Natural mal.
   useEffect(() => {
     if (!companyConfig) return;
     handleFetchBenchmarkFactors();
-    handleFetchExposure(benchmarkDateStr);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [companyConfig]);
+
+  // Post-hydrate exposure fetch — corre UNA VEZ por empresa, despues de
+  // que exposureParams se hidrato desde companyConfig.exposure_defaults.
+  // hydratedFor es un state reactivo (no un ref) para que React garantice
+  // que en el render que dispara este useEffect, exposureParams YA contiene
+  // los valores hidratados. Asi la closure de handleFetchExposure trae los
+  // KG de ALMIDON correctos y la suma MAIZ + ALMIDON queda bien sin
+  // depender de que el usuario visite la pestana Exposicion.
+  useEffect(() => {
+    if (!hydratedFor || !companyConfig) return;
+    handleFetchExposure(benchmarkDateStr);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hydratedFor]);
 
   // ── Futures Portfolio handlers ──
   const futuresFilterDate = filterDate;
@@ -1474,9 +1515,17 @@ function RiskManagement() {
           //
           // Detalle: tener positions cargadas pero `data` undefined indica
           // que el reprice esta en flight; mantenemos el valor anterior.
+          //
+          // Tambien esperamos a que las liquidaciones esten cargadas:
+          // sin esto, el primer calculo usa refPrices sin reconstruccion
+          // historica + 0 liquidaciones sumadas → valor inflado. Cuando
+          // las liquidaciones llegan, el queryKey de reprice cambia y
+          // refetcha con notional reconstruido → pnl_gr cae al valor real.
+          // Esperando, evitamos ese brinco visible.
           const positionsLoaded = otcXccyPositions.length + otcNdfPositions.length + otcIbrPositions.length > 0;
           const repriceReady = !!otcReprice.data;
           if (positionsLoaded && !repriceReady) return;
+          if (!ndfLiquidationsLoaded) return;
 
           // IMPORTANTE: filtrar posiciones con error ANTES de sumar (matching
           // /portfolio's BlotterTable footer: `valid = rows.filter(r => !r.error)`).
@@ -1562,7 +1611,7 @@ function RiskManagement() {
       return recalcBenchmark(next, varianceMap);
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [futuresPortfolio, varianceMap, benchmarkDateStr, pricedXccyStore, pricedNdfStore, pricedIbrSwapStore, refPricesStore, liquidationsThisMonthUsd]);
+  }, [futuresPortfolio, varianceMap, benchmarkDateStr, pricedXccyStore, pricedNdfStore, pricedIbrSwapStore, refPricesStore, liquidationsThisMonthUsd, ndfLiquidationsLoaded]);
 
   // Build chart data for rolling var
   const buildChartData = (asset: string, field: 'prices' | 'rolling_var') => {
