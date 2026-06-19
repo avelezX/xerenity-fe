@@ -60,7 +60,12 @@ import useAppStore from 'src/store';
 import BlotterTable, { type PortfolioRow } from '@components/portfolio/BlotterTable';
 import LiquidateNdfModal from '@components/portfolio/LiquidateNdfModal';
 import { fetchNdfLiquidations, type NdfLiquidationRow } from 'src/models/trading';
-import { sumLiquidationsBetween, sumSettlementsBetween } from 'src/lib/trading/historicalPositions';
+import {
+  sumLiquidationsBetween,
+  sumSettlementsBetween,
+  sumXccySettlementsBetween,
+} from 'src/lib/trading/historicalPositions';
+import { useXccySettlements } from 'src/queries/xccySettlements';
 import { useBlotterPreferences } from 'src/models/user/blotter-preferences';
 import MarketDataConfigModal from './_MarketDataConfigModal';
 // MarksContent ya no se importa aqui (mayo 2026): vive standalone en /marks.
@@ -2059,15 +2064,23 @@ function PortfolioPage() {
   const ndfPositions = ndfPositionsQuery.data ?? [];
   const ibrSwapPositions = ibrSwapPositionsQuery.data ?? [];
 
+  // XCCY settlements: cashflows trimestrales liquidados (carry + FX).
+  // Persistido en trading.xccy_settlement. El hook dispara el calculo
+  // idempotente y lee la tabla. `allLoaded` se usa para gatear las
+  // sumas de P&G Realizado (anti-flicker).
+  const xccySettle = useXccySettlements(xccyPositions, companyId);
+
   // P&G Realizado en COP separado por horizonte:
   //   - MTD: del 1er dia del mes de markFecha hasta markFecha (inclusive).
   //   - YTD: del 1ro de enero del ano de markFecha hasta markFecha.
-  // Cada uno suma: liquidaciones manuales + settlements de vencidos
-  // (NDFs cuyo maturity_date cae en el rango). Skip si vencido tiene
+  // Cada uno suma: liquidaciones manuales + settlements de vencidos NDF
+  // (cuyo maturity_date cae en el rango) + cashflows XCCY liquidados
+  // (cuyo payment_date cae en el rango). Skip si vencido tiene
   // liquidacion manual (no doble conteo).
   // null mientras estan cargando datos (anti-flicker).
   const realizedPnlMtdCop = useMemo<number | null>(() => {
     if (liquidationsLoading) return null;
+    if (!xccySettle.allLoaded) return null;
     const monthStart = `${markFecha.slice(0, 7)}-01`;
     const liqCop = sumLiquidationsBetween(liquidationsAsOf, monthStart, markFecha).cop;
     const settlementsCop = sumSettlementsBetween(
@@ -2077,11 +2090,25 @@ function PortfolioPage() {
       monthStart,
       markFecha,
     ).cop;
-    return liqCop + settlementsCop;
-  }, [liquidationsAsOf, liquidationsLoading, markFecha, ndfPositions, settlementMap]);
+    const xccyCop = sumXccySettlementsBetween(
+      xccySettle.rows,
+      monthStart,
+      markFecha,
+    ).cop;
+    return liqCop + settlementsCop + xccyCop;
+  }, [
+    liquidationsAsOf,
+    liquidationsLoading,
+    markFecha,
+    ndfPositions,
+    settlementMap,
+    xccySettle.allLoaded,
+    xccySettle.rows,
+  ]);
 
   const realizedPnlYtdCop = useMemo<number | null>(() => {
     if (liquidationsLoading) return null;
+    if (!xccySettle.allLoaded) return null;
     const yearStart = `${markFecha.slice(0, 4)}-01-01`;
     const liqCop = sumLiquidationsBetween(liquidationsAsOf, yearStart, markFecha).cop;
     const settlementsCop = sumSettlementsBetween(
@@ -2091,8 +2118,21 @@ function PortfolioPage() {
       yearStart,
       markFecha,
     ).cop;
-    return liqCop + settlementsCop;
-  }, [liquidationsAsOf, liquidationsLoading, markFecha, ndfPositions, settlementMap]);
+    const xccyCop = sumXccySettlementsBetween(
+      xccySettle.rows,
+      yearStart,
+      markFecha,
+    ).cop;
+    return liqCop + settlementsCop + xccyCop;
+  }, [
+    liquidationsAsOf,
+    liquidationsLoading,
+    markFecha,
+    ndfPositions,
+    settlementMap,
+    xccySettle.allLoaded,
+    xccySettle.rows,
+  ]);
 
   // #317 — Mutations replace the store CRUD actions. `onSuccess` invalidates
   // the corresponding list query → list refetches → `useRepricePortfolio`
