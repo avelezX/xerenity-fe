@@ -1,20 +1,36 @@
 /* eslint-disable no-nested-ternary, jsx-a11y/control-has-associated-label */
 /**
- * Tabla de eventos de liquidacion de NDFs.
+ * Tabla unificada de eventos de liquidacion + cashflows realizados.
  *
  * Se renderiza dentro del BlotterTable cuando el filtro de estado es
- * "Liquidado" en el blotter de NDF. Una fila = un evento (cierre total
- * o parcial). Si una posicion tuvo varias parciales, aparece varias veces.
+ * "Liquidado". Muestra DOS tipos de evento como filas separadas:
  *
- * Estilo alineado al blotter principal (misma paleta, headers en gris,
- * monospace para numeros). Filas con borde inferior, hover tenue, totals
- * footer al final.
+ *   1. NDF Liquidaciones (manuales): cierre total o parcial de un NDF
+ *      via el boton "Liquidar". Una fila = un evento (multiples parciales
+ *      en la misma posicion aparecen varias veces).
+ *
+ *   2. XCCY Cashflows trimestrales: cupones realizados de XCCY swaps,
+ *      computados con SOFR/IBR realizados + TRM BanRep al payment_date.
+ *      Una fila = un periodo settled de un XCCY (un XCCY de 2Y trimestral
+ *      genera 8 filas a lo largo de su vida).
+ *
+ * Las dos secciones tienen sus propios totales y un grand total al final.
+ * El "Tipo" se indica con un badge para distinguirlas visualmente.
+ *
+ * Doble suma: el SummaryBar del padre (/portfolio) ya suma los tres
+ * componentes (NDF liquidations + NDF settlements vencidos + XCCY
+ * settlements) por separado. Esta tabla solo VISUALIZA — no cambia
+ * la logica de suma del SummaryBar. Los totales del footer reflejan
+ * lo MOSTRADO (NDF manual + XCCY) — los vencidos NDF automaticos no
+ * aparecen aqui por diseno (no son "eventos de liquidacion" sino
+ * settlements determinados por la TRM al maturity).
  */
 import React, { useMemo } from 'react';
-import type { NdfLiquidationRow } from 'src/models/trading';
+import type { NdfLiquidationRow, XccySettlementRow } from 'src/models/trading';
 
 interface Props {
   liquidations: NdfLiquidationRow[];
+  xccySettlements?: XccySettlementRow[];
 }
 
 const fmtCop = (v: number): string => {
@@ -85,8 +101,141 @@ const TD_NUM: React.CSSProperties = {
   fontFamily: 'monospace',
 };
 
-export default function LiquidationsTable({ liquidations }: Props) {
-  const totals = useMemo(() => liquidations.reduce(
+const SECTION_HEADER: React.CSSProperties = {
+  fontSize: 11,
+  fontWeight: 700,
+  letterSpacing: '0.06em',
+  textTransform: 'uppercase',
+  padding: '14px 10px 8px',
+  color: '#495057',
+  background: '#fff',
+  borderTop: '1px solid #dee2e6',
+};
+
+const TYPE_BADGE: React.CSSProperties = {
+  display: 'inline-block',
+  padding: '2px 6px',
+  borderRadius: 3,
+  fontSize: 9,
+  fontWeight: 700,
+  letterSpacing: '0.04em',
+  textTransform: 'uppercase',
+};
+
+// ── NDF row renderer ────────────────────────────────────────────────────
+
+interface RenderNdfRowProps {
+  l: NdfLiquidationRow;
+}
+
+function NdfRow({ l }: RenderNdfRowProps) {
+  const isParcial = l.monto_liquidado_usd != null
+    && l.notional_original != null
+    && l.monto_liquidado_usd < l.notional_original;
+  const dirColor = l.direction === 'sell' ? '#28a745' : l.direction === 'buy' ? '#dc3545' : '#6c757d';
+
+  return (
+    <tr style={{ cursor: 'default' }}>
+      <td style={{ ...TD, fontFamily: 'monospace', whiteSpace: 'nowrap' }}>
+        {l.liquidation_date}
+      </td>
+      <td style={TD}>
+        <span style={{ ...TYPE_BADGE, background: '#dbeafe', color: '#1d4ed8' }}>NDF</span>
+      </td>
+      <td style={{ ...TD, fontFamily: 'monospace', whiteSpace: 'nowrap' }}>
+        <div>{l.id_operacion ?? l.label}</div>
+        {isParcial && (
+          <div style={{ fontSize: 9, color: '#d97706', fontWeight: 600 }}>
+            PARCIAL
+          </div>
+        )}
+      </td>
+      <td style={{ ...TD, whiteSpace: 'nowrap' }}>{l.counterparty}</td>
+      <td style={{
+        ...TD,
+        textTransform: 'capitalize',
+        fontFamily: 'monospace',
+        color: dirColor,
+        fontWeight: 600,
+      }}
+      >
+        {l.direction}
+      </td>
+      <td style={TD_NUM}>{fmtAmount(l.monto_liquidado_usd)}</td>
+      <td style={{ ...TD_NUM, color: '#6c757d' }}>{fmtRate(l.strike)}</td>
+      <td style={TD_NUM}>{fmtRate(l.tasa_negociada)}</td>
+      <td style={TD_NUM}>{fmtRate(l.tasa_referencia)}</td>
+      <td style={{ ...TD_NUM, color: pnlColor(l.realized_pnl_cop), fontWeight: 700 }}>
+        {fmtCop(l.realized_pnl_cop)}
+      </td>
+      <td style={{ ...TD_NUM, color: pnlColor(l.realized_pnl_usd), fontWeight: 600 }}>
+        {fmtUsd(l.realized_pnl_usd)}
+      </td>
+      <td style={{ ...TD, color: '#6c757d', maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={l.note ?? undefined}>
+        {l.note ?? '—'}
+      </td>
+    </tr>
+  );
+}
+
+// ── XCCY row renderer ───────────────────────────────────────────────────
+
+interface RenderXccyRowProps {
+  s: XccySettlementRow;
+}
+
+function XccyRow({ s }: RenderXccyRowProps) {
+  // Cliente paga USD → 'sell USD'-ish; recibe COP → 'buy COP'.
+  // Mantenemos el mapping legible para no confundir con NDF.
+  const dirLabel = s.position_direction === 'pay_usd' ? 'pay USD' : 'rec USD';
+  const dirColor = s.position_direction === 'pay_usd' ? '#dc3545' : '#28a745';
+
+  return (
+    <tr style={{ cursor: 'default' }}>
+      <td style={{ ...TD, fontFamily: 'monospace', whiteSpace: 'nowrap' }}>
+        {s.payment_date}
+      </td>
+      <td style={TD}>
+        <span style={{ ...TYPE_BADGE, background: '#fef3c7', color: '#92400e' }}>XCCY</span>
+      </td>
+      <td style={{ ...TD, fontFamily: 'monospace', whiteSpace: 'nowrap' }}>
+        <div>{s.position_label}</div>
+        <div style={{ fontSize: 9, color: '#6c757d', fontWeight: 600 }}>
+          {`Cupon Q${s.period_index}`}
+        </div>
+      </td>
+      <td style={{ ...TD, whiteSpace: 'nowrap' }}>{s.position_counterparty}</td>
+      <td style={{
+        ...TD,
+        fontFamily: 'monospace',
+        color: dirColor,
+        fontWeight: 600,
+      }}
+      >
+        {dirLabel}
+      </td>
+      <td style={TD_NUM}>{fmtAmount(s.notional_usd_at_period)}</td>
+      <td style={{ ...TD_NUM, color: '#6c757d' }}>{fmtRate(s.position_fx_initial)}</td>
+      {/* "Tasa negoc." no aplica a XCCY (no hay tasa negociada en cupones) */}
+      <td style={{ ...TD_NUM, color: '#adb5bd' }}>—</td>
+      <td style={TD_NUM}>{fmtRate(s.trm_at_payment)}</td>
+      <td style={{ ...TD_NUM, color: pnlColor(s.realized_pnl_cop), fontWeight: 700 }}>
+        {fmtCop(s.realized_pnl_cop)}
+      </td>
+      <td style={{ ...TD_NUM, color: pnlColor(s.realized_pnl_usd), fontWeight: 600 }}>
+        {fmtUsd(s.realized_pnl_usd)}
+      </td>
+      <td style={{ ...TD, color: '#6c757d', maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        {`SOFR ${s.realized_sofr != null ? (s.realized_sofr * 100).toFixed(2) : '—'}% · IBR ${s.realized_ibr != null ? (s.realized_ibr * 100).toFixed(2) : '—'}%`}
+      </td>
+    </tr>
+  );
+}
+
+// ── Main component ──────────────────────────────────────────────────────
+
+export default function LiquidationsTable({ liquidations, xccySettlements = [] }: Props) {
+  const ndfTotals = useMemo(() => liquidations.reduce(
     (acc, l) => ({
       monto: acc.monto + (l.monto_liquidado_usd ?? 0),
       pnl_cop: acc.pnl_cop + (l.realized_pnl_cop || 0),
@@ -95,7 +244,32 @@ export default function LiquidationsTable({ liquidations }: Props) {
     { monto: 0, pnl_cop: 0, pnl_usd: 0 },
   ), [liquidations]);
 
-  if (liquidations.length === 0) {
+  const xccyTotals = useMemo(() => xccySettlements.reduce(
+    (acc, s) => ({
+      monto: acc.monto + (s.notional_usd_at_period ?? 0),
+      pnl_cop: acc.pnl_cop + (s.realized_pnl_cop || 0),
+      pnl_usd: acc.pnl_usd + (s.realized_pnl_usd || 0),
+    }),
+    { monto: 0, pnl_cop: 0, pnl_usd: 0 },
+  ), [xccySettlements]);
+
+  const grandTotal = useMemo(() => ({
+    pnl_cop: ndfTotals.pnl_cop + xccyTotals.pnl_cop,
+    pnl_usd: ndfTotals.pnl_usd + xccyTotals.pnl_usd,
+    count: liquidations.length + xccySettlements.length,
+  }), [ndfTotals, xccyTotals, liquidations.length, xccySettlements.length]);
+
+  // Ordenar por fecha dentro de cada seccion (desc)
+  const ndfSorted = useMemo(
+    () => [...liquidations].sort((a, b) => b.liquidation_date.localeCompare(a.liquidation_date)),
+    [liquidations],
+  );
+  const xccySorted = useMemo(
+    () => [...xccySettlements].sort((a, b) => b.payment_date.localeCompare(a.payment_date)),
+    [xccySettlements],
+  );
+
+  if (liquidations.length === 0 && xccySettlements.length === 0) {
     return (
       <div style={{
         padding: 40,
@@ -106,9 +280,10 @@ export default function LiquidationsTable({ liquidations }: Props) {
         fontSize: 13,
       }}
       >
-        Sin liquidaciones registradas.
+        Sin liquidaciones ni cashflows trimestrales registrados.
         <div style={{ fontSize: 11, marginTop: 6, color: '#adb5bd' }}>
-          Liquida una posicion desde el blotter de &quot;Activo&quot; para verla aqui.
+          Liquida una posicion NDF desde el blotter de &quot;Activo&quot;, o espera al
+          siguiente cupon trimestral de un XCCY activo.
         </div>
       </div>
     );
@@ -123,85 +298,97 @@ export default function LiquidationsTable({ liquidations }: Props) {
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
         <thead>
           <tr>
-            <th style={TH}>Fecha liq.</th>
-            <th style={TH}>ID Operación</th>
+            <th style={TH}>Fecha</th>
+            <th style={TH}>Tipo</th>
+            <th style={TH}>ID / Cupon</th>
             <th style={TH}>Contraparte</th>
             <th style={TH}>Dir.</th>
             <th style={TH_NUM}>Monto USD</th>
-            <th style={TH_NUM}>Strike orig.</th>
+            <th style={TH_NUM}>Strike / FX init.</th>
             <th style={TH_NUM}>Tasa negoc.</th>
-            <th style={TH_NUM}>Tasa ref.</th>
+            <th style={TH_NUM}>Tasa ref. / TRM</th>
             <th style={TH_NUM}>P&G COP</th>
             <th style={TH_NUM}>P&G USD</th>
-            <th style={TH}>Nota</th>
+            <th style={TH}>Nota / Rates</th>
           </tr>
         </thead>
         <tbody>
-          {liquidations.map((l) => {
-            const isParcial = l.monto_liquidado_usd != null
-              && l.notional_original != null
-              && l.monto_liquidado_usd < l.notional_original;
-            const dirColor = l.direction === 'sell' ? '#28a745' : l.direction === 'buy' ? '#dc3545' : '#6c757d';
-
-            return (
-              <tr key={l.liquidation_id} style={{ cursor: 'default' }}>
-                <td style={{ ...TD, fontFamily: 'monospace', whiteSpace: 'nowrap' }}>
-                  {l.liquidation_date}
-                </td>
-                <td style={{ ...TD, fontFamily: 'monospace', whiteSpace: 'nowrap' }}>
-                  <div>{l.id_operacion ?? l.label}</div>
-                  {isParcial && (
-                    <div style={{ fontSize: 9, color: '#d97706', fontWeight: 600 }}>
-                      PARCIAL
-                    </div>
-                  )}
-                </td>
-                <td style={{ ...TD, whiteSpace: 'nowrap' }}>{l.counterparty}</td>
-                <td style={{
-                  ...TD,
-                  textTransform: 'capitalize',
-                  fontFamily: 'monospace',
-                  color: dirColor,
-                  fontWeight: 600,
-                }}
-                >
-                  {l.direction}
-                </td>
-                <td style={TD_NUM}>{fmtAmount(l.monto_liquidado_usd)}</td>
-                <td style={{ ...TD_NUM, color: '#6c757d' }}>{fmtRate(l.strike)}</td>
-                <td style={TD_NUM}>{fmtRate(l.tasa_negociada)}</td>
-                <td style={TD_NUM}>{fmtRate(l.tasa_referencia)}</td>
-                <td style={{ ...TD_NUM, color: pnlColor(l.realized_pnl_cop), fontWeight: 700 }}>
-                  {fmtCop(l.realized_pnl_cop)}
-                </td>
-                <td style={{ ...TD_NUM, color: pnlColor(l.realized_pnl_usd), fontWeight: 600 }}>
-                  {fmtUsd(l.realized_pnl_usd)}
-                </td>
-                <td style={{ ...TD, color: '#6c757d', maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={l.note ?? undefined}>
-                  {l.note ?? '—'}
+          {/* ── NDF section ─── */}
+          {ndfSorted.length > 0 && (
+            <>
+              <tr>
+                <td colSpan={12} style={SECTION_HEADER}>
+                  NDF · Liquidaciones manuales ({ndfSorted.length})
                 </td>
               </tr>
-            );
-          })}
+              {ndfSorted.map((l) => <NdfRow key={l.liquidation_id} l={l} />)}
+              <tr style={{ background: '#f8f9fa' }}>
+                <td style={{ ...TD, fontWeight: 600, color: '#495057' }} colSpan={5}>
+                  Subtotal NDF
+                </td>
+                <td style={{ ...TD_NUM, fontWeight: 600 }}>{fmtAmount(ndfTotals.monto)}</td>
+                <td style={TD} />
+                <td style={TD} />
+                <td style={TD} />
+                <td style={{ ...TD_NUM, color: pnlColor(ndfTotals.pnl_cop), fontWeight: 700 }}>
+                  {fmtCop(ndfTotals.pnl_cop)}
+                </td>
+                <td style={{ ...TD_NUM, color: pnlColor(ndfTotals.pnl_usd), fontWeight: 700 }}>
+                  {fmtUsd(ndfTotals.pnl_usd)}
+                </td>
+                <td style={TD} />
+              </tr>
+            </>
+          )}
+
+          {/* ── XCCY section ─── */}
+          {xccySorted.length > 0 && (
+            <>
+              <tr>
+                <td colSpan={12} style={SECTION_HEADER}>
+                  XCCY · Cashflows trimestrales realizados ({xccySorted.length})
+                </td>
+              </tr>
+              {xccySorted.map((s) => (
+                <XccyRow key={`${s.xccy_position_id}-${s.period_index}`} s={s} />
+              ))}
+              <tr style={{ background: '#f8f9fa' }}>
+                <td style={{ ...TD, fontWeight: 600, color: '#495057' }} colSpan={5}>
+                  Subtotal XCCY
+                </td>
+                <td style={{ ...TD_NUM, fontWeight: 600 }}>{fmtAmount(xccyTotals.monto)}</td>
+                <td style={TD} />
+                <td style={TD} />
+                <td style={TD} />
+                <td style={{ ...TD_NUM, color: pnlColor(xccyTotals.pnl_cop), fontWeight: 700 }}>
+                  {fmtCop(xccyTotals.pnl_cop)}
+                </td>
+                <td style={{ ...TD_NUM, color: pnlColor(xccyTotals.pnl_usd), fontWeight: 700 }}>
+                  {fmtUsd(xccyTotals.pnl_usd)}
+                </td>
+                <td style={TD} />
+              </tr>
+            </>
+          )}
         </tbody>
-        <tfoot>
-          <tr style={{ background: '#f8f9fa', borderTop: '2px solid #dee2e6' }}>
-            <td style={{ ...TD, fontWeight: 700, color: '#495057' }} colSpan={4}>
-              Total ({liquidations.length} liquidaciones)
-            </td>
-            <td style={{ ...TD_NUM, fontWeight: 700 }}>{fmtAmount(totals.monto)}</td>
-            <td style={TD} />
-            <td style={TD} />
-            <td style={TD} />
-            <td style={{ ...TD_NUM, color: pnlColor(totals.pnl_cop), fontWeight: 700 }}>
-              {fmtCop(totals.pnl_cop)}
-            </td>
-            <td style={{ ...TD_NUM, color: pnlColor(totals.pnl_usd), fontWeight: 700 }}>
-              {fmtUsd(totals.pnl_usd)}
-            </td>
-            <td style={TD} />
-          </tr>
-        </tfoot>
+
+        {/* ── Grand total ─── */}
+        {ndfSorted.length > 0 && xccySorted.length > 0 && (
+          <tfoot>
+            <tr style={{ background: '#e9ecef', borderTop: '2px solid #495057' }}>
+              <td style={{ ...TD, fontWeight: 700, color: '#212529' }} colSpan={9}>
+                Total ({grandTotal.count} eventos)
+              </td>
+              <td style={{ ...TD_NUM, color: pnlColor(grandTotal.pnl_cop), fontWeight: 700 }}>
+                {fmtCop(grandTotal.pnl_cop)}
+              </td>
+              <td style={{ ...TD_NUM, color: pnlColor(grandTotal.pnl_usd), fontWeight: 700 }}>
+                {fmtUsd(grandTotal.pnl_usd)}
+              </td>
+              <td style={TD} />
+            </tr>
+          </tfoot>
+        )}
       </table>
     </div>
   );

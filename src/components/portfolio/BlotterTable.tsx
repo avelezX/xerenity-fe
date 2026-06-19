@@ -33,7 +33,7 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import type { PricedXccy, PricedNdf, PricedIbrSwap } from 'src/types/trading';
 import type { BlotterPreferences } from 'src/models/user/blotter-preferences';
-import type { NdfLiquidationRow } from 'src/models/trading';
+import type { NdfLiquidationRow, XccySettlementRow } from 'src/models/trading';
 import ColumnFilterDropdown from './ColumnFilterDropdown';
 import LiquidationsTable from './LiquidationsTable';
 
@@ -86,10 +86,11 @@ export type BlotterTableProps = {
   canLiquidate?: boolean;
   prefs: BlotterPreferences;
   onPrefsChange: (p: BlotterPreferences | ((prev: BlotterPreferences) => BlotterPreferences)) => void;
-  // Solo se pasa para el blotter de NDF. Cuando estadoFilter === 'Liquidado'
-  // y este prop esta definido, se renderiza la tabla de eventos de liquidacion
-  // en vez del table normal.
+  // Cuando estadoFilter === 'Liquidado' y al menos uno de estos prop esta
+  // definido, se renderiza la tabla unificada de eventos (NDF liquidaciones
+  // + XCCY cashflows trimestrales) en vez del table normal.
   liquidations?: NdfLiquidationRow[];
+  xccySettlements?: XccySettlementRow[];
 };
 
 // ─── Helpers de formato ─────────────────────────────────────────────────────
@@ -787,6 +788,7 @@ export default function BlotterTable({
   prefs,
   onPrefsChange,
   liquidations,
+  xccySettlements,
 }: BlotterTableProps) {
   // Derived state from prefs
   const {
@@ -897,7 +899,8 @@ export default function BlotterTable({
 
   // Cuando se está en Liquidado y hay liquidaciones, NO bloquear con empty
   // state aunque no haya rows: el LiquidationsTable maneja su propio vacio.
-  const showLiquidationsView = estadoFilter === 'Liquidado' && liquidations !== undefined;
+  const showLiquidationsView = estadoFilter === 'Liquidado'
+    && (liquidations !== undefined || xccySettlements !== undefined);
 
   if (rows.length === 0 && !showLiquidationsView) {
     return (
@@ -968,9 +971,15 @@ export default function BlotterTable({
         </div>
       </div>
 
-      {/* Table — switch a vista de eventos cuando estadoFilter='Liquidado' y se pasaron liquidations */}
+      {/* Table — switch a vista de eventos cuando estadoFilter='Liquidado'
+          y se pasaron liquidations o xccySettlements. La vista unificada
+          muestra NDF liquidaciones manuales + XCCY cashflows trimestrales
+          como secciones separadas con sus subtotales y un grand total. */}
       {showLiquidationsView ? (
-        <LiquidationsTable liquidations={liquidations!} />
+        <LiquidationsTable
+          liquidations={liquidations ?? []}
+          xccySettlements={xccySettlements}
+        />
       ) : (
       <div style={{ overflowX: 'auto' }}>
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
