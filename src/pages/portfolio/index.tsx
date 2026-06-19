@@ -2070,6 +2070,15 @@ function PortfolioPage() {
   // sumas de P&G Realizado (anti-flicker).
   const xccySettle = useXccySettlements(xccyPositions, companyId);
 
+  // XCCY settlements "as-of" markFecha: solo los cashflows cuyo payment
+  // ya ocurrio. Usado por el tab Liquidado del blotter (consistente con
+  // liquidationsAsOf). El sumar al SummaryBar usa el filtro por rango
+  // [start, markFecha] aparte — sin doble suma.
+  const xccySettlementsAsOf = useMemo(
+    () => xccySettle.rows.filter((r) => r.payment_date <= markFecha),
+    [xccySettle.rows, markFecha],
+  );
+
   // P&G Realizado en COP separado por horizonte:
   //   - MTD: del 1er dia del mes de markFecha hasta markFecha (inclusive).
   //   - YTD: del 1ro de enero del ano de markFecha hasta markFecha.
@@ -2519,6 +2528,7 @@ function PortfolioPage() {
             prefs={blotterPrefs}
             onPrefsChange={setBlotterPrefs}
             liquidations={liquidationsAsOf}
+            xccySettlements={xccySettlementsAsOf}
           />
         </div>
 
