@@ -42,7 +42,8 @@ import type { CoffeePriceRow } from 'src/lib/risk/supabaseRisk';
 import { useXccyPositions, useNdfPositions, useIbrSwapPositions } from 'src/queries/trading';
 import { useRepricePortfolio, useReferencePrices } from 'src/queries/pricing';
 import { fetchNdfLiquidations, type NdfLiquidationRow } from 'src/models/trading';
-import { sumLiquidationsInMonth } from 'src/lib/trading/historicalPositions';
+import { sumLiquidationsInMonth, sumSettlementsInMonth } from 'src/lib/trading/historicalPositions';
+import { useNdfSettlements } from 'src/queries/ndfSettlements';
 import { buildCurves, getCurveStatus } from 'src/models/pricing/pricingApi';
 import type { CurveStatus } from 'src/types/pricing';
 // Calculadora USDCOP movida a /usdcop-calculator (mayo 2026)
@@ -51,7 +52,7 @@ import type { RollingVarResponse, BenchmarkFactorsResponse, ExposureParams, Expo
 import useAppStore from 'src/store';
 // Company type no longer needed — global selector in CoreLayout
 import RoleGuard from 'src/components/RoleGuard';
-import { fetchCompanyRiskConfig, getAssetsWithCurrency, getChartColors, saveCompanyRiskConfig, saveExposureDefaults, pickPersistableExposureParams, COMMODITY_TEMPLATES, DEFAULT_EXPOSURE_PARAMS } from 'src/lib/risk/companyConfig';
+import { fetchCompanyRiskConfig, getAssetsWithCurrency, getChartColors, saveCompanyRiskConfig, saveExposureDefaults, pickPersistableExposureParams, COMMODITY_TEMPLATES, EMPTY_EXPOSURE_PARAMS } from 'src/lib/risk/companyConfig';
 import type { RiskCompanyConfig } from 'src/lib/risk/companyConfig';
 import { parseContractMaturity } from 'src/lib/risk/futuresCalculator';
 import { lastBusinessDay, MONTH_NAMES } from 'src/lib/risk/dateHelpers';
@@ -857,6 +858,15 @@ function RiskManagement() {
 
   useEffect(() => {
     if (!selectedCompanyId) return;
+    // CRITICO multi-tenancy: clear companyConfig ANTES del fetch para que
+    // los consumidores (hidratacion de exposureParams, dynamicAssets, etc.)
+    // NO usen el config de la empresa anterior mientras carga el nuevo.
+    // Sin esto, hay race condition: switching de Super → Los Coches deja
+    // companyConfig=Super hasta que termina el fetch (~100-500ms), y la
+    // hidratacion de exposureParams corre con los exposure_defaults de
+    // Super → Los Coches ve los KGs/proyecciones de Super (cross-tenant
+    // data leak en pantalla y en auto-save).
+    setCompanyConfig(null);
     setConfigLoading(true);
     fetchCompanyRiskConfig(selectedCompanyId)
       .then((cfg) => setCompanyConfig(cfg))
@@ -871,6 +881,17 @@ function RiskManagement() {
 
   // Check if this company has CAFE in its commodities (for conditional tabs)
   const hasCafe = companyConfig?.commodities?.some((c) => c.asset === 'CAFE') ?? false;
+  // Otros flags por commodity para condicionar las cards de la pestana
+  // Exposicion. CRITICO multi-tenancy: cada card debe envolverse en su
+  // flag para que solo aparezcan los commodities que la empresa realmente
+  // maneja (no las de Super de Alimentos por default).
+  const hasAzucar = companyConfig?.commodities?.some((c) => c.asset === 'AZUCAR') ?? false;
+  const hasMaiz = companyConfig?.commodities?.some((c) => c.asset === 'MAIZ') ?? false;
+  const hasCacao = companyConfig?.commodities?.some((c) => c.asset === 'CACAO') ?? false;
+  // Super-specific formulations (AKOMEL/CEBES/ALMIDON). Solo Super tiene
+  // estas en su company config como "formulaciones".
+  const SUPER_ALIMENTOS_ID = 'e8516f19-7286-4e04-a63e-24ca9364d807';
+  const isSuperFlag = selectedCompanyId === SUPER_ALIMENTOS_ID;
 
   const [activeTab, setActiveTab] = useState('benchmark');
   // Build tabs dynamically: add "Precios Locales" if CAFE.
@@ -966,8 +987,14 @@ function RiskManagement() {
   const [ndfLiquidationsLoaded, setNdfLiquidationsLoaded] = useState(false);
   useEffect(() => {
     let cancelled = false;
+    // Eager reset para que las liquidaciones de la empresa anterior no se
+    // mezclen mientras carga la nueva (anti cross-tenant leak en el USD
+    // row del Benchmark).
+    setNdfLiquidations([]);
     setNdfLiquidationsLoaded(false);
-    fetchNdfLiquidations().then((r) => {
+    // Pasamos selectedCompanyId para que super_admin con company picker
+    // solo vea las liquidaciones de la empresa seleccionada.
+    fetchNdfLiquidations(selectedCompanyId).then((r) => {
       if (cancelled) return;
       if (r.error) {
         // eslint-disable-next-line no-console
@@ -1060,6 +1087,39 @@ function RiskManagement() {
     return sumLiquidationsInMonth(ndfLiquidations, yearMonth).usd;
   }, [ndfLiquidations, benchmarkMonth]);
 
+  // Settlements de NDFs vencidos naturalmente en el mes seleccionado.
+  // Carga las P&L de cada vencido contra TRM BanRep (via /pricing/ndf/settlement).
+  // Sumamos su pyl_usd al pnl_gr de la fila USD del Benchmark para que el
+  // realized del mes incluya tanto liquidaciones manuales como vencidos.
+  // Skip si el NDF tiene liquidacion manual (evita doble conteo).
+  //
+  // settlementsAllLoaded: ANTI-FLICKER. Los settlements cargan uno por uno
+  // (1 fetch por vencido) — sin este guard, el useEffect del Benchmark se
+  // dispara despues de cada fetch, y el pnl_gr "salta" varias veces antes
+  // de estabilizar.
+  const {
+    map: ndfSettlementsMap,
+    allLoaded: settlementsAllLoaded,
+  } = useNdfSettlements(otcNdfPositions);
+  const settlementsThisMonthUsd = useMemo(() => {
+    const yearMonth = `${benchmarkMonth.year}-${String(benchmarkMonth.month + 1).padStart(2, '0')}`;
+    return sumSettlementsInMonth(otcNdfPositions, ndfSettlementsMap, ndfLiquidations, yearMonth).usd;
+  }, [otcNdfPositions, ndfSettlementsMap, ndfLiquidations, benchmarkMonth]);
+
+  // isPreparingBenchmark: true mientras alguno de los datos async esta
+  // cargando. Cuando es true, mostramos un banner "Preparando tus datos…"
+  // en lugar de dejar que los valores parpadeen. Cubre 4 fuentes:
+  //   1. Reprice OTC (otcReprice.data llega en lote)
+  //   2. Liquidaciones manuales (1 query a Supabase)
+  //   3. Settlements de vencidos (N queries a Django, 1 por NDF expired)
+  //   4. Benchmark factors (precios de mercado)
+  const isPreparingBenchmark = (
+    !otcReprice.data
+    || !ndfLiquidationsLoaded
+    || !settlementsAllLoaded
+    || benchmarkLoading
+  );
+
   // Rolling VaR state
   const [rollingData, setRollingData] = useState<RollingVarResponse | null>(null);
   const [rollingLoading, setRollingLoading] = useState(false);
@@ -1084,7 +1144,12 @@ function RiskManagement() {
 
   // Exposure state — defaults extraidos a companyConfig.ts para que /risk-resumen
   // pueda usar los mismos parametros sin duplicar el hardcode.
-  const [exposureParams, setExposureParams] = useState<ExposureParams>(DEFAULT_EXPOSURE_PARAMS);
+  // Initial state = EMPTY (no DEFAULT). DEFAULT_EXPOSURE_PARAMS contiene
+  // valores hardcoded de Super de Alimentos (KGs, proyecciones, fletes)
+  // que NO deben mostrarse a otros usuarios. La hidratacion desde
+  // companyConfig.exposure_defaults pone los valores correctos en el
+  // proximo render.
+  const [exposureParams, setExposureParams] = useState<ExposureParams>(EMPTY_EXPOSURE_PARAMS);
   const [exposureResult, setExposureResult] = useState<ExposureResponse | null>(null);
   const [exposureLoading, setExposureLoading] = useState(false);
 
@@ -1106,24 +1171,33 @@ function RiskManagement() {
   // handleFetchExposure UNA VEZ con los params correctos.
   const [hydratedFor, setHydratedFor] = useState<string | null>(null);
 
+  // CRITICO multi-tenancy: si NO reseteamos exposureParams al cambiar
+  // empresa, los KGs/proyecciones de Super (hardcoded en
+  // DEFAULT_EXPOSURE_PARAMS) se quedan en el state y se muestran al
+  // siguiente usuario (Los Coches, El Embrujo, etc). Tambien el auto-save
+  // debounced escribe esos valores en risk_company_config.exposure_defaults
+  // de la otra empresa. Mitigamos con eager reset a EMPTY antes de hidratar.
   useEffect(() => {
     if (!selectedCompanyId || !companyConfig) return;
     if (hydratedForCompanyRef.current === selectedCompanyId) return;
     const defaults = companyConfig.exposure_defaults as Record<string, unknown> | undefined;
     hydratedForCompanyRef.current = selectedCompanyId;
+    isHydratingRef.current = true;
     if (!defaults || Object.keys(defaults).length === 0) {
-      // Sin defaults persistidos: marcamos hidratado igual para que el
-      // post-hydrate refetch dispare aunque no haya params custom.
+      // Sin defaults persistidos: reset a EMPTY (NO mantener Super's values).
+      setExposureParams(EMPTY_EXPOSURE_PARAMS);
       setHydratedFor(selectedCompanyId);
       return;
     }
-    isHydratingRef.current = true;
-    setExposureParams((prev) => ({ ...prev, ...defaults } as ExposureParams));
-    // Batched con el setExposureParams: en el next render exposureParams
-    // ya esta hidratado Y hydratedFor cambio, asi el useEffect de refetch
-    // (que depende de hydratedFor) corre con la closure correcta.
+    // Con defaults: partir desde EMPTY + spread del config de la empresa.
+    // Antes era ({...prev, ...defaults}) — eso preservaba valores de la
+    // empresa anterior si esta no los tenia, generando cross-tenant leak.
+    setExposureParams({ ...EMPTY_EXPOSURE_PARAMS, ...defaults } as ExposureParams);
     setHydratedFor(selectedCompanyId);
   }, [companyConfig, selectedCompanyId]);
+
+  // (eager reset multi-tenancy esta MAS abajo, despues de la declaracion
+  //  de setFuturesPortfolio para evitar TDZ)
 
   // Auto-save de exposureParams a risk_company_config.exposure_defaults con
   // debounce de 800ms. Excluye precios de mercado (precio_*, base_*, trm)
@@ -1138,10 +1212,21 @@ function RiskManagement() {
       isHydratingRef.current = false;
       return undefined;
     }
+    // CRITICO multi-tenancy: SKIP auto-save si la hidratacion NO completo
+    // para la empresa actual. Sin esto, el debouncer puede capturar el
+    // selectedCompanyId nuevo mientras exposureParams aun contiene valores
+    // de la empresa anterior (race condition entre fetch de companyConfig
+    // y eager reset). Resultado: escribimos los KGs/proyecciones de Super
+    // en El Embrujo o Los Coches. Este es el origen de la pollution
+    // historica que se ve hoy en la DB.
+    if (hydratedForCompanyRef.current !== selectedCompanyId) return undefined;
     const persistable = pickPersistableExposureParams(
       exposureParams as unknown as Record<string, unknown>,
     );
     const timer = setTimeout(() => {
+      // Doble check en el callback (selectedCompanyId puede haber cambiado
+      // durante el debounce de 800ms):
+      if (hydratedForCompanyRef.current !== selectedCompanyId) return;
       saveExposureDefaults(selectedCompanyId, persistable).catch((e) => {
         // eslint-disable-next-line no-console
         console.warn('saveExposureDefaults failed:', e);
@@ -1173,6 +1258,32 @@ function RiskManagement() {
   // Edit modal
   const [editModal, setEditModal] = useState<FuturesPosition | null>(null);
   const [editFields, setEditFields] = useState<Partial<NewFuturesPosition>>({});
+
+  // Eager reset de TODOS los states derivados de empresa cuando cambia el
+  // picker (super_admin) o el login. Sin esto, el usuario ve datos viejos
+  // mientras carga lo nuevo. CRITICO para defensa multi-tenancy.
+  // Anti cross-tenant leak: aun con C2 SQL fix aplicado, el frontend tiene
+  // que limpiar estos states o muestra brevemente datos de la empresa
+  // anterior con el nombre nuevo en el selector.
+  useEffect(() => {
+    setBenchmarkRows(emptyBenchmarkRows());
+    setBenchmarkFactors(null);
+    setMonthCache({});
+    setRollingData(null);
+    setExposureResult(null);
+    setFuturesPortfolio([]);
+    setNdfLiquidations([]);
+    setNdfLiquidationsLoaded(false);
+    // Reset de exposureParams para que los KGs/proyecciones de Super NO
+    // aparezcan en otras empresas. La hidratacion los pone correctos cuando
+    // companyConfig de la nueva empresa cargue.
+    setExposureParams(EMPTY_EXPOSURE_PARAMS);
+    // Forzar que la hidratacion corra para la nueva empresa (sin esto
+    // hydratedForCompanyRef sigue apuntando a la anterior y bail temprano).
+    hydratedForCompanyRef.current = null;
+    setHydratedFor(null);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedCompanyId]);
 
   const handleTabChange = (tabProp: string) => {
     setActiveTab(tabProp);
@@ -1526,6 +1637,10 @@ function RiskManagement() {
           const repriceReady = !!otcReprice.data;
           if (positionsLoaded && !repriceReady) return;
           if (!ndfLiquidationsLoaded) return;
+          // ANTI-FLICKER settlements: esperar a que TODOS los vencidos
+          // tengan su settlement resuelto antes de calcular. Sin esto, el
+          // pnl_gr salta cada vez que llega un settlement (1 por NDF).
+          if (!settlementsAllLoaded) return;
 
           // IMPORTANTE: filtrar posiciones con error ANTES de sumar (matching
           // /portfolio's BlotterTable footer: `valid = rows.filter(r => !r.error)`).
@@ -1579,7 +1694,11 @@ function RiskManagement() {
           // El pnlMtdUsd captura el unrealized del portafolio activo (con
           // notional historico reconstruido si el mes es pasado). Las
           // liquidaciones aportan el realized cash P&L del mismo periodo.
-          const totalPnlGrUsd = pnlMtdUsd + liquidationsThisMonthUsd;
+          // pnl_mtd: unrealized OTC del mes (con notional reconstruido as-of)
+          // + liquidaciones manuales del mes (realized via boton Liquidar)
+          // + settlements de vencidos en el mes (realized via TRM BanRep)
+          // → P&G GR USD total para la fila del Benchmark.
+          const totalPnlGrUsd = pnlMtdUsd + liquidationsThisMonthUsd + settlementsThisMonthUsd;
 
           next[i].position_gr = String(Math.round(fxDeltaTotal));
           next[i].pnl_gr = String(Math.round(totalPnlGrUsd));
@@ -1611,7 +1730,7 @@ function RiskManagement() {
       return recalcBenchmark(next, varianceMap);
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [futuresPortfolio, varianceMap, benchmarkDateStr, pricedXccyStore, pricedNdfStore, pricedIbrSwapStore, refPricesStore, liquidationsThisMonthUsd, ndfLiquidationsLoaded]);
+  }, [futuresPortfolio, varianceMap, benchmarkDateStr, pricedXccyStore, pricedNdfStore, pricedIbrSwapStore, refPricesStore, liquidationsThisMonthUsd, settlementsThisMonthUsd, ndfLiquidationsLoaded, settlementsAllLoaded]);
 
   // Build chart data for rolling var
   const buildChartData = (asset: string, field: 'prices' | 'rolling_var') => {
@@ -1726,11 +1845,47 @@ function RiskManagement() {
 
             <p className="small text-muted mb-3">
               <span style={{ background: '#dbeafe', padding: '1px 6px', borderRadius: 3, color: '#1e40af' }}>Exposición Natural</span> desde Exposición ·
-              <span style={{ background: '#fefce8', padding: '1px 6px', borderRadius: 3, color: '#854d0e', marginLeft: 4 }}>Portafolio GR</span> y P&G GR desde Portafolio GR.
+              <span style={{ background: '#fefce8', padding: '1px 6px', borderRadius: 3, color: '#854d0e', marginLeft: 4 }}>Portafolio GR</span> y
+              <span style={{ background: '#fefce8', padding: '1px 6px', borderRadius: 3, color: '#854d0e', marginLeft: 4 }}>P&G GR</span> desde Portafolio GR.
               Los demás campos se calculan automáticamente.
             </p>
 
             {benchmarkLoading && <p className="text-muted">Cargando factores...</p>}
+
+            {/* Banner "preparando datos" — visible mientras los datos async
+                (reprice, liquidaciones, settlements de vencidos, factores)
+                terminan de cargar. Sin esto el usuario ve los valores
+                saltar 1-2 veces antes de estabilizar. */}
+            {isPreparingBenchmark && !benchmarkLoading && (
+              <div
+                style={{
+                  background: '#fef3c7',
+                  border: '1px solid #fde68a',
+                  borderRadius: 6,
+                  padding: '10px 14px',
+                  marginBottom: 12,
+                  fontSize: 13,
+                  color: '#92400e',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 10,
+                }}
+              >
+                <span
+                  style={{
+                    display: 'inline-block',
+                    width: 12,
+                    height: 12,
+                    border: '2px solid #f59e0b',
+                    borderTopColor: 'transparent',
+                    borderRadius: '50%',
+                    animation: 'spin 0.8s linear infinite',
+                  }}
+                />
+                <span><strong>Estamos preparando tus datos…</strong></span>
+                <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+              </div>
+            )}
 
             <div style={{ background: '#fff', borderRadius: 8, border: '1px solid #e2e8f0', padding: '16px', boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }}>
             <div className="table-responsive">
@@ -2111,8 +2266,8 @@ function RiskManagement() {
           // ── Super de Alimentos: tablas especificas (AKOMEL, CEBES MC35, Almidon) ──
           // Se calculan inline en el render porque NO dependen del fetch a Supabase,
           // solo de los inputs locales de exposureParams.
-          const SUPER_ALIMENTOS_ID = 'e8516f19-7286-4e04-a63e-24ca9364d807';
-          const isSuperAlimentos = selectedCompanyId === SUPER_ALIMENTOS_ID;
+          // Usamos isSuperFlag declarado al top del componente (linea ~893).
+          const isSuperAlimentos = isSuperFlag;
           const akomel = isSuperAlimentos ? calcularAkomelCop(exposureParams) : null;
           const cebes = isSuperAlimentos ? calcularCebesMc35(exposureParams) : null;
           const almidon = isSuperAlimentos ? calcularAlmidon(exposureParams) : null;
@@ -2166,9 +2321,10 @@ function RiskManagement() {
                 </div>
               </div>
 
-              {/* Commodity Cards */}
+              {/* Commodity Cards — cada una condicional al companyConfig.commodities */}
               <Row className="g-3 mb-4">
-                {/* AZUCAR */}
+                {/* AZUCAR — solo si la empresa maneja AZUCAR */}
+                {hasAzucar && (
                 <Col md={6} lg={4}>
                   <div className="rounded h-100" style={{ border: '1px solid #e2e8f0', overflow: 'hidden', background: '#fff', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
                     <div style={headerStyle}>AZÚCAR <span className="fw-normal ms-2" style={{ fontSize: '0.7rem' }}>ICE - SB (Sugar #11)</span></div>
@@ -2189,8 +2345,10 @@ function RiskManagement() {
                     </table>
                   </div>
                 </Col>
+                )}
 
-                {/* MAIZ / GLUCOSA */}
+                {/* MAIZ / GLUCOSA — solo si la empresa maneja MAIZ */}
+                {hasMaiz && (
                 <Col md={6} lg={4}>
                   <div className="rounded h-100" style={{ border: '1px solid #e2e8f0', overflow: 'hidden', background: '#fff', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
                     <div style={headerStyle}>MAÍZ / GLUCOSA <span className="fw-normal ms-2" style={{ fontSize: '0.7rem' }}>CME - ZC (Corn)</span></div>
@@ -2239,8 +2397,10 @@ function RiskManagement() {
                     </table>
                   </div>
                 </Col>
+                )}
 
-                {/* COCOA EN POLVO */}
+                {/* COCOA EN POLVO — solo si la empresa maneja CACAO */}
+                {hasCacao && (
                 <Col md={6} lg={4}>
                   <div className="rounded h-100" style={{ border: '1px solid #e2e8f0', overflow: 'hidden', background: '#fff', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
                     <div style={headerStyle}>COCOA EN POLVO <span className="fw-normal ms-2" style={{ fontSize: '0.7rem' }}>ICE - CC</span></div>
@@ -2260,8 +2420,10 @@ function RiskManagement() {
                     </table>
                   </div>
                 </Col>
+                )}
 
-                {/* MANTECA DE CACAO */}
+                {/* MANTECA DE CACAO — solo si la empresa maneja CACAO */}
+                {hasCacao && (
                 <Col md={6} lg={4}>
                   <div className="rounded h-100" style={{ border: '1px solid #e2e8f0', overflow: 'hidden', background: '#fff', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
                     <div style={headerStyle}>MANTECA DE CACAO <span className="fw-normal ms-2" style={{ fontSize: '0.7rem' }}>ICE - CC</span></div>
@@ -2280,8 +2442,10 @@ function RiskManagement() {
                     </table>
                   </div>
                 </Col>
+                )}
 
-                {/* LICOR DE CACAO */}
+                {/* LICOR DE CACAO — solo si la empresa maneja CACAO */}
+                {hasCacao && (
                 <Col md={6} lg={4}>
                   <div className="rounded h-100" style={{ border: '1px solid #e2e8f0', overflow: 'hidden', background: '#fff', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
                     <div style={headerStyle}>LICOR DE CACAO <span className="fw-normal ms-2" style={{ fontSize: '0.7rem' }}>ICE - CC</span></div>
@@ -2300,8 +2464,11 @@ function RiskManagement() {
                     </table>
                   </div>
                 </Col>
+                )}
 
-                {/* EMPAQUE */}
+                {/* EMPAQUE (BOLSA + ENVOLTURA) — solo Super de Alimentos (empaque
+                    hardcodeado a sus productos finales) */}
+                {isSuperFlag && (
                 <Col md={6} lg={4}>
                   <div className="rounded h-100" style={{ border: '1px solid #e2e8f0', overflow: 'hidden', background: '#fff', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
                     <div style={headerStyle}>BOLSA ROLLO + ENVOLTURA <span className="fw-normal ms-2" style={{ fontSize: '0.7rem' }}>Precio fijo</span></div>
@@ -2316,6 +2483,7 @@ function RiskManagement() {
                     </table>
                   </div>
                 </Col>
+                )}
               </Row>
 
               {/* ═════════ TABLAS ADICIONALES — SOLO SUPER DE ALIMENTOS ═════════ */}

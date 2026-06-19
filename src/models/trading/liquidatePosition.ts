@@ -129,15 +129,27 @@ export type LiquidationsResponse = {
 };
 
 /**
- * Lee todas las liquidaciones EXECUTED visibles al usuario.
- * El backend filtra por empresa para corp_admin/gestor; super_admin ve todas.
+ * Lee liquidaciones EXECUTED visibles al usuario.
+ *
+ * - corp_admin/gestor/lector: el backend filtra a su empresa (ignora
+ *   p_company_id si no coincide con su company_id).
+ * - super_admin sin p_company_id: ve TODAS las liquidaciones (legacy compat).
+ * - super_admin con p_company_id: filtra a esa empresa (respeta el picker
+ *   global). Esto evita el leak cross-tenant cuando el super_admin cambia
+ *   de empresa en el selector.
+ *
+ * Pasar `companyId` desde el caller con `activeCompanyId()` del store.
  */
-export const fetchNdfLiquidations = async (): Promise<LiquidationsResponse> => {
+export const fetchNdfLiquidations = async (
+  companyId?: string | null,
+): Promise<LiquidationsResponse> => {
   const response: LiquidationsResponse = { data: [], error: undefined };
   try {
     const { data, error } = await supabase
       .schema(SCHEMA)
-      .rpc('get_ndf_liquidations');
+      .rpc('get_ndf_liquidations', {
+        p_company_id: companyId ?? null,
+      });
     if (error) {
       response.error = error.message || 'Error fetching NDF liquidations';
       return response;

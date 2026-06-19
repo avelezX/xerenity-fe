@@ -261,6 +261,97 @@ export const DEFAULT_EXPOSURE_PARAMS: ExposureParams = {
   cargas_cafe_anual: 200,
 };
 
+/**
+ * EMPTY_EXPOSURE_PARAMS — todos los valores en 0 / arrays vacios.
+ *
+ * Usado al cambiar de empresa para que las paginas de Riesgos no muestren
+ * datos sensibles de OTRA empresa (especialmente Super de Alimentos, cuyos
+ * KGs estan hardcodeados en DEFAULT_EXPOSURE_PARAMS) mientras carga el
+ * config de la empresa nueva.
+ *
+ * CRITICAL — multi-tenancy: nunca uses DEFAULT_EXPOSURE_PARAMS como punto
+ * de partida para una empresa que NO sea Super (los valores son
+ * comercialmente sensibles).
+ */
+const zeroArray12 = (): number[] => [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+
+export const EMPTY_EXPOSURE_PARAMS: ExposureParams = {
+  proyeccion_azucar: zeroArray12(),
+  precio_azucar_cent_lb: 0,
+  factor_crudo_refinado: 0,
+  proyeccion_glucosa: zeroArray12(),
+  precio_maiz_cent_bu: 0,
+  base_maiz_cent_bu: 0,
+  flete_usd_ton: 0,
+  processing_fee_usd: 0,
+  proc_fee_cop_kg: 0,
+  trm: 0,
+  factor_maiz_glucosa: 0,
+  proyeccion_cocoa_polvo: zeroArray12(),
+  factor_cocoa_polvo: 0,
+  proyeccion_manteca: zeroArray12(),
+  factor_manteca: 0,
+  proyeccion_licor: zeroArray12(),
+  factor_licor: 0,
+  precio_cocoa_usd_ton: 0,
+  proyeccion_bolsa: zeroArray12(),
+  proyeccion_envoltura: zeroArray12(),
+  precio_empaque_fijo: 0,
+  ventas_intl_usd: 0,
+  ventas_co_usd: 0,
+  ventas_pe_usd: 0,
+  akomel_fob_malasya: 0,
+  akomel_international_freight: 0,
+  akomel_risk_futures_fee: 0,
+  akomel_trm: 0,
+  akomel_prima_abastecimiento: 0,
+  akomel_flete_extractora_fabrica: 0,
+  akomel_tariff_aak_my_pct: 0,
+  akomel_bonificacion_calidad_pct: 0,
+  akomel_rend_impurezas_humedad_granel: 0,
+  akomel_rend_acidez_aak_granel: 0,
+  akomel_costos_transf_granel: 0,
+  akomel_rend_impurezas_humedad_sl: 0,
+  akomel_rend_acidez_aak_sl: 0,
+  akomel_costos_transf_sl: 0,
+  akomel_material_empaque_sl: 0,
+  akomel_rend_impurezas_humedad_sab: 0,
+  akomel_rend_acidez_aak_sab: 0,
+  akomel_costos_transf_sab: 0,
+  akomel_material_empaque_sab: 0,
+  cebes_precio_palmiste_cif: 0,
+  cebes_flete_malasia_colombia: 0,
+  cebes_flete_malasia_europa: 0,
+  cebes_trm: 0,
+  cebes_arancel_pct: 0,
+  cebes_risk_futures_fee_palmiste: 0,
+  cebes_prima_rspo_mb: 0,
+  cebes_prima_abastecimiento: 0,
+  cebes_flete_extractora_fabrica: 0,
+  cebes_rend_impurezas_humedad: 0,
+  cebes_rend_acidez_aak: 0,
+  cebes_costos_transformacion: 0,
+  cebes_material_empaque: 0,
+  cebes_financiamiento: 0,
+  almidon_flete_maritimo: 0,
+  almidon_factor_conversion_bush_ton: 0,
+  almidon_credito_subproductos_pct: 0,
+  almidon_factor_conversion_maiz_almidon: 0,
+  kg_akomel_granel_anual: 0,
+  kg_akomel_sl_anual: 0,
+  kg_akomel_sab_anual: 0,
+  kg_cebes_anual: 0,
+  kg_almidon_anual: 0,
+  precio_cafe_cent_lb: 0,
+  kc_venta_cafe_cent_lb: 0,
+  prima_fnc_cent_lb: 0,
+  prima_exp_cent_lb: 0,
+  factor_rendimiento_cafe: 0,
+  trm_compra_cafe: 0,
+  trm_venta_cafe: 0,
+  cargas_cafe_anual: 0,
+};
+
 // ── Predefined commodity templates ──
 
 export const COMMODITY_TEMPLATES: CommodityConfig[] = [
