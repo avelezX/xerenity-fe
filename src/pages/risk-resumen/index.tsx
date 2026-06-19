@@ -27,9 +27,10 @@ import type {
   CommodityRow,
 } from 'src/types/risk';
 import { fetchResumenData } from 'src/lib/risk/resumenCalculator';
-import { fetchCompanyRiskConfig, getAssetsWithCurrency, DEFAULT_EXPOSURE_PARAMS } from 'src/lib/risk/companyConfig';
+import { fetchCompanyRiskConfig, getAssetsWithCurrency, EMPTY_EXPOSURE_PARAMS } from 'src/lib/risk/companyConfig';
 import { fetchNdfLiquidations } from 'src/models/trading';
-import { sumLiquidationsInMonth } from 'src/lib/trading/historicalPositions';
+import { sumLiquidationsInMonth, sumSettlementsInMonth } from 'src/lib/trading/historicalPositions';
+import { useNdfSettlements } from 'src/queries/ndfSettlements';
 import type { RiskCompanyConfig } from 'src/lib/risk/companyConfig';
 
 const PAGE_TITLE = 'Resumen — Gestión de Riesgos';
@@ -210,6 +211,11 @@ function RiskResumenPage() {
     [companyConfig],
   );
 
+  // Settlements de NDFs vencidos para incluir su P&L (BanRep TRM) en el
+  // pnl_gr USD row del Resumen. Se sumara para el mes del filterDate.
+  // pricedNdfStore extiende NdfPosition asi que tiene maturity_date e id.
+  const { map: ndfSettlementsMap } = useNdfSettlements(pricedNdfStore ?? []);
+
   // Fecha global del modulo de Riesgos. Viene del selector en CoreLayout
   // (Zustand, persistido en localStorage). Esta pagina ya no tiene
   // selector propio — todas las paginas de Riesgos comparten la misma fecha.
@@ -241,7 +247,9 @@ function RiskResumenPage() {
       // historico de NDFs liquidados despues de filterDate. Sin esto, los
       // valores de NPV/FX Delta/P&L MTD para meses pasados quedan
       // subestimados porque ndf_position.notional_usd ya esta en 0.
-      const liqResult = await fetchNdfLiquidations();
+      // Pasamos selectedCompanyId para evitar cross-tenant leak via
+      // super_admin company picker.
+      const liqResult = await fetchNdfLiquidations(selectedCompanyId);
       const liquidationsList = liqResult.error ? [] : liqResult.data;
       await repriceWithMark(filterDate, liquidationsList);
       await loadOtcRefPrices(filterDate, liquidationsList);
@@ -253,12 +261,15 @@ function RiskResumenPage() {
       //    ($82.7M de exposicion USD que es de Super, no del Embrujo).
       const hasExposureConfig = companyConfig?.exposure_defaults
         && Object.keys(companyConfig.exposure_defaults).length > 0;
-      // Mergea los exposure_defaults persistidos por la empresa sobre el
-      // DEFAULT base (Super de Alimentos) — asi cada empresa usa SUS KG
-      // anuales, proyecciones y fletes, no los de Super.
+      // CRITICO multi-tenancy: base = EMPTY_EXPOSURE_PARAMS (zeros), NUNCA
+      // DEFAULT_EXPOSURE_PARAMS (valores de Super). Antes el merge dejaba
+      // los KGs de azucar/glucosa/almidon de Super para CUALQUIER empresa
+      // que tuviera exposure_defaults incompleto → ejemplo: una empresa
+      // que persiste solo {ventas_intl_usd: X} heredaba los 3157 ton de
+      // azucar de Super en su Resumen.
       const mergedExposureParams = hasExposureConfig
-        ? { ...DEFAULT_EXPOSURE_PARAMS, ...(companyConfig!.exposure_defaults as Partial<typeof DEFAULT_EXPOSURE_PARAMS>) }
-        : DEFAULT_EXPOSURE_PARAMS;
+        ? { ...EMPTY_EXPOSURE_PARAMS, ...(companyConfig!.exposure_defaults as Partial<typeof EMPTY_EXPOSURE_PARAMS>) }
+        : EMPTY_EXPOSURE_PARAMS;
 
       const [factors, futResp, exposure] = await Promise.all([
         fetchBenchmarkFactors(filterDate, 0.99, companyConfig).catch(() => null),
@@ -281,10 +292,19 @@ function RiskResumenPage() {
         ? summary.total_npv_usd - mtdRef.summary.total_npv_usd
         : undefined;
 
-      // 4) Build the commodities table — feeds USD row from OTC store +
-      // suma de liquidaciones NDF realizadas en el mes de filterDate.
+      // 4) Build the commodities table — feeds USD row from OTC store:
+      // unrealized MTD + liquidaciones manuales del mes + settlements de
+      // vencidos en el mes (P&L via TRM BanRep). Skip si liquidacion manual
+      // existe para no doble contar.
       const filterMonth = filterDate.slice(0, 7);
       const liquidationsThisMonthUsd = sumLiquidationsInMonth(liquidationsList, filterMonth).usd;
+      const settlementsThisMonthUsd = sumSettlementsInMonth(
+        (state.pricedNdf ?? []),
+        ndfSettlementsMap,
+        liquidationsList,
+        filterMonth,
+      ).usd;
+      const realizedThisMonthUsd = liquidationsThisMonthUsd + settlementsThisMonthUsd;
       const commodities = buildCommoditiesResumen(
         dynamicAssets,
         factors,
@@ -292,7 +312,7 @@ function RiskResumenPage() {
         exposure,
         fxDeltaTotal,
         pnlMtdUsd ?? null,
-        liquidationsThisMonthUsd,
+        realizedThisMonthUsd,
         filterDate,
       );
 

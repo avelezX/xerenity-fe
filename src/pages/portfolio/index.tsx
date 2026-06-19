@@ -60,6 +60,7 @@ import useAppStore from 'src/store';
 import BlotterTable, { type PortfolioRow } from '@components/portfolio/BlotterTable';
 import LiquidateNdfModal from '@components/portfolio/LiquidateNdfModal';
 import { fetchNdfLiquidations, type NdfLiquidationRow } from 'src/models/trading';
+import { sumLiquidationsBetween, sumSettlementsBetween } from 'src/lib/trading/historicalPositions';
 import { useBlotterPreferences } from 'src/models/user/blotter-preferences';
 import MarketDataConfigModal from './_MarketDataConfigModal';
 // MarksContent ya no se importa aqui (mayo 2026): vive standalone en /marks.
@@ -265,14 +266,18 @@ function SummaryBar({
   summary,
   pricedAt,
   pnlTotals,
-  realizedPnlCop,
+  realizedPnlMtdCop,
+  realizedPnlYtdCop,
 }: {
   summary: PortfolioSummary | null;
   pricedAt: string | undefined;
   pnlTotals?: { daily: number | null; mtd: number | null; ytd: number | null };
-  // Suma historica del P&G realizado bruto (COP) de NDFs liquidadas.
-  // null si todavia no se carga; 0 si no hay liquidaciones.
-  realizedPnlCop?: number | null;
+  // P&G Realizado bruto en COP (liquidaciones manuales + settlements de
+  // NDFs vencidos), separado por horizonte:
+  //   - MTD: del 1er dia del mes de markFecha hasta markFecha
+  //   - YTD: del 1ro de enero hasta markFecha
+  realizedPnlMtdCop?: number | null;
+  realizedPnlYtdCop?: number | null;
 }) {
   if (!summary) return null;
   type Item = { label: string; value: string; color: string; unit?: string };
@@ -286,7 +291,8 @@ function SummaryBar({
     ...(pnlTotals?.daily != null ? [{ label: 'P&L 1D',  value: fmtMM(pnlTotals.daily), color: npvColor(pnlTotals.daily) } as Item] : []),
     ...(pnlTotals?.mtd   != null ? [{ label: 'P&L MTD', value: fmtMM(pnlTotals.mtd),   color: npvColor(pnlTotals.mtd) } as Item] : []),
     ...(pnlTotals?.ytd   != null ? [{ label: 'P&L YTD', value: fmtMM(pnlTotals.ytd),   color: npvColor(pnlTotals.ytd) } as Item] : []),
-    ...(realizedPnlCop   != null ? [{ label: 'P&G Realizado COP', value: fmtMM(realizedPnlCop), color: npvColor(realizedPnlCop) } as Item] : []),
+    ...(realizedPnlMtdCop != null ? [{ label: 'P&G MTD COP', value: fmtMM(realizedPnlMtdCop), color: npvColor(realizedPnlMtdCop) } as Item] : []),
+    ...(realizedPnlYtdCop != null ? [{ label: 'P&G YTD COP', value: fmtMM(realizedPnlYtdCop), color: npvColor(realizedPnlYtdCop) } as Item] : []),
   ];
   return (
     <div
@@ -1991,10 +1997,14 @@ function PortfolioPage() {
   );
 
   // Total P&G realizado bruto en COP HASTA markFecha. null mientras carga.
-  const realizedPnlTotalCop = useMemo<number | null>(() => {
-    if (liquidationsLoading) return null;
-    return liquidationsAsOf.reduce((s, l) => s + (Number(l.realized_pnl_cop) || 0), 0);
-  }, [liquidationsAsOf, liquidationsLoading]);
+  // Suma DOS componentes:
+  //   1. Liquidaciones manuales (NDFs liquidados via boton Liquidar).
+  //   2. Settlements automaticos (NDFs vencidos al maturity_date, P&L via
+  //      BanRep TRM). Se calculan en el useEffect de settlementMap mas
+  //      abajo y se filtran via sumSettlementsAsOf (skip si tiene
+  //      liquidacion manual para no doble-contar).
+  // realizedPnlTotalCop se calcula MAS ABAJO (despues de declarar ndfPositions
+  // y settlementMap) para evitar TDZ en SSR. Linea ~2080.
 
   // Vista historica = markFecha < hoy. Util para mostrar la banderita
   // informativa y para que el usuario entienda por que los numeros difieren.
@@ -2004,7 +2014,11 @@ function PortfolioPage() {
   const reloadLiquidations = useCallback(async () => {
     setLiquidationsLoading(true);
     try {
-      const r = await fetchNdfLiquidations();
+      // Pasamos activeCompanyId() para que super_admin con company picker
+      // solo vea las liquidaciones de la empresa seleccionada (anti
+      // cross-tenant leak). corp_admin/gestor/lector son filtrados server-
+      // side independientemente del parametro.
+      const r = await fetchNdfLiquidations(activeCompanyId());
       if (r.error) {
         // No comer el error en silencio: una RPC rota deja el state vacio
         // y la tabla aparece "sin liquidaciones" sin pistas.
@@ -2016,10 +2030,14 @@ function PortfolioPage() {
     } finally {
       setLiquidationsLoading(false);
     }
-  }, []);
+  }, [activeCompanyId]);
 
-  // Carga inicial + cuando cambia la empresa activa.
+  // Carga inicial + cuando cambia la empresa activa (super_admin picker
+  // o login de otro usuario).
   useEffect(() => {
+    // Eager reset: limpiamos liquidations del state ANTES de fetch para que
+    // datos de la empresa anterior no se muestren mientras carga la nueva.
+    setLiquidations([]);
     reloadLiquidations();
   }, [reloadLiquidations, activeCompanyId]);
 
@@ -2040,6 +2058,41 @@ function PortfolioPage() {
   const xccyPositions = xccyPositionsQuery.data ?? [];
   const ndfPositions = ndfPositionsQuery.data ?? [];
   const ibrSwapPositions = ibrSwapPositionsQuery.data ?? [];
+
+  // P&G Realizado en COP separado por horizonte:
+  //   - MTD: del 1er dia del mes de markFecha hasta markFecha (inclusive).
+  //   - YTD: del 1ro de enero del ano de markFecha hasta markFecha.
+  // Cada uno suma: liquidaciones manuales + settlements de vencidos
+  // (NDFs cuyo maturity_date cae en el rango). Skip si vencido tiene
+  // liquidacion manual (no doble conteo).
+  // null mientras estan cargando datos (anti-flicker).
+  const realizedPnlMtdCop = useMemo<number | null>(() => {
+    if (liquidationsLoading) return null;
+    const monthStart = `${markFecha.slice(0, 7)}-01`;
+    const liqCop = sumLiquidationsBetween(liquidationsAsOf, monthStart, markFecha).cop;
+    const settlementsCop = sumSettlementsBetween(
+      ndfPositions,
+      settlementMap,
+      liquidationsAsOf,
+      monthStart,
+      markFecha,
+    ).cop;
+    return liqCop + settlementsCop;
+  }, [liquidationsAsOf, liquidationsLoading, markFecha, ndfPositions, settlementMap]);
+
+  const realizedPnlYtdCop = useMemo<number | null>(() => {
+    if (liquidationsLoading) return null;
+    const yearStart = `${markFecha.slice(0, 4)}-01-01`;
+    const liqCop = sumLiquidationsBetween(liquidationsAsOf, yearStart, markFecha).cop;
+    const settlementsCop = sumSettlementsBetween(
+      ndfPositions,
+      settlementMap,
+      liquidationsAsOf,
+      yearStart,
+      markFecha,
+    ).cop;
+    return liqCop + settlementsCop;
+  }, [liquidationsAsOf, liquidationsLoading, markFecha, ndfPositions, settlementMap]);
 
   // #317 — Mutations replace the store CRUD actions. `onSuccess` invalidates
   // the corresponding list query → list refetches → `useRepricePortfolio`
@@ -2400,7 +2453,8 @@ function PortfolioPage() {
           summary={summary}
           pricedAt={pricedAt}
           pnlTotals={pnlTotals}
-          realizedPnlCop={realizedPnlTotalCop}
+          realizedPnlMtdCop={realizedPnlMtdCop}
+          realizedPnlYtdCop={realizedPnlYtdCop}
         />
 
         {/* Portafolio (anteriormente habia un toggle Portafolio/Marcas;

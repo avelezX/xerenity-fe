@@ -18,7 +18,9 @@
  *     100K + 200K + 200K = 500K ✓
  *   - Lo mismo mirando jul: 100K + 0 = 100K ✓
  */
+/* eslint-disable no-continue */
 import type { NdfPosition } from 'src/types/trading';
+import type { NdfSettlementResult } from 'src/models/pricing/pricingApi';
 import type { NdfLiquidationRow } from 'src/models/trading';
 
 /**
@@ -114,6 +116,149 @@ export function sumLiquidationsInMonth(
       usd += Number(l.realized_pnl_usd) || 0;
       count += 1;
     }
+  }
+  return { cop, usd, count };
+}
+
+/**
+ * Suma liquidaciones en un rango de fechas (ambos inclusive).
+ * Usado para P&G Realizado MTD y YTD del SummaryBar de /portfolio.
+ */
+export function sumLiquidationsBetween(
+  liquidations: NdfLiquidationRow[],
+  startDate: string,
+  endDate: string,
+): { cop: number; usd: number; count: number } {
+  if (!liquidations || liquidations.length === 0) {
+    return { cop: 0, usd: 0, count: 0 };
+  }
+  let cop = 0;
+  let usd = 0;
+  let count = 0;
+  for (let i = 0; i < liquidations.length; i += 1) {
+    const l = liquidations[i];
+    if (l.liquidation_date >= startDate && l.liquidation_date <= endDate) {
+      cop += Number(l.realized_pnl_cop) || 0;
+      usd += Number(l.realized_pnl_usd) || 0;
+      count += 1;
+    }
+  }
+  return { cop, usd, count };
+}
+
+// ───────────────────────────────────────────────────────────────────
+// Settlement P&L de NDFs vencidos naturalmente (BanRep TRM al maturity)
+// Usados para complementar el P&G Realizado y el Benchmark USD row.
+//
+// IMPORTANTE: nunca contar un mismo NDF dos veces. Si fue liquidado
+// manualmente (existe una row en ndf_liquidation con su id), saltamos
+// el settlement automatico — el realized "real" es la liquidacion.
+// ───────────────────────────────────────────────────────────────────
+
+type SettlementEntry = NdfSettlementResult | 'error';
+type SettlementsMap = Record<string, SettlementEntry>;
+
+const isValidSettlement = (s: SettlementEntry | undefined): s is NdfSettlementResult =>
+  !!s && s !== 'error';
+
+/**
+ * Suma pyl_cop / pyl_usd de NDFs vencidos as-of la fecha dada (cumulativo).
+ *
+ * Filtros aplicados:
+ *   1. maturity_date <= asOfDate (el NDF ya vencio para esa fecha)
+ *   2. Settlement valido (no 'error' ni undefined)
+ *   3. NDF NO tiene liquidacion manual (evita doble conteo)
+ *
+ * Usado por el P&G Realizado COP del SummaryBar en /portfolio.
+ */
+export function sumSettlementsAsOf(
+  positions: NdfPosition[],
+  settlements: SettlementsMap,
+  liquidations: NdfLiquidationRow[],
+  asOfDate: string,
+): { cop: number; usd: number; count: number } {
+  if (!positions || positions.length === 0) {
+    return { cop: 0, usd: 0, count: 0 };
+  }
+  // Set de position ids con liquidacion manual — O(1) lookup despues
+  const liquidatedIds = new Set(liquidations.map((l) => l.ndf_position_id));
+  let cop = 0;
+  let usd = 0;
+  let count = 0;
+  for (let i = 0; i < positions.length; i += 1) {
+    const p = positions[i];
+    if (p.maturity_date > asOfDate) continue;
+    if (liquidatedIds.has(p.id)) continue;
+    const s = settlements[p.id];
+    if (!isValidSettlement(s)) continue;
+    cop += Number(s.pyl_cop) || 0;
+    usd += Number(s.pyl_usd) || 0;
+    count += 1;
+  }
+  return { cop, usd, count };
+}
+
+/**
+ * Suma pyl_cop / pyl_usd de NDFs cuyo maturity cae EN el mes (yearMonth = "YYYY-MM").
+ * Usado por Benchmark + Resumen — la fila USD pnl_gr suma el realized del mes.
+ *
+ * Mismos filtros que sumSettlementsAsOf (skip si liquidacion manual existe).
+ */
+export function sumSettlementsInMonth(
+  positions: NdfPosition[],
+  settlements: SettlementsMap,
+  liquidations: NdfLiquidationRow[],
+  yearMonth: string,
+): { cop: number; usd: number; count: number } {
+  if (!positions || positions.length === 0) {
+    return { cop: 0, usd: 0, count: 0 };
+  }
+  const liquidatedIds = new Set(liquidations.map((l) => l.ndf_position_id));
+  let cop = 0;
+  let usd = 0;
+  let count = 0;
+  for (let i = 0; i < positions.length; i += 1) {
+    const p = positions[i];
+    if (!p.maturity_date || p.maturity_date.slice(0, 7) !== yearMonth) continue;
+    if (liquidatedIds.has(p.id)) continue;
+    const s = settlements[p.id];
+    if (!isValidSettlement(s)) continue;
+    cop += Number(s.pyl_cop) || 0;
+    usd += Number(s.pyl_usd) || 0;
+    count += 1;
+  }
+  return { cop, usd, count };
+}
+
+/**
+ * Suma settlements de NDFs cuyo maturity cae en el rango [startDate, endDate].
+ * Skip si tiene liquidacion manual (no doble conteo).
+ * Usado para P&G Realizado MTD y YTD del SummaryBar de /portfolio.
+ */
+export function sumSettlementsBetween(
+  positions: NdfPosition[],
+  settlements: SettlementsMap,
+  liquidations: NdfLiquidationRow[],
+  startDate: string,
+  endDate: string,
+): { cop: number; usd: number; count: number } {
+  if (!positions || positions.length === 0) {
+    return { cop: 0, usd: 0, count: 0 };
+  }
+  const liquidatedIds = new Set(liquidations.map((l) => l.ndf_position_id));
+  let cop = 0;
+  let usd = 0;
+  let count = 0;
+  for (let i = 0; i < positions.length; i += 1) {
+    const p = positions[i];
+    if (!p.maturity_date) continue;
+    if (p.maturity_date < startDate || p.maturity_date > endDate) continue;
+    if (liquidatedIds.has(p.id)) continue;
+    const s = settlements[p.id];
+    if (!isValidSettlement(s)) continue;
+    cop += Number(s.pyl_cop) || 0;
+    usd += Number(s.pyl_usd) || 0;
+    count += 1;
   }
   return { cop, usd, count };
 }
