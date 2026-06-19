@@ -29,8 +29,13 @@ import type {
 import { fetchResumenData } from 'src/lib/risk/resumenCalculator';
 import { fetchCompanyRiskConfig, getAssetsWithCurrency, EMPTY_EXPOSURE_PARAMS } from 'src/lib/risk/companyConfig';
 import { fetchNdfLiquidations } from 'src/models/trading';
-import { sumLiquidationsInMonth, sumSettlementsInMonth } from 'src/lib/trading/historicalPositions';
+import {
+  sumLiquidationsInMonth,
+  sumSettlementsInMonth,
+  sumXccySettlementsInMonth,
+} from 'src/lib/trading/historicalPositions';
 import { useNdfSettlements } from 'src/queries/ndfSettlements';
+import { useXccySettlements } from 'src/queries/xccySettlements';
 import type { RiskCompanyConfig } from 'src/lib/risk/companyConfig';
 
 const PAGE_TITLE = 'Resumen — Gestión de Riesgos';
@@ -216,6 +221,10 @@ function RiskResumenPage() {
   // pricedNdfStore extiende NdfPosition asi que tiene maturity_date e id.
   const { map: ndfSettlementsMap } = useNdfSettlements(pricedNdfStore ?? []);
 
+  // Settlements de XCCY trimestrales (cashflows liquidados con carry + FX).
+  // Igual que los vencidos NDF, suman al pnl_gr USD row del Resumen.
+  const xccySettle = useXccySettlements(pricedXccyStore ?? [], selectedCompanyId);
+
   // Fecha global del modulo de Riesgos. Viene del selector en CoreLayout
   // (Zustand, persistido en localStorage). Esta pagina ya no tiene
   // selector propio — todas las paginas de Riesgos comparten la misma fecha.
@@ -304,7 +313,12 @@ function RiskResumenPage() {
         liquidationsList,
         filterMonth,
       ).usd;
-      const realizedThisMonthUsd = liquidationsThisMonthUsd + settlementsThisMonthUsd;
+      const xccySettlementsThisMonthUsd = sumXccySettlementsInMonth(
+        xccySettle.rows,
+        filterMonth,
+      ).usd;
+      const realizedThisMonthUsd =
+        liquidationsThisMonthUsd + settlementsThisMonthUsd + xccySettlementsThisMonthUsd;
       const commodities = buildCommoditiesResumen(
         dynamicAssets,
         factors,

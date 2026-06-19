@@ -42,8 +42,13 @@ import type { CoffeePriceRow } from 'src/lib/risk/supabaseRisk';
 import { useXccyPositions, useNdfPositions, useIbrSwapPositions } from 'src/queries/trading';
 import { useRepricePortfolio, useReferencePrices } from 'src/queries/pricing';
 import { fetchNdfLiquidations, type NdfLiquidationRow } from 'src/models/trading';
-import { sumLiquidationsInMonth, sumSettlementsInMonth } from 'src/lib/trading/historicalPositions';
+import {
+  sumLiquidationsInMonth,
+  sumSettlementsInMonth,
+  sumXccySettlementsInMonth,
+} from 'src/lib/trading/historicalPositions';
 import { useNdfSettlements } from 'src/queries/ndfSettlements';
+import { useXccySettlements } from 'src/queries/xccySettlements';
 import { buildCurves, getCurveStatus } from 'src/models/pricing/pricingApi';
 import type { CurveStatus } from 'src/types/pricing';
 // Calculadora USDCOP movida a /usdcop-calculator (mayo 2026)
@@ -1106,17 +1111,28 @@ function RiskManagement() {
     return sumSettlementsInMonth(otcNdfPositions, ndfSettlementsMap, ndfLiquidations, yearMonth).usd;
   }, [otcNdfPositions, ndfSettlementsMap, ndfLiquidations, benchmarkMonth]);
 
+  // XCCY settlements: cashflows trimestrales liquidados (persistido en
+  // trading.xccy_settlement). El hook dispara el calculo idempotente
+  // y lee la tabla. Sumamos su realized_pnl_usd al pnl_gr USD del mes.
+  const xccySettle = useXccySettlements(otcXccyPositions, selectedCompanyId);
+  const xccySettlementsThisMonthUsd = useMemo(() => {
+    const yearMonth = `${benchmarkMonth.year}-${String(benchmarkMonth.month + 1).padStart(2, '0')}`;
+    return sumXccySettlementsInMonth(xccySettle.rows, yearMonth).usd;
+  }, [xccySettle.rows, benchmarkMonth]);
+
   // isPreparingBenchmark: true mientras alguno de los datos async esta
   // cargando. Cuando es true, mostramos un banner "Preparando tus datos…"
-  // en lugar de dejar que los valores parpadeen. Cubre 4 fuentes:
+  // en lugar de dejar que los valores parpadeen. Cubre 5 fuentes:
   //   1. Reprice OTC (otcReprice.data llega en lote)
   //   2. Liquidaciones manuales (1 query a Supabase)
-  //   3. Settlements de vencidos (N queries a Django, 1 por NDF expired)
-  //   4. Benchmark factors (precios de mercado)
+  //   3. Settlements NDF de vencidos (N queries a Django, 1 por NDF expired)
+  //   4. Settlements XCCY trimestrales (1 query a Django + 1 a Supabase)
+  //   5. Benchmark factors (precios de mercado)
   const isPreparingBenchmark = (
     !otcReprice.data
     || !ndfLiquidationsLoaded
     || !settlementsAllLoaded
+    || !xccySettle.allLoaded
     || benchmarkLoading
   );
 
@@ -1696,9 +1712,10 @@ function RiskManagement() {
           // liquidaciones aportan el realized cash P&L del mismo periodo.
           // pnl_mtd: unrealized OTC del mes (con notional reconstruido as-of)
           // + liquidaciones manuales del mes (realized via boton Liquidar)
-          // + settlements de vencidos en el mes (realized via TRM BanRep)
+          // + settlements NDF vencidos en el mes (realized via TRM BanRep)
+          // + cashflows XCCY trimestrales liquidados en el mes (carry + FX)
           // → P&G GR USD total para la fila del Benchmark.
-          const totalPnlGrUsd = pnlMtdUsd + liquidationsThisMonthUsd + settlementsThisMonthUsd;
+          const totalPnlGrUsd = pnlMtdUsd + liquidationsThisMonthUsd + settlementsThisMonthUsd + xccySettlementsThisMonthUsd;
 
           next[i].position_gr = String(Math.round(fxDeltaTotal));
           next[i].pnl_gr = String(Math.round(totalPnlGrUsd));
@@ -1730,7 +1747,7 @@ function RiskManagement() {
       return recalcBenchmark(next, varianceMap);
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [futuresPortfolio, varianceMap, benchmarkDateStr, pricedXccyStore, pricedNdfStore, pricedIbrSwapStore, refPricesStore, liquidationsThisMonthUsd, settlementsThisMonthUsd, ndfLiquidationsLoaded, settlementsAllLoaded]);
+  }, [futuresPortfolio, varianceMap, benchmarkDateStr, pricedXccyStore, pricedNdfStore, pricedIbrSwapStore, refPricesStore, liquidationsThisMonthUsd, settlementsThisMonthUsd, xccySettlementsThisMonthUsd, ndfLiquidationsLoaded, settlementsAllLoaded, xccySettle.allLoaded]);
 
   // Build chart data for rolling var
   const buildChartData = (asset: string, field: 'prices' | 'rolling_var') => {

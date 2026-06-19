@@ -265,3 +265,57 @@ export const getNdfSettlement = (
     body: JSON.stringify(params),
     ...opts,
   });
+
+// ── XCCY Settlement (cashflows trimestrales liquidados) ──
+
+export interface XccySettleRequestPosition {
+  id: string;
+  company_id: string;
+  notional_usd: number;
+  start_date: string;
+  maturity_date: string;
+  pay_usd: boolean;
+  fx_initial: number | null;
+  usd_spread_bps: number;
+  cop_spread_bps: number;
+  xccy_basis_bps?: number;
+  amortization_type: 'bullet' | 'linear' | 'custom';
+  amortization_schedule?: number[] | null;
+  payment_frequency_months?: number;
+}
+
+export interface XccySettleResponse {
+  settled_count: number;
+  skipped_count: number;
+  per_position: {
+    position_id: string;
+    settled: number;
+    skipped: number;
+    errors: string[];
+  }[];
+}
+
+/**
+ * Dispara el calculo + persistencia de settlements de XCCY swaps.
+ *
+ * Idempotente — usa UPSERT contra trading.xccy_settlement con UNIQUE
+ * (xccy_position_id, period_index). Llamarlo varias veces es seguro
+ * y solo agrega periodos nuevos.
+ *
+ * Para cada XCCY de la lista, el backend:
+ *  1. Construye el schedule trimestral.
+ *  2. Filtra periodos status='settled' (payment_date <= hoy).
+ *  3. Computa SOFR/IBR realizados (overnight compound desde fixings BanRep + Fed).
+ *  4. Fetcha TRM BanRep en payment_date.
+ *  5. realized_pnl_cop = usd_net * TRM + cop_net.
+ *  6. UPSERT en trading.xccy_settlement.
+ */
+export const settleXccyPositions = (
+  positions: XccySettleRequestPosition[],
+  opts?: PricingFetchOptions,
+) =>
+  pricingFetch<XccySettleResponse>('pricing/xccy/settle', {
+    method: 'POST',
+    body: JSON.stringify({ positions }),
+    ...opts,
+  });

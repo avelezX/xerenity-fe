@@ -34,6 +34,11 @@ import {
   saveMarketDataConfig,
 } from './market-data-config';
 import { fetchHistoricalMark } from './fetchHistoricalMark';
+import {
+  fetchXccySettlements,
+  type XccySettlementRow,
+  type XccySettlementsResponse,
+} from './fetchXccySettlements';
 
 export type {
   PositionsResponse,
@@ -43,6 +48,8 @@ export type {
   LiquidateResponse,
   LiquidationsResponse,
   NdfLiquidationRow,
+  XccySettlementRow,
+  XccySettlementsResponse,
 };
 
 export {
@@ -61,6 +68,7 @@ export {
   deleteTesPositions,
   liquidateNdfPosition,
   fetchNdfLiquidations,
+  fetchXccySettlements,
   repricePortfolio,
   fetchMarketDataConfig,
   saveMarketDataConfig,

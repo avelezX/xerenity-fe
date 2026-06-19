@@ -262,3 +262,94 @@ export function sumSettlementsBetween(
   }
   return { cop, usd, count };
 }
+
+// ───────────────────────────────────────────────────────────────────
+// XCCY settlements — cashflows trimestrales liquidados
+// Una fila por (xccy_position_id, period_index). Persistido en
+// trading.xccy_settlement por el endpoint /pricing/xccy/settle.
+// Cada fila ya tiene el realized_pnl_cop/usd calculado con el TRM
+// BanRep al payment_date, asi que aqui solo sumamos por rango/mes.
+// ───────────────────────────────────────────────────────────────────
+
+type XccyRow = {
+  payment_date: string;
+  realized_pnl_cop: number;
+  realized_pnl_usd: number;
+};
+
+/**
+ * Suma realized P&L de cashflows XCCY cuyo payment_date cae en el rango
+ * [startDate, endDate] (ambos inclusive). Usado por SummaryBar de
+ * /portfolio (P&G MTD COP y P&G YTD COP).
+ */
+export function sumXccySettlementsBetween(
+  settlements: XccyRow[],
+  startDate: string,
+  endDate: string,
+): { cop: number; usd: number; count: number } {
+  if (!settlements || settlements.length === 0) {
+    return { cop: 0, usd: 0, count: 0 };
+  }
+  let cop = 0;
+  let usd = 0;
+  let count = 0;
+  for (let i = 0; i < settlements.length; i += 1) {
+    const r = settlements[i];
+    if (!r.payment_date) continue;
+    if (r.payment_date < startDate || r.payment_date > endDate) continue;
+    cop += Number(r.realized_pnl_cop) || 0;
+    usd += Number(r.realized_pnl_usd) || 0;
+    count += 1;
+  }
+  return { cop, usd, count };
+}
+
+/**
+ * Suma realized P&L de cashflows XCCY cuyo payment_date cae EN el mes
+ * (yearMonth = "YYYY-MM"). Usado por Benchmark + Resumen USD row del mes.
+ */
+export function sumXccySettlementsInMonth(
+  settlements: XccyRow[],
+  yearMonth: string,
+): { cop: number; usd: number; count: number } {
+  if (!settlements || settlements.length === 0) {
+    return { cop: 0, usd: 0, count: 0 };
+  }
+  let cop = 0;
+  let usd = 0;
+  let count = 0;
+  for (let i = 0; i < settlements.length; i += 1) {
+    const r = settlements[i];
+    if (!r.payment_date) continue;
+    if (r.payment_date.slice(0, 7) !== yearMonth) continue;
+    cop += Number(r.realized_pnl_cop) || 0;
+    usd += Number(r.realized_pnl_usd) || 0;
+    count += 1;
+  }
+  return { cop, usd, count };
+}
+
+/**
+ * Suma realized P&L de cashflows XCCY cumulativo hasta `asOfDate` (inclusive).
+ * Usado para vista historica del P&G Realizado.
+ */
+export function sumXccySettlementsAsOf(
+  settlements: XccyRow[],
+  asOfDate: string,
+): { cop: number; usd: number; count: number } {
+  if (!settlements || settlements.length === 0) {
+    return { cop: 0, usd: 0, count: 0 };
+  }
+  let cop = 0;
+  let usd = 0;
+  let count = 0;
+  for (let i = 0; i < settlements.length; i += 1) {
+    const r = settlements[i];
+    if (!r.payment_date) continue;
+    if (r.payment_date > asOfDate) continue;
+    cop += Number(r.realized_pnl_cop) || 0;
+    usd += Number(r.realized_pnl_usd) || 0;
+    count += 1;
+  }
+  return { cop, usd, count };
+}
