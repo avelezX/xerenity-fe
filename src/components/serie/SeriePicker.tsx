@@ -1,8 +1,12 @@
 import { Button, Toast, Row, Col, Form } from 'react-bootstrap';
 import React, { useState, useEffect, ChangeEvent } from 'react';
 import Container from 'react-bootstrap/Container';
-import { getHexColor, XerenityHexColors } from 'src/utils/getHexColors';
+import { XerenityHexColors } from 'src/utils/getHexColors';
 import Circle from '@uiw/react-color-circle';
+import tokens from 'design-tokens/tokens.json';
+
+const designSystem = tokens.xerenity;
+const PURPLE_100 = designSystem['purple-100'].value;
 
 export interface SeriePickerProps {
   handleSeriePick: (
@@ -29,7 +33,7 @@ export default function SeriePicker({
 }: SeriePickerProps) {
   const [idserie, setIdSerie] = useState('');
 
-  const [serieColor, setSerieColor] = useState('');
+  const [serieColor, setSerieColor] = useState(PURPLE_100);
 
   const [showColorToast, setShowColorToast] = useState(false);
 
@@ -52,7 +56,6 @@ export default function SeriePicker({
 
   useEffect(() => {
     setIdSerie(serieID);
-    setSerieColor(getHexColor(0));
   }, [setIdSerie, serieID]);
 
   return (
