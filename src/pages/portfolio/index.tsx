@@ -2016,6 +2016,17 @@ function PortfolioPage() {
   const todayIso = new Date().toISOString().slice(0, 10);
   const isHistoricalView = !!markFecha && markFecha < todayIso;
 
+  // Anti cross-tenant: `activeCompanyId` es FUNCION del Zustand store —
+  // su referencia es estatica y NO cambia cuando el user cambia de
+  // empresa. Usabamos esa funcion en el dep array y como resultado las
+  // liquidaciones de la empresa anterior se quedaban cacheadas al
+  // cambiar de Super -> Los Coches (visible como $651M de P&G MTD COP
+  // en Los Coches, que era exactamente el total de Super).
+  //
+  // Fix: dependemos del VALOR `selectedCompanyId` (subscrito reactivamente
+  // a Zustand) y del fallback `userProfile?.company_id`. Cuando cualquiera
+  // de los dos cambia, refire la carga.
+  const userProfileCompanyId = userProfile?.company_id;
   const reloadLiquidations = useCallback(async () => {
     setLiquidationsLoading(true);
     try {
@@ -2035,7 +2046,10 @@ function PortfolioPage() {
     } finally {
       setLiquidationsLoading(false);
     }
-  }, [activeCompanyId]);
+  // activeCompanyId() lee del store al momento de llamarse. Lo que dispara
+  // recargas es el cambio de selectedCompanyId / userProfileCompanyId.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedCompanyId, userProfileCompanyId]);
 
   // Carga inicial + cuando cambia la empresa activa (super_admin picker
   // o login de otro usuario).
@@ -2044,7 +2058,7 @@ function PortfolioPage() {
     // datos de la empresa anterior no se muestren mientras carga la nueva.
     setLiquidations([]);
     reloadLiquidations();
-  }, [reloadLiquidations, activeCompanyId]);
+  }, [reloadLiquidations]);
 
   const handleOpenLiquidate = useCallback((row: PortfolioRow) => {
     setLiquidateRow(row);
