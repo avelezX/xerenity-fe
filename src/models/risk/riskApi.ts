@@ -27,6 +27,7 @@ import {
   parseISOAsNoon,
   formatISO,
   lastBusinessDayOfPrevMonth as lastBusinessDayOfPrevMonthDate,
+  lastBusinessDayOfPrevQuarter as lastBusinessDayOfPrevQuarterDate,
 } from 'src/lib/risk/dateHelpers';
 
 // Fallback units (used when no company config)
@@ -48,12 +49,25 @@ function lastBusinessDayOfPrevMonth(filterDate: string): string {
   return formatISO(lastBusinessDayOfPrevMonthDate(parseISOAsNoon(filterDate)));
 }
 
+/** Ultimo dia habil del trimestre anterior a filterDate. */
+function lastBusinessDayOfPrevQuarter(filterDate: string): string {
+  return formatISO(lastBusinessDayOfPrevQuarterDate(parseISOAsNoon(filterDate)));
+}
+
+/** Ventana de precios para el Benchmark.
+ *  - 'month': inicio = ultimo dia habil del mes anterior (default)
+ *  - 'quarter': inicio = ultimo dia habil del trimestre anterior
+ *  Los Coches usa 'quarter' (su exposicion es trimestral).
+ */
+export type PriceWindowMode = 'month' | 'quarter';
+
 // ── Benchmark Factors ──
 
 export async function fetchBenchmarkFactors(
   filterDate: string,
   confidenceLevel = 0.99,
   companyConfig?: RiskCompanyConfig | null,
+  priceWindowMode: PriceWindowMode = 'month',
 ): Promise<BenchmarkFactorsResponse> {
   const units = companyConfig ? getUnits(companyConfig) : DEFAULT_UNITS;
   const startDate = getStartDate(filterDate, 400); // ~13 months for 180d rolling + prices
@@ -101,8 +115,12 @@ export async function fetchBenchmarkFactors(
   const latestFactors = getLatestVarFactors(varFactors);
   const { covariance, correlation, observations } = calculateMatrices(returns, 180);
 
-  // Price start: last business day of previous month
-  const priceStartDate = lastBusinessDayOfPrevMonth(filterDate);
+  // Price start: depende del priceWindowMode.
+  //   - 'month' (default): ultimo dia habil del mes anterior
+  //   - 'quarter': ultimo dia habil del trimestre anterior (Los Coches)
+  const priceStartDate = priceWindowMode === 'quarter'
+    ? lastBusinessDayOfPrevQuarter(filterDate)
+    : lastBusinessDayOfPrevMonth(filterDate);
 
   const factors: Record<string, {
     factor_var_diario: number | null;

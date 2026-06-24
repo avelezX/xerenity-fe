@@ -103,6 +103,29 @@ export function lastBusinessDayOfPrevMonth(d: Date): Date {
 }
 
 /**
+ * Último día hábil del trimestre anterior al de la fecha dada.
+ * Mapping:
+ *   Q1 (ene-mar) → último BD de dic del año anterior
+ *   Q2 (abr-jun) → último BD de marzo
+ *   Q3 (jul-sep) → último BD de junio
+ *   Q4 (oct-dic) → último BD de septiembre
+ *
+ * Ej:
+ *   lastBusinessDayOfPrevQuarter(2026-06-30) → 2026-03-31
+ *   lastBusinessDayOfPrevQuarter(2026-07-15) → 2026-06-30
+ *   lastBusinessDayOfPrevQuarter(2026-01-15) → 2025-12-31
+ */
+export function lastBusinessDayOfPrevQuarter(d: Date): Date {
+  // Mes del trimestre actual: 0,1,2 → Q1; 3,4,5 → Q2; 6,7,8 → Q3; 9,10,11 → Q4
+  const m = d.getUTCMonth();
+  // Primer mes del trimestre actual
+  const firstMonthOfThisQuarter = Math.floor(m / 3) * 3;
+  // Día 0 del primer mes del trimestre actual = último día del trimestre anterior
+  const eoq = new Date(Date.UTC(d.getUTCFullYear(), firstMonthOfThisQuarter, 0, 12, 0, 0));
+  return lastBusinessDay(eoq);
+}
+
+/**
  * Primer día hábil del mes al que pertenece la fecha dada.
  */
 export function firstBusinessDayOfMonth(d: Date): Date {

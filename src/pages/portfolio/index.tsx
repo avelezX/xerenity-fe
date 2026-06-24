@@ -2543,6 +2543,7 @@ function PortfolioPage() {
             onPrefsChange={setBlotterPrefs}
             liquidations={liquidationsAsOf}
             xccySettlements={xccySettlementsAsOf}
+            showQuarterFilter={companyId === 'c6697df7-bba3-4ff5-ae66-dcc532db41af'}
           />
         </div>
 

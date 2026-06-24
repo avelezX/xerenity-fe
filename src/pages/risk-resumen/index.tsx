@@ -280,8 +280,13 @@ function RiskResumenPage() {
         ? { ...EMPTY_EXPOSURE_PARAMS, ...(companyConfig!.exposure_defaults as Partial<typeof EMPTY_EXPOSURE_PARAMS>) }
         : EMPTY_EXPOSURE_PARAMS;
 
+      // Los Coches usa ventana TRIMESTRAL para Inicio/Fin de precios
+      // (consistente con su exposicion trimestral). Resto = mensual.
+      const LOS_COCHES_ID = 'c6697df7-bba3-4ff5-ae66-dcc532db41af';
+      const priceWindow = selectedCompanyId === LOS_COCHES_ID ? 'quarter' : 'month';
+
       const [factors, futResp, exposure] = await Promise.all([
-        fetchBenchmarkFactors(filterDate, 0.99, companyConfig).catch(() => null),
+        fetchBenchmarkFactors(filterDate, 0.99, companyConfig, priceWindow).catch(() => null),
         fetchFuturesPortfolio(filterDate, true, selectedCompanyId, commodityCfg).catch(() => ({ portfolio: [] as FuturesPosition[] })),
         hasExposureConfig
           ? fetchExposure(filterDate, mergedExposureParams).catch(() => null as ExposureResponse | null)
