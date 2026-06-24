@@ -91,6 +91,10 @@ export type BlotterTableProps = {
   // + XCCY cashflows trimestrales) en vez del table normal.
   liquidations?: NdfLiquidationRow[];
   xccySettlements?: XccySettlementRow[];
+  // Cuando true, muestra un filtro de pills por trimestre (Q1-Q4) basado
+  // en maturity_date. Activado para empresas que manejan FWDs por
+  // trimestre (Los Coches).
+  showQuarterFilter?: boolean;
 };
 
 // ─── Helpers de formato ─────────────────────────────────────────────────────
@@ -789,6 +793,7 @@ export default function BlotterTable({
   onPrefsChange,
   liquidations,
   xccySettlements,
+  showQuarterFilter = false,
 }: BlotterTableProps) {
   // Derived state from prefs
   const {
@@ -811,11 +816,50 @@ export default function BlotterTable({
     [handleSelect, onDelete, canEdit, onLiquidate, canLiquidate],
   );
 
+  // ── Quarter filter (solo activo cuando showQuarterFilter=true) ──
+  // null = "Todos"; 1..4 = filtrar por trimestre del maturity_date.
+  // State local — no se persiste en prefs porque es un view filter
+  // efímero por sesión y solo aplica a una empresa específica.
+  const [quarterFilter, setQuarterFilter] = useState<number | null>(null);
+
   // Filter rows by estado first
   const filteredByEstado = useMemo(
     () => estadoFilter === 'Todos' ? rows : rows.filter((r) => r.estado === estadoFilter),
     [rows, estadoFilter],
   );
+
+  // Helper: trimestre (1..4) basado en YYYY-MM-DD.
+  const quarterOf = (isoDate: string): number => {
+    const m = parseInt(isoDate.slice(5, 7), 10);
+    return Math.ceil(m / 3);
+  };
+
+  // Helper para obtener la fecha base del grouping (trade_date, fallback a maturity).
+  const baseDate = (r: PortfolioRow): string | undefined => r.trade_date || r.maturity_date;
+
+  // Filter by quarter despues de estado. Agrupacion basada en trade_date
+  // (fecha de APERTURA), no maturity_date — refleja en que trimestre se
+  // origino la posicion.
+  const filteredRows = useMemo(() => {
+    if (!showQuarterFilter || quarterFilter == null) return filteredByEstado;
+    return filteredByEstado.filter((r) => {
+      const d = baseDate(r);
+      return d && quarterOf(d) === quarterFilter;
+    });
+  }, [filteredByEstado, showQuarterFilter, quarterFilter]);
+
+  // Conteos por quarter sobre las filas ya filtradas por estado
+  // (asi reflejan el subset que el usuario ve actualmente).
+  const quarterCounts = useMemo(() => {
+    const c: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0 };
+    filteredByEstado.forEach((r) => {
+      const d = baseDate(r);
+      if (!d) return;
+      const q = quarterOf(d);
+      if (q >= 1 && q <= 4) c[q] += 1;
+    });
+    return c;
+  }, [filteredByEstado]);
 
   const counts = useMemo(() => {
     const c = { Activo: 0, Vencido: 0, Cancelado: 0, Liquidado: 0 };
@@ -824,7 +868,7 @@ export default function BlotterTable({
   }, [rows]);
 
   const table = useReactTable({
-    data: filteredByEstado,
+    data: filteredRows,
     columns,
     state: {
       sorting,
@@ -879,7 +923,7 @@ export default function BlotterTable({
 
   // Totals footer (solo filas sin error)
   const totals = useMemo(() => {
-    const valid = filteredByEstado.filter((r) => !r.error);
+    const valid = filteredRows.filter((r) => !r.error);
     return {
       npv_cop: valid.reduce((s, r) => s + r.npv_cop, 0),
       npv_usd: valid.reduce((s, r) => s + r.npv_usd, 0),
@@ -895,7 +939,7 @@ export default function BlotterTable({
       pnl_ytd_usd: valid.reduce((s, r) => s + (r.pnl_ytd_usd ?? 0), 0),
       count: valid.length,
     };
-  }, [filteredByEstado]);
+  }, [filteredRows]);
 
   // Cuando se está en Liquidado y hay liquidaciones, NO bloquear con empty
   // state aunque no haya rows: el LiquidationsTable maneja su propio vacio.
@@ -940,6 +984,39 @@ export default function BlotterTable({
             );
           })}
         </div>
+
+        {/* Filtro Trimestre por fecha de APERTURA (solo Los Coches) */}
+        {showQuarterFilter && (
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 11, color: '#6c757d', fontWeight: 600 }}>Apertura:</span>
+            {([null, 1, 2, 3, 4] as const).map((q) => {
+              const label = q == null ? 'Todos' : `Q${q}`;
+              const count = q == null
+                ? filteredByEstado.length
+                : (quarterCounts[q] ?? 0);
+              const active = quarterFilter === q;
+              return (
+                <button
+                  type="button"
+                  key={label}
+                  onClick={() => setQuarterFilter(q)}
+                  style={{
+                    padding: '2px 10px',
+                    borderRadius: 12,
+                    fontSize: 11,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    border: active ? '2px solid #6366f1' : '1px solid #dee2e6',
+                    background: active ? '#6366f1' : '#f8f9fa',
+                    color: active ? '#fff' : '#6c757d',
+                  }}
+                >
+                  {label} {count > 0 && <span style={{ opacity: 0.7 }}>({count})</span>}
+                </button>
+              );
+            })}
+          </div>
+        )}
 
         {/* Buscador global */}
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center' }}>

@@ -62,6 +62,9 @@ import type { RiskCompanyConfig } from 'src/lib/risk/companyConfig';
 import { parseContractMaturity } from 'src/lib/risk/futuresCalculator';
 import { lastBusinessDay, MONTH_NAMES } from 'src/lib/risk/dateHelpers';
 import BlotterCompraCafe from 'src/components/risk/BlotterCompraCafe';
+import QuarterlyExposureTable from 'src/components/risk/QuarterlyExposureTable';
+import QuarterlyFwdSummary from 'src/components/risk/QuarterlyFwdSummary';
+import { fetchExposicionTrimestral, getQuarterFromDate, type ExposicionTrimestralRow } from 'src/models/risk/fetchExposicionTrimestral';
 import type { ComprasTotals } from 'src/components/risk/BlotterCompraCafe';
 import BlotterVentasCafe from 'src/components/risk/BlotterVentasCafe';
 import type { VentasTotals } from 'src/components/risk/BlotterVentasCafe';
@@ -898,6 +901,12 @@ function RiskManagement() {
   const SUPER_ALIMENTOS_ID = 'e8516f19-7286-4e04-a63e-24ca9364d807';
   const isSuperFlag = selectedCompanyId === SUPER_ALIMENTOS_ID;
 
+  // Los Coches: importadora de carros SAIC. Su exposicion es trimestral
+  // en USD (no por commodity como Super). Render condicional del tab
+  // Exposicion para mostrar la tabla de 4 trimestres.
+  const LOS_COCHES_ID = 'c6697df7-bba3-4ff5-ae66-dcc532db41af';
+  const isCochesFlag = selectedCompanyId === LOS_COCHES_ID;
+
   const [activeTab, setActiveTab] = useState('benchmark');
   // Build tabs dynamically: add "Precios Locales" if CAFE.
   // NOTA: Calculadora USDCOP se extrajo a /usdcop-calculator (mayo 2026)
@@ -1328,7 +1337,11 @@ function RiskManagement() {
   const handleFetchBenchmarkFactors = useCallback(async () => {
     setBenchmarkLoading(true);
     try {
-      const data = await fetchBenchmarkFactors(benchmarkDateStr, confidenceLevel, companyConfig);
+      // Los Coches usa ventana TRIMESTRAL para Inicio/Fin de precios
+      // (su exposicion y P&L se manejan por trimestre, no por mes).
+      // Resto de empresas mantienen el comportamiento mensual default.
+      const priceWindow = isCochesFlag ? 'quarter' : 'month';
+      const data = await fetchBenchmarkFactors(benchmarkDateStr, confidenceLevel, companyConfig, priceWindow);
       setBenchmarkFactors(data);
 
       // Use assets filtrados por la empresa (companyConfig). Fallback al
@@ -1379,7 +1392,7 @@ function RiskManagement() {
       setBenchmarkLoading(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [benchmarkDateStr, benchmarkMonthKey, confidenceLevel, companyConfig, dynamicAssets]);
+  }, [benchmarkDateStr, benchmarkMonthKey, confidenceLevel, companyConfig, dynamicAssets, isCochesFlag]);
 
   // Save current rows to cache when they change (auto, no manual trigger)
   useEffect(() => {
@@ -1617,6 +1630,45 @@ function RiskManagement() {
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [exposureResult, varianceMap]);
+
+  // ── Los Coches: exposicion trimestral USD alimenta el Benchmark ──
+  // Para Los Coches, el USD row position_super es el monto del Q
+  // actual de la tabla `xerenity.exposicion_trimestral`. Al cambiar
+  // filterDate (y cruzar borde de trimestre), el Q actual cambia
+  // y el position_super se ajusta automaticamente.
+  const [cochesQuarterlyRows, setCochesQuarterlyRows] = useState<ExposicionTrimestralRow[]>([]);
+  useEffect(() => {
+    if (!isCochesFlag || !selectedCompanyId) {
+      setCochesQuarterlyRows([]);
+      return;
+    }
+    fetchExposicionTrimestral(selectedCompanyId, 2026).then((r) => {
+      if (r.error) {
+        // eslint-disable-next-line no-console
+        console.warn('[coches-quarterly] fetch error:', r.error);
+        return;
+      }
+      setCochesQuarterlyRows(r.data);
+    });
+  }, [isCochesFlag, selectedCompanyId]);
+
+  useEffect(() => {
+    if (!isCochesFlag || cochesQuarterlyRows.length === 0) return;
+    const currentQ = getQuarterFromDate(filterDate);
+    const row = cochesQuarterlyRows.find((x) => x.year === 2026 && x.quarter === currentQ);
+    const expUsd = row?.exposicion_usd ?? 0;
+    setBenchmarkRows((prev) => {
+      const next = prev.map((r) => ({ ...r }));
+      const usdIdx = next.findIndex((r) => r.asset === 'USD');
+      if (usdIdx === -1) return prev;
+      const prevVal = next[usdIdx].position_super;
+      const newVal = String(Math.round(expUsd));
+      if (prevVal === newVal) return prev;
+      next[usdIdx].position_super = newVal;
+      return recalcBenchmark(next, varianceMap);
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isCochesFlag, cochesQuarterlyRows, filterDate, varianceMap]);
 
   // When futures portfolio or benchmark month changes, auto-fill position_gr and pnl_gr
   // Solo se incluyen posiciones con entry_date <= benchmarkDateStr (filtro que
@@ -2030,6 +2082,18 @@ function RiskManagement() {
                 <CafeMarginCard compras={comprasTotals} ventas={ventasTotals} />
               </>
             )}
+
+            {/* ─── LOS COCHES · FWDs por trimestre ─── */}
+            {isCochesFlag && (
+              <div style={{ marginTop: 24 }}>
+                <QuarterlyFwdSummary
+                  ndfs={pricedNdfStore}
+                  xccys={pricedXccyStore}
+                  ibrs={pricedIbrSwapStore}
+                  currentQuarter={getQuarterFromDate(filterDate)}
+                />
+              </div>
+            )}
           </div>
         )}
 
@@ -2188,8 +2252,34 @@ function RiskManagement() {
           </div>
         )}
 
-        {/* ─── EXPOSICIÓN TAB ─── */}
-        {activeTab === 'exposure' && (!companyConfig?.exposure_defaults || Object.keys(companyConfig.exposure_defaults).length === 0) && !hasCafe && (
+        {/* ─── EXPOSICIÓN TAB · Los Coches: tabla trimestral USD ─── */}
+        {activeTab === 'exposure' && isCochesFlag && selectedCompanyId && (
+          <QuarterlyExposureTable
+            companyId={selectedCompanyId}
+            year={2026}
+            evaluationDate={filterDate}
+            canEdit={isSuperAdmin() || userProfile?.role === 'corp_admin' || userProfile?.role === 'gestor'}
+            onRowSaved={(updatedRow) => {
+              // Sincronizamos el cache del parent para que cuando el usuario
+              // vaya al Benchmark tab, la fila USD Exp Natural refleje
+              // inmediatamente el cambio (sin necesidad de refresh).
+              setCochesQuarterlyRows((prev) => {
+                const existing = prev.findIndex(
+                  (r) => r.year === updatedRow.year && r.quarter === updatedRow.quarter,
+                );
+                if (existing >= 0) {
+                  const next = [...prev];
+                  next[existing] = updatedRow;
+                  return next;
+                }
+                return [...prev, updatedRow];
+              });
+            }}
+          />
+        )}
+
+        {/* ─── EXPOSICIÓN TAB · empty state (resto de empresas sin config) ─── */}
+        {activeTab === 'exposure' && !isCochesFlag && (!companyConfig?.exposure_defaults || Object.keys(companyConfig.exposure_defaults).length === 0) && !hasCafe && (
           <div className="text-center py-5">
             <Icon icon={faShieldAlt} size="2x" className="text-muted mb-3" />
             <h5 className="text-muted">Exposición no configurada</h5>
@@ -2200,7 +2290,7 @@ function RiskManagement() {
             </p>
           </div>
         )}
-        {activeTab === 'exposure' && (((companyConfig?.exposure_defaults && Object.keys(companyConfig.exposure_defaults).length > 0)) || hasCafe) && (() => {
+        {activeTab === 'exposure' && !isCochesFlag && (((companyConfig?.exposure_defaults && Object.keys(companyConfig.exposure_defaults).length > 0)) || hasCafe) && (() => {
           const hasExposureDefaults = !!(companyConfig?.exposure_defaults && Object.keys(companyConfig.exposure_defaults).length > 0);
           const inputStyle = { fontSize: '0.78rem' };
           const calcStyle = { fontSize: '0.78rem', color: '#475569' };
