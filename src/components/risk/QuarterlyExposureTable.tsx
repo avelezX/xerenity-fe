@@ -28,6 +28,11 @@ type LocalRow = ExposicionTrimestralRow & {
   saveState: SaveState;
   saveError?: string;
   isDraft?: boolean; // true = aun no persistida (INSERT pendiente)
+  // Stable key para React reconciliation. Se genera UNA vez al crear la
+  // fila y nunca cambia — incluso cuando id transiciona de draft-X a UUID
+  // servidor. Sin esto, React unmount/remount los inputs al persistir y
+  // el DOM se confunde entre filas (auto-copy visual).
+  _key: string;
 };
 
 interface Props {
@@ -367,7 +372,10 @@ export default function QuarterlyExposureTable({
         setRows([]);
         return;
       }
-      const local: LocalRow[] = r.data.map((row) => ({ ...row, saveState: 'idle' as SaveState }));
+      const local: LocalRow[] = r.data.map((row) => {
+        draftCounterRef.current += 1;
+        return { ...row, saveState: 'idle' as SaveState, _key: `k-${draftCounterRef.current}` };
+      });
       setRows(local);
       onDataChanged?.(r.data);
     });
@@ -470,9 +478,11 @@ export default function QuarterlyExposureTable({
     // Contador monotonico garantiza unicidad — evita cualquier colision
     // que causaria compartir estado de input entre filas por React key clash.
     draftCounterRef.current += 1;
-    const draftId = `draft-${draftCounterRef.current}`;
+    const cnt = draftCounterRef.current;
+    const draftId = `draft-${cnt}`;
     const draft: LocalRow = {
       id: draftId,
+      _key: `k-${cnt}`,
       company_id: companyId,
       year,
       quarter,
@@ -600,27 +610,39 @@ export default function QuarterlyExposureTable({
                 const usdNeg = (row.exposicion_usd || 0) < 0;
                 const saveInd = SAVE_INDICATOR[row.saveState];
                 return (
-                  <tr key={row.id}>
+                  <tr key={row._key}>
                     <td style={S.td}>
                       <input
+                        key={`fecha-${row._key}`}
                         type="date"
-                        name={`fecha-${row.id}`}
+                        name={`fecha-${row._key}`}
                         autoComplete="off"
-                        value={row.fecha_vencimiento ?? ''}
-                        onChange={(e) => patchRow(row.id, { fecha_vencimiento: e.target.value || null })}
-                        onBlur={() => flushRow(row.id)}
+                        defaultValue={row.fecha_vencimiento ?? ''}
+                        onBlur={(e) => {
+                          const val = e.target.value || null;
+                          if (val !== row.fecha_vencimiento) {
+                            patchRow(row.id, { fecha_vencimiento: val });
+                            flushRow(row.id);
+                          }
+                        }}
                         disabled={!canEdit}
                         style={S.inputText}
                       />
                     </td>
                     <td style={S.td}>
                       <input
+                        key={`concepto-${row._key}`}
                         type="text"
-                        name={`concepto-${row.id}`}
+                        name={`concepto-${row._key}`}
                         autoComplete="off"
-                        value={row.concepto ?? ''}
-                        onChange={(e) => patchRow(row.id, { concepto: e.target.value || null })}
-                        onBlur={() => flushRow(row.id)}
+                        defaultValue={row.concepto ?? ''}
+                        onBlur={(e) => {
+                          const val = e.target.value || null;
+                          if (val !== row.concepto) {
+                            patchRow(row.id, { concepto: val });
+                            flushRow(row.id);
+                          }
+                        }}
                         disabled={!canEdit}
                         placeholder="ej. Utilización α-1"
                         style={S.inputText}
@@ -628,15 +650,21 @@ export default function QuarterlyExposureTable({
                     </td>
                     <td style={S.td}>
                       <input
+                        key={`trm-${row._key}`}
                         type="number"
                         step="0.01"
-                        name={`trm-${row.id}`}
+                        name={`trm-${row._key}`}
                         autoComplete="off"
-                        value={row.trm ?? ''}
-                        onChange={(e) => patchRow(row.id, {
-                          trm: e.target.value === '' ? null : Number(e.target.value) || null,
-                        })}
-                        onBlur={() => flushRow(row.id)}
+                        defaultValue={row.trm ?? ''}
+                        onBlur={(e) => {
+                          const raw = e.target.value;
+                          const val = raw === '' ? null : Number(raw);
+                          const clean = Number.isFinite(val) ? val : null;
+                          if (clean !== row.trm) {
+                            patchRow(row.id, { trm: clean });
+                            flushRow(row.id);
+                          }
+                        }}
                         disabled={!canEdit}
                         placeholder="—"
                         style={{ ...S.input, textAlign: 'right' }}
@@ -644,15 +672,21 @@ export default function QuarterlyExposureTable({
                     </td>
                     <td style={S.td}>
                       <input
+                        key={`usd-${row._key}`}
                         type="number"
                         step="0.01"
-                        name={`usd-${row.id}`}
+                        name={`usd-${row._key}`}
                         autoComplete="off"
-                        value={row.exposicion_usd || ''}
-                        onChange={(e) => patchRow(row.id, {
-                          exposicion_usd: Number(e.target.value) || 0,
-                        })}
-                        onBlur={() => flushRow(row.id)}
+                        defaultValue={row.exposicion_usd || ''}
+                        onBlur={(e) => {
+                          const raw = e.target.value;
+                          const val = raw === '' ? 0 : Number(raw);
+                          const clean = Number.isFinite(val) ? val : 0;
+                          if (clean !== row.exposicion_usd) {
+                            patchRow(row.id, { exposicion_usd: clean });
+                            flushRow(row.id);
+                          }
+                        }}
                         disabled={!canEdit}
                         placeholder="0"
                         style={{
