@@ -292,9 +292,11 @@ export default function QuarterlyExposureBenchmark({
                       fontSize: 13,
                     }}
                   >
-                    {a.cop === 0
-                      ? (a.usd !== 0 ? <span style={{ color: '#b45309', fontSize: 11 }}>sin TRM</span> : '—')
-                      : `${a.cop >= 0 ? '+' : ''}${fmtCop(a.cop)}`}
+                    {(() => {
+                      if (a.cop !== 0) return `${a.cop >= 0 ? '+' : ''}${fmtCop(a.cop)}`;
+                      if (a.usd !== 0) return <span style={{ color: '#b45309', fontSize: 11 }}>sin TRM</span>;
+                      return '—';
+                    })()}
                   </td>
                   <td style={{ ...TD, textAlign: 'center' }}>
                     {isActual ? (
@@ -357,7 +359,7 @@ export default function QuarterlyExposureBenchmark({
                   ? <span style={{ color: '#b45309', fontSize: 11 }}>parcial</span>
                   : `${totalCop >= 0 ? '+' : ''}${fmtCop(totalCop)}`}
               </td>
-              <td style={{ ...TD, borderBottom: 'none' }} />
+              <td style={{ ...TD, borderBottom: 'none' }}>{' '}</td>
             </tr>
           </tbody>
         </table>
