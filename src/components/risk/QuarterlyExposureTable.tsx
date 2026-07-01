@@ -604,6 +604,8 @@ export default function QuarterlyExposureTable({
                     <td style={S.td}>
                       <input
                         type="date"
+                        name={`fecha-${row.id}`}
+                        autoComplete="off"
                         value={row.fecha_vencimiento ?? ''}
                         onChange={(e) => patchRow(row.id, { fecha_vencimiento: e.target.value || null })}
                         onBlur={() => flushRow(row.id)}
@@ -614,6 +616,8 @@ export default function QuarterlyExposureTable({
                     <td style={S.td}>
                       <input
                         type="text"
+                        name={`concepto-${row.id}`}
+                        autoComplete="off"
                         value={row.concepto ?? ''}
                         onChange={(e) => patchRow(row.id, { concepto: e.target.value || null })}
                         onBlur={() => flushRow(row.id)}
@@ -626,6 +630,8 @@ export default function QuarterlyExposureTable({
                       <input
                         type="number"
                         step="0.01"
+                        name={`trm-${row.id}`}
+                        autoComplete="off"
                         value={row.trm ?? ''}
                         onChange={(e) => patchRow(row.id, {
                           trm: e.target.value === '' ? null : Number(e.target.value) || null,
@@ -640,6 +646,8 @@ export default function QuarterlyExposureTable({
                       <input
                         type="number"
                         step="0.01"
+                        name={`usd-${row.id}`}
+                        autoComplete="off"
                         value={row.exposicion_usd || ''}
                         onChange={(e) => patchRow(row.id, {
                           exposicion_usd: Number(e.target.value) || 0,
