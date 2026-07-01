@@ -344,6 +344,7 @@ export default function QuarterlyExposureTable({
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const rowsRef = useRef<LocalRow[]>([]);
+  const draftCounterRef = useRef<number>(0);
   const debounceRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
   useEffect(() => { rowsRef.current = rows; }, [rows]);
@@ -466,7 +467,10 @@ export default function QuarterlyExposureTable({
 
   const addRow = useCallback((quarter: number) => {
     if (!canEdit) return;
-    const draftId = `draft-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    // Contador monotonico garantiza unicidad — evita cualquier colision
+    // que causaria compartir estado de input entre filas por React key clash.
+    draftCounterRef.current += 1;
+    const draftId = `draft-${draftCounterRef.current}`;
     const draft: LocalRow = {
       id: draftId,
       company_id: companyId,
