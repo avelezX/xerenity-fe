@@ -350,6 +350,9 @@ export default function QuarterlyExposureTable({
   const [loading, setLoading] = useState<boolean>(true);
   const rowsRef = useRef<LocalRow[]>([]);
   const draftCounterRef = useRef<number>(0);
+  // Referencia mutable a persistRow (declarado abajo) para que el cleanup
+  // del useEffect de mount pueda invocarlo sin capturar closure.
+  const persistRowRef = useRef<((localId: string) => Promise<void>) | null>(null);
   const debounceRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
   useEffect(() => { rowsRef.current = rows; }, [rows]);
@@ -382,7 +385,14 @@ export default function QuarterlyExposureTable({
 
     return () => {
       cancelled = true;
-      Object.values(debounceRef.current).forEach(clearTimeout);
+      // Flush pendientes ANTES de limpiar — no perder cambios al desmontar.
+      // persistRow es async; disparamos y dejamos que el fetch complete en
+      // background (Supabase acepta requests iniciados durante navegacion).
+      Object.entries(debounceRef.current).forEach(([localId, timer]) => {
+        clearTimeout(timer);
+        // Fire and forget — el usuario abandono la pagina, priorizamos guardar.
+        persistRowRef.current?.(localId);
+      });
       debounceRef.current = {};
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -446,6 +456,10 @@ export default function QuarterlyExposureTable({
       )));
     }, 1500);
   }, [notifyChanged]);
+
+  // Sync persistRowRef con la funcion actual — permite al cleanup del
+  // useEffect de mount invocar persistRow sin capturar closure vieja.
+  useEffect(() => { persistRowRef.current = persistRow; }, [persistRow]);
 
   const scheduleSave = useCallback((localId: string) => {
     const existing = debounceRef.current[localId];
@@ -618,13 +632,8 @@ export default function QuarterlyExposureTable({
                         name={`fecha-${row.stableKey}`}
                         autoComplete="off"
                         defaultValue={row.fecha_vencimiento ?? ''}
-                        onBlur={(e) => {
-                          const val = e.target.value || null;
-                          if (val !== row.fecha_vencimiento) {
-                            patchRow(row.id, { fecha_vencimiento: val });
-                            flushRow(row.id);
-                          }
-                        }}
+                        onChange={(e) => patchRow(row.id, { fecha_vencimiento: e.target.value || null })}
+                        onBlur={() => flushRow(row.id)}
                         disabled={!canEdit}
                         style={S.inputText}
                       />
@@ -636,13 +645,8 @@ export default function QuarterlyExposureTable({
                         name={`concepto-${row.stableKey}`}
                         autoComplete="off"
                         defaultValue={row.concepto ?? ''}
-                        onBlur={(e) => {
-                          const val = e.target.value || null;
-                          if (val !== row.concepto) {
-                            patchRow(row.id, { concepto: val });
-                            flushRow(row.id);
-                          }
-                        }}
+                        onChange={(e) => patchRow(row.id, { concepto: e.target.value || null })}
+                        onBlur={() => flushRow(row.id)}
                         disabled={!canEdit}
                         placeholder="ej. Utilización α-1"
                         style={S.inputText}
@@ -656,15 +660,16 @@ export default function QuarterlyExposureTable({
                         name={`trm-${row.stableKey}`}
                         autoComplete="off"
                         defaultValue={row.trm ?? ''}
-                        onBlur={(e) => {
+                        onChange={(e) => {
                           const raw = e.target.value;
-                          const val = raw === '' ? null : Number(raw);
-                          const clean = Number.isFinite(val) ? val : null;
-                          if (clean !== row.trm) {
-                            patchRow(row.id, { trm: clean });
-                            flushRow(row.id);
+                          if (raw === '') {
+                            patchRow(row.id, { trm: null });
+                            return;
                           }
+                          const val = Number(raw);
+                          if (Number.isFinite(val)) patchRow(row.id, { trm: val });
                         }}
+                        onBlur={() => flushRow(row.id)}
                         disabled={!canEdit}
                         placeholder="—"
                         style={{ ...S.input, textAlign: 'right' }}
@@ -678,15 +683,16 @@ export default function QuarterlyExposureTable({
                         name={`usd-${row.stableKey}`}
                         autoComplete="off"
                         defaultValue={row.exposicion_usd || ''}
-                        onBlur={(e) => {
+                        onChange={(e) => {
                           const raw = e.target.value;
-                          const val = raw === '' ? 0 : Number(raw);
-                          const clean = Number.isFinite(val) ? val : 0;
-                          if (clean !== row.exposicion_usd) {
-                            patchRow(row.id, { exposicion_usd: clean });
-                            flushRow(row.id);
+                          if (raw === '') {
+                            patchRow(row.id, { exposicion_usd: 0 });
+                            return;
                           }
+                          const val = Number(raw);
+                          if (Number.isFinite(val)) patchRow(row.id, { exposicion_usd: val });
                         }}
+                        onBlur={() => flushRow(row.id)}
                         disabled={!canEdit}
                         placeholder="0"
                         style={{
