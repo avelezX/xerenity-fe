@@ -64,6 +64,7 @@ import { lastBusinessDay, MONTH_NAMES } from 'src/lib/risk/dateHelpers';
 import BlotterCompraCafe, { CompraMatchableRow } from 'src/components/risk/BlotterCompraCafe';
 import QuarterlyExposureTable from 'src/components/risk/QuarterlyExposureTable';
 import QuarterlyFwdSummary from 'src/components/risk/QuarterlyFwdSummary';
+import QuarterlyExposureBenchmark from 'src/components/risk/QuarterlyExposureBenchmark';
 import { fetchExposicionTrimestral, getQuarterFromDate, type ExposicionTrimestralRow } from 'src/models/risk/fetchExposicionTrimestral';
 import {
   fetchFwdQuarterAssignments,
@@ -2249,6 +2250,17 @@ function RiskManagement() {
                   monthFilter={cafeMonthFilter}
                 />
               </>
+            )}
+
+            {/* ─── LOS COCHES · Resumen exposición por trimestre ─── */}
+            {isCochesFlag && (
+              <div style={{ marginTop: 24 }}>
+                <QuarterlyExposureBenchmark
+                  rows={cochesQuarterlyRows}
+                  year={2026}
+                  currentQuarter={getQuarterFromDate(filterDate)}
+                />
+              </div>
             )}
 
             {/* ─── LOS COCHES · FWDs por trimestre ─── */}
