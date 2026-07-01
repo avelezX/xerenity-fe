@@ -387,7 +387,26 @@ export default function QuarterlyFwdSummary({
                             {r.tipo}
                           </span>
                         </td>
-                        <td style={{ ...TD, fontFamily: 'monospace' }}>{r.label}</td>
+                        <td style={{ ...TD, fontFamily: 'monospace' }}>
+                          <a
+                            href={`/portfolio?open=${encodeURIComponent(r.id)}&type=${r.tipo}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title="Ver detalle en Portafolio de Derivados (abrir en nueva pestaña)"
+                            style={{
+                              color: '#1d4ed8',
+                              textDecoration: 'none',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: 4,
+                            }}
+                            onMouseEnter={(e) => { e.currentTarget.style.textDecoration = 'underline'; }}
+                            onMouseLeave={(e) => { e.currentTarget.style.textDecoration = 'none'; }}
+                          >
+                            {r.label}
+                            <span style={{ fontSize: 10, color: '#94a3b8' }}>↗</span>
+                          </a>
+                        </td>
                         <td style={TD}>{r.counterparty}</td>
                         <td style={TD_NUM}>{fmtAmount(r.notional_usd)}</td>
                         <td style={{ ...TD_NUM, color: '#64748b' }}>{fmtRate(r.strike_or_fx)}</td>
