@@ -1746,8 +1746,12 @@ function RiskManagement() {
   useEffect(() => {
     if (!isCochesFlag || cochesQuarterlyRows.length === 0) return;
     const currentQ = getQuarterFromDate(filterDate);
-    const row = cochesQuarterlyRows.find((x) => x.year === 2026 && x.quarter === currentQ);
-    const expUsd = row?.exposicion_usd ?? 0;
+    // Multi-entrada por Q: sumamos todas las entradas del Q actual.
+    // Cada CxP/CxC puede tener su propia TRM pero para el Benchmark USD
+    // row solo importa el total USD.
+    const expUsd = cochesQuarterlyRows
+      .filter((x) => x.year === 2026 && x.quarter === currentQ)
+      .reduce((s, r) => s + (r.exposicion_usd || 0), 0);
     setBenchmarkRows((prev) => {
       const next = prev.map((r) => ({ ...r }));
       const usdIdx = next.findIndex((r) => r.asset === 'USD');
@@ -2426,21 +2430,11 @@ function RiskManagement() {
             year={2026}
             evaluationDate={filterDate}
             canEdit={isSuperAdmin() || userProfile?.role === 'corp_admin' || userProfile?.role === 'gestor'}
-            onRowSaved={(updatedRow) => {
-              // Sincronizamos el cache del parent para que cuando el usuario
-              // vaya al Benchmark tab, la fila USD Exp Natural refleje
-              // inmediatamente el cambio (sin necesidad de refresh).
-              setCochesQuarterlyRows((prev) => {
-                const existing = prev.findIndex(
-                  (r) => r.year === updatedRow.year && r.quarter === updatedRow.quarter,
-                );
-                if (existing >= 0) {
-                  const next = [...prev];
-                  next[existing] = updatedRow;
-                  return next;
-                }
-                return [...prev, updatedRow];
-              });
+            onDataChanged={(allRows) => {
+              // Sincroniza el cache del parent con TODAS las filas (multi-entrada
+              // por Q). El Benchmark usa getExposicionForQuarter(rows, year, Q)
+              // que suma automaticamente todas las entradas del Q actual.
+              setCochesQuarterlyRows(allRows);
             }}
           />
         )}
