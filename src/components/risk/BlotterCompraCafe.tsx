@@ -23,7 +23,7 @@
  * actualizado por collectors.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Table, Form, Button, Spinner } from 'react-bootstrap';
+import { Form, Button, Spinner } from 'react-bootstrap';
 import { toast } from 'react-toastify';
 import useAppStore from 'src/store';
 
@@ -72,12 +72,81 @@ const SAVE_STATE_LABEL: Record<SaveState, string> = {
   error: 'Error al guardar',
 };
 
+// ── Table styles ─────────────────────────────────────────────
+// Alineados con VentasHistoricoCard para look-and-feel consistente.
+
+const TH: React.CSSProperties = {
+  fontSize: 10,
+  textTransform: 'uppercase',
+  letterSpacing: '0.04em',
+  color: '#475569',
+  fontWeight: 700,
+  padding: '10px 12px',
+  textAlign: 'left',
+  borderBottom: '1px solid #e5e7eb',
+  background: '#f8fafc',
+  whiteSpace: 'nowrap',
+};
+
+const TH_NUM: React.CSSProperties = { ...TH, textAlign: 'right' };
+
+const TD: React.CSSProperties = {
+  fontSize: 12,
+  padding: '8px 12px',
+  borderBottom: '1px solid #f1f5f9',
+  verticalAlign: 'middle',
+};
+
+const TD_NUM: React.CSSProperties = {
+  ...TD,
+  textAlign: 'right',
+  fontFamily: 'monospace',
+};
+
+const TD_INPUT: React.CSSProperties = {
+  padding: '4px 6px',
+  borderBottom: '1px solid #f1f5f9',
+  verticalAlign: 'middle',
+};
+
+const INPUT_NUM: React.CSSProperties = {
+  fontSize: 12,
+  padding: '4px 8px',
+  border: '1px solid #e2e8f0',
+  borderRadius: 4,
+  fontVariantNumeric: 'tabular-nums',
+  fontFamily: 'monospace',
+  width: '100%',
+  textAlign: 'right',
+  background: '#fff',
+  color: '#0f172a',
+  outline: 'none',
+};
+
 export interface ComprasTotals {
+  // ── Totales FILTRADOS (subset visible segun monthFilter) ──
   kgVerdeTotal: number;
   totalCop: number;       // suma directa de Total Compra (COP) por fila
   precioKgCopPond: number; // ponderado por kg verde
   precioSacoCopPond: number;
   filas: number;
+  // ── Totales ACUMULADOS (todo el dataset, ignora filtro) ──
+  // Usado por el CafeMarginCard para calcular "costo de lo vendido"
+  // con el precio promedio acumulado de compras, no el del mes.
+  kgVerdeTotalCum: number;
+  totalCopCum: number;
+  precioKgCopPondCum: number;
+  precioSacoCopPondCum: number;
+  filasCum: number;
+}
+
+// Fila minima emitida al CafeMarginCard para correr FIFO matching.
+// kgVerde = arrobas × 12.5 (calculado dentro del blotter).
+// totalCop = arrobas × valor_compra_at (COP).
+export interface CompraMatchableRow {
+  fecha: string;     // YYYY-MM-DD
+  kgVerde: number;
+  totalCop: number;
 }
 
 interface Props {
@@ -87,8 +156,15 @@ interface Props {
   // Evita un fetch extra que puede estar bloqueado por RLS u otra cosa.
   precioKcCents?: number | null;
   precioKcDate?: string | null;
+  // Filtro multi-mes (array de 1..12). Vacio o undefined = sin filtro.
+  // Aplica a la vista de la tabla Y al subset usado para el margin card.
+  monthFilter?: number[];
   // Callback opcional para que el CafeMarginCard reciba los totales.
   onTotalsChange?: (t: ComprasTotals) => void;
+  // Callback opcional para emitir las filas matchables (raw) al CafeMarginCard
+  // que las usa para FIFO matching. Siempre emite TODAS las filas, sin filtrar
+  // por mes — el FIFO necesita el dataset completo para asignar costos en orden.
+  onMatchableRowsChange?: (rows: CompraMatchableRow[]) => void;
 }
 
 const fmtCop = (v: number): string =>
@@ -137,7 +213,7 @@ function emptyRow(companyId: string, loteId: string): Omit<Row, 'id' | 'created_
   };
 }
 
-export default function BlotterCompraCafe({ companyId, precioKcCents, precioKcDate, onTotalsChange }: Props) {
+export default function BlotterCompraCafe({ companyId, precioKcCents, precioKcDate, monthFilter, onTotalsChange, onMatchableRowsChange }: Props) {
   const selectedLoteId = useAppStore((s) => s.selectedLoteId);
   const [rows, setRows] = useState<Row[]>([]);
   const [kgPerAt, setKgPerAt] = useState<number>(60);
@@ -198,13 +274,15 @@ export default function BlotterCompraCafe({ companyId, precioKcCents, precioKcDa
     })();
   }, [companyId, selectedLoteId]);
 
-  // Calc derived per row — factor_humedo ahora es per-fila.
-  // Precio/Kg verde y Precio/Saco son los normalizadores que permiten
-  // comparar contra el Blotter Ventas (que ya los expone).
+  // Calc derived per row.
+  // Convencion (jun 2026): kg verde compras = arrobas × 12.5 (arroba estandar).
+  // Antes se usaba total_kg × factor_humedo (~0.143) lo que subestimaba en ~46%
+  // y no calzaba con el kg verde del Blotter Ventas. Ahora ambos usan la
+  // misma unidad de medida para que el FIFO matching del margen sea preciso.
+  // factor_humedo se mantiene en la fila pero ya no se usa para kg verde.
   const computed = useMemo(() => rows.map((r) => {
-    const factor = r.factor_humedo ?? 0.1431;
-    const kgVerde = r.total_kg * factor;
     const totalAtCompradas = kgPerAt > 0 ? r.total_kg / kgPerAt : 0;
+    const kgVerde = totalAtCompradas * 12.5;
     const totalValorCompra = totalAtCompradas * r.valor_compra_at;
     const precioKgVerdeCop = kgVerde > 0 ? totalValorCompra / kgVerde : 0;
     const precioSacoCop = precioKgVerdeCop * 70;
@@ -226,23 +304,38 @@ export default function BlotterCompraCafe({ companyId, precioKcCents, precioKcDa
     };
   }), [rows, kgPerAt, lbsPorContrato, precioKc]);
 
-  // Totals — Precio/Kg y Precio/Saco se ponderan por kg verde (no
-  // simple sum) porque son medias, no acumuladores.
-  const totals = useMemo(() => {
-    const totalKgVerde = computed.reduce((s, c) => s + c.kgVerde, 0);
-    const totalValor = computed.reduce((s, c) => s + c.totalValorCompra, 0);
+  // Subset filtrado por mes (usa fecha_compra). Si monthFilter es vacio,
+  // computedFiltered == computed.
+  const computedFiltered = useMemo(() => {
+    if (!monthFilter || monthFilter.length === 0) return computed;
+    const monthSet = new Set(monthFilter);
+    return computed.filter((c) => {
+      const m = parseInt((c.row.fecha_compra || '').slice(5, 7), 10);
+      return monthSet.has(m);
+    });
+  }, [computed, monthFilter]);
+
+  // Helper para calcular totals desde un subset de computed
+  const buildTotals = (subset: typeof computed) => {
+    const totalKgVerde = subset.reduce((s, c) => s + c.kgVerde, 0);
+    const totalValor = subset.reduce((s, c) => s + c.totalValorCompra, 0);
     const precioKgPond = totalKgVerde > 0 ? totalValor / totalKgVerde : 0;
     return {
-      totalKg: rows.reduce((s, r) => s + (r.total_kg ?? 0), 0),
+      totalKg: subset.reduce((s, c) => s + (c.row.total_kg ?? 0), 0),
       kgVerde: totalKgVerde,
-      totalAtCompradas: computed.reduce((s, c) => s + c.totalAtCompradas, 0),
+      totalAtCompradas: subset.reduce((s, c) => s + c.totalAtCompradas, 0),
       totalValorCompra: totalValor,
       precioKgVerdeCop: precioKgPond,
       precioSacoCop: precioKgPond * 70,
-      contratosKc: computed.reduce((s, c) => s + c.contratosKc, 0),
-      exposicionUsd: computed.reduce((s, c) => s + c.exposicionUsd, 0),
+      contratosKc: subset.reduce((s, c) => s + c.contratosKc, 0),
+      exposicionUsd: subset.reduce((s, c) => s + c.exposicionUsd, 0),
     };
-  }, [rows, computed]);
+  };
+
+  // Totales del subset filtrado (para el KPI band visible y la tabla)
+  const totals = useMemo(() => buildTotals(computedFiltered), [computedFiltered]);
+  // Totales acumulados (todo el dataset, para el calculo del margen mes)
+  const totalsCum = useMemo(() => buildTotals(computed), [computed]);
 
   // Emitir totales al padre (CafeMarginCard). Mismo patron que en
   // BlotterVentasCafe; el card calcula el margen restando ambos.
@@ -253,7 +346,12 @@ export default function BlotterCompraCafe({ companyId, precioKcCents, precioKcDa
       totalCop: totals.totalValorCompra,
       precioKgCopPond: totals.precioKgVerdeCop,
       precioSacoCopPond: totals.precioSacoCop,
-      filas: computed.length,
+      filas: computedFiltered.length,
+      kgVerdeTotalCum: totalsCum.kgVerde,
+      totalCopCum: totalsCum.totalValorCompra,
+      precioKgCopPondCum: totalsCum.precioKgVerdeCop,
+      precioSacoCopPondCum: totalsCum.precioSacoCop,
+      filasCum: computed.length,
     });
   }, [
     onTotalsChange,
@@ -261,8 +359,26 @@ export default function BlotterCompraCafe({ companyId, precioKcCents, precioKcDa
     totals.totalValorCompra,
     totals.precioKgVerdeCop,
     totals.precioSacoCop,
+    computedFiltered.length,
+    totalsCum.kgVerde,
+    totalsCum.totalValorCompra,
+    totalsCum.precioKgVerdeCop,
+    totalsCum.precioSacoCop,
     computed.length,
   ]);
+
+  // Emitir filas matchables (raw) al CafeMarginCard para FIFO matching.
+  // Siempre TODAS las filas — el FIFO necesita el dataset completo.
+  useEffect(() => {
+    if (!onMatchableRowsChange) return;
+    onMatchableRowsChange(
+      computed.map((c) => ({
+        fecha: c.row.fecha_compra,
+        kgVerde: c.kgVerde,
+        totalCop: c.totalValorCompra,
+      })),
+    );
+  }, [onMatchableRowsChange, computed]);
 
   const commitRow = useCallback(async (id: string) => {
     const r = rowsRef.current.find((x) => x.id === id);
@@ -355,52 +471,134 @@ export default function BlotterCompraCafe({ companyId, precioKcCents, precioKcDa
 
   return (
     <div className="mt-4 p-3" style={{ background: '#fefefe', border: '1px solid #e2e8f0', borderRadius: 6 }}>
-      <div className="d-flex flex-wrap align-items-center justify-content-between mb-3 gap-2">
+      {/* Header: titulo + nueva compra */}
+      <div className="d-flex align-items-center justify-content-between mb-3">
         <h6 className="mb-0" style={{ color: '#7c3aed', fontWeight: 600 }}>
-          ☕ Blotter Compras Café
+          ☕ Compras de café · resumen por semana
         </h6>
-        <div className="d-flex flex-wrap align-items-center gap-3">
-          <div className="d-flex align-items-center gap-2">
-            <Form.Label className="mb-0 small text-muted">Kg / @:</Form.Label>
-            <Form.Control
-              type="number"
-              step="0.1"
-              size="sm"
-              value={kgPerAt}
-              onChange={(e) => setKgPerAt(Number(e.target.value) || 0)}
-              onBlur={handleGlobalsBlur}
-              style={{ width: 70, fontVariantNumeric: 'tabular-nums' }}
-              disabled={savingGlobals}
-            />
-          </div>
-          <div className="d-flex align-items-center gap-2">
-            <Form.Label className="mb-0 small text-muted">Lbs / KC:</Form.Label>
-            <Form.Control
-              type="number"
-              step="100"
-              size="sm"
-              value={lbsPorContrato}
-              onChange={(e) => setLbsPorContrato(Number(e.target.value) || 0)}
-              onBlur={handleGlobalsBlur}
-              style={{ width: 85, fontVariantNumeric: 'tabular-nums' }}
-              disabled={savingGlobals}
-            />
-          </div>
-          <div className="text-muted small" style={{ minWidth: 150 }}>
-            {precioKc ? (
-              <>
-                Precio KC: <strong style={{ color: '#1e293b' }}>{fmtNum2(precioKc.price)}¢/lb</strong>{' '}
-                <span className="text-muted">({precioKc.date})</span>
-              </>
-            ) : (
-              <span className="text-warning">Precio KC no disponible</span>
-            )}
-          </div>
-          <Button variant="outline-primary" size="sm" onClick={handleAdd}>
-            + Nueva compra
-          </Button>
-        </div>
+        <Button
+          variant="outline-primary"
+          size="sm"
+          onClick={handleAdd}
+          disabled={!companyId || loading}
+        >
+          + Nueva compra
+        </Button>
       </div>
+
+      {/* KPI band — same pattern que VentasHistoricoCard pero paleta morada */}
+      {!loading && rows.length > 0 && (
+        <div style={{
+          background: '#fff',
+          border: '1px solid #e9d5ff',
+          borderRadius: 10,
+          overflow: 'hidden',
+          marginBottom: 14,
+        }}
+        >
+          <div style={{
+            padding: '14px 18px',
+            background: 'linear-gradient(135deg, #faf5ff 0%, #f8fafc 100%)',
+            borderBottom: '1px solid #e9d5ff',
+            display: 'flex',
+            alignItems: 'baseline',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: 16,
+          }}
+          >
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: '#0f172a' }}>
+                Resumen de compras
+              </div>
+              <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>
+                {rows.length} {rows.length === 1 ? 'compra' : 'compras'} registradas
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 18, fontSize: 11, fontFamily: 'monospace' }}>
+              <div>
+                <span style={{ color: '#64748b' }}>Kg humedo:</span>{' '}
+                <strong style={{ color: '#0f172a' }}>{fmtCop(totals.totalKg)}</strong>
+              </div>
+              <div>
+                <span style={{ color: '#64748b' }}>Kg verde:</span>{' '}
+                <strong style={{ color: '#7c3aed' }}>{fmtCop(totals.kgVerde)}</strong>
+              </div>
+              <div>
+                <span style={{ color: '#64748b' }}>Total compra:</span>{' '}
+                <strong style={{ color: '#7c3aed' }}>${fmtNum2(totals.totalValorCompra)}</strong>
+              </div>
+              <div>
+                <span style={{ color: '#64748b' }}>Avg COP/kg verde:</span>{' '}
+                <strong style={{ color: '#0f172a' }}>${fmtCop(totals.precioKgVerdeCop)}</strong>
+              </div>
+              <div>
+                <span style={{ color: '#64748b' }}># Ctos KC:</span>{' '}
+                <strong style={{ color: totals.contratosKc > 0 ? '#15803d' : '#0f172a' }}>
+                  {totals.contratosKc > 0 ? '+' : ''}{totals.contratosKc.toFixed(2)}
+                </strong>
+              </div>
+              <div>
+                <span style={{ color: '#64748b' }}>Exp USD:</span>{' '}
+                <strong style={{ color: totals.exposicionUsd > 0 ? '#15803d' : '#0f172a' }}>
+                  ${fmtCop(totals.exposicionUsd)}
+                </strong>
+              </div>
+            </div>
+          </div>
+
+          {/* Subtle params strip — globals + Precio KC */}
+          <div style={{
+            padding: '8px 18px',
+            background: '#fafafa',
+            borderTop: '1px solid #f1f5f9',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 20,
+            fontSize: 11,
+            color: '#64748b',
+          }}
+          >
+            <div className="d-flex align-items-center gap-2">
+              <span>Kg / @:</span>
+              <Form.Control
+                type="number"
+                step="0.1"
+                size="sm"
+                value={kgPerAt}
+                onChange={(e) => setKgPerAt(Number(e.target.value) || 0)}
+                onBlur={handleGlobalsBlur}
+                style={{ width: 64, fontVariantNumeric: 'tabular-nums', fontSize: 11, height: 26 }}
+                disabled={savingGlobals}
+              />
+            </div>
+            <div className="d-flex align-items-center gap-2">
+              <span>Lbs / Contrato KC:</span>
+              <Form.Control
+                type="number"
+                step="100"
+                size="sm"
+                value={lbsPorContrato}
+                onChange={(e) => setLbsPorContrato(Number(e.target.value) || 0)}
+                onBlur={handleGlobalsBlur}
+                style={{ width: 76, fontVariantNumeric: 'tabular-nums', fontSize: 11, height: 26 }}
+                disabled={savingGlobals}
+              />
+            </div>
+            <div style={{ marginLeft: 'auto' }}>
+              {precioKc ? (
+                <>
+                  Precio KC actual:{' '}
+                  <strong style={{ color: '#0f172a' }}>{fmtNum2(precioKc.price)}¢/lb</strong>{' '}
+                  <span style={{ color: '#94a3b8' }}>({precioKc.date})</span>
+                </>
+              ) : (
+                <span style={{ color: '#dc2626' }}>Precio KC no disponible</span>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {loading && (
         <div className="text-center py-3">
@@ -415,134 +613,107 @@ export default function BlotterCompraCafe({ companyId, precioKcCents, precioKcDa
       )}
 
       {!loading && rows.length > 0 && (
-        <div className="table-responsive">
-          <Table
-            size="sm"
-            striped
-            hover
-            className="align-middle small mb-0"
-            style={{ tableLayout: 'fixed', fontVariantNumeric: 'tabular-nums' }}
-          >
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
             <colgroup>
-              {/* Bloque IDENTIFICACION */}
-              <col style={{ width: 120 }} />{/* Fecha */}
+              <col style={{ width: 130 }} />{/* Fecha */}
               <col style={{ width: 50 }} />{/* Sem */}
-              {/* Bloque VOLUMEN + PRECIO INPUT */}
-              <col style={{ width: 110 }} />{/* Total Kg humedo */}
-              <col style={{ width: 85 }} />{/* Factor */}
-              <col style={{ width: 105 }} />{/* Kg verde */}
-              <col style={{ width: 115 }} />{/* Valor @ */}
+              <col style={{ width: 105 }} />{/* Total Kg humedo */}
+              <col style={{ width: 80 }} />{/* Factor */}
+              <col style={{ width: 100 }} />{/* Kg verde (auto) */}
+              <col style={{ width: 110 }} />{/* Valor @ */}
               <col style={{ width: 90 }} />{/* @ Compradas */}
-              {/* Bloque NORMALIZADO + TOTAL + HEDGING (compartido con Ventas) */}
               <col style={{ width: 110 }} />{/* Precio/Kg COP */}
               <col style={{ width: 125 }} />{/* Precio/Saco COP */}
               <col style={{ width: 145 }} />{/* Total Compra COP */}
               <col style={{ width: 95 }} />{/* # Ctos KC */}
-              <col style={{ width: 135 }} />{/* Exp USD */}
-              <col style={{ width: 50 }} />{/* X */}
+              <col style={{ width: 130 }} />{/* Exp USD */}
+              <col style={{ width: 44 }} />{/* X */}
             </colgroup>
-            <thead style={{ background: '#f8fafc' }}>
-              <tr style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.04em', color: '#475569' }}>
-                <th style={{ padding: '8px 8px' }}>Fecha</th>
-                <th className="text-end" style={{ padding: '8px 6px' }}>Sem</th>
-                <th className="text-end" style={{ padding: '8px 10px' }}>Total Kg <span style={{ textTransform: 'none', fontWeight: 400 }}>(húmedo)</span></th>
-                <th className="text-end" style={{ padding: '8px 10px' }} title="Factor de conversion humedo a verde (editable per fila)">Factor <span style={{ textTransform: 'none', fontWeight: 400 }}>conv.</span></th>
-                <th className="text-end" style={{ padding: '8px 10px', background: '#f1f5f9' }}>Kg verde <span style={{ textTransform: 'none', fontWeight: 400 }}>(auto)</span></th>
-                <th className="text-end" style={{ padding: '8px 10px' }}>Valor @ <span style={{ textTransform: 'none', fontWeight: 400 }}>(COP)</span></th>
-                <th className="text-end" style={{ padding: '8px 10px', background: '#f1f5f9' }}>@ Compradas</th>
-                <th className="text-end" style={{ padding: '8px 10px', background: '#f1f5f9' }}>Precio / Kg <span style={{ textTransform: 'none', fontWeight: 400 }}>(COP)</span></th>
-                <th className="text-end" style={{ padding: '8px 10px', background: '#f1f5f9' }}>Precio / Saco <span style={{ textTransform: 'none', fontWeight: 400 }}>(COP)</span></th>
-                <th className="text-end" style={{ padding: '8px 10px', background: '#dcfce7', color: '#15803d' }}>Total Compra <span style={{ textTransform: 'none', fontWeight: 400 }}>(COP)</span></th>
-                <th className="text-end" style={{ padding: '8px 10px', background: '#fef3c7', color: '#854d0e' }} title="+ = LONG café (compraste, tienes inventario)">
-                  # Ctos KC <span style={{ textTransform: 'none', fontWeight: 400 }}>(café)</span>
-                </th>
-                <th className="text-end" style={{ padding: '8px 10px', background: '#fef3c7', color: '#854d0e' }} title="+ = LONG USD (el inventario vale USD)">
-                  Exp. USD
-                </th>
-                <th style={{ padding: '8px 4px' }} aria-label="Estado y acciones" />
+            <thead>
+              <tr>
+                <th style={TH}>Fecha</th>
+                <th style={TH_NUM}>Sem</th>
+                <th style={TH_NUM}>Total Kg <span style={{ textTransform: 'none', fontWeight: 400, color: '#94a3b8' }}>húmedo</span></th>
+                <th style={TH_NUM} title="Factor de conversion humedo a verde (editable per fila)">Factor</th>
+                <th style={TH_NUM}>Kg verde</th>
+                <th style={TH_NUM}>Valor @ <span style={{ textTransform: 'none', fontWeight: 400, color: '#94a3b8' }}>COP</span></th>
+                <th style={TH_NUM}>@ compradas</th>
+                <th style={TH_NUM}>Precio / kg <span style={{ textTransform: 'none', fontWeight: 400, color: '#94a3b8' }}>COP</span></th>
+                <th style={TH_NUM}>Precio / saco <span style={{ textTransform: 'none', fontWeight: 400, color: '#94a3b8' }}>COP</span></th>
+                <th style={TH_NUM}>Total compra <span style={{ textTransform: 'none', fontWeight: 400, color: '#94a3b8' }}>COP</span></th>
+                <th style={TH_NUM} title="+ = LONG café (compraste, tienes inventario)"># Ctos KC</th>
+                <th style={TH_NUM} title="+ = LONG USD (el inventario vale USD)">Exp USD</th>
+                <th style={{ ...TH, textAlign: 'center', padding: '10px 4px' }} aria-label="Estado y acciones" />
               </tr>
             </thead>
             <tbody>
-              {computed.map((c) => (
+              {computedFiltered.map((c) => (
                 <tr key={c.row.id}>
-                  <td style={{ padding: '4px 6px' }}>
-                    <Form.Control
+                  <td style={TD_INPUT}>
+                    <input
                       type="date"
-                      size="sm"
                       value={c.row.fecha_compra}
                       onChange={(e) => patchRow(c.row.id, { fecha_compra: e.target.value })}
                       onBlur={() => flushRow(c.row.id)}
-                      className="w-100"
-                      style={{ fontVariantNumeric: 'tabular-nums' }}
+                      style={{ ...INPUT_NUM, textAlign: 'left' }}
                     />
                   </td>
-                  <td className="text-end text-muted" style={{ padding: '4px 6px' }}>{c.semana || '—'}</td>
-                  <td style={{ padding: '4px 6px' }}>
-                    <Form.Control
+                  <td style={{ ...TD_NUM, color: '#94a3b8' }}>{c.semana || '—'}</td>
+                  <td style={TD_INPUT}>
+                    <input
                       type="number"
                       step="1"
-                      size="sm"
-                      className="text-end w-100"
                       value={c.row.total_kg}
                       onChange={(e) => patchRow(c.row.id, { total_kg: Number(e.target.value) || 0 })}
                       onBlur={() => flushRow(c.row.id)}
-                      style={{ fontVariantNumeric: 'tabular-nums' }}
+                      style={INPUT_NUM}
                     />
                   </td>
-                  <td style={{ padding: '4px 6px' }}>
-                    <Form.Control
+                  <td style={TD_INPUT}>
+                    <input
                       type="number"
                       step="0.0001"
                       min="0"
                       max="1"
-                      size="sm"
-                      className="text-end w-100"
                       value={c.row.factor_humedo ?? 0.1431}
                       onChange={(e) => patchRow(c.row.id, { factor_humedo: Number(e.target.value) || 0 })}
                       onBlur={() => flushRow(c.row.id)}
-                      style={{ fontVariantNumeric: 'tabular-nums' }}
+                      style={INPUT_NUM}
                       title="Factor de conversion humedo a verde (default 0.1431)"
                     />
                   </td>
-                  <td className="text-end" style={{ background: '#f1f5f9', padding: '4px 12px' }}>
+                  <td style={{ ...TD_NUM, color: '#7c3aed', fontWeight: 600 }}>
                     {fmtKg(c.kgVerde)}
                   </td>
-                  <td style={{ padding: '4px 6px' }}>
-                    <Form.Control
+                  <td style={TD_INPUT}>
+                    <input
                       type="number"
                       step="100"
-                      size="sm"
-                      className="text-end w-100"
                       value={c.row.valor_compra_at}
                       onChange={(e) => patchRow(c.row.id, { valor_compra_at: Number(e.target.value) || 0 })}
                       onBlur={() => flushRow(c.row.id)}
-                      style={{ fontVariantNumeric: 'tabular-nums' }}
+                      style={INPUT_NUM}
                     />
                   </td>
-                  <td className="text-end" style={{ background: '#f1f5f9', padding: '4px 12px' }}>
-                    {fmtNum2(c.totalAtCompradas)}
-                  </td>
-                  <td className="text-end" style={{ background: '#f1f5f9', padding: '4px 12px', fontVariantNumeric: 'tabular-nums' }}>
-                    ${fmtCop(c.precioKgVerdeCop)}
-                  </td>
-                  <td className="text-end" style={{ background: '#f1f5f9', padding: '4px 12px', fontVariantNumeric: 'tabular-nums' }}>
-                    ${fmtCop(c.precioSacoCop)}
-                  </td>
-                  <td className="text-end fw-bold" style={{ background: '#dcfce7', color: '#15803d', padding: '4px 12px' }}>
+                  <td style={TD_NUM}>{fmtNum2(c.totalAtCompradas)}</td>
+                  <td style={TD_NUM}>${fmtCop(c.precioKgVerdeCop)}</td>
+                  <td style={TD_NUM}>${fmtCop(c.precioSacoCop)}</td>
+                  <td style={{ ...TD_NUM, color: '#7c3aed', fontWeight: 600 }}>
                     ${fmtCop(c.totalValorCompra)}
                   </td>
-                  <td className="text-end fw-semibold" style={{ background: '#fef3c7', color: c.contratosKc >= 0 ? '#15803d' : '#b91c1c', padding: '4px 12px' }}>
+                  <td style={{ ...TD_NUM, color: c.contratosKc >= 0 ? '#15803d' : '#b91c1c' }}>
                     {fmtSignedNum4(c.contratosKc)}
                   </td>
-                  <td className="text-end fw-semibold" style={{ background: '#fef3c7', color: c.exposicionUsd >= 0 ? '#15803d' : '#b91c1c', padding: '4px 12px' }}>
+                  <td style={{ ...TD_NUM, color: c.exposicionUsd >= 0 ? '#15803d' : '#b91c1c' }}>
                     {fmtSignedCop(c.exposicionUsd)}
                   </td>
-                  <td style={{ padding: '4px 4px', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                  <td style={{ ...TD, textAlign: 'center', padding: '4px 4px' }}>
                     <span
                       style={{
                         display: 'inline-block',
-                        width: 14,
-                        fontSize: '0.85rem',
+                        width: 12,
+                        fontSize: 12,
                         marginRight: 4,
                         color: SAVE_STATE_COLOR[c.row.saveState ?? 'idle'],
                       }}
@@ -550,41 +721,74 @@ export default function BlotterCompraCafe({ companyId, precioKcCents, precioKcDa
                     >
                       {SAVE_STATE_GLYPH[c.row.saveState ?? 'idle']}
                     </span>
-                    <Button
-                      variant="link"
-                      size="sm"
+                    <button
+                      type="button"
                       onClick={() => handleDelete(c.row.id)}
                       title="Borrar"
-                      className="p-0 text-danger"
-                      style={{ lineHeight: 1, fontSize: '1.1rem' }}
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        color: '#dc2626',
+                        cursor: 'pointer',
+                        fontSize: 16,
+                        lineHeight: 1,
+                        padding: 0,
+                      }}
                     >
                       &times;
-                    </Button>
+                    </button>
                   </td>
                 </tr>
               ))}
             </tbody>
             <tfoot>
-              {/* 13 cols: Fecha, Sem, Total Kg, Factor, Kg verde, Valor @,
-                  @ Compradas, Precio/Kg, Precio/Saco, Total Compra, # Ctos KC,
-                  Exp USD, X. Precio/Kg y Precio/Saco son PONDERADOS (no simple
-                  sum) — son medias por kg verde. */}
-              <tr style={{ background: '#f1f5f9', fontWeight: 600, borderTop: '2px solid #cbd5e1' }}>
-                <td style={{ padding: '8px 8px', textTransform: 'uppercase', letterSpacing: '0.04em', fontSize: '0.7rem', color: '#475569' }} colSpan={2}>Total <span style={{ textTransform: 'none', fontWeight: 400, color: '#94a3b8' }}>(Pre/Kg pond.)</span></td>
-                <td className="text-end" style={{ padding: '8px 10px' }}>{fmtKg(totals.totalKg)}</td>
-                <td />{/* Factor (no aplica suma) */}
-                <td className="text-end" style={{ padding: '8px 12px' }}>{fmtKg(totals.kgVerde)}</td>
-                <td />
-                <td className="text-end" style={{ padding: '8px 12px' }}>{fmtNum2(totals.totalAtCompradas)}</td>
-                <td className="text-end" style={{ padding: '8px 12px' }}>${fmtCop(totals.precioKgVerdeCop)}</td>
-                <td className="text-end" style={{ padding: '8px 12px' }}>${fmtCop(totals.precioSacoCop)}</td>
-                <td className="text-end" style={{ color: '#15803d', padding: '8px 12px', fontSize: '0.95rem' }}>${fmtCop(totals.totalValorCompra)}</td>
-                <td className="text-end" style={{ color: totals.contratosKc >= 0 ? '#15803d' : '#b91c1c', padding: '8px 12px', fontSize: '0.95rem' }}>{fmtSignedNum4(totals.contratosKc)}</td>
-                <td className="text-end" style={{ color: totals.exposicionUsd >= 0 ? '#15803d' : '#b91c1c', padding: '8px 12px', fontSize: '0.95rem' }}>{fmtSignedCop(totals.exposicionUsd)}</td>
-                <td />
+              <tr style={{ background: '#f8fafc', borderTop: '2px solid #cbd5e1' }}>
+                <td
+                  style={{
+                    ...TD,
+                    fontSize: 10,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.04em',
+                    color: '#475569',
+                    fontWeight: 700,
+                    borderBottom: 'none',
+                  }}
+                  colSpan={2}
+                >
+                  Total <span style={{ textTransform: 'none', fontWeight: 400, color: '#94a3b8' }}>Pre/kg pond.</span>
+                </td>
+                <td style={{ ...TD_NUM, fontWeight: 600, borderBottom: 'none' }}>{fmtKg(totals.totalKg)}</td>
+                <td style={{ ...TD_NUM, borderBottom: 'none' }} />
+                <td style={{ ...TD_NUM, color: '#7c3aed', fontWeight: 700, borderBottom: 'none' }}>{fmtKg(totals.kgVerde)}</td>
+                <td style={{ ...TD_NUM, borderBottom: 'none' }} />
+                <td style={{ ...TD_NUM, fontWeight: 600, borderBottom: 'none' }}>{fmtNum2(totals.totalAtCompradas)}</td>
+                <td style={{ ...TD_NUM, fontWeight: 600, borderBottom: 'none' }}>${fmtCop(totals.precioKgVerdeCop)}</td>
+                <td style={{ ...TD_NUM, fontWeight: 600, borderBottom: 'none' }}>${fmtCop(totals.precioSacoCop)}</td>
+                <td style={{ ...TD_NUM, color: '#7c3aed', fontWeight: 700, borderBottom: 'none' }}>${fmtCop(totals.totalValorCompra)}</td>
+                <td
+                  style={{
+                    ...TD_NUM,
+                    color: totals.contratosKc >= 0 ? '#15803d' : '#b91c1c',
+                    fontWeight: 700,
+                    borderBottom: 'none',
+                  }}
+                >
+                  {fmtSignedNum4(totals.contratosKc)}
+                </td>
+                <td
+                  style={{
+                    ...TD_NUM,
+                    color: totals.exposicionUsd >= 0 ? '#15803d' : '#b91c1c',
+                    fontWeight: 700,
+                    borderBottom: 'none',
+                  }}
+                >
+                  {fmtSignedCop(totals.exposicionUsd)}
+                </td>
+                <td style={{ ...TD, borderBottom: 'none' }} />
               </tr>
             </tfoot>
-          </Table>
+          </table>
         </div>
       )}
     </div>

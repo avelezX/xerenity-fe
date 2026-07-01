@@ -61,12 +61,20 @@ import { fetchCompanyRiskConfig, getAssetsWithCurrency, getChartColors, saveComp
 import type { RiskCompanyConfig } from 'src/lib/risk/companyConfig';
 import { parseContractMaturity } from 'src/lib/risk/futuresCalculator';
 import { lastBusinessDay, MONTH_NAMES } from 'src/lib/risk/dateHelpers';
-import BlotterCompraCafe from 'src/components/risk/BlotterCompraCafe';
+import BlotterCompraCafe, { CompraMatchableRow } from 'src/components/risk/BlotterCompraCafe';
 import QuarterlyExposureTable from 'src/components/risk/QuarterlyExposureTable';
 import QuarterlyFwdSummary from 'src/components/risk/QuarterlyFwdSummary';
 import { fetchExposicionTrimestral, getQuarterFromDate, type ExposicionTrimestralRow } from 'src/models/risk/fetchExposicionTrimestral';
+import {
+  fetchFwdQuarterAssignments,
+  upsertFwdQuarterAssignment,
+  deleteFwdQuarterAssignment,
+  indexAssignmentsById,
+  type FwdPositionType,
+  type FwdQuarterAssignmentRow,
+} from 'src/models/trading/fetchFwdQuarterAssignments';
 import type { ComprasTotals } from 'src/components/risk/BlotterCompraCafe';
-import BlotterVentasCafe from 'src/components/risk/BlotterVentasCafe';
+import BlotterVentasCafe, { VentaMatchableRow } from 'src/components/risk/BlotterVentasCafe';
 import type { VentasTotals } from 'src/components/risk/BlotterVentasCafe';
 import CafeMarginCard from 'src/components/risk/CafeMarginCard';
 import LoteSelector from 'src/components/risk/LoteSelector';
@@ -907,6 +915,11 @@ function RiskManagement() {
   const LOS_COCHES_ID = 'c6697df7-bba3-4ff5-ae66-dcc532db41af';
   const isCochesFlag = selectedCompanyId === LOS_COCHES_ID;
 
+  // Overrides de trimestre por posicion FWD (Los Coches). Cache indexado
+  // por position_id. Ver scripts/fwd_quarter_assignment_setup.sql.
+  const [fwdQuarterOverrides, setFwdQuarterOverrides] = useState<Record<string, number>>({});
+  const [fwdAssignments, setFwdAssignments] = useState<FwdQuarterAssignmentRow[]>([]);
+
   const [activeTab, setActiveTab] = useState('benchmark');
   // Build tabs dynamically: add "Precios Locales" if CAFE.
   // NOTA: Calculadora USDCOP se extrajo a /usdcop-calculator (mayo 2026)
@@ -930,6 +943,14 @@ function RiskManagement() {
   // Totales que cada blotter de cafe emite -> alimentan al CafeMarginCard.
   const [comprasTotals, setComprasTotals] = useState<ComprasTotals | null>(null);
   const [ventasTotals, setVentasTotals] = useState<VentasTotals | null>(null);
+  // Filas raw matchables (fecha + kg_verde + COP) -> CafeMarginCard FIFO.
+  const [comprasMatchable, setComprasMatchable] = useState<CompraMatchableRow[]>([]);
+  const [ventasMatchable, setVentasMatchable] = useState<VentaMatchableRow[]>([]);
+  // Filtro de mes compartido entre Compras + Ventas + Margen card.
+  // Array de meses seleccionados (1..12). Array vacio = sin filtro
+  // (mostrar todo). Soporta multi-select para analisis de rangos
+  // arbitrarios (e.g., trimestres, semestres, dos meses puntuales).
+  const [cafeMonthFilter, setCafeMonthFilter] = useState<number[]>([]);
 
 
   // Fecha global del modulo de Riesgos. Viene del selector en CoreLayout
@@ -1652,6 +1673,108 @@ function RiskManagement() {
     });
   }, [isCochesFlag, selectedCompanyId]);
 
+  // ── Los Coches: FWD quarter overrides ──
+  // Carga las asignaciones manuales de trimestre por posicion FWD para
+  // el ano del filterDate. Al cambiar filterDate a otro ano, refetch.
+  const filterYear = useMemo(
+    () => parseInt(filterDate.slice(0, 4), 10) || new Date().getFullYear(),
+    [filterDate],
+  );
+
+  useEffect(() => {
+    if (!isCochesFlag || !selectedCompanyId) {
+      setFwdAssignments([]);
+      setFwdQuarterOverrides({});
+      return;
+    }
+    fetchFwdQuarterAssignments(selectedCompanyId, filterYear).then((r) => {
+      if (r.error) {
+        // eslint-disable-next-line no-console
+        console.warn('[fwd-quarter-assignments] fetch error:', r.error);
+        return;
+      }
+      setFwdAssignments(r.data);
+      const indexed = indexAssignmentsById(r.data);
+      const overrides: Record<string, number> = {};
+      Object.entries(indexed).forEach(([positionId, row]) => {
+        overrides[positionId] = row.quarter;
+      });
+      setFwdQuarterOverrides(overrides);
+    });
+  }, [isCochesFlag, selectedCompanyId, filterYear]);
+
+  const handleAssignQuarter = useCallback(async (
+    positionId: string,
+    positionType: FwdPositionType,
+    quarter: 1 | 2 | 3 | 4,
+  ) => {
+    if (!selectedCompanyId) return;
+    // Optimistic update — refleja el cambio en la UI inmediatamente.
+    setFwdQuarterOverrides((prev) => ({ ...prev, [positionId]: quarter }));
+    const res = await upsertFwdQuarterAssignment({
+      position_id: positionId,
+      year: filterYear,
+      position_type: positionType,
+      company_id: selectedCompanyId,
+      quarter,
+    });
+    if (res.error) {
+      toast.error(`No se pudo reasignar: ${res.error}`);
+      // Rollback
+      setFwdQuarterOverrides((prev) => {
+        const next = { ...prev };
+        delete next[positionId];
+        return next;
+      });
+      return;
+    }
+    // Actualiza la copia autoritativa
+    setFwdAssignments((prev) => {
+      const existing = prev.find((a) => a.position_id === positionId && a.year === filterYear);
+      const now = new Date().toISOString();
+      if (existing) {
+        return prev.map((a) =>
+          (a.position_id === positionId && a.year === filterYear)
+            ? { ...a, quarter, updated_at: now }
+            : a);
+      }
+      return [
+        ...prev,
+        {
+          position_id: positionId,
+          year: filterYear,
+          position_type: positionType,
+          company_id: selectedCompanyId,
+          quarter,
+          note: null,
+          assigned_at: now,
+          updated_at: now,
+        } as FwdQuarterAssignmentRow,
+      ];
+    });
+  }, [selectedCompanyId, filterYear]);
+
+  const handleClearAssignment = useCallback(async (positionId: string) => {
+    // Optimistic
+    const prevQuarter = fwdQuarterOverrides[positionId];
+    setFwdQuarterOverrides((prev) => {
+      const next = { ...prev };
+      delete next[positionId];
+      return next;
+    });
+    const res = await deleteFwdQuarterAssignment(positionId, filterYear);
+    if (res.error) {
+      toast.error(`No se pudo revertir: ${res.error}`);
+      // Rollback
+      if (prevQuarter != null) {
+        setFwdQuarterOverrides((prev) => ({ ...prev, [positionId]: prevQuarter }));
+      }
+      return;
+    }
+    setFwdAssignments((prev) =>
+      prev.filter((a) => !(a.position_id === positionId && a.year === filterYear)));
+  }, [filterYear, fwdQuarterOverrides]);
+
   useEffect(() => {
     if (!isCochesFlag || cochesQuarterlyRows.length === 0) return;
     const currentQ = getQuarterFromDate(filterDate);
@@ -2067,19 +2190,92 @@ function RiskManagement() {
             {hasCafe && selectedCompanyId && (
               <>
                 <LoteSelector companyId={selectedCompanyId} />
+
+                {/* ── Filtro multi-mes compartido ── */}
+                <div className="mt-3 d-flex align-items-center flex-wrap gap-2">
+                  <span style={{ fontSize: 11, color: '#6c757d', fontWeight: 600 }}>
+                    Meses:
+                  </span>
+                  {/* Chip "Todos" — limpia la seleccion */}
+                  {(() => {
+                    const labels = ['Todos', 'Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+                    const allActive = cafeMonthFilter.length === 0;
+                    return (
+                      <button
+                        type="button"
+                        onClick={() => setCafeMonthFilter([])}
+                        style={{
+                          padding: '2px 10px',
+                          borderRadius: 12,
+                          fontSize: 11,
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          border: allActive ? '2px solid #7c3aed' : '1px solid #dee2e6',
+                          background: allActive ? '#7c3aed' : '#f8f9fa',
+                          color: allActive ? '#fff' : '#6c757d',
+                        }}
+                      >
+                        {labels[0]}
+                      </button>
+                    );
+                  })()}
+                  {/* Chips de meses — toggle individual */}
+                  {([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12] as const).map((m) => {
+                    const labels = ['', 'Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+                    const active = cafeMonthFilter.includes(m);
+                    return (
+                      <button
+                        type="button"
+                        key={m}
+                        onClick={() => setCafeMonthFilter((prev) => (
+                          prev.includes(m) ? prev.filter((x) => x !== m) : [...prev, m].sort((a, b) => a - b)
+                        ))}
+                        style={{
+                          padding: '2px 10px',
+                          borderRadius: 12,
+                          fontSize: 11,
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          border: active ? '2px solid #7c3aed' : '1px solid #dee2e6',
+                          background: active ? '#7c3aed' : '#f8f9fa',
+                          color: active ? '#fff' : '#6c757d',
+                        }}
+                      >
+                        {labels[m]}
+                      </button>
+                    );
+                  })}
+                  <span style={{ fontSize: 10, color: '#94a3b8', marginLeft: 8 }}>
+                    {cafeMonthFilter.length === 0
+                      ? 'Click meses para filtrar (multi-select)'
+                      : `${cafeMonthFilter.length} ${cafeMonthFilter.length === 1 ? 'mes' : 'meses'} seleccionados`}
+                  </span>
+                </div>
+
                 <BlotterCompraCafe
                   companyId={selectedCompanyId}
                   precioKcCents={benchmarkFactors?.factors?.CAFE?.price_end ?? null}
                   precioKcDate={benchmarkFactors?.period?.end ?? null}
+                  monthFilter={cafeMonthFilter}
                   onTotalsChange={setComprasTotals}
+                  onMatchableRowsChange={setComprasMatchable}
                 />
                 <BlotterVentasCafe
                   companyId={selectedCompanyId}
                   precioKcCents={benchmarkFactors?.factors?.CAFE?.price_end ?? null}
                   precioKcDate={benchmarkFactors?.period?.end ?? null}
+                  monthFilter={cafeMonthFilter}
                   onTotalsChange={setVentasTotals}
+                  onMatchableRowsChange={setVentasMatchable}
                 />
-                <CafeMarginCard compras={comprasTotals} ventas={ventasTotals} />
+                <CafeMarginCard
+                  companyId={selectedCompanyId}
+                  compras={comprasTotals}
+                  ventas={ventasTotals}
+                  comprasRows={comprasMatchable}
+                  ventasRows={ventasMatchable}
+                  monthFilter={cafeMonthFilter}
+                />
               </>
             )}
 
@@ -2091,6 +2287,9 @@ function RiskManagement() {
                   xccys={pricedXccyStore}
                   ibrs={pricedIbrSwapStore}
                   currentQuarter={getQuarterFromDate(filterDate)}
+                  quarterOverrides={fwdQuarterOverrides}
+                  onAssignQuarter={handleAssignQuarter}
+                  onClearAssignment={handleClearAssignment}
                 />
               </div>
             )}
