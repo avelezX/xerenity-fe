@@ -12,6 +12,7 @@
  */
 import React, { useMemo } from 'react';
 import type { PricedNdf, PricedXccy, PricedIbrSwap } from 'src/types/trading';
+import type { FwdPositionType } from 'src/models/trading/fetchFwdQuarterAssignments';
 
 interface Props {
   ndfs: PricedNdf[];
@@ -19,6 +20,17 @@ interface Props {
   ibrs: PricedIbrSwap[];
   /** Q actual (1..4) — basado en filterDate global. Para highlight. */
   currentQuarter: number;
+  /** Overrides de trimestre por posicion. Key = position_id.
+   *  Sin entrada → fallback a quarterOf(trade_date). */
+  quarterOverrides?: Record<string, number>;
+  /** Callback al reasignar una posicion. onAssign(position_id, tipo, quarter). */
+  onAssignQuarter?: (
+    positionId: string,
+    positionType: FwdPositionType,
+    quarter: 1 | 2 | 3 | 4,
+  ) => void;
+  /** Callback al remover el override (revertir a computed). */
+  onClearAssignment?: (positionId: string) => void;
 }
 
 type RowLike = {
@@ -147,6 +159,7 @@ const TIPO_BADGE: Record<RowLike['tipo'], React.CSSProperties> = {
 
 export default function QuarterlyFwdSummary({
   ndfs, xccys, ibrs, currentQuarter,
+  quarterOverrides, onAssignQuarter, onClearAssignment,
 }: Props) {
   // Unifica las 3 fuentes en una sola lista normalizada de RowLike,
   // filtrando solo posiciones activas (estado='Activo').
@@ -211,16 +224,21 @@ export default function QuarterlyFwdSummary({
     return rows;
   }, [ndfs, xccys, ibrs]);
 
-  // Agrupa por Q de trade_date (fecha de apertura) — refleja en que
-  // trimestre se origino la posicion. Antes era por maturity_date pero
-  // eso confundia con el trimestre de cobertura.
+  // Q efectivo por posicion: usa override si esta asignado, sino
+  // fallback a quarterOf(trade_date). Esto refleja si el hedge fue
+  // reasignado manualmente al trimestre de cobertura (vs. el de origen).
+  const quarterFor = (r: RowLike): number => {
+    const override = quarterOverrides?.[r.id];
+    if (override && override >= 1 && override <= 4) return override;
+    return quarterOf(r.trade_date);
+  };
+
   const byQuarter = useMemo(() => {
     const acc: Record<number, RowLike[]> = { 1: [], 2: [], 3: [], 4: [] };
     allActive.forEach((r) => {
-      const q = quarterOf(r.trade_date);
+      const q = quarterFor(r);
       if (q >= 1 && q <= 4) acc[q].push(r);
     });
-    // Ordenar dentro de cada Q por trade_date asc, desempate por maturity_date
     Object.keys(acc).forEach((k) => {
       acc[Number(k)].sort((a, b) => {
         const cmp = a.trade_date.localeCompare(b.trade_date);
@@ -228,7 +246,8 @@ export default function QuarterlyFwdSummary({
       });
     });
     return acc;
-  }, [allActive]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allActive, quarterOverrides]);
 
   if (allActive.length === 0) {
     return (
@@ -259,7 +278,7 @@ export default function QuarterlyFwdSummary({
         gap: 8,
       }}
       >
-        Portafolio de Derivados · por trimestre de apertura
+        Portafolio de Derivados · por trimestre asignado
         <span style={{ fontSize: 11, fontWeight: 500, color: '#64748b' }}>
           ({allActive.length} {allActive.length === 1 ? 'posicion activa' : 'posiciones activas'})
         </span>
@@ -346,6 +365,9 @@ export default function QuarterlyFwdSummary({
                       <th style={{ ...TH, width: 110 }}>Vencimiento</th>
                       <th style={TH_NUM}>NPV USD</th>
                       <th style={TH_NUM}>FX Delta</th>
+                      <th style={{ ...TH, width: 130, textAlign: 'center' }} title="Reasignar el trimestre de este FWD. 'Auto' = usa la fecha de apertura.">
+                        Asignar Q
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
@@ -382,6 +404,44 @@ export default function QuarterlyFwdSummary({
                           {r.fx_delta != null
                             ? `${(r.fx_delta) >= 0 ? '+' : ''}${fmtNum(r.fx_delta)}`
                             : '—'}
+                        </td>
+                        <td style={{ ...TD, textAlign: 'center', padding: '4px 8px' }}>
+                          <select
+                            value={quarterOverrides?.[r.id] ?? 'auto'}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              if (val === 'auto') {
+                                onClearAssignment?.(r.id);
+                              } else {
+                                const q = parseInt(val, 10) as 1 | 2 | 3 | 4;
+                                onAssignQuarter?.(r.id, r.tipo, q);
+                              }
+                            }}
+                            title={quarterOverrides?.[r.id]
+                              ? `Override manual — apertura: Q${quarterOf(r.trade_date)}`
+                              : `Auto (por fecha de apertura Q${quarterOf(r.trade_date)})`}
+                            disabled={!onAssignQuarter}
+                            style={{
+                              fontSize: 11,
+                              padding: '3px 6px',
+                              border: quarterOverrides?.[r.id]
+                                ? '1px solid #f59e0b'
+                                : '1px solid #e2e8f0',
+                              borderRadius: 4,
+                              background: quarterOverrides?.[r.id] ? '#fffbeb' : '#fff',
+                              color: '#0f172a',
+                              fontFamily: 'monospace',
+                              cursor: onAssignQuarter ? 'pointer' : 'not-allowed',
+                              width: '100%',
+                              maxWidth: 118,
+                            }}
+                          >
+                            <option value="auto">Auto</option>
+                            <option value="1">Q1</option>
+                            <option value="2">Q2</option>
+                            <option value="3">Q3</option>
+                            <option value="4">Q4</option>
+                          </select>
                         </td>
                       </tr>
                     ))}
