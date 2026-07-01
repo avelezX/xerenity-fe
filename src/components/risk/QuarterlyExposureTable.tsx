@@ -32,7 +32,7 @@ type LocalRow = ExposicionTrimestralRow & {
   // fila y nunca cambia — incluso cuando id transiciona de draft-X a UUID
   // servidor. Sin esto, React unmount/remount los inputs al persistir y
   // el DOM se confunde entre filas (auto-copy visual).
-  _key: string;
+  stableKey: string;
 };
 
 interface Props {
@@ -374,7 +374,7 @@ export default function QuarterlyExposureTable({
       }
       const local: LocalRow[] = r.data.map((row) => {
         draftCounterRef.current += 1;
-        return { ...row, saveState: 'idle' as SaveState, _key: `k-${draftCounterRef.current}` };
+        return { ...row, saveState: 'idle' as SaveState, stableKey: `k-${draftCounterRef.current}` };
       });
       setRows(local);
       onDataChanged?.(r.data);
@@ -482,7 +482,7 @@ export default function QuarterlyExposureTable({
     const draftId = `draft-${cnt}`;
     const draft: LocalRow = {
       id: draftId,
-      _key: `k-${cnt}`,
+      stableKey: `k-${cnt}`,
       company_id: companyId,
       year,
       quarter,
@@ -610,12 +610,12 @@ export default function QuarterlyExposureTable({
                 const usdNeg = (row.exposicion_usd || 0) < 0;
                 const saveInd = SAVE_INDICATOR[row.saveState];
                 return (
-                  <tr key={row._key}>
+                  <tr key={row.stableKey}>
                     <td style={S.td}>
                       <input
-                        key={`fecha-${row._key}`}
+                        key={`fecha-${row.stableKey}`}
                         type="date"
-                        name={`fecha-${row._key}`}
+                        name={`fecha-${row.stableKey}`}
                         autoComplete="off"
                         defaultValue={row.fecha_vencimiento ?? ''}
                         onBlur={(e) => {
@@ -631,9 +631,9 @@ export default function QuarterlyExposureTable({
                     </td>
                     <td style={S.td}>
                       <input
-                        key={`concepto-${row._key}`}
+                        key={`concepto-${row.stableKey}`}
                         type="text"
-                        name={`concepto-${row._key}`}
+                        name={`concepto-${row.stableKey}`}
                         autoComplete="off"
                         defaultValue={row.concepto ?? ''}
                         onBlur={(e) => {
@@ -650,10 +650,10 @@ export default function QuarterlyExposureTable({
                     </td>
                     <td style={S.td}>
                       <input
-                        key={`trm-${row._key}`}
+                        key={`trm-${row.stableKey}`}
                         type="number"
                         step="0.01"
-                        name={`trm-${row._key}`}
+                        name={`trm-${row.stableKey}`}
                         autoComplete="off"
                         defaultValue={row.trm ?? ''}
                         onBlur={(e) => {
@@ -672,10 +672,10 @@ export default function QuarterlyExposureTable({
                     </td>
                     <td style={S.td}>
                       <input
-                        key={`usd-${row._key}`}
+                        key={`usd-${row.stableKey}`}
                         type="number"
                         step="0.01"
-                        name={`usd-${row._key}`}
+                        name={`usd-${row.stableKey}`}
                         autoComplete="off"
                         defaultValue={row.exposicion_usd || ''}
                         onBlur={(e) => {
