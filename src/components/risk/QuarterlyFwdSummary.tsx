@@ -10,9 +10,14 @@
  * El Q actual (basado en el evaluationDate) se destaca con borde verde.
  * Qs sin posiciones activas se muestran colapsados con un indicador discreto.
  */
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import type { PricedNdf, PricedXccy, PricedIbrSwap } from 'src/types/trading';
 import type { FwdPositionType } from 'src/models/trading/fetchFwdQuarterAssignments';
+import {
+  NdfDetailModal,
+  XccyDetailModal,
+  IbrSwapDetailModal,
+} from 'src/components/portfolio/FwdDetailModals';
 
 interface Props {
   ndfs: PricedNdf[];
@@ -161,6 +166,43 @@ export default function QuarterlyFwdSummary({
   ndfs, xccys, ibrs, currentQuarter,
   quarterOverrides, onAssignQuarter, onClearAssignment,
 }: Props) {
+  // Modal de detalle inline — se abre al clickear en el ID/Label de una fila.
+  // Guardamos por tipo separado para poder usar los tres modales existentes
+  // de /portfolio sin refactor.
+  const [selectedNdf, setSelectedNdf] = useState<PricedNdf | null>(null);
+  const [selectedXccy, setSelectedXccy] = useState<PricedXccy | null>(null);
+  const [selectedIbr, setSelectedIbr] = useState<PricedIbrSwap | null>(null);
+
+  // Indexes por id → PricedX para lookup O(1) al click.
+  const ndfById = useMemo(() => {
+    const m = new Map<string, PricedNdf>();
+    ndfs.forEach((p) => m.set(p.id, p));
+    return m;
+  }, [ndfs]);
+  const xccyById = useMemo(() => {
+    const m = new Map<string, PricedXccy>();
+    xccys.forEach((p) => m.set(p.id, p));
+    return m;
+  }, [xccys]);
+  const ibrById = useMemo(() => {
+    const m = new Map<string, PricedIbrSwap>();
+    ibrs.forEach((p) => m.set(p.id, p));
+    return m;
+  }, [ibrs]);
+
+  const openDetail = (r: RowLike) => {
+    if (r.tipo === 'NDF') {
+      const p = ndfById.get(r.id);
+      if (p) setSelectedNdf(p);
+    } else if (r.tipo === 'XCCY') {
+      const p = xccyById.get(r.id);
+      if (p) setSelectedXccy(p);
+    } else if (r.tipo === 'IBR') {
+      const p = ibrById.get(r.id);
+      if (p) setSelectedIbr(p);
+    }
+  };
+
   // Unifica las 3 fuentes en una sola lista normalizada de RowLike,
   // filtrando solo posiciones activas (estado='Activo').
   const allActive = useMemo<RowLike[]>(() => {
@@ -388,14 +430,18 @@ export default function QuarterlyFwdSummary({
                           </span>
                         </td>
                         <td style={{ ...TD, fontFamily: 'monospace' }}>
-                          <a
-                            href={`/portfolio?open=${encodeURIComponent(r.id)}&type=${r.tipo}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            title="Ver detalle en Portafolio de Derivados (abrir en nueva pestaña)"
+                          <button
+                            type="button"
+                            onClick={() => openDetail(r)}
+                            title="Ver detalle del FWD"
                             style={{
+                              background: 'transparent',
+                              border: 'none',
+                              padding: 0,
                               color: '#1d4ed8',
-                              textDecoration: 'none',
+                              cursor: 'pointer',
+                              fontFamily: 'monospace',
+                              fontSize: 'inherit',
                               display: 'inline-flex',
                               alignItems: 'center',
                               gap: 4,
@@ -404,8 +450,8 @@ export default function QuarterlyFwdSummary({
                             onMouseLeave={(e) => { e.currentTarget.style.textDecoration = 'none'; }}
                           >
                             {r.label}
-                            <span style={{ fontSize: 10, color: '#94a3b8' }}>↗</span>
-                          </a>
+                            <span style={{ fontSize: 10, color: '#94a3b8' }}>ⓘ</span>
+                          </button>
                         </td>
                         <td style={TD}>{r.counterparty}</td>
                         <td style={TD_NUM}>{fmtAmount(r.notional_usd)}</td>
@@ -471,6 +517,23 @@ export default function QuarterlyFwdSummary({
           </div>
         );
       })}
+
+      {/* Modales de detalle (inline, mismo look que /portfolio) */}
+      <NdfDetailModal
+        row={selectedNdf}
+        show={!!selectedNdf}
+        onHide={() => setSelectedNdf(null)}
+      />
+      <XccyDetailModal
+        row={selectedXccy}
+        show={!!selectedXccy}
+        onHide={() => setSelectedXccy(null)}
+      />
+      <IbrSwapDetailModal
+        row={selectedIbr}
+        show={!!selectedIbr}
+        onHide={() => setSelectedIbr(null)}
+      />
     </div>
   );
 }

@@ -3,7 +3,6 @@
 /* eslint-disable no-nested-ternary, no-underscore-dangle, no-restricted-syntax, prefer-template, jsx-a11y/control-has-associated-label */
 import { CoreLayout } from '@layout';
 import { Row, Col, Form, Modal } from 'react-bootstrap';
-import { useRouter } from 'next/router';
 import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import Container from 'react-bootstrap/Container';
 import { FontAwesomeIcon as Icon } from '@fortawesome/react-fontawesome';
@@ -1952,8 +1951,6 @@ function PortfolioPage() {
   const [selectedXccy, setSelectedXccy] = useState<PricedXccy | null>(null);
   const [selectedNdf, setSelectedNdf] = useState<PricedNdf | null>(null);
   const [selectedIbrSwap, setSelectedIbrSwap] = useState<PricedIbrSwap | null>(null);
-  const [pendingDeepLink, setPendingDeepLink] = useState<{ id: string; type: string } | null>(null);
-  const router = useRouter();
   // viewTab eliminado (mayo 2026): el tab Marcas se movio al sidebar como /marks.
   const [showConfigModal, setShowConfigModal] = useState(false);
   const [settlementMap, setSettlementMap] = useState<Record<string, NdfSettlementResult | 'error'>>({});
@@ -2234,41 +2231,6 @@ function PortfolioPage() {
   const pricedXccy = reprice.data?.xccy_results ?? [];
   const pricedNdf = reprice.data?.ndf_results ?? [];
   const pricedIbrSwap = reprice.data?.ibr_swap_results ?? [];
-
-  // Deep-link: si viene /portfolio?open=<id>&type=<NDF|XCCY|IBR>, captura la
-  // intencion y espera a que las priced arrays esten pobladas para abrir el
-  // modal de detalle correspondiente. Usado desde QuarterlyFwdSummary de
-  // /risk-management para saltar directo al detalle desde el summary.
-  useEffect(() => {
-    if (!router.isReady) return;
-    const { open, type } = router.query;
-    if (typeof open === 'string' && typeof type === 'string') {
-      setPendingDeepLink({ id: open, type: type.toUpperCase() });
-    }
-  }, [router.isReady, router.query]);
-
-  useEffect(() => {
-    if (!pendingDeepLink) return;
-    if (pendingDeepLink.type === 'NDF') {
-      const match = pricedNdf.find((p) => p.id === pendingDeepLink.id);
-      if (match) {
-        setSelectedNdf(match);
-        setPendingDeepLink(null);
-      }
-    } else if (pendingDeepLink.type === 'XCCY') {
-      const match = pricedXccy.find((p) => p.id === pendingDeepLink.id);
-      if (match) {
-        setSelectedXccy(match);
-        setPendingDeepLink(null);
-      }
-    } else if (pendingDeepLink.type === 'IBR') {
-      const match = pricedIbrSwap.find((p) => p.id === pendingDeepLink.id);
-      if (match) {
-        setSelectedIbrSwap(match);
-        setPendingDeepLink(null);
-      }
-    }
-  }, [pendingDeepLink, pricedNdf, pricedXccy, pricedIbrSwap]);
   const summary = reprice.data?.summary ?? null;
   const tradingLoading = reprice.isFetching;
   const pricedAt = reprice.dataUpdatedAt
