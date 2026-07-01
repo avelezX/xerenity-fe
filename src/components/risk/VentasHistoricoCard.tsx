@@ -385,14 +385,14 @@ export default function VentasHistoricoCard({
               <td style={{ ...TD_NUM, color: '#15803d' }}>{fmtNum(totals.total_kg_verde)}</td>
               <td style={{ ...TD_NUM, color: '#16a34a' }}>{fmtCompactCop(totals.total_cop)}</td>
               <td style={TD_NUM}>${fmtNum(totals.avg_cop_kg, 0)}</td>
-              <td style={TD} />
+              <td style={TD}>{' '}</td>
               <td style={{ ...TD_NUM, color: '#1d4ed8' }}>
                 {totals.total_usd != null ? fmtCompactUsd(totals.total_usd) : '—'}
               </td>
               <td style={TD_NUM}>
                 {totals.avg_usd_kg != null ? `$${totals.avg_usd_kg.toFixed(2)}` : '—'}
               </td>
-              <td style={TD} />
+              <td style={TD}>{' '}</td>
               <td style={{
                 ...TD_NUM,
                 color: totals.contratos_kc < 0 ? '#dc2626' : '#0f172a',
@@ -407,7 +407,7 @@ export default function VentasHistoricoCard({
               >
                 {totals.exposicion_usd !== 0 ? fmtCompactUsd(totals.exposicion_usd) : '—'}
               </td>
-              <td style={TD} />
+              <td style={TD}>{' '}</td>
             </tr>
           </tfoot>
         </table>

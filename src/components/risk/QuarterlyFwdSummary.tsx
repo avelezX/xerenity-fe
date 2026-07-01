@@ -413,8 +413,8 @@ export default function QuarterlyFwdSummary({
                               if (val === 'auto') {
                                 onClearAssignment?.(r.id);
                               } else {
-                                const q = parseInt(val, 10) as 1 | 2 | 3 | 4;
-                                onAssignQuarter?.(r.id, r.tipo, q);
+                                const selectedQ = parseInt(val, 10) as 1 | 2 | 3 | 4;
+                                onAssignQuarter?.(r.id, r.tipo, selectedQ);
                               }
                             }}
                             title={quarterOverrides?.[r.id]

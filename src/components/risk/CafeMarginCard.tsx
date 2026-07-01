@@ -167,14 +167,14 @@ function runFifo(
       const c = cQ[cIdx];
       if (c.kgRemaining <= 1e-9) {
         cIdx += 1;
-        continue;
+      } else {
+        const consume = Math.min(kgRest, c.kgRemaining);
+        cogs += consume * c.precioPorKg;
+        c.kgRemaining -= consume;
+        kgRest -= consume;
+        kgCubierto += consume;
+        if (c.kgRemaining <= 1e-9) cIdx += 1;
       }
-      const consume = Math.min(kgRest, c.kgRemaining);
-      cogs += consume * c.precioPorKg;
-      c.kgRemaining -= consume;
-      kgRest -= consume;
-      kgCubierto += consume;
-      if (c.kgRemaining <= 1e-9) cIdx += 1;
     }
 
     return {
@@ -239,13 +239,12 @@ export default function CafeMarginCard({
   const hasCum = (compras?.filasCum ?? 0) > 0 && (ventas?.filasCum ?? 0) > 0;
   const monthsSelected = monthFilter ?? [];
 
-  const monthsLabel = monthsSelected.length === 0
-    ? null
-    : monthsSelected.length === 1
-      ? MES_NAMES[monthsSelected[0] - 1]
-      : monthsSelected.length <= 3
-        ? monthsSelected.map((m) => MES_NAMES[m - 1]).join(', ')
-        : `${monthsSelected.length} meses`;
+  const monthsLabel = ((): string | null => {
+    if (monthsSelected.length === 0) return null;
+    if (monthsSelected.length === 1) return MES_NAMES[monthsSelected[0] - 1];
+    if (monthsSelected.length <= 3) return monthsSelected.map((m) => MES_NAMES[m - 1]).join(', ');
+    return `${monthsSelected.length} meses`;
+  })();
 
   // Costo inventario inicial (COP total) — carga desde localStorage por empresa.
   // NO va al queue del FIFO (no sabemos kg exactos); se suma flat al COGS
