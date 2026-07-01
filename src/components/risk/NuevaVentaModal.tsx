@@ -146,8 +146,8 @@ export default function NuevaVentaModal({
       await onSaved();
       reset();
       onHide();
-    } catch (e) {
-      const msg = (e as Error)?.message ?? 'Error desconocido';
+    } catch (err) {
+      const msg = (err as Error)?.message ?? 'Error desconocido';
       setError(msg);
       toast.error(`Error al guardar: ${msg}`);
     } finally {
@@ -221,7 +221,7 @@ export default function NuevaVentaModal({
                 size="sm"
               />
               <datalist id="clientes-existentes">
-                {clientesExistentes.map((c) => <option key={c} value={c} />)}
+                {clientesExistentes.map((c) => <option key={c} value={c} aria-label={c} />)}
               </datalist>
               <Form.Text className="text-muted" style={{ fontSize: 10 }}>
                 Tipea uno nuevo o elige de la lista historica.
@@ -241,7 +241,7 @@ export default function NuevaVentaModal({
                 size="sm"
               />
               <datalist id="productos-existentes">
-                {productosExistentes.map((p) => <option key={p} value={p} />)}
+                {productosExistentes.map((p) => <option key={p} value={p} aria-label={p} />)}
               </datalist>
             </div>
 
@@ -337,13 +337,13 @@ export default function NuevaVentaModal({
                   <span style={{ color: '#94a3b8' }}> · factor {preview.factor.toFixed(2)}</span>
                 </div>
                 <div style={{ marginTop: 4, fontSize: 10, color: '#64748b' }}>
-                  {producto.toUpperCase().includes('PASILLA')
-                    ? 'Pasilla = sin hedge KC'
-                    : producto.toUpperCase().includes('PERGAMINO')
-                      ? 'Pergamino → verde (×0.80 trilla)'
-                      : producto.toUpperCase().includes('CEREZA')
-                        ? 'Cereza → verde (×0.143 trillla + secado)'
-                        : 'Producto verde (×1.0)'}
+                  {(() => {
+                    const p = producto.toUpperCase();
+                    if (p.includes('PASILLA')) return 'Pasilla = sin hedge KC';
+                    if (p.includes('PERGAMINO')) return 'Pergamino → verde (×0.80 trilla)';
+                    if (p.includes('CEREZA')) return 'Cereza → verde (×0.143 trillla + secado)';
+                    return 'Producto verde (×1.0)';
+                  })()}
                 </div>
                 <div style={{ marginTop: 6, fontSize: 10, color: '#94a3b8' }}>
                   TRM + KC se buscaran al guardar.

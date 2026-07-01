@@ -71,7 +71,6 @@ import {
   deleteFwdQuarterAssignment,
   indexAssignmentsById,
   type FwdPositionType,
-  type FwdQuarterAssignmentRow,
 } from 'src/models/trading/fetchFwdQuarterAssignments';
 import type { ComprasTotals } from 'src/components/risk/BlotterCompraCafe';
 import BlotterVentasCafe, { VentaMatchableRow } from 'src/components/risk/BlotterVentasCafe';
@@ -918,7 +917,6 @@ function RiskManagement() {
   // Overrides de trimestre por posicion FWD (Los Coches). Cache indexado
   // por position_id. Ver scripts/fwd_quarter_assignment_setup.sql.
   const [fwdQuarterOverrides, setFwdQuarterOverrides] = useState<Record<string, number>>({});
-  const [fwdAssignments, setFwdAssignments] = useState<FwdQuarterAssignmentRow[]>([]);
 
   const [activeTab, setActiveTab] = useState('benchmark');
   // Build tabs dynamically: add "Precios Locales" if CAFE.
@@ -1683,7 +1681,6 @@ function RiskManagement() {
 
   useEffect(() => {
     if (!isCochesFlag || !selectedCompanyId) {
-      setFwdAssignments([]);
       setFwdQuarterOverrides({});
       return;
     }
@@ -1693,7 +1690,6 @@ function RiskManagement() {
         console.warn('[fwd-quarter-assignments] fetch error:', r.error);
         return;
       }
-      setFwdAssignments(r.data);
       const indexed = indexAssignmentsById(r.data);
       const overrides: Record<string, number> = {};
       Object.entries(indexed).forEach(([positionId, row]) => {
@@ -1726,32 +1722,7 @@ function RiskManagement() {
         delete next[positionId];
         return next;
       });
-      return;
     }
-    // Actualiza la copia autoritativa
-    setFwdAssignments((prev) => {
-      const existing = prev.find((a) => a.position_id === positionId && a.year === filterYear);
-      const now = new Date().toISOString();
-      if (existing) {
-        return prev.map((a) =>
-          (a.position_id === positionId && a.year === filterYear)
-            ? { ...a, quarter, updated_at: now }
-            : a);
-      }
-      return [
-        ...prev,
-        {
-          position_id: positionId,
-          year: filterYear,
-          position_type: positionType,
-          company_id: selectedCompanyId,
-          quarter,
-          note: null,
-          assigned_at: now,
-          updated_at: now,
-        } as FwdQuarterAssignmentRow,
-      ];
-    });
   }, [selectedCompanyId, filterYear]);
 
   const handleClearAssignment = useCallback(async (positionId: string) => {
@@ -1769,10 +1740,7 @@ function RiskManagement() {
       if (prevQuarter != null) {
         setFwdQuarterOverrides((prev) => ({ ...prev, [positionId]: prevQuarter }));
       }
-      return;
     }
-    setFwdAssignments((prev) =>
-      prev.filter((a) => !(a.position_id === positionId && a.year === filterYear)));
   }, [filterYear, fwdQuarterOverrides]);
 
   useEffect(() => {

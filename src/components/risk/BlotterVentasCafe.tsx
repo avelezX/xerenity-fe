@@ -31,9 +31,9 @@ import {
   fetchCafeCompraGlobals,
   CafeVentaRow,
 } from 'src/lib/risk/supabaseRisk';
+import { kgVerdeEquiv } from 'src/lib/risk/cafeVerdeFactor';
 import VentasHistoricoCard from './VentasHistoricoCard';
 import NuevaVentaModal from './NuevaVentaModal';
-import { kgVerdeEquiv } from 'src/lib/risk/cafeVerdeFactor';
 
 const LB_PER_KG = 2.20462;
 // Cafe excelso colombiano: 1 saco = 70 kg estandar. KG se autocalcula
