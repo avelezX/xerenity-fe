@@ -1,6 +1,21 @@
 export type Severity = 'critical' | 'warning' | 'info';
 export type RunStatus = 'running' | 'success' | 'failed' | 'timeout';
-export type AlertSource = 'run_failed' | 'table_stale' | 'missed_run';
+export type AlertSource = 'run_failed' | 'empty_run' | 'table_stale' | 'missed_run';
+export type CollectorKind = 'scheduled' | 'backfill' | 'manual';
+export type WriteMode = 'insert' | 'upsert' | 'recompute' | 'delete_insert';
+
+export interface TableFreshness {
+  table: string;
+  max_date: string | null;
+  is_stale: boolean;
+}
+
+export interface CollectorFreshness {
+  oldest_max_date: string | null;
+  any_stale: boolean;
+  checked_at: string | null;
+  tables: TableFreshness[];
+}
 
 export interface LastRun {
   id: string;
@@ -18,6 +33,8 @@ export interface CollectorOverview {
   description: string | null;
   enabled: boolean;
   severity_default: Severity;
+  kind: CollectorKind;
+  write_mode: WriteMode;
   target_tables: string[];
   schedule_cron: string | null;
   last_run: LastRun | null;
@@ -54,6 +71,7 @@ export interface CollectorOverviewEnriched extends CollectorOverview {
   countries_data: string[];
   is_critical_any: boolean;
   review_distribution: ReviewDistribution;
+  freshness: CollectorFreshness | null;
 }
 
 export interface CollectorRun {
@@ -88,4 +106,5 @@ export interface CollectorAlert {
   acknowledged_by: string | null;
   silenced_until: string | null;
   resolved_at: string | null;
+  metadata: Record<string, unknown> | null;
 }
