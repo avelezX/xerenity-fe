@@ -92,9 +92,14 @@ export type BlotterTableProps = {
   liquidations?: NdfLiquidationRow[];
   xccySettlements?: XccySettlementRow[];
   // Cuando true, muestra un filtro de pills por trimestre (Q1-Q4) basado
-  // en maturity_date. Activado para empresas que manejan FWDs por
+  // en trade_date. Activado para empresas que manejan FWDs por
   // trimestre (Los Coches).
   showQuarterFilter?: boolean;
+  // Overrides manuales de trimestre por posicion (indexado por r.id).
+  // Sin entrada → fallback a quarterOf(trade_date). Sincronizado con la
+  // vista QuarterlyFwdSummary de /risk-management via
+  // trading.fwd_quarter_assignment.
+  quarterOverrides?: Record<string, number>;
 };
 
 // ─── Helpers de formato ─────────────────────────────────────────────────────
@@ -794,6 +799,7 @@ export default function BlotterTable({
   liquidations,
   xccySettlements,
   showQuarterFilter = false,
+  quarterOverrides,
 }: BlotterTableProps) {
   // Derived state from prefs
   const {
@@ -837,29 +843,34 @@ export default function BlotterTable({
   // Helper para obtener la fecha base del grouping (trade_date, fallback a maturity).
   const baseDate = (r: PortfolioRow): string | undefined => r.trade_date || r.maturity_date;
 
-  // Filter by quarter despues de estado. Agrupacion basada en trade_date
-  // (fecha de APERTURA), no maturity_date — refleja en que trimestre se
-  // origino la posicion.
+  // Q efectivo por fila: override manual si esta asignado, sino
+  // quarterOf(trade_date). Sincroniza con QuarterlyFwdSummary.
+  const effectiveQuarter = (r: PortfolioRow): number | undefined => {
+    const override = quarterOverrides?.[r.id];
+    if (override && override >= 1 && override <= 4) return override;
+    const d = baseDate(r);
+    return d ? quarterOf(d) : undefined;
+  };
+
+  // Filter by quarter despues de estado. Agrupacion basada en el Q
+  // efectivo (override o trade_date).
   const filteredRows = useMemo(() => {
     if (!showQuarterFilter || quarterFilter == null) return filteredByEstado;
-    return filteredByEstado.filter((r) => {
-      const d = baseDate(r);
-      return d && quarterOf(d) === quarterFilter;
-    });
-  }, [filteredByEstado, showQuarterFilter, quarterFilter]);
+    return filteredByEstado.filter((r) => effectiveQuarter(r) === quarterFilter);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filteredByEstado, showQuarterFilter, quarterFilter, quarterOverrides]);
 
   // Conteos por quarter sobre las filas ya filtradas por estado
   // (asi reflejan el subset que el usuario ve actualmente).
   const quarterCounts = useMemo(() => {
     const c: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0 };
     filteredByEstado.forEach((r) => {
-      const d = baseDate(r);
-      if (!d) return;
-      const q = quarterOf(d);
-      if (q >= 1 && q <= 4) c[q] += 1;
+      const q = effectiveQuarter(r);
+      if (q && q >= 1 && q <= 4) c[q] += 1;
     });
     return c;
-  }, [filteredByEstado]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filteredByEstado, quarterOverrides]);
 
   const counts = useMemo(() => {
     const c = { Activo: 0, Vencido: 0, Cancelado: 0, Liquidado: 0 };

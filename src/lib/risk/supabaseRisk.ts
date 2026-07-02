@@ -393,15 +393,28 @@ export async function fetchCoffeePrices(
 export interface CafeVentaRow {
   id: string;
   company_id: string;
+  // Discriminador: 'fijacion_ny' (NY pricing, Sucafina-style) | 'factura_cop'
+  // (factura domestica COP/kg, El Embrujo channels).
+  tipo_venta?: 'fijacion_ny' | 'factura_cop';
+  // ── Fijacion NY (puede ser null si tipo_venta=factura_cop) ──
   ref_contrato: string;      // "MPEX-18066"
   ny_mes: string;            // "U6", "Z6", ...
-  calidad: string;           // "Mr Hat (Excelso)"
+  calidad: string;           // "Mr Hat (Excelso)" — kept in schema, hidden in UI
+  fijacion_ny: number | null;       // cents/lb del NY base
+  prima: number | null;             // diferencial cents/lb
+  fijacion_cop: number | null;      // TRM al fijar
+  // ── Factura COP (puede ser null si tipo_venta=fijacion_ny) ──
+  factura?: string | null;          // "EMB-388"
+  cliente?: string | null;          // "SUCAFINA COLOMBIA SAS"
+  producto?: string | null;         // "CAFE PERGAMINO SECO", "WIZARD", ...
+  valor_kilo?: number | null;       // COP/kg directo
+  // ── Lookups capturados al momento del seed (factura_cop) ──
+  trm_dia?: number | null;          // BanRep serie 25 al fecha_fijacion
+  precio_kc_cents?: number | null;  // risk_prices CAFE al fecha_fijacion
+  // ── Comunes ──
   fecha_fijacion: string;    // YYYY-MM-DD
   sacos: number;
   kg: number;
-  fijacion_ny: number;       // cents/lb del NY base
-  prima: number;             // diferencial cents/lb
-  fijacion_cop: number;      // TRM al fijar
   moneda: 'COP' | 'USD';
   estado: string;
   created_at?: string;
@@ -442,6 +455,50 @@ export async function updateCafeVenta(
     .update(updates)
     .eq('id', id);
   if (error) throw new Error(`Failed to update cafe_venta: ${error.message}`);
+}
+
+/**
+ * Busca el TRM BanRep (serie 25) mas reciente al fecha dada (YYYY-MM-DD).
+ * Null si no encuentra dato historico.
+ */
+export async function fetchTrmAtDate(fecha: string): Promise<number | null> {
+  const { data, error } = await supabase
+    .schema(SCHEMA)
+    .from('banrep_series_value_v2')
+    .select('valor,fecha')
+    .eq('id_serie', 25)
+    .lte('fecha', fecha)
+    .order('fecha', { ascending: false })
+    .limit(1);
+  if (error) {
+    // eslint-disable-next-line no-console
+    console.warn('fetchTrmAtDate error:', error.message);
+    return null;
+  }
+  const v = (data ?? [])[0]?.valor;
+  return v != null ? Number(v) : null;
+}
+
+/**
+ * Busca el precio KC (CAFE front contract) mas reciente al fecha dada.
+ * Retorna en ¢/lb (asi se almacena en risk_prices).
+ */
+export async function fetchKcPriceAtDate(fecha: string): Promise<number | null> {
+  const { data, error } = await supabase
+    .schema(SCHEMA)
+    .from('risk_prices')
+    .select('price,date')
+    .eq('asset', 'CAFE')
+    .lte('date', fecha)
+    .order('date', { ascending: false })
+    .limit(1);
+  if (error) {
+    // eslint-disable-next-line no-console
+    console.warn('fetchKcPriceAtDate error:', error.message);
+    return null;
+  }
+  const p = (data ?? [])[0]?.price;
+  return p != null ? Number(p) : null;
 }
 
 export async function deleteCafeVenta(id: string): Promise<void> {

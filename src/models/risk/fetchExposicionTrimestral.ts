@@ -20,6 +20,7 @@ export type ExposicionTrimestralRow = {
   year: number;
   quarter: number;                   // 1..4
   exposicion_usd: number;
+  trm: number | null;                // COP/USD por entrada. NULL = legacy
   concepto: string | null;
   contraparte: string | null;
   fecha_vencimiento: string | null;  // YYYY-MM-DD
@@ -58,10 +59,12 @@ export const fetchExposicionTrimestral = async (
 };
 
 export type UpsertExposicionTrimestralInput = {
+  id?: string;                       // presente = UPDATE por id, ausente = INSERT
   company_id: string;
   year: number;
   quarter: number;
   exposicion_usd: number;
+  trm?: number | null;
   concepto?: string | null;
   contraparte?: string | null;
   fecha_vencimiento?: string | null;
@@ -85,6 +88,23 @@ export const upsertExposicionTrimestral = async (
   }
 };
 
+export const deleteExposicionTrimestral = async (
+  id: string,
+): Promise<{ status?: string; error?: string }> => {
+  try {
+    const { data, error } = await supabase
+      .schema(SCHEMA)
+      .rpc('delete_exposicion_trimestral', { p_id: id });
+    if (error) {
+      return { error: error.message || 'Error deleting exposicion' };
+    }
+    const obj = (data ?? {}) as { status?: string };
+    return { status: obj.status };
+  } catch (e) {
+    return { error: (e as Error)?.message || 'Error deleting exposicion' };
+  }
+};
+
 // ── Helpers ────────────────────────────────────────────────
 
 export const QUARTER_LABEL: Record<number, string> = {
@@ -100,12 +120,20 @@ export const getQuarterFromDate = (isoDate: string): number => {
   return Math.ceil(month / 3);
 };
 
-/** Suma exposicion_usd del Q indicado (filtra year + quarter). */
+/** Suma exposicion_usd de TODAS las entradas del Q indicado. */
 export const getExposicionForQuarter = (
   rows: ExposicionTrimestralRow[],
   year: number,
   quarter: number,
-): number => {
-  const row = rows.find((r) => r.year === year && r.quarter === quarter);
-  return row?.exposicion_usd ?? 0;
-};
+): number => rows
+  .filter((r) => r.year === year && r.quarter === quarter)
+  .reduce((s, r) => s + (r.exposicion_usd || 0), 0);
+
+/** Suma exposicion en COP (usd × trm) de todas las entradas del Q. */
+export const getExposicionCopForQuarter = (
+  rows: ExposicionTrimestralRow[],
+  year: number,
+  quarter: number,
+): number => rows
+  .filter((r) => r.year === year && r.quarter === quarter)
+  .reduce((s, r) => s + (r.exposicion_usd || 0) * (r.trm || 0), 0);

@@ -60,6 +60,7 @@ import useAppStore from 'src/store';
 import BlotterTable, { type PortfolioRow } from '@components/portfolio/BlotterTable';
 import LiquidateNdfModal from '@components/portfolio/LiquidateNdfModal';
 import { fetchNdfLiquidations, type NdfLiquidationRow } from 'src/models/trading';
+import { fetchFwdQuarterAssignments } from 'src/models/trading/fetchFwdQuarterAssignments';
 import {
   sumLiquidationsBetween,
   sumSettlementsBetween,
@@ -2071,6 +2072,32 @@ function PortfolioPage() {
   // there for risk-resumen (uses `loadPositions` imperatively); they will
   // be removed in #318 cleanup.
   const companyId = activeCompanyId();
+
+  // FWD quarter overrides — sincronizados con /risk-management > QuarterlyFwdSummary.
+  // El BlotterTable usa estos para el filtro pills Apertura Q1-Q4.
+  // Cache indexado por position_id. Fetch por (company, year del markFecha).
+  const markYear = useMemo(
+    () => parseInt((markFecha || '').slice(0, 4), 10) || new Date().getFullYear(),
+    [markFecha],
+  );
+  const [fwdQuarterOverrides, setFwdQuarterOverrides] = useState<Record<string, number>>({});
+  useEffect(() => {
+    if (!companyId) {
+      setFwdQuarterOverrides({});
+      return;
+    }
+    fetchFwdQuarterAssignments(companyId, markYear).then((r) => {
+      if (r.error) {
+        // eslint-disable-next-line no-console
+        console.warn('[portfolio-fwd-overrides] fetch error:', r.error);
+        return;
+      }
+      const map: Record<string, number> = {};
+      r.data.forEach((row) => { map[row.position_id] = row.quarter; });
+      setFwdQuarterOverrides(map);
+    });
+  }, [companyId, markYear]);
+
   const xccyPositionsQuery = useXccyPositions(companyId);
   const ndfPositionsQuery = useNdfPositions(companyId);
   const ibrSwapPositionsQuery = useIbrSwapPositions(companyId);
@@ -2544,6 +2571,7 @@ function PortfolioPage() {
             liquidations={liquidationsAsOf}
             xccySettlements={xccySettlementsAsOf}
             showQuarterFilter={companyId === 'c6697df7-bba3-4ff5-ae66-dcc532db41af'}
+            quarterOverrides={fwdQuarterOverrides}
           />
         </div>
 
