@@ -275,16 +275,15 @@ export default function BlotterCompraCafe({ companyId, precioKcCents, precioKcDa
   }, [companyId, selectedLoteId]);
 
   // Calc derived per row.
-  // Convencion (julio 2026): kg verde compras = kg cereza × factor rinde.
-  // Embrujo rinde real = 0.143 (14.3% — cereza a verde). La unidad de
-  // compra kg_per_at (default 60) es kg de CEREZA por saco de compra
-  // (no arroba estandar de 12.5 kg). El saco verde de exportacion EN
-  // (FNC Colombia Excelso) es 70 kg — usado para precio/saco.
+  // Convencion (jun 2026): kg verde compras = arrobas × 12.5 (arroba estandar).
+  // Antes se usaba total_kg × factor_humedo (~0.143) lo que subestimaba en ~46%
+  // y no calzaba con el kg verde del Blotter Ventas. Ahora ambos usan la
+  // misma unidad de medida para que el FIFO matching del margen sea preciso.
+  // factor_humedo se mantiene en la fila pero ya no se usa para kg verde.
   const computed = useMemo(() => rows.map((r) => {
-    const sacosCereza = kgPerAt > 0 ? r.total_kg / kgPerAt : 0;
-    const rinde = r.factor_humedo ?? 0.1431;
-    const kgVerde = r.total_kg * rinde;
-    const totalValorCompra = sacosCereza * r.valor_compra_at;
+    const totalAtCompradas = kgPerAt > 0 ? r.total_kg / kgPerAt : 0;
+    const kgVerde = totalAtCompradas * 12.5;
+    const totalValorCompra = totalAtCompradas * r.valor_compra_at;
     const precioKgVerdeCop = kgVerde > 0 ? totalValorCompra / kgVerde : 0;
     const precioSacoCop = precioKgVerdeCop * 70;
     // Hedging se calcula con cafe VERDE (no total kg humedo)
@@ -296,10 +295,7 @@ export default function BlotterCompraCafe({ companyId, precioKcCents, precioKcDa
       row: r,
       semana: isoWeek(r.fecha_compra),
       kgVerde,
-      // Nota: la key sigue siendo `totalAtCompradas` por retrocompat con
-      // los totals/tfoot que la consumen. Semanticamente ahora es "sacos
-      // cereza" pero el rename cross-file lo dejamos para el follow-up.
-      totalAtCompradas: sacosCereza,
+      totalAtCompradas,
       totalValorCompra,
       precioKgVerdeCop,
       precioSacoCop,
@@ -638,13 +634,13 @@ export default function BlotterCompraCafe({ companyId, precioKcCents, precioKcDa
               <tr>
                 <th style={TH}>Fecha</th>
                 <th style={TH_NUM}>Sem</th>
-                <th style={TH_NUM} title="Kg de café cereza (grano con pulpa, sin secar)">Kg cereza</th>
-                <th style={TH_NUM} title="Rinde: kg de café verde por kg de cereza. Embrujo = 0.143 (14.3%). Editable per fila.">Rinde</th>
-                <th style={TH_NUM} title="Kg de café verde equivalente = kg cereza × rinde">Kg verde</th>
-                <th style={TH_NUM} title="Precio pagado por saco de cereza (60 kg)">Valor / saco cereza <span style={{ textTransform: 'none', fontWeight: 400, color: '#94a3b8' }}>COP</span></th>
-                <th style={TH_NUM} title="Sacos de cereza comprados = kg cereza / 60">Sacos cereza</th>
-                <th style={TH_NUM} title="Precio COP por kg de café verde equivalente">Precio / kg verde <span style={{ textTransform: 'none', fontWeight: 400, color: '#94a3b8' }}>COP</span></th>
-                <th style={TH_NUM} title="Precio COP por saco de exportación de café verde EN (FNC Colombia = 70 kg)">Precio / saco verde EN <span style={{ textTransform: 'none', fontWeight: 400, color: '#94a3b8' }}>70 kg</span></th>
+                <th style={TH_NUM}>Total Kg <span style={{ textTransform: 'none', fontWeight: 400, color: '#94a3b8' }}>húmedo</span></th>
+                <th style={TH_NUM} title="Factor de conversion humedo a verde (editable per fila)">Factor</th>
+                <th style={TH_NUM}>Kg verde</th>
+                <th style={TH_NUM}>Valor @ <span style={{ textTransform: 'none', fontWeight: 400, color: '#94a3b8' }}>COP</span></th>
+                <th style={TH_NUM}>@ compradas</th>
+                <th style={TH_NUM}>Precio / kg <span style={{ textTransform: 'none', fontWeight: 400, color: '#94a3b8' }}>COP</span></th>
+                <th style={TH_NUM}>Precio / saco <span style={{ textTransform: 'none', fontWeight: 400, color: '#94a3b8' }}>COP</span></th>
                 <th style={TH_NUM}>Total compra <span style={{ textTransform: 'none', fontWeight: 400, color: '#94a3b8' }}>COP</span></th>
                 <th style={TH_NUM} title="+ = LONG café (compraste, tienes inventario)"># Ctos KC</th>
                 <th style={TH_NUM} title="+ = LONG USD (el inventario vale USD)">Exp USD</th>
