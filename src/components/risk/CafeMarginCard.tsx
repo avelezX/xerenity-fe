@@ -77,18 +77,6 @@ const MES_NAMES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep'
 const fmtCop = (v: number): string =>
   new Intl.NumberFormat('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(Math.round(v));
 
-const fmtKg = (v: number): string =>
-  new Intl.NumberFormat('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(Math.round(v));
-
-const fmtCopCompact = (v: number): string => {
-  const abs = Math.abs(v);
-  const sign = v < 0 ? '-' : '';
-  if (abs >= 1e9) return `${sign}$${(abs / 1e9).toFixed(2)}B`;
-  if (abs >= 1e6) return `${sign}$${(abs / 1e6).toFixed(1)}M`;
-  if (abs >= 1e3) return `${sign}$${(abs / 1e3).toFixed(0)}K`;
-  return `${sign}$${Math.round(abs)}`;
-};
-
 const fmtSignedCop = (v: number): string => {
   if (v === 0) return '$0';
   const abs = new Intl.NumberFormat('es-CO').format(Math.round(Math.abs(v)));
@@ -291,16 +279,6 @@ export default function CafeMarginCard({
     return fifo.perVenta.filter((v) => monthSet.has(v.mes)).reduce((s, v) => s + v.kgVerde, 0);
   }, [fifo, monthSet, hasMonth]);
 
-  const subsetKgCubierto = useMemo(() => {
-    if (!hasMonth) return 0;
-    return fifo.perVenta.filter((v) => monthSet.has(v.mes)).reduce((s, v) => s + v.kgCubierto, 0);
-  }, [fifo, monthSet, hasMonth]);
-
-  const subsetKgSinCobertura = useMemo(() => {
-    if (!hasMonth) return 0;
-    return fifo.perVenta.filter((v) => monthSet.has(v.mes)).reduce((s, v) => s + v.kgSinCobertura, 0);
-  }, [fifo, monthSet, hasMonth]);
-
   // Costo del inventario inicial repartido:
   //   - Acumulado: se suma flat al COGS total del año.
   //   - Subset filtrado: se asigna en proporcion a los kg vendidos del subset
@@ -317,8 +295,6 @@ export default function CafeMarginCard({
   const cumCogsTotal = fifo.totalCogs + openingCop;
   const cumMargen = fifo.totalRevenue - cumCogsTotal;
   const cumMargenPct = fifo.totalRevenue > 0 ? (cumMargen / fifo.totalRevenue) * 100 : 0;
-
-  const totalCompraCumCop = compras?.totalCopCum ?? 0;
 
   if (!hasCum) {
     return (
@@ -343,52 +319,6 @@ export default function CafeMarginCard({
           {monthsLabel
             ? <>Vista: <strong>{monthsLabel}</strong> · acumulado</>
             : <>Vista: <strong>Acumulado</strong> (todo el periodo)</>}
-        </div>
-      </div>
-
-      {/* Inputs de inventario inicial. El FIFO los consume primero. */}
-      <div
-        style={{
-          background: '#fff',
-          border: '1px solid #fde68a',
-          borderRadius: 8,
-          padding: '10px 14px',
-          marginBottom: 12,
-          display: 'flex',
-          alignItems: 'center',
-          gap: 20,
-          flexWrap: 'wrap',
-          fontSize: 12,
-        }}
-      >
-        <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#854d0e', fontWeight: 700 }}>
-          Costo inventario inicial (ciclo anterior)
-        </div>
-        <div className="d-flex align-items-center gap-2">
-          <span style={{ color: '#64748b' }}>Total COP:</span>
-          <input
-            type="number"
-            step="1"
-            min="0"
-            value={openingCop || ''}
-            onChange={(e) => setOpeningCop(Number(e.target.value) || 0)}
-            style={{
-              width: 160,
-              fontVariantNumeric: 'tabular-nums',
-              fontSize: 12,
-              padding: '3px 6px',
-              border: '1px solid #d1d5db',
-              borderRadius: 4,
-              textAlign: 'right',
-            }}
-            placeholder="0"
-          />
-        </div>
-        <div style={{ color: '#64748b', fontSize: 11, flex: '1 1 auto' }}>
-          Se suma flat al COGS acumulado · se distribuye a los subsets proporcional a los kg vendidos del periodo (sin asumir kg específicos)
-        </div>
-        <div style={{ fontSize: 10, color: '#94a3b8' }}>
-          Autosave localStorage
         </div>
       </div>
 
@@ -451,30 +381,8 @@ export default function CafeMarginCard({
                       </span>
                     </td>
                   </tr>
-                  <tr>
-                    <td style={{ color: '#94a3b8', fontSize: 10, paddingTop: 6 }}>Cobertura FIFO</td>
-                    <td
-                      className="text-end"
-                      style={{
-                        color: subsetKgSinCobertura > 1 ? '#b45309' : '#15803d',
-                        fontSize: 10,
-                        paddingTop: 6,
-                      }}
-                    >
-                      {fmtKg(subsetKgCubierto)} / {fmtKg(subsetKgVendido)} kg verde{' '}
-                      {subsetKgSinCobertura > 1 && (
-                        <span>
-                          · sin cobertura: <strong>{fmtKg(subsetKgSinCobertura)} kg</strong>
-                        </span>
-                      )}
-                    </td>
-                  </tr>
                 </tbody>
               </table>
-              <div className="mt-2" style={{ fontSize: 10, color: '#92400e' }}>
-                {fmtKg(subsetKgVendido)} kg verde vendidos
-                · {fifo.perVenta.filter((v) => monthSet.has(v.mes)).length} facturas
-              </div>
             </div>
           </div>
         )}
@@ -531,70 +439,12 @@ export default function CafeMarginCard({
                     </span>
                   </td>
                 </tr>
-                <tr>
-                  <td style={{ color: '#94a3b8', fontSize: 10, paddingTop: 6 }}>Cobertura FIFO</td>
-                  <td
-                    className="text-end"
-                    style={{
-                      color: fifo.totalKgSinCobertura > 1 ? '#b45309' : '#15803d',
-                      fontSize: 10,
-                      paddingTop: 6,
-                    }}
-                  >
-                    {fmtKg(fifo.totalKgCubierto)} / {fmtKg(fifo.totalKgVendido)} kg verde
-                    {fifo.totalKgSinCobertura > 1 && (
-                      <span>
-                        {' '}· sin cobertura: <strong>{fmtKg(fifo.totalKgSinCobertura)} kg</strong>
-                      </span>
-                    )}
-                  </td>
-                </tr>
               </tbody>
             </table>
-            <div className="mt-2" style={{ fontSize: 10, color: '#92400e' }}>
-              Compras: {fmtKg(fifo.totalKgComprado)} kg verde · ${fmtCopCompact(totalCompraCumCop)}
-              {' '}· Remanente en inventario: <strong>{fmtKg(fifo.kgCompraRemanente)} kg verde</strong>
-              <br />
-              Ventas: {fmtKg(fifo.totalKgVendido)} kg verde · ${fmtCopCompact(fifo.totalRevenue)}
-              {' '}({fifo.perVenta.length} facturas)
-            </div>
           </div>
         </div>
       </div>
 
-      {fifo.totalKgSinCobertura > 1 && openingCop === 0 && (
-        <div
-          style={{
-            marginTop: 12,
-            padding: '8px 12px',
-            background: '#fef3c7',
-            borderLeft: '3px solid #d97706',
-            fontSize: 11,
-            color: '#78350f',
-          }}
-        >
-          <strong>⚠ Kg sin cobertura FIFO:</strong> {fmtKg(fifo.totalKgSinCobertura)} kg verde
-          vendidos exceden las compras registradas del año. Ingresa el <em>Costo inventario
-          inicial (COP)</em> arriba para incorporar el valor del stock del ciclo anterior al COGS.
-        </div>
-      )}
-
-      <div
-        style={{
-          marginTop: 12,
-          padding: '8px 12px',
-          background: '#fafafa',
-          borderLeft: '3px solid #f59e0b',
-          fontSize: 11,
-          color: '#475569',
-        }}
-      >
-        <strong>Metodologia:</strong> COGS = FIFO cronologico sobre las compras del año (mas
-        viejas primero) + costo del inventario inicial. Compras: kg verde = arrobas × 12.5.
-        Ventas: kg verde = kg × factor por producto. Margen % calculado sobre ventas.
-        El inventario inicial se distribuye proporcional a los kg vendidos del periodo cuando
-        se filtra por mes.
-      </div>
     </div>
   );
 }
