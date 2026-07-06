@@ -33,17 +33,18 @@ const Bubble = styled.div<{ $isUser: boolean }>`
   `}
 `;
 
-const ToolBadge = styled.div`
+const ToolBadge = styled.div<{ $error?: boolean }>`
   display: inline-flex;
   align-items: center;
   gap: 4px;
   padding: 2px 8px;
   margin: 4px 0;
-  background: #e0e7ff;
-  color: #4338ca;
+  background: ${(p) => (p.$error ? '#fee2e2' : '#e0e7ff')};
+  color: ${(p) => (p.$error ? '#b91c1c' : '#4338ca')};
   border-radius: 4px;
   font-size: 12px;
   font-weight: 500;
+  max-width: 100%;
 `;
 
 const NavLink = styled.button`
@@ -71,6 +72,12 @@ const TOOL_LABELS: Record<string, string> = {
   create_loan: 'Creando prestamo...',
 };
 
+const STATUS_ICON: Record<string, string> = {
+  pending: '⏳',
+  error: '❌',
+  success: '✓',
+};
+
 interface Props {
   message: ChatMessageType;
   onNavigate?: (path: string) => void;
@@ -84,9 +91,12 @@ export default function ChatMessageComponent({ message, onNavigate }: Props) {
       <Bubble $isUser={isUser}>
         {/* Tool call indicators */}
         {!isUser && message.toolCalls?.map((tc) => (
-          <ToolBadge key={tc.id}>
-            {tc.status === 'pending' ? '⏳' : '✓'}{' '}
+          <ToolBadge key={tc.id} $error={tc.status === 'error'}>
+            {STATUS_ICON[tc.status] ?? '✓'}{' '}
             {TOOL_LABELS[tc.tool] || tc.tool}
+            {tc.status === 'error' && tc.error && (
+              <span style={{ fontWeight: 400, marginLeft: 4 }}>— {tc.error}</span>
+            )}
           </ToolBadge>
         ))}
 

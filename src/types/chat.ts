@@ -29,6 +29,7 @@ export interface ToolCallResult {
   input: Record<string, unknown>;
   result?: Record<string, unknown>;
   status: 'pending' | 'success' | 'error';
+  error?: string;
 }
 
 export interface ChartSpec {
@@ -57,6 +58,7 @@ export interface SSEEvent {
   seriesData?: { tickers: string[]; names: string[]; description: string };
   chartAction?: ChartControlAction;
   error?: string;
+  is_error?: boolean;
 }
 
 export interface ChatApiRequest {

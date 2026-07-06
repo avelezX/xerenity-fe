@@ -81,6 +81,18 @@ async function executeToolCalls(
         });
       }
 
+      // Emit a tool_result on failure too, so the client can resolve the
+      // pending toolCall to an error state instead of leaving it spinning.
+      if (!result.success) {
+        sendSSE(res, {
+          type: 'tool_result',
+          tool: toolBlock.name,
+          toolCallId: toolBlock.id,
+          is_error: true,
+          error: result.error ?? 'Error en la herramienta',
+        });
+      }
+
       return {
         type: 'tool_result' as const,
         tool_use_id: toolBlock.id,
@@ -142,9 +154,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     for (let loopCount = 0; loopCount < MAX_LOOPS; loopCount += 1) {
       const stream = anthropic.messages.stream({
-        model: 'claude-sonnet-4-5',
+        model: 'claude-sonnet-5',
         max_tokens: 4096,
-        system: systemPrompt,
+        // cache_control on the system block caches the system prompt AND the
+        // tools array (tools precede system in the prompt-cache order), so the
+        // large static prefix is billed once and reused across the up-to-20
+        // tool-use loop iterations of a single request (and across turns in a
+        // conversation within the 5-min TTL).
+        system: [{ type: 'text', text: systemPrompt, cache_control: { type: 'ephemeral' } }],
         tools,
         messages: anthropicMessages,
       });
