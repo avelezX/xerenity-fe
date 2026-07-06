@@ -3116,8 +3116,14 @@ function RiskManagement() {
                 );
               })()}
 
-              {/* Summary tables */}
-              {exposureResult && (() => {
+              {/* Summary tables — SOLO Super. Los 6 commodities y el resumen
+                  (Ventas Intl / Real USD / PEN) son especificos de Super de
+                  Alimentos. El Embrujo tiene su propia UI de cafe (blotters +
+                  margen FIFO); Los Coches usa QuarterlyExposureTable. Sin este
+                  gate, cualquier empresa con hasCafe o exposure_defaults con
+                  data residual veia los numeros de Super filtrandose (bug de
+                  julio 2026). */}
+              {exposureResult && isSuperFlag && (() => {
                 // Recompute Super formula rows from live exposureParams so typing
                 // KG in a card updates this table instantly (no "Actualizar" click).
                 // Non-Super commodities keep the fetched values (need market prices).
