@@ -264,11 +264,18 @@ function RiskResumenPage() {
       await loadOtcRefPrices(filterDate, liquidationsList);
 
       // 2) Commodities: benchmark factors + futures + exposicion (condicional)
-      //    Solo llamar fetchExposure si la empresa tiene exposure_defaults
-      //    configurados. DEFAULT_EXPOSURE_PARAMS son especificos de Super de
-      //    Alimentos — si se llaman para otra empresa, muestra datos incorrectos
-      //    ($82.7M de exposicion USD que es de Super, no del Embrujo).
-      const hasExposureConfig = companyConfig?.exposure_defaults
+      //    fetchExposure + calcularExposicionTotal son especificos de Super
+      //    de Alimentos (los 6 commodities hardcodeados + Ventas Intl/PEN).
+      //    Para cualquier otra empresa NO se calcula — sino los valores de
+      //    Super se filtran en la fila USD via getExposureForAsset aunque
+      //    exposure_defaults este vacio pero risk_prices tenga TRM.
+      //
+      //    Defensa en profundidad frente a exposure_defaults contaminados
+      //    en risk_company_config (pollution historica del auto-save bug).
+      const SUPER_ID = 'e8516f19-7286-4e04-a63e-24ca9364d807';
+      const isSuperCompany = selectedCompanyId === SUPER_ID;
+      const hasExposureConfig = isSuperCompany
+        && companyConfig?.exposure_defaults
         && Object.keys(companyConfig.exposure_defaults).length > 0;
       // CRITICO multi-tenancy: base = EMPTY_EXPOSURE_PARAMS (zeros), NUNCA
       // DEFAULT_EXPOSURE_PARAMS (valores de Super). Antes el merge dejaba

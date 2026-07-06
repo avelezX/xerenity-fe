@@ -1424,15 +1424,26 @@ function RiskManagement() {
   // useEffect de fetch reaccionan automaticamente.
 
   const handleFetchExposure = useCallback(async (overrideDate?: string) => {
-    // Si la empresa no tiene parametros de proyeccion configurados, NO calculamos
-    // exposicion. Los DEFAULT_EXPOSURE_PARAMS son hardcodeados con valores
-    // especificos de Super de Alimentos (toneladas, fletes, processing fees, etc),
-    // y aplicarlos a cualquier otra empresa = mostrar datos incorrectos / data leak.
+    // Toda la calculadora de exposicion (calcularExposicionTotal + las 6 filas
+    // hardcodeadas AZUCAR/MAIZ/COCOA_POLVO/MANTECA_CACAO/LICOR_CACAO/EMPAQUE +
+    // Ventas Intl/PEN) es especifica de Super de Alimentos. Para cualquier
+    // otra empresa NO se debe calcular — sino los valores de Super se filtran
+    // en la fila USD del Benchmark (position_super via getExposureForAsset)
+    // aunque las tablas de "Exposicion por Commodity" esten ocultas (PR #495).
     //
-    // Para empresas nuevas que aun no tienen exposure_defaults poblados en
-    // risk_company_config, dejamos exposureResult = null. position_super queda
-    // en blanco en el Benchmark hasta que se implemente un formulario generico
-    // de exposicion por empresa.
+    // Los Coches: usa QuarterlyExposureTable (getExposicionForQuarter alimenta
+    // la fila USD, no exposureResult).
+    // El Embrujo: no tiene exposicion natural configurada (usa su UI de cafe).
+    // Empresas nuevas: exposureResult = null hasta implementar UI propia.
+    //
+    // Defensa en profundidad: aunque risk_company_config.exposure_defaults
+    // tenga data residual de Super (pollution historica), este gate evita
+    // que se calcule y muestre para non-Super.
+    const SUPER_ID = 'e8516f19-7286-4e04-a63e-24ca9364d807';
+    if (selectedCompanyId !== SUPER_ID) {
+      setExposureResult(null);
+      return;
+    }
     const hasExposureConfig = companyConfig?.exposure_defaults
       && Object.keys(companyConfig.exposure_defaults).length > 0;
     if (!hasExposureConfig) {
@@ -1445,9 +1456,7 @@ function RiskManagement() {
       const dateToUse = overrideDate ?? filterDate;
       // Super de Alimentos: incluir las 3 formulaciones (AKOMEL, CEBES, ALMIDON)
       // en el calculo total. Para otras empresas no se incluyen (exposicion_usd = 0).
-      const SUPER_ID = 'e8516f19-7286-4e04-a63e-24ca9364d807';
-      const isSuper = selectedCompanyId === SUPER_ID;
-      const data = await fetchExposure(dateToUse, exposureParams, { includeSuperFormulas: isSuper });
+      const data = await fetchExposure(dateToUse, exposureParams, { includeSuperFormulas: true });
       setExposureResult(data);
 
       // Update local params with DB prices
