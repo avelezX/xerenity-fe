@@ -123,7 +123,12 @@ const createChatSlice: StateCreator<ChatSlice> = (set, get) => ({
                 ...m,
                 toolCalls: (m.toolCalls || []).map((tc) =>
                   tc.id === event.toolCallId
-                    ? { ...tc, result: event.result, status: 'success' as const }
+                    ? {
+                      ...tc,
+                      result: event.result,
+                      status: event.is_error ? ('error' as const) : ('success' as const),
+                      error: event.is_error ? event.error : tc.error,
+                    }
                     : tc
                 ),
                 // Add chart data if present

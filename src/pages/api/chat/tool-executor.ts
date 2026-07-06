@@ -33,7 +33,19 @@ export interface ToolResult {
   chartAction?: ChartAction;
 }
 
-async function executeQuery(input: Record<string, unknown>): Promise<ToolResult> {
+async function executeQuery(
+  input: Record<string, unknown>,
+  userSupabase?: AnySupabaseClient,
+): Promise<ToolResult> {
+  // query_database runs arbitrary read-only SQL via the service role (agent_query),
+  // so gate it to super_admin. The rest of the agent stays open to any
+  // authenticated user. Same pattern as read_repo_file.
+  // eslint-disable-next-line @typescript-eslint/no-use-before-define
+  const allowed = await callerIsSuperAdmin(userSupabase);
+  if (!allowed) {
+    return { success: false, error: 'query_database requiere role=super_admin' };
+  }
+
   const sql = (input.sql as string || '').trim();
 
   if (!sql) {
@@ -572,7 +584,7 @@ export async function executeTool(
 ): Promise<ToolResult> {
   switch (toolName) {
     case 'query_database':
-      return executeQuery(toolInput);
+      return executeQuery(toolInput, userSupabase);
     case 'generate_chart':
       return executeChart(toolInput);
     case 'navigate_to':

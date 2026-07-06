@@ -1,27 +1,20 @@
 'use client';
 
 /* eslint-disable react/no-unstable-nested-components */
-// react/no-unstable-nested-components is disabled file-wide because
-// TanStack Table's columnDef API requires inline cell-renderer functions
-// (`cell: ({ row }) => …`) and the rule treats every arrow-returning-JSX
-// as a fresh component. The columns array itself is stable via useMemo,
-// so React reconciliation isn't actually thrashing.
+// TanStack columnDef requires inline cell-renderer functions; the columns
+// array is stable via useMemo so reconciliation isn't thrashing.
 
-// Power-table for /admin/monitor.
-//
-// Replaces the flat HTML table with a TanStack Table that supports:
-//   - sort by any column
-//   - per-column multi-select filters (source, severity, category, country)
-//   - free-text global search
+// Power-table for /admin/monitor — operational health focus.
+//   - sort / global search / group-by (none | kind | source)
+//   - filters: source, kind
 //   - quick toggles (only critical / only failing-or-stale)
-//   - groupBy with collapsible Excel-pivot-style headers
-//
-// One-stop component to keep the page file focused on layout + alerts.
+//   - columns emphasise run health + data freshness; catalog metadata
+//     (categories/country/review) lives in the per-collector Catálogo tab.
 
 import React, { useMemo, useState } from 'react';
 import Link from 'next/link';
 import styled from 'styled-components';
-import { Badge, Form, Button as BsButton } from 'react-bootstrap';
+import { Badge, Form } from 'react-bootstrap';
 import { FontAwesomeIcon as Icon } from '@fortawesome/react-fontawesome';
 import {
   faCircleCheck,
@@ -30,8 +23,6 @@ import {
   faCircleMinus,
   faClock,
   faArrowUpRightFromSquare,
-  faStar,
-  faRobot,
   faSort,
   faSortUp,
   faSortDown,
@@ -54,10 +45,11 @@ import {
 } from '@tanstack/react-table';
 import type {
   CollectorOverviewEnriched,
-  Severity,
+  CollectorFreshness,
+  CollectorKind,
+  WriteMode,
   RunStatus,
 } from 'src/types/monitor';
-import ReviewBar from './_ReviewBar';
 
 // ─────────────────────────────────────────────────────────────────
 // Styling
@@ -140,15 +132,8 @@ const Toolbar = styled.div`
     margin: 0;
   }
 
-  input[type='text'] {
-    font-size: 13px;
-    min-width: 220px;
-  }
-
-  select {
-    font-size: 12px;
-    min-width: 140px;
-  }
+  input[type='text'] { font-size: 13px; min-width: 220px; }
+  select { font-size: 12px; min-width: 140px; }
 
   .toggle {
     display: inline-flex;
@@ -164,17 +149,6 @@ const Toolbar = styled.div`
     &:hover { background: #e9e9f0; }
     input { margin: 0; }
   }
-`;
-
-const Chip = styled.span<{ $color?: string }>`
-  display: inline-block;
-  font-size: 10px;
-  background: ${(p) => p.$color ?? '#e9e9f0'};
-  color: #444;
-  padding: 1px 6px;
-  border-radius: 3px;
-  margin: 0 2px 2px 0;
-  white-space: nowrap;
 `;
 
 const TableChips = styled.div`
@@ -205,12 +179,6 @@ const StatusDot = styled.span<{ $color: string }>`
 // Constants
 // ─────────────────────────────────────────────────────────────────
 
-const SEV_COLORS: Record<Severity, string> = {
-  critical: '#dc3545',
-  warning: '#f0ad4e',
-  info: '#5bc0de',
-};
-
 const RUN_STATUS_CFG: Record<RunStatus, { bg: string; icon: typeof faCircleCheck }> = {
   success: { bg: '#28a745', icon: faCircleCheck },
   running: { bg: '#5bc0de', icon: faClock },
@@ -218,21 +186,18 @@ const RUN_STATUS_CFG: Record<RunStatus, { bg: string; icon: typeof faCircleCheck
   timeout: { bg: '#6c757d', icon: faCircleExclamation },
 };
 
-export type GroupByKey =
-  | 'none'
-  | 'source'
-  | 'severity'
-  | 'category_first'
-  | 'country_first'
-  | 'review_worst';
+const KIND_CFG: Record<CollectorKind, { bg: string; label: string; title: string }> = {
+  scheduled: { bg: '#4F46E5', label: 'scheduled', title: 'Corre en cron y se monitorea completo.' },
+  backfill:  { bg: '#94a3b8', label: 'backfill',  title: 'Rellena huecos manualmente. No se monitorea.' },
+  manual:    { bg: '#b0b0b0', label: 'manual',    title: 'Se corre a mano / deprecado. No se monitorea.' },
+};
+
+export type GroupByKey = 'none' | 'kind' | 'source';
 
 const GROUP_BY_OPTIONS: { key: GroupByKey; label: string; columnId?: string }[] = [
+  { key: 'kind', label: 'Por tipo (kind)', columnId: 'kind' },
   { key: 'none', label: 'Sin agrupar' },
   { key: 'source', label: 'Por fuente', columnId: 'source' },
-  { key: 'severity', label: 'Por severity', columnId: 'severity' },
-  { key: 'category_first', label: 'Por categoría', columnId: 'categoryFirst' },
-  { key: 'country_first', label: 'Por país (datos)', columnId: 'countryFirst' },
-  { key: 'review_worst', label: 'Por estado de revisión', columnId: 'reviewWorst' },
 ];
 
 // ─────────────────────────────────────────────────────────────────
@@ -268,68 +233,62 @@ const formatDuration = (s: number | null): string => {
   return `${m}m ${r}s`;
 };
 
-const formatRows = (rows: number | null | undefined) => {
+// rows_inserted is a net delta — 0 is expected (and NOT alarming) for
+// recompute/upsert/delete_insert collectors.
+const formatRows = (rows: number | null | undefined, writeMode: WriteMode) => {
   if (rows === null || rows === undefined) {
     return <span style={{ color: '#bbb' }} title="No capturado">—</span>;
   }
   if (rows === 0) {
+    if (writeMode !== 'insert') {
+      return (
+        <span style={{ color: '#aaa' }} title={`0 filas esperado (${writeMode})`}>
+          0 <span style={{ fontSize: 10 }}>(esperado)</span>
+        </span>
+      );
+    }
     return (
-      <span style={{ color: '#b8860b', fontWeight: 600 }} title="0 filas insertadas">
-        0
-      </span>
+      <span style={{ color: '#b8860b', fontWeight: 600 }} title="0 filas insertadas">0</span>
     );
   }
   return rows.toLocaleString();
 };
 
-// "Worst" review status seen across this collector's (collector, table)
-// pairs. Used both as a sort key and as a groupBy bucket.
-//
-// Rationale for the order: deprecar > arreglar matter most operationally
-// (something is actively broken or being killed); pendiente means "not
-// reviewed yet", documentar/mantener mean we already looked and it's
-// fine. Empty review distribution (total=0) sorts to "n/a" so freshly
-// added collectors don't get bucketed as critical by accident.
-const REVIEW_PRIORITY: Record<string, number> = {
-  deprecar: 5,
-  arreglar: 4,
-  pendiente: 3,
-  documentar: 2,
-  mantener: 1,
-  none: 0,
-};
-const worstReview = (row: CollectorOverviewEnriched): string => {
-  const d = row.review_distribution;
-  if (!d || d.total === 0) return 'n/a';
-  const order: (keyof typeof REVIEW_PRIORITY)[] = ['deprecar', 'arreglar', 'pendiente', 'documentar', 'mantener'];
-  // eslint-disable-next-line no-restricted-syntax
-  for (const k of order) {
-    if ((d as Record<string, number>)[k] > 0) return k;
-  }
-  return 'n/a';
+const shortDate = (iso: string | null): string => {
+  if (!iso) return '';
+  return new Date(iso).toISOString().slice(0, 10);
 };
 
-// TanStack `getIsSorted` returns false | 'asc' | 'desc' — map that to
-// the right Font Awesome icon. Extracted because the inline ternary
-// triggers no-nested-ternary in the project's eslint config.
+const FreshnessCell: React.FC<{ f: CollectorFreshness | null }> = ({ f }) => {
+  if (!f || !f.oldest_max_date) {
+    return <span style={{ color: '#bbb' }}>—</span>;
+  }
+  const tablesTitle = f.tables
+    .map((t) => `${t.table}: ${shortDate(t.max_date) || 'sin datos'}${t.is_stale ? ' ⚠' : ''}`)
+    .join('\n');
+  return (
+    <span title={tablesTitle} style={{ color: f.any_stale ? '#dc3545' : '#444' }}>
+      {shortDate(f.oldest_max_date)}{' '}
+      <span style={{ fontSize: 11, color: f.any_stale ? '#dc3545' : '#999' }}>
+        ({formatRelative(f.oldest_max_date)})
+      </span>
+    </span>
+  );
+};
+
 const sortIcon = (sorted: false | 'asc' | 'desc') => {
   if (sorted === 'asc') return faSortUp;
   if (sorted === 'desc') return faSortDown;
   return faSort;
 };
 
-// Multi-select filter helper — TanStack v8 default filter compares using
-// `includesString`; for our chip-arrays we want OR semantics.
 const arrayIncludesAny = <T,>(rowVal: T[], filterVal: string[]): boolean => {
   if (!Array.isArray(filterVal) || filterVal.length === 0) return true;
   return rowVal.some((v) => filterVal.includes(String(v)));
 };
 
 // ─────────────────────────────────────────────────────────────────
-// MultiSelect — small button-driven dropdown for the toolbar filters.
-// Native `<select multiple>` is awkward; this wraps a list of checkboxes
-// behind a summary chip. Defined before MonitorTable so the reference
-// inside the toolbar JSX doesn't trip @typescript-eslint/no-use-before-define.
+// MultiSelect — button-driven checkbox dropdown for toolbar filters.
 // ─────────────────────────────────────────────────────────────────
 
 const MultiSelectWrap = styled.div`
@@ -349,7 +308,6 @@ const MultiSelectWrap = styled.div`
     &:hover { border-color: #302b63; }
     &.active { border-color: #302b63; box-shadow: 0 0 0 2px rgba(48, 43, 99, 0.15); }
   }
-
   .panel {
     position: absolute;
     top: calc(100% + 4px);
@@ -364,7 +322,6 @@ const MultiSelectWrap = styled.div`
     z-index: 10;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
   }
-
   .opt {
     display: flex;
     align-items: center;
@@ -376,7 +333,6 @@ const MultiSelectWrap = styled.div`
     &:hover { background: #f3f3f7; }
     input { margin: 0; }
   }
-
   .clear {
     font-size: 11px;
     color: #888;
@@ -426,11 +382,7 @@ const MultiSelect: React.FC<MultiSelectProps> = ({ options, value, onChange }) =
           )}
           {options.map((opt) => (
             <label key={opt} className="opt">
-              <input
-                type="checkbox"
-                checked={value.includes(opt)}
-                onChange={() => toggle(opt)}
-              />
+              <input type="checkbox" checked={value.includes(opt)} onChange={() => toggle(opt)} />
               {opt}
             </label>
           ))}
@@ -450,59 +402,30 @@ const MultiSelect: React.FC<MultiSelectProps> = ({ options, value, onChange }) =
   );
 };
 
-
-// ─────────────────────────────────────────────────────────────────
-// Public types
-// ─────────────────────────────────────────────────────────────────
-
-export interface MonitorTableProps {
-  rows: CollectorOverviewEnriched[];
-  onDiagnose: (row: CollectorOverviewEnriched) => void;
-}
-
 // ─────────────────────────────────────────────────────────────────
 // Component
 // ─────────────────────────────────────────────────────────────────
 
-// Default props guard the file against Next.js's pages-router static-
-// optimisation pass, which tries to prerender every module under pages/
-// (even underscore-prefixed components like this one) with no props.
-// Without the defaults, `rows.forEach(...)` inside the option-sets useMemo
-// blows up with a TypeError during `next build` and fails the deploy.
-const MonitorTable: React.FC<MonitorTableProps> = ({
-  rows = [],
-  onDiagnose = () => {},
-}) => {
-  // ─── Toolbar state ────────────────────────────────────────────
+export interface MonitorTableProps {
+  rows: CollectorOverviewEnriched[];
+}
+
+const MonitorTable: React.FC<MonitorTableProps> = ({ rows = [] }) => {
   const [globalFilter, setGlobalFilter] = useState('');
   const [sourceFilter, setSourceFilter] = useState<string[]>([]);
-  const [severityFilter, setSeverityFilter] = useState<string[]>([]);
-  const [categoryFilter, setCategoryFilter] = useState<string[]>([]);
-  const [countryFilter, setCountryFilter] = useState<string[]>([]);
+  const [kindFilter, setKindFilter] = useState<string[]>([]);
   const [onlyCritical, setOnlyCritical] = useState(false);
   const [onlyFailing, setOnlyFailing] = useState(false);
-  const [groupBy, setGroupBy] = useState<GroupByKey>('none');
+  const [groupBy, setGroupBy] = useState<GroupByKey>('kind');
 
-  // ─── Distinct option sets — derived from rows ─────────────────
   const optionSets = useMemo(() => {
     const sources = new Set<string>();
-    const categories = new Set<string>();
-    const countries = new Set<string>();
-    rows.forEach((r) => {
-      if (r.source?.name) sources.add(r.source.name);
-      r.categories.forEach((c) => categories.add(c));
-      r.countries_data.forEach((c) => countries.add(c));
-    });
-    return {
-      sources: Array.from(sources).sort(),
-      categories: Array.from(categories).sort(),
-      countries: Array.from(countries).sort(),
-    };
+    rows.forEach((r) => { if (r.source?.name) sources.add(r.source.name); });
+    return { sources: Array.from(sources).sort() };
   }, [rows]);
 
-  // ─── Pre-filter applied before TanStack runs (toggles) ────────
   const visibleRows = useMemo(() => rows.filter((r) => {
-    if (onlyCritical && !(r.has_critical_alert || r.is_critical_any)) return false;
+    if (onlyCritical && !r.has_critical_alert) return false;
     if (onlyFailing) {
       const failing = r.last_run?.status === 'failed' || r.last_run?.status === 'timeout';
       const stale = r.has_warning_alert || r.has_critical_alert;
@@ -511,7 +434,6 @@ const MonitorTable: React.FC<MonitorTableProps> = ({
     return true;
   }), [rows, onlyCritical, onlyFailing]);
 
-  // ─── Column definitions ───────────────────────────────────────
   const columns = useMemo<ColumnDef<CollectorOverviewEnriched>[]>(
     () => [
       {
@@ -526,15 +448,29 @@ const MonitorTable: React.FC<MonitorTableProps> = ({
         accessorKey: 'name',
         header: 'Collector',
         cell: ({ row }) => (
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-            {row.original.is_critical_any && (
-              <Icon icon={faStar} style={{ color: '#dc3545' }} title="Tabla crítica" />
-            )}
-            <Link href={`/admin/monitor/${encodeURIComponent(row.original.name)}`}>
-              {row.original.name}
-            </Link>
-          </span>
+          <Link href={`/admin/monitor/${encodeURIComponent(row.original.name)}`}>
+            {row.original.name}
+          </Link>
         ),
+      },
+      {
+        id: 'kind',
+        accessorKey: 'kind',
+        header: 'Tipo',
+        filterFn: (r, _id, value) => arrayIncludesAny([r.original.kind], value as string[]),
+        cell: ({ row }) => {
+          const cfg = KIND_CFG[row.original.kind];
+          return (
+            <span style={{ display: 'inline-flex', flexDirection: 'column', gap: 2 }}>
+              <Badge style={{ background: cfg.bg, fontWeight: 500 }} title={cfg.title}>
+                {cfg.label}
+              </Badge>
+              {row.original.write_mode !== 'insert' && (
+                <span style={{ fontSize: 10, color: '#999' }}>{row.original.write_mode}</span>
+              )}
+            </span>
+          );
+        },
       },
       {
         id: 'source',
@@ -542,77 +478,20 @@ const MonitorTable: React.FC<MonitorTableProps> = ({
         header: 'Fuente',
         filterFn: (row, _id, value) =>
           arrayIncludesAny([row.original.source?.name].filter(Boolean) as string[], value as string[]),
-        // Plain styled span instead of <Badge bg="light" text="dark">.
-        // The Bootstrap badge defaults render the label as white-on-light
-        // in this codebase's CSS chain (visible as empty pills in the
-        // overview), so we bypass the component entirely.
         cell: ({ row }) =>
           row.original.source ? (
             <span
               title={row.original.source.label}
               style={{
-                display: 'inline-block',
-                fontSize: 11,
-                fontWeight: 500,
-                color: '#222',
-                background: '#f3f3f7',
-                border: '1px solid #d8d8e6',
-                padding: '2px 8px',
-                borderRadius: 4,
-                whiteSpace: 'nowrap',
+                display: 'inline-block', fontSize: 11, fontWeight: 500, color: '#222',
+                background: '#f3f3f7', border: '1px solid #d8d8e6', padding: '2px 8px',
+                borderRadius: 4, whiteSpace: 'nowrap',
               }}
             >
               {row.original.source.name}
             </span>
           ) : (
             <span style={{ color: '#bbb', fontStyle: 'italic' }}>(sin fuente)</span>
-          ),
-      },
-      {
-        id: 'severity',
-        accessorKey: 'severity_default',
-        header: 'Severity',
-        filterFn: (row, _id, value) =>
-          arrayIncludesAny([row.original.severity_default], value as string[]),
-        cell: ({ getValue }) => (
-          <Badge style={{ background: SEV_COLORS[getValue() as Severity], fontWeight: 500 }}>
-            {String(getValue())}
-          </Badge>
-        ),
-      },
-      {
-        id: 'categoryFirst',
-        // First category alphabetically — used as a groupBy bucket so
-        // grouping works even when a collector spans multiple categories.
-        accessorFn: (r) => r.categories[0] ?? '(sin categoría)',
-        header: 'Categorías',
-        filterFn: (row, _id, value) => arrayIncludesAny(row.original.categories, value as string[]),
-        cell: ({ row }) =>
-          row.original.categories.length > 0 ? (
-            <div>
-              {row.original.categories.map((c) => (
-                <Chip key={c} $color="#e7f1fb">{c}</Chip>
-              ))}
-            </div>
-          ) : (
-            <span style={{ color: '#bbb' }}>—</span>
-          ),
-      },
-      {
-        id: 'countryFirst',
-        accessorFn: (r) => r.countries_data[0] ?? '(sin país)',
-        header: 'País',
-        filterFn: (row, _id, value) =>
-          arrayIncludesAny(row.original.countries_data, value as string[]),
-        cell: ({ row }) =>
-          row.original.countries_data.length > 0 ? (
-            <div>
-              {row.original.countries_data.map((c) => (
-                <Chip key={c} $color="#fff5e3">{c}</Chip>
-              ))}
-            </div>
-          ) : (
-            <span style={{ color: '#bbb' }}>—</span>
           ),
       },
       {
@@ -624,9 +503,7 @@ const MonitorTable: React.FC<MonitorTableProps> = ({
         cell: ({ row }) =>
           row.original.target_tables.length > 0 ? (
             <TableChips>
-              {row.original.target_tables.map((t) => (
-                <code key={t}>{t}</code>
-              ))}
+              {row.original.target_tables.map((t) => (<code key={t}>{t}</code>))}
             </TableChips>
           ) : (
             <span style={{ color: '#bbb' }}>—</span>
@@ -641,13 +518,8 @@ const MonitorTable: React.FC<MonitorTableProps> = ({
           row.original.schedule_cron ? (
             <code
               style={{
-                fontFamily: 'monospace',
-                fontSize: 11,
-                background: '#f3f3f7',
-                padding: '1px 6px',
-                borderRadius: 3,
-                whiteSpace: 'nowrap',
-                color: '#444',
+                fontFamily: 'monospace', fontSize: 11, background: '#f3f3f7',
+                padding: '1px 6px', borderRadius: 3, whiteSpace: 'nowrap', color: '#444',
               }}
               title="Click el collector para ver la traducción legible"
             >
@@ -689,79 +561,64 @@ const MonitorTable: React.FC<MonitorTableProps> = ({
         },
       },
       {
+        id: 'freshness',
+        accessorFn: (r) => r.freshness?.oldest_max_date ?? '',
+        header: 'Frescura dato',
+        enableGrouping: false,
+        sortingFn: (a, b) => {
+          const av = a.original.freshness?.oldest_max_date ?? '';
+          const bv = b.original.freshness?.oldest_max_date ?? '';
+          return av.localeCompare(bv);
+        },
+        cell: ({ row }) => <FreshnessCell f={row.original.freshness} />,
+      },
+      {
         id: 'duration',
         accessorFn: (r) => r.last_run?.duration_s ?? -1,
         header: 'Duración',
+        enableGrouping: false,
         cell: ({ row }) => formatDuration(row.original.last_run?.duration_s ?? null),
       },
       {
         id: 'rows',
         accessorFn: (r) => r.last_run?.rows_inserted ?? -1,
         header: 'Filas',
-        cell: ({ row }) => formatRows(row.original.last_run?.rows_inserted),
+        enableGrouping: false,
+        cell: ({ row }) => formatRows(row.original.last_run?.rows_inserted, row.original.write_mode),
       },
       {
         id: 'alerts',
         accessorKey: 'open_alerts',
         header: 'Alertas',
+        enableGrouping: false,
         cell: ({ getValue }) => {
           const v = Number(getValue());
           return v > 0 ? <Badge bg="danger">{v}</Badge> : <span style={{ color: '#ccc' }}>—</span>;
         },
       },
       {
-        id: 'reviewWorst',
-        accessorFn: (r) => worstReview(r),
-        header: 'Estado revisión',
-        sortingFn: (a, b) =>
-          (REVIEW_PRIORITY[worstReview(b.original)] ?? 0) -
-          (REVIEW_PRIORITY[worstReview(a.original)] ?? 0),
-        cell: ({ row }) => <ReviewBar distribution={row.original.review_distribution} />,
-      },
-      {
         id: 'actions',
         header: '',
         enableSorting: false,
         enableGrouping: false,
-        cell: ({ row }) => (
-          <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
-            <BsButton
-              size="sm"
-              variant="outline-primary"
-              onClick={() => onDiagnose(row.original)}
-              title="Abre el chat con un prompt pre-cargado para que el agente investigue este collector. NO modifica nada."
-              style={{ fontSize: 11, padding: '2px 6px' }}
-            >
-              <Icon icon={faRobot} /> IA
-            </BsButton>
-            {row.original.last_run?.gh_run_url && (
-              <a
-                href={row.original.last_run.gh_run_url}
-                target="_blank"
-                rel="noreferrer"
-                style={{ fontSize: 12 }}
-              >
-                GH <Icon icon={faArrowUpRightFromSquare} />
-              </a>
-            )}
-          </span>
-        ),
+        cell: ({ row }) =>
+          row.original.last_run?.gh_run_url ? (
+            <a href={row.original.last_run.gh_run_url} target="_blank" rel="noreferrer" style={{ fontSize: 12 }}>
+              GH <Icon icon={faArrowUpRightFromSquare} />
+            </a>
+          ) : null,
       },
     ],
-    [onDiagnose],
+    [],
   );
 
-  // ─── TanStack column-filter state derived from toolbar dropdowns ──
   const columnFilters: ColumnFiltersState = useMemo(() => {
     const out: ColumnFiltersState = [];
     if (sourceFilter.length > 0) out.push({ id: 'source', value: sourceFilter });
-    if (severityFilter.length > 0) out.push({ id: 'severity', value: severityFilter });
-    if (categoryFilter.length > 0) out.push({ id: 'categoryFirst', value: categoryFilter });
-    if (countryFilter.length > 0) out.push({ id: 'countryFirst', value: countryFilter });
+    if (kindFilter.length > 0) out.push({ id: 'kind', value: kindFilter });
     return out;
-  }, [sourceFilter, severityFilter, categoryFilter, countryFilter]);
+  }, [sourceFilter, kindFilter]);
 
-  // ─── Derive grouping + expanded state from groupBy dropdown ───
   const grouping: GroupingState = useMemo(() => {
     const opt = GROUP_BY_OPTIONS.find((o) => o.key === groupBy);
     return opt?.columnId ? [opt.columnId] : [];
@@ -770,26 +627,15 @@ const MonitorTable: React.FC<MonitorTableProps> = ({
   const [sorting, setSorting] = useState<SortingState>([]);
   const [expanded, setExpanded] = useState<ExpandedState>({});
 
-  // Auto-expand all groups when grouping turns on so users see content
-  // immediately. They can collapse manually.
   React.useEffect(() => {
-    if (grouping.length === 0) {
-      setExpanded({});
-    } else {
-      setExpanded(true);
-    }
+    if (grouping.length === 0) setExpanded({});
+    else setExpanded(true);
   }, [grouping.length]);
 
   const table = useReactTable({
     data: visibleRows,
     columns,
-    state: {
-      globalFilter,
-      columnFilters,
-      grouping,
-      sorting,
-      expanded,
-    },
+    state: { globalFilter, columnFilters, grouping, sorting, expanded },
     onGlobalFilterChange: setGlobalFilter,
     onSortingChange: setSorting,
     onExpandedChange: setExpanded,
@@ -804,7 +650,6 @@ const MonitorTable: React.FC<MonitorTableProps> = ({
 
   const colCount = table.getAllLeafColumns().length;
 
-  // ─── Render ───────────────────────────────────────────────────
   return (
     <>
       <Toolbar>
@@ -816,30 +661,17 @@ const MonitorTable: React.FC<MonitorTableProps> = ({
           size="sm"
         />
 
-        {/* MultiSelect is a custom button-based widget (not a native form control)
-            so we wrap each in <span>, not <label>, to satisfy
-            jsx-a11y/label-has-associated-control. */}
         <span className="inline">
           Fuente
           <MultiSelect options={optionSets.sources} value={sourceFilter} onChange={setSourceFilter} />
         </span>
 
         <span className="inline">
-          Categoría
-          <MultiSelect options={optionSets.categories} value={categoryFilter} onChange={setCategoryFilter} />
-        </span>
-
-        <span className="inline">
-          País
-          <MultiSelect options={optionSets.countries} value={countryFilter} onChange={setCountryFilter} />
-        </span>
-
-        <span className="inline">
-          Severity
+          Tipo
           <MultiSelect
-            options={['critical', 'warning', 'info']}
-            value={severityFilter}
-            onChange={setSeverityFilter}
+            options={['scheduled', 'backfill', 'manual']}
+            value={kindFilter}
+            onChange={setKindFilter}
           />
         </span>
 
@@ -849,7 +681,7 @@ const MonitorTable: React.FC<MonitorTableProps> = ({
             size="sm"
             value={groupBy}
             onChange={(e) => setGroupBy(e.target.value as GroupByKey)}
-            style={{ minWidth: 170 }}
+            style={{ minWidth: 150 }}
           >
             {GROUP_BY_OPTIONS.map((o) => (
               <option key={o.key} value={o.key}>{o.label}</option>
@@ -858,20 +690,12 @@ const MonitorTable: React.FC<MonitorTableProps> = ({
         </label>
 
         <label className="toggle">
-          <input
-            type="checkbox"
-            checked={onlyCritical}
-            onChange={(e) => setOnlyCritical(e.target.checked)}
-          />
+          <input type="checkbox" checked={onlyCritical} onChange={(e) => setOnlyCritical(e.target.checked)} />
           Solo críticos
         </label>
 
         <label className="toggle">
-          <input
-            type="checkbox"
-            checked={onlyFailing}
-            onChange={(e) => setOnlyFailing(e.target.checked)}
-          />
+          <input type="checkbox" checked={onlyFailing} onChange={(e) => setOnlyFailing(e.target.checked)} />
           Solo failing/stale
         </label>
 
@@ -914,11 +738,7 @@ const MonitorTable: React.FC<MonitorTableProps> = ({
               if (row.getIsGrouped()) {
                 const groupCol = row.getGroupingValue(grouping[0]);
                 return (
-                  <tr
-                    key={row.id}
-                    className="group-header"
-                    onClick={row.getToggleExpandedHandler()}
-                  >
+                  <tr key={row.id} className="group-header" onClick={row.getToggleExpandedHandler()}>
                     <td colSpan={colCount}>
                       <Icon
                         icon={row.getIsExpanded() ? faChevronDown : faChevronRight}
@@ -944,10 +764,7 @@ const MonitorTable: React.FC<MonitorTableProps> = ({
             })}
             {table.getRowModel().rows.length === 0 && (
               <tr>
-                <td
-                  colSpan={colCount}
-                  style={{ textAlign: 'center', color: '#999', padding: 32, fontSize: 13 }}
-                >
+                <td colSpan={colCount} style={{ textAlign: 'center', color: '#999', padding: 32, fontSize: 13 }}>
                   No hay collectors que coincidan con los filtros.
                 </td>
               </tr>

@@ -146,29 +146,51 @@ interface ParsedInput {
   periodText?: string;
 }
 
+// Recognizable period phrase anchored at the END of the input. Matches with or
+// without a leading comma so "inflación q1, 2024" (comma INSIDE the period) and
+// "TRM ultimo mes" (no separator) both work. Deliberately excludes bare tenor
+// short-forms like "3M"/"1Y" so "IBR 3M" is NOT mistaken for a 3-month period —
+// periods must be spelled out (mes/meses/año/días), a quarter (q1 [year]), or a
+// year / year-range.
+const TRAILING_PERIOD_RE =
+  /(?:^|[\s,])\s*(hoy|ytd|mtd|(?:este|últim[oa]|ultim[oa])s?\s+(?:año|ano|mes|trimestre|semana)|(?:últim[oa]s?|ultim[oa]s?)\s+\d+\s+(?:d[íi]as?|semanas?|meses?|años?|anos?)|\d+\s+(?:d[íi]as?|semanas?|meses?|años?|anos?)|q[1-4](?:[\s,]+\d{4})?|\d{4}(?:\s*(?:[-–]|a)\s*\d{4})?)\s*$/i;
+
 // Parse the input bar:
 //   "TRM" → {queries: ["TRM"]}
-//   "TRM vs USD" → {queries: ["TRM", "USD"]}
-//   "TRM, ultimo mes" → {queries: ["TRM"], periodText: "ultimo mes"}
-//   "IBR 3M vs SOFR 3M, q1 2024" → {queries: ["IBR 3M", "SOFR 3M"], periodText: "q1 2024"}
+//   "IBR 3M vs SOFR 3M" → {queries: ["IBR 3M", "SOFR 3M"]}  (3M stays a tenor)
+//   "TRM, ultimo mes" / "TRM ultimo mes" → {queries: ["TRM"], periodText: "ultimo mes"}
+//   "inflación q1, 2024" → {queries: ["inflación"], periodText: "q1, 2024"}
 function parseBar(input: string): ParsedInput {
   const t = input.trim();
   if (!t) return { queries: [] };
 
-  // Split off period (everything after the last comma, IF it looks like a period)
-  const commaIdx = t.lastIndexOf(',');
   let queriesPart = t;
   let periodText: string | undefined;
-  if (commaIdx > 0) {
-    queriesPart = t.slice(0, commaIdx).trim();
-    periodText = t.slice(commaIdx + 1).trim();
+
+  const m = t.match(TRAILING_PERIOD_RE);
+  if (m && m.index !== undefined) {
+    periodText = m[1].trim();
+    queriesPart = t.slice(0, m.index).replace(/[\s,]+$/, '').trim();
+  } else {
+    // Fallback: free-form period after a comma (legacy behaviour).
+    const commaIdx = t.lastIndexOf(',');
+    if (commaIdx > 0) {
+      queriesPart = t.slice(0, commaIdx).trim();
+      periodText = t.slice(commaIdx + 1).trim();
+    }
   }
 
-  // Split queries by " vs " or " | "
-  const queries = queriesPart
+  const splitQueries = (s: string) => s
     .split(/\s+(?:vs|\|)\s+/i)
     .map((q) => q.trim())
     .filter((q) => q.length > 0);
+
+  const queries = splitQueries(queriesPart);
+
+  // If peeling the period left no query, the phrase was actually the query.
+  if (queries.length === 0) {
+    return { queries: splitQueries(t) };
+  }
 
   return { queries, periodText };
 }
