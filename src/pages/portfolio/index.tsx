@@ -59,7 +59,7 @@ import type {
 import useAppStore from 'src/store';
 import BlotterTable, { type PortfolioRow } from '@components/portfolio/BlotterTable';
 import LiquidateNdfModal from '@components/portfolio/LiquidateNdfModal';
-import { fetchNdfLiquidations, type NdfLiquidationRow } from 'src/models/trading';
+import { fetchNdfLiquidations, adjustSpotLiquidationsAtMaturity, type NdfLiquidationRow } from 'src/models/trading';
 import { fetchFwdQuarterAssignments } from 'src/models/trading/fetchFwdQuarterAssignments';
 import {
   sumLiquidationsBetween,
@@ -2031,6 +2031,20 @@ function PortfolioPage() {
   const reloadLiquidations = useCallback(async () => {
     setLiquidationsLoading(true);
     try {
+      // Auto-ajuste al vencimiento: antes de leer, disparamos la RPC que
+      // convierte liquidaciones spot vencidas a TRM oficial de BanRep.
+      // Idempotente — no hace nada si no hay liquidaciones spot vencidas
+      // pendientes. Si la RPC falla, seguimos con el fetch (best-effort).
+      const adjRes = await adjustSpotLiquidationsAtMaturity(activeCompanyId());
+      if (adjRes.error) {
+        console.warn('[liquidations] adjust spot@maturity failed:', adjRes.error);
+      } else if (adjRes.data && adjRes.data.adjusted > 0) {
+        toast.info(
+          `${adjRes.data.adjusted} liquidacion(es) spot ajustadas a TRM al vencimiento`,
+          { autoClose: 4500 },
+        );
+      }
+
       // Pasamos activeCompanyId() para que super_admin con company picker
       // solo vea las liquidaciones de la empresa seleccionada (anti
       // cross-tenant leak). corp_admin/gestor/lector son filtrados server-
