@@ -25,7 +25,9 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Modal, Form, Button, Alert, Spinner, Row, Col } from 'react-bootstrap';
 import { toast } from 'react-toastify';
 import { liquidateNdfPosition } from 'src/models/trading';
+import type { RateSource } from 'src/models/trading/liquidatePosition';
 import { fetchBanRepTrmForLiquidation } from 'src/models/trading/fetchBanRepTrm';
+import { fetchFxSpot } from 'src/lib/risk/marketMarks';
 import type { PortfolioRow } from './BlotterTable';
 
 interface Props {
@@ -82,11 +84,15 @@ export default function LiquidateNdfModal({ show, onHide, row, onSuccess }: Prop
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // TRM auto-traida de BanRep (read-only). Estado: cargando | valor + fecha real | error.
-  const [trmLoading, setTrmLoading] = useState(false);
-  const [trmValor, setTrmValor] = useState<number | null>(null);
-  const [trmFecha, setTrmFecha] = useState<string | null>(null);
-  const [trmError, setTrmError] = useState<string | null>(null);
+  // Fuente de la tasa referencia: TRM oficial de BanRep o Spot EOD de market_marks.
+  // Si spot, la liquidacion se auto-ajustara al vencimiento con la TRM real.
+  const [rateSource, setRateSource] = useState<RateSource>('trm');
+
+  // Valor de la tasa referencia (read-only, auto-fetched segun rateSource).
+  const [refLoading, setRefLoading] = useState(false);
+  const [refValor, setRefValor] = useState<number | null>(null);
+  const [refFecha, setRefFecha] = useState<string | null>(null);
+  const [refError, setRefError] = useState<string | null>(null);
 
   // Reinicializa los inputs cuando se abre con una fila nueva
   useEffect(() => {
@@ -96,43 +102,61 @@ export default function LiquidateNdfModal({ show, onHide, row, onSuccess }: Prop
     setTasaNegStr(strikePosicion ? String(strikePosicion) : '');
     setNote('');
     setError(null);
-    setTrmValor(null);
-    setTrmFecha(null);
-    setTrmError(null);
+    setRateSource('trm');
+    setRefValor(null);
+    setRefFecha(null);
+    setRefError(null);
   }, [show, ndf, notionalActual, strikePosicion]);
 
-  // Auto-fetch de TRM cada vez que cambia la fecha de liquidacion.
-  // Convencion: BanRep serie 25, fecha = liquidation_date + 1 (gte + asc + limit 1),
-  // identica al auto-settlement de NDFs vencidos.
+  // Auto-fetch del valor de referencia cada vez que cambia rateSource o fecha.
+  //
+  //   'trm'  → BanRep serie 25, gte(liquidation_date + 1) asc limit 1
+  //            (misma convencion que auto-settlement de NDFs vencidos)
+  //   'spot' → market_marks.fx_spot de la fecha de liquidacion, con carry-forward
   useEffect(() => {
     if (!show || !liquidationDate) return undefined;
     let cancelled = false;
-    setTrmLoading(true);
-    setTrmError(null);
-    setTrmValor(null);
-    setTrmFecha(null);
-    fetchBanRepTrmForLiquidation(liquidationDate)
+    setRefLoading(true);
+    setRefError(null);
+    setRefValor(null);
+    setRefFecha(null);
+
+    const fetcher = rateSource === 'trm'
+      ? fetchBanRepTrmForLiquidation(liquidationDate)
+        .then((r) => {
+          if (r.error) return { error: r.error };
+          if (r.data) return { valor: r.data.valor, fecha: r.data.fecha };
+          return { error: 'TRM no disponible' };
+        })
+      : fetchFxSpot(liquidationDate)
+        .then((v) => {
+          if (v == null) return { error: `Spot no disponible para ${liquidationDate}` };
+          return { valor: v, fecha: liquidationDate };
+        })
+        .catch((e: unknown) => ({ error: (e as Error)?.message || 'Error leyendo market_marks' }));
+
+    fetcher
       .then((r) => {
         if (cancelled) return;
-        if (r.error) {
-          setTrmError(r.error);
-        } else if (r.data) {
-          setTrmValor(r.data.valor);
-          setTrmFecha(r.data.fecha);
+        if ('error' in r && r.error) {
+          setRefError(r.error);
+        } else if ('valor' in r && r.valor != null) {
+          setRefValor(r.valor);
+          setRefFecha(r.fecha ?? null);
         }
       })
       .finally(() => {
-        if (!cancelled) setTrmLoading(false);
+        if (!cancelled) setRefLoading(false);
       });
     return () => {
       cancelled = true;
     };
-  }, [show, liquidationDate]);
+  }, [show, liquidationDate, rateSource]);
 
   // Parseo numerico
   const monto = parseFloat(montoStr) || 0;
   const tasaNeg = parseFloat(tasaNegStr) || 0;
-  const tasaRef = trmValor ?? 0;
+  const tasaRef = refValor ?? 0;
 
   // ── Calculo en vivo del P&G bruto ──
   // signo = +1 si sell, -1 si buy
@@ -154,12 +178,12 @@ export default function LiquidateNdfModal({ show, onHide, row, onSuccess }: Prop
     if (monto <= 0) return 'Monto debe ser mayor a 0';
     if (monto > notionalActual) return `Monto excede el notional disponible (${fmtUsd(notionalActual)} USD)`;
     if (tasaNeg <= 0) return 'Tasa negociada debe ser mayor a 0';
-    if (trmLoading) return 'Cargando TRM de BanRep…';
-    if (trmError) return `TRM no disponible: ${trmError}`;
-    if (tasaRef <= 0) return 'TRM de BanRep no disponible para esta fecha';
+    if (refLoading) return rateSource === 'trm' ? 'Cargando TRM…' : 'Cargando Spot…';
+    if (refError) return `Tasa referencia no disponible: ${refError}`;
+    if (tasaRef <= 0) return 'Tasa referencia no disponible para esta fecha';
     if (note.length > 500) return 'Nota muy larga (max 500)';
     return null;
-  }, [liquidationDate, monto, notionalActual, tasaNeg, tasaRef, trmLoading, trmError, note]);
+  }, [liquidationDate, monto, notionalActual, tasaNeg, tasaRef, refLoading, refError, rateSource, note]);
 
   const handleClose = useCallback(() => {
     if (loading) return;
@@ -183,6 +207,7 @@ export default function LiquidateNdfModal({ show, onHide, row, onSuccess }: Prop
         tasaNegociada: tasaNeg,
         tasaReferencia: tasaRef,
         note: note.trim() || undefined,
+        rateSource,
       });
       if (result.error) {
         setError(result.error);
@@ -201,7 +226,7 @@ export default function LiquidateNdfModal({ show, onHide, row, onSuccess }: Prop
     } finally {
       setLoading(false);
     }
-  }, [row, validation, liquidationDate, monto, tasaNeg, tasaRef, note, onSuccess, onHide]);
+  }, [row, validation, liquidationDate, monto, tasaNeg, tasaRef, note, rateSource, onSuccess, onHide]);
 
   if (!row) return null;
 
@@ -318,45 +343,96 @@ export default function LiquidateNdfModal({ show, onHide, row, onSuccess }: Prop
           </Col>
           <Col md={6}>
             <Form.Group>
-              <Form.Label style={{ fontSize: 12, marginBottom: 2 }}>
-                Tasa referencia (TRM BanRep)
-                <span style={{ color: '#6c757d', fontSize: 10, marginLeft: 4 }}>
-                  (auto, serie 25)
+              <Form.Label style={{ fontSize: 12, marginBottom: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span>
+                  Tasa referencia
+                  <span style={{ color: '#6c757d', fontSize: 10, marginLeft: 4 }}>
+                    ({rateSource === 'trm' ? 'BanRep serie 25' : 'market_marks.fx_spot'})
+                  </span>
+                </span>
+                <span style={{ display: 'inline-flex', gap: 0, background: '#f1f3f5', borderRadius: 4, padding: 2 }}>
+                  <button
+                    type="button"
+                    onClick={() => setRateSource('trm')}
+                    disabled={loading || !isActivo}
+                    aria-label="Usar TRM BanRep como tasa referencia"
+                    style={{
+                      border: 'none',
+                      background: rateSource === 'trm' ? '#0d6efd' : 'transparent',
+                      color: rateSource === 'trm' ? '#fff' : '#495057',
+                      fontSize: 10,
+                      fontWeight: 600,
+                      padding: '3px 10px',
+                      borderRadius: 3,
+                      cursor: loading || !isActivo ? 'not-allowed' : 'pointer',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.02em',
+                    }}
+                  >
+                    TRM
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setRateSource('spot')}
+                    disabled={loading || !isActivo}
+                    aria-label="Usar Spot de market_marks como tasa referencia"
+                    style={{
+                      border: 'none',
+                      background: rateSource === 'spot' ? '#0d6efd' : 'transparent',
+                      color: rateSource === 'spot' ? '#fff' : '#495057',
+                      fontSize: 10,
+                      fontWeight: 600,
+                      padding: '3px 10px',
+                      borderRadius: 3,
+                      cursor: loading || !isActivo ? 'not-allowed' : 'pointer',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.02em',
+                    }}
+                  >
+                    Spot
+                  </button>
                 </span>
               </Form.Label>
               <div style={{
-                background: trmError ? '#f8d7da' : '#e9ecef',
-                border: `1px solid ${trmError ? '#f5c2c7' : '#ced4da'}`,
+                background: refError ? '#f8d7da' : '#e9ecef',
+                border: `1px solid ${refError ? '#f5c2c7' : '#ced4da'}`,
                 borderRadius: 4,
                 padding: '6px 10px',
                 fontFamily: 'monospace',
                 fontSize: 14,
                 fontWeight: 600,
-                color: trmError ? '#842029' : trmValor != null ? '#212529' : '#6c757d',
+                color: refError ? '#842029' : refValor != null ? '#212529' : '#6c757d',
                 minHeight: 31,
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between',
               }}
               >
-                {trmLoading && (
+                {refLoading && (
                   <span style={{ fontSize: 12, color: '#6c757d', fontWeight: 400 }}>
                     <Spinner size="sm" animation="border" className="me-2" />
-                    Cargando TRM…
+                    Cargando {rateSource === 'trm' ? 'TRM' : 'Spot'}…
                   </span>
                 )}
-                {!trmLoading && trmValor != null && (
+                {!refLoading && refValor != null && (
                   <>
-                    <span>{fmtUsd(trmValor)}</span>
+                    <span>{fmtUsd(refValor)}</span>
                     <span style={{ fontSize: 10, color: '#6c757d', fontWeight: 400 }}>
-                      {trmFecha}
+                      {refFecha}
                     </span>
                   </>
                 )}
-                {!trmLoading && trmError && (
+                {!refLoading && refError && (
                   <span style={{ fontSize: 11, fontWeight: 400 }}>
                     No disponible
                   </span>
                 )}
               </div>
+              {rateSource === 'spot' && !refError && (
+                <div style={{ fontSize: 10, color: '#d97706', marginTop: 4, lineHeight: 1.3 }}>
+                  ⓘ Spot es provisional: al llegar el vencimiento (
+                  <span style={{ fontFamily: 'monospace' }}>{row.maturity_date}</span>
+                  ) esta liquidacion se re-ajustara automaticamente con la TRM BanRep de ese dia.
+                </div>
+              )}
             </Form.Group>
           </Col>
         </Row>

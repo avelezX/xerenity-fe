@@ -23,10 +23,13 @@ import {
 import {
   liquidateNdfPosition,
   fetchNdfLiquidations,
+  adjustSpotLiquidationsAtMaturity,
   type LiquidateNdfInput,
   type LiquidateResponse,
   type LiquidationsResponse,
   type NdfLiquidationRow,
+  type RateSource,
+  type AdjustSpotResponse,
 } from './liquidatePosition';
 import { repricePortfolio } from './repricePortfolio';
 import {
@@ -48,6 +51,8 @@ export type {
   LiquidateResponse,
   LiquidationsResponse,
   NdfLiquidationRow,
+  RateSource,
+  AdjustSpotResponse,
   XccySettlementRow,
   XccySettlementsResponse,
 };
@@ -68,6 +73,7 @@ export {
   deleteTesPositions,
   liquidateNdfPosition,
   fetchNdfLiquidations,
+  adjustSpotLiquidationsAtMaturity,
   fetchXccySettlements,
   repricePortfolio,
   fetchMarketDataConfig,

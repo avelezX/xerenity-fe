@@ -19,6 +19,8 @@ import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 const supabase = createClientComponentClient();
 const SCHEMA = 'xerenity';
 
+export type RateSource = 'trm' | 'spot';
+
 export interface LiquidateNdfInput {
   positionId: string;
   liquidationDate: string;   // YYYY-MM-DD
@@ -26,6 +28,7 @@ export interface LiquidateNdfInput {
   tasaNegociada: number;
   tasaReferencia: number;
   note?: string;
+  rateSource?: RateSource;   // 'trm' (default) | 'spot' — si spot, se auto-ajusta al vencimiento
 }
 
 export type LiquidateResponse = {
@@ -80,6 +83,7 @@ export const liquidateNdfPosition = async (
         p_tasa_negociada: input.tasaNegociada,
         p_tasa_referencia: input.tasaReferencia,
         p_note: input.note ?? null,
+        p_rate_source: input.rateSource ?? 'trm',
       });
     if (error) {
       response.error = error.message || 'Error liquidating NDF position';
@@ -110,6 +114,13 @@ export type NdfLiquidationRow = {
   tasa_negociada: number | null;
   tasa_referencia: number | null;
   monto_liquidado_usd: number | null;
+  // rate_source + audit del ajuste al vencimiento (nulos en filas legacy pre-migracion)
+  rate_source: RateSource | null;
+  adjusted_at_maturity: boolean | null;
+  original_tasa_ref: number | null;
+  original_pnl_cop: number | null;
+  original_pnl_usd: number | null;
+  adjusted_at: string | null;    // timestamptz
   note: string | null;
   liquidated_by: string;            // uuid
   created_at: string;               // timestamptz
@@ -158,6 +169,51 @@ export const fetchNdfLiquidations = async (
     return response;
   } catch (e) {
     response.error = (e as Error)?.message || 'Error fetching NDF liquidations';
+    return response;
+  }
+};
+
+// ── Auto-ajuste al vencimiento ───────────────────────────────────────────────
+
+export type AdjustSpotResponse = {
+  data: { adjusted: number; ids: string[] } | undefined;
+  error: string | undefined;
+};
+
+/**
+ * Dispara la RPC que ajusta liquidaciones spot vencidas: para cada NDF
+ * con rate_source='spot' + adjusted_at_maturity=false cuya maturity_date
+ * ya paso, sustituye el spot original por la TRM oficial de BanRep
+ * (serie 25, gte(maturity+1) asc limit 1) y recalcula el P&L.
+ *
+ * Idempotente: solo procesa filas sin ajustar. Si BanRep aun no publica
+ * la TRM (D+1 no llegado), la fila se skipea y se ajustara en el proximo
+ * disparo.
+ *
+ * Se llama on-page-load desde /portfolio y /risk-management (patron
+ * identico a useNdfSettlements / useXccySettlements).
+ */
+export const adjustSpotLiquidationsAtMaturity = async (
+  companyId?: string | null,
+): Promise<AdjustSpotResponse> => {
+  const response: AdjustSpotResponse = { data: undefined, error: undefined };
+  try {
+    const { data, error } = await supabase
+      .schema(SCHEMA)
+      .rpc('adjust_spot_liquidations_at_maturity', {
+        p_company_id: companyId ?? null,
+      });
+    if (error) {
+      response.error = error.message || 'Error adjusting spot liquidations';
+      return response;
+    }
+    const payload = data as { adjusted: number; ids: string[] } | null;
+    response.data = payload
+      ? { adjusted: payload.adjusted ?? 0, ids: payload.ids ?? [] }
+      : { adjusted: 0, ids: [] };
+    return response;
+  } catch (e) {
+    response.error = (e as Error)?.message || 'Error adjusting spot liquidations';
     return response;
   }
 };
