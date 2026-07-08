@@ -2388,16 +2388,32 @@ function PortfolioPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ndfPositions]);
 
-  // Build unified portfolio rows
+  // Build unified portfolio rows.
+  // FILTRO IMPORTANTE: al construir la fila fallback (cuando reprice
+  // devuelve empty), filtramos por fecha (start_date/trade_date <=
+  // markFecha). Sin esto, si el markFecha es anterior a todas las
+  // posiciones de un tipo, el reprice hook filtra a 0 → pricedX queda
+  // empty → cae al fallback SIN filtro → aparecen posiciones que aun no
+  // existian en la fecha seleccionada.
+  //
+  // Con este fix, si el usuario selecciona ene-2026 y todos los IBR
+  // son de jun-jul 2026, el fallback queda tambien vacio y no muestra
+  // nada — comportamiento consistente con NDF/XCCY.
   const xccyRows: PricedXccy[] = pricedXccy.length > 0
     ? pricedXccy
-    : xccyPositions.map((p) => ({ ...p, npv_cop: 0, npv_usd: 0, pnl_rate_cop: 0, pnl_rate_usd: 0, pnl_fx_cop: 0, pnl_fx_usd: 0, usd_leg_pv: 0, cop_leg_pv: 0, usd_principal_pv: 0, cop_principal_pv: 0, carry_cop: 0, carry_usd: 0, carry_rate_cop_pct: 0, carry_rate_usd_pct: 0, carry_differential_bps: 0, dv01_ibr: 0, dv01_sofr: 0, dv01_total: 0, fx_delta: 0, fx_exposure_usd: 0, par_basis_bps: null, notional_cop: p.notional_usd * p.fx_initial, fx_spot: 0, n_periods: 0, cashflows: [], error: 'Pendiente de valoración' } as PricedXccy));
+    : xccyPositions
+      .filter((p) => !markFecha || !p.start_date || p.start_date <= markFecha)
+      .map((p) => ({ ...p, npv_cop: 0, npv_usd: 0, pnl_rate_cop: 0, pnl_rate_usd: 0, pnl_fx_cop: 0, pnl_fx_usd: 0, usd_leg_pv: 0, cop_leg_pv: 0, usd_principal_pv: 0, cop_principal_pv: 0, carry_cop: 0, carry_usd: 0, carry_rate_cop_pct: 0, carry_rate_usd_pct: 0, carry_differential_bps: 0, dv01_ibr: 0, dv01_sofr: 0, dv01_total: 0, fx_delta: 0, fx_exposure_usd: 0, par_basis_bps: null, notional_cop: p.notional_usd * p.fx_initial, fx_spot: 0, n_periods: 0, cashflows: [], error: 'Pendiente de valoración' } as PricedXccy));
   const ndfRows: PricedNdf[] = pricedNdf.length > 0
     ? pricedNdf
-    : ndfPositions.map((p) => ({ ...p, npv_usd: 0, npv_cop: 0, forward: 0, forward_points: 0, carry_cop_daily: 0, carry_usd_daily: 0, days_to_maturity: 0, df_usd: 0, df_cop: 0, delta_cop: 0, dv01_cop: 0, dv01_usd: 0, dv01_total: 0, fx_delta: 0, fx_exposure_usd: 0, spot: 0, error: 'Pendiente de valoración' } as PricedNdf));
+    : ndfPositions
+      .filter((p) => !markFecha || !p.trade_date || p.trade_date <= markFecha)
+      .map((p) => ({ ...p, npv_usd: 0, npv_cop: 0, forward: 0, forward_points: 0, carry_cop_daily: 0, carry_usd_daily: 0, days_to_maturity: 0, df_usd: 0, df_cop: 0, delta_cop: 0, dv01_cop: 0, dv01_usd: 0, dv01_total: 0, fx_delta: 0, fx_exposure_usd: 0, spot: 0, error: 'Pendiente de valoración' } as PricedNdf));
   const ibrRows: PricedIbrSwap[] = pricedIbrSwap.length > 0
     ? pricedIbrSwap
-    : ibrSwapPositions.map((p) => ({ ...p, npv: 0, fair_rate: 0, dv01: 0, fixed_leg_npv: 0, floating_leg_npv: 0, ibr_overnight_pct: 0, carry_daily_cop: 0, carry_daily_diff_bps: 0, ibr_fwd_period_pct: 0, carry_period_cop: 0, carry_period_diff_bps: 0, error: 'Pendiente de valoración' } as PricedIbrSwap));
+    : ibrSwapPositions
+      .filter((p) => !markFecha || !p.start_date || p.start_date <= markFecha)
+      .map((p) => ({ ...p, npv: 0, fair_rate: 0, dv01: 0, fixed_leg_npv: 0, floating_leg_npv: 0, ibr_overnight_pct: 0, carry_daily_cop: 0, carry_daily_diff_bps: 0, ibr_fwd_period_pct: 0, carry_period_cop: 0, carry_period_diff_bps: 0, error: 'Pendiente de valoración' } as PricedIbrSwap));
 
   const portfolioRows = buildPortfolioRows(xccyRows, ndfRows, ibrRows, settlementMap, refPrices, markFecha);
 
