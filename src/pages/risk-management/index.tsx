@@ -3400,6 +3400,80 @@ function RiskManagement() {
         {/* ── Portafolio GR (Futures) Tab ── */}
         {activeTab === 'futures' && (
           <div id="futures-tab">
+            {/* Panel consolidado del mes seleccionado — SIEMPRE arriba, prominente.
+                Muestra: Realizado + Comisiones + Cash P&L + Unrealized MTD.
+                Match con StoneX Monthly Statement (Net Futures P&L). */}
+            {(futuresRealized.length > 0 || futuresCommissions.length > 0 || futuresPortfolio.length > 0) && (() => {
+              const y = futuresMonth.year;
+              const m = futuresMonth.month;
+              const monthStart = new Date(y, m, 1).toISOString().slice(0, 10);
+              const monthEnd = new Date(y, m + 1, 0).toISOString().slice(0, 10);
+              const realizedMonth = futuresRealized.filter(
+                (r) => r.close_date >= monthStart && r.close_date <= monthEnd,
+              );
+              const commMonth = futuresCommissions.filter(
+                (c) => c.statement_date >= monthStart && c.statement_date <= monthEnd,
+              );
+              const realizedSum = realizedMonth.reduce((s, r) => s + (r.realized_pnl_usd ?? 0), 0);
+              const commSum = commMonth.reduce((s, c) => s + (c.total_charges ?? 0), 0);
+              const cashPnL = realizedSum - commSum;
+              // Unrealized MTD: suma pnl_mes de todas las posiciones actualmente activas.
+              // Skipeamos los subtotal rows (asset comienza con "Total").
+              const unrealizedMtd = futuresPortfolio
+                .filter((p) => !String(p.asset ?? '').startsWith('Total'))
+                .reduce((s, p) => s + (p.pnl_month ?? 0), 0);
+              const totalImpactMonth = cashPnL + unrealizedMtd;
+              const fmtKpi = (v: number) => new Intl.NumberFormat('en-US', {
+                minimumFractionDigits: 2, maximumFractionDigits: 2, signDisplay: 'always',
+              }).format(v);
+              const clr = (v: number): string => {
+                if (v > 0) return '#16a34a';
+                if (v < 0) return '#dc2626';
+                return '#334155';
+              };
+              const tile = (label: string, value: number, sub: string, accent = false): React.ReactNode => (
+                <div style={{
+                  flex: '1 1 180px',
+                  minWidth: 180,
+                  padding: '14px 18px',
+                  background: accent ? 'linear-gradient(135deg,#faf5ff 0%,#fff 100%)' : '#fff',
+                  border: accent ? '1px solid #7c3aed' : '1px solid #e2e8f0',
+                  borderRadius: 8,
+                  boxShadow: accent ? '0 2px 6px rgba(124,58,237,0.10)' : '0 1px 2px rgba(0,0,0,0.03)',
+                }}
+                >
+                  <div style={{ fontSize: '0.68rem', textTransform: 'uppercase', color: '#64748b', letterSpacing: '0.04em', fontWeight: 600 }}>
+                    {label}
+                  </div>
+                  <div style={{ fontSize: '1.35rem', fontWeight: 700, fontFamily: 'monospace', color: clr(value), marginTop: 3 }}>
+                    ${fmtKpi(value)}
+                  </div>
+                  <div style={{ fontSize: '0.68rem', color: '#94a3b8', marginTop: 2 }}>
+                    {sub}
+                  </div>
+                </div>
+              );
+              return (
+                <div className="mb-3" style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10, padding: 14 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 10, flexWrap: 'wrap', gap: 6 }}>
+                    <h6 style={{ margin: 0, color: '#7c3aed', fontWeight: 700, fontSize: '0.85rem' }}>
+                      Consolidado del mes · {MONTH_NAMES[m]} {y}
+                    </h6>
+                    <span style={{ fontSize: '0.7rem', color: '#94a3b8' }}>
+                      Reconciliable contra el Monthly Statement del broker
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                    {tile('P&G Realizado (mes)', realizedSum, `${realizedMonth.length} cierre${realizedMonth.length === 1 ? '' : 's'}`)}
+                    {tile('Comisiones + Fees', -commSum, commMonth.length > 0 ? (commMonth[0].broker ?? 'broker') : 'sin data')}
+                    {tile('Cash P&L del mes', cashPnL, 'Realizado + Comisiones', true)}
+                    {tile('Unrealized MTD', unrealizedMtd, 'Posiciones abiertas')}
+                    {tile('Impacto Total', totalImpactMonth, 'Cash + Unrealized')}
+                  </div>
+                </div>
+              );
+            })()}
+
             {/* El selector de mes vive en CoreLayout (barra superior global). */}
             <div className="d-flex align-items-center gap-2 mb-3 flex-wrap">
               <Button
