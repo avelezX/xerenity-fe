@@ -39,7 +39,8 @@ import type { CoffeePriceRow } from 'src/lib/risk/supabaseRisk';
 // del Benchmark muestre EXACTAMENTE los mismos numeros que ve el usuario en
 // /portfolio (Position GR = sum FX delta, P&G GR = sum P&L MTD USD). Sin
 // esto cada pagina tendria su propio cache y los valores divergian.
-import { useXccyPositions, useNdfPositions, useIbrSwapPositions } from 'src/queries/trading';
+import { useXccyPositions, useNdfPositions, useIbrSwapPositions, useCashPositions } from 'src/queries/trading';
+import { priceCashPositions } from 'src/models/trading';
 import { useRepricePortfolio, useReferencePrices } from 'src/queries/pricing';
 import { fetchNdfLiquidations, type NdfLiquidationRow } from 'src/models/trading';
 import {
@@ -64,7 +65,6 @@ import { lastBusinessDay, MONTH_NAMES } from 'src/lib/risk/dateHelpers';
 import BlotterCompraCafe, { CompraMatchableRow } from 'src/components/risk/BlotterCompraCafe';
 import QuarterlyExposureTable from 'src/components/risk/QuarterlyExposureTable';
 import QuarterlyFwdSummary from 'src/components/risk/QuarterlyFwdSummary';
-import QuarterlyExposureBenchmark from 'src/components/risk/QuarterlyExposureBenchmark';
 import { fetchExposicionTrimestral, getQuarterFromDate, type ExposicionTrimestralRow } from 'src/models/risk/fetchExposicionTrimestral';
 import {
   fetchFwdQuarterAssignments,
@@ -925,13 +925,26 @@ function RiskManagement() {
   // — antes vivia aqui como ultimo tab.
   const [pageTabs, setPageTabs] = useState<TabItemType[]>(TAB_ITEMS);
   useEffect(() => {
-    const baseTabs = [...TAB_ITEMS];
+    // Los Coches (solo-FX): ocultar tabs que no aplican — Exposición y
+    // Portafolio GR (futuros de commodities). Se mantienen Benchmark,
+    // Rolling VaR y Matrices.
+    const baseTabs = isCochesFlag
+      ? TAB_ITEMS.filter((t) => t.property !== 'exposure' && t.property !== 'futures')
+      : [...TAB_ITEMS];
     if (hasCafe) {
       baseTabs.push({ name: 'Precios Locales', property: 'coffee', icon: faMugHot, active: false });
     }
     setPageTabs(baseTabs.map((t) => ({ ...t, active: t.property === activeTab })));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasCafe]);
+  }, [hasCafe, isCochesFlag]);
+
+  // Si un tab oculto para Los Coches quedo activo (e.g. venias de otra empresa
+  // en Exposición/Portafolio GR y cambiaste a Los Coches), volver a Benchmark.
+  useEffect(() => {
+    if (isCochesFlag && (activeTab === 'exposure' || activeTab === 'futures')) {
+      setActiveTab('benchmark');
+    }
+  }, [isCochesFlag, activeTab]);
 
   // Coffee prices state (only used when hasCafe)
   const [coffeePrices, setCoffeePrices] = useState<CoffeePriceRow[]>([]);
@@ -999,12 +1012,14 @@ function RiskManagement() {
   const xccyPositionsQuery = useXccyPositions(selectedCompanyId);
   const ndfPositionsQuery = useNdfPositions(selectedCompanyId);
   const ibrSwapPositionsQuery = useIbrSwapPositions(selectedCompanyId);
+  const cashPositionsQuery = useCashPositions(selectedCompanyId);
   // Memoize position lists para que la identidad de los arrays sea estable
   // entre renders (sino `?? []` crea uno nuevo y los hooks downstream
   // tendrian dependencias inestables aunque sus queryKeys sí son estables).
   const otcXccyPositions = useMemo(() => xccyPositionsQuery.data ?? [], [xccyPositionsQuery.data]);
   const otcNdfPositions = useMemo(() => ndfPositionsQuery.data ?? [], [ndfPositionsQuery.data]);
   const otcIbrPositions = useMemo(() => ibrSwapPositionsQuery.data ?? [], [ibrSwapPositionsQuery.data]);
+  const cashPositionsList = useMemo(() => cashPositionsQuery.data ?? [], [cashPositionsQuery.data]);
 
   // Liquidaciones de NDF (audit trail) — usadas por:
   //  - Reprice/RefPrices: reconstruir notional historico cuando filterDate
@@ -1099,6 +1114,13 @@ function RiskManagement() {
   const [benchmarkFactors, setBenchmarkFactors] = useState<BenchmarkFactorsResponse | null>(null);
   const [benchmarkLoading, setBenchmarkLoading] = useState(false);
 
+  // CASH valorado client-side contra la TRM del mes (USD price_end del benchmark).
+  // La exposición (notional × signo) no depende del spot; el P&L sí.
+  const pricedCashStore = useMemo(
+    () => priceCashPositions(cashPositionsList, benchmarkFactors?.factors?.USD?.price_end ?? null),
+    [cashPositionsList, benchmarkFactors],
+  );
+
   // Extract daily_variance map from benchmarkFactors for IR calculation
   const varianceMap: Record<string, number | null> = React.useMemo(() => {
     if (!benchmarkFactors?.factors) return {};
@@ -1157,8 +1179,16 @@ function RiskManagement() {
   //   3. Settlements NDF de vencidos (N queries a Django, 1 por NDF expired)
   //   4. Settlements XCCY trimestrales (1 query a Django + 1 a Supabase)
   //   5. Benchmark factors (precios de mercado)
+  //
+  // Reprice: useRepricePortfolio se DESHABILITA cuando no hay posiciones OTC
+  // (enabled: ... && positions > 0 en pricing.ts). Una query deshabilitada deja
+  // `data` en undefined para siempre, asi que solo tratamos "reprice pendiente"
+  // como carga cuando efectivamente HAY posiciones que repreciar. Sin este
+  // guard, empresas sin OTC (e.g. Los Coches, solo FX) mostraban el banner
+  // "preparando datos" eternamente. Misma logica que el guard de la fila USD.
+  const hasOtcPositions = otcXccyPositions.length + otcNdfPositions.length + otcIbrPositions.length > 0;
   const isPreparingBenchmark = (
-    !otcReprice.data
+    (hasOtcPositions && !otcReprice.data)
     || !ndfLiquidationsLoaded
     || !settlementsAllLoaded
     || !xccySettle.allLoaded
@@ -1983,10 +2013,11 @@ function RiskManagement() {
                   <Icon icon={faSyncAlt} spin={benchmarkLoading} className="me-1" />
                   {benchmarkLoading ? 'Cargando...' : 'Actualizar'}
                 </Button>
-                <MethodologyButton onClick={() => setMethModal('benchmark')} />
+                {!isCochesFlag && <MethodologyButton onClick={() => setMethModal('benchmark')} />}
                 <PdfButton elementId="pdf-benchmark" fileName="benchmark.pdf" />
                 <CsvButton elementId="pdf-benchmark" fileName="benchmark.csv" />
               </Col>
+              {!isCochesFlag && (
               <Col xs="auto">
                 <Form.Group>
                   <Form.Label className="small text-muted mb-0">Confianza</Form.Label>
@@ -2002,7 +2033,8 @@ function RiskManagement() {
                   </Form.Select>
                 </Form.Group>
               </Col>
-              {benchmarkFactors && (
+              )}
+              {!isCochesFlag && benchmarkFactors && (
                 <Col className="d-flex align-items-center gap-3 small text-muted">
                   <span>
                     Precio Inicio: <strong>{benchmarkFactors.period.start}</strong>
@@ -2017,12 +2049,16 @@ function RiskManagement() {
               )}
             </Row>
 
-            <p className="small text-muted mb-3">
-              <span style={{ background: '#dbeafe', padding: '1px 6px', borderRadius: 3, color: '#1e40af' }}>Exposición Natural</span> desde Exposición ·
-              <span style={{ background: '#fefce8', padding: '1px 6px', borderRadius: 3, color: '#854d0e', marginLeft: 4 }}>Portafolio GR</span> y
-              <span style={{ background: '#fefce8', padding: '1px 6px', borderRadius: 3, color: '#854d0e', marginLeft: 4 }}>P&G GR</span> desde Portafolio GR.
-              Los demás campos se calculan automáticamente.
-            </p>
+            {/* Leyenda de la tabla Benchmark — oculta en el dashboard
+                simplificado de Los Coches (describe columnas de esa tabla). */}
+            {!isCochesFlag && (
+              <p className="small text-muted mb-3">
+                <span style={{ background: '#dbeafe', padding: '1px 6px', borderRadius: 3, color: '#1e40af' }}>Exposición Natural</span> desde Exposición ·
+                <span style={{ background: '#fefce8', padding: '1px 6px', borderRadius: 3, color: '#854d0e', marginLeft: 4 }}>Portafolio GR</span> y
+                <span style={{ background: '#fefce8', padding: '1px 6px', borderRadius: 3, color: '#854d0e', marginLeft: 4 }}>P&G GR</span> desde Portafolio GR.
+                Los demás campos se calculan automáticamente.
+              </p>
+            )}
 
             {benchmarkLoading && <p className="text-muted">Cargando factores...</p>}
 
@@ -2061,6 +2097,9 @@ function RiskManagement() {
               </div>
             )}
 
+            {/* Tabla Benchmark (VaR por activo) — oculta en el dashboard
+                simplificado de Los Coches. Las demas empresas la siguen viendo. */}
+            {!isCochesFlag && (
             <div style={{ background: '#fff', borderRadius: 8, border: '1px solid #e2e8f0', padding: '16px', boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }}>
             <div className="table-responsive">
               <table className="table table-sm align-middle mb-0" style={{ fontSize: '0.78rem', borderCollapse: 'separate', borderSpacing: 0 }}>
@@ -2164,6 +2203,7 @@ function RiskManagement() {
               </table>
             </div>
             </div>
+            )}
 
             {/* Blotters Cafe — solo visibles si la empresa tiene CAFE.
                 Arriba: LoteSelector (dropdown para elegir lote actual).
@@ -2261,16 +2301,9 @@ function RiskManagement() {
               </>
             )}
 
-            {/* ─── LOS COCHES · Resumen exposición por trimestre ─── */}
-            {isCochesFlag && (
-              <div style={{ marginTop: 24 }}>
-                <QuarterlyExposureBenchmark
-                  rows={cochesQuarterlyRows}
-                  year={2026}
-                  currentQuarter={getQuarterFromDate(filterDate)}
-                />
-              </div>
-            )}
+            {/* Resumen exposición por trimestre: removido del dashboard
+                simplificado de Los Coches. Se conserva solo el Portafolio
+                de Derivados por trimestre (abajo). */}
 
             {/* ─── LOS COCHES · FWDs por trimestre ─── */}
             {isCochesFlag && (
@@ -2279,6 +2312,7 @@ function RiskManagement() {
                   ndfs={pricedNdfStore}
                   xccys={pricedXccyStore}
                   ibrs={pricedIbrSwapStore}
+                  cash={pricedCashStore}
                   currentQuarter={getQuarterFromDate(filterDate)}
                   quarterOverrides={fwdQuarterOverrides}
                   onAssignQuarter={handleAssignQuarter}

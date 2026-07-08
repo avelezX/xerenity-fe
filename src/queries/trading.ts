@@ -26,20 +26,26 @@ import {
   fetchXccyPositions,
   fetchNdfPositions,
   fetchIbrSwapPositions,
+  fetchCashPositions,
   createXccyPosition,
   createNdfPosition,
   createIbrSwapPosition,
+  createCashPosition,
   deleteXccyPositions,
   deleteNdfPositions,
   deleteIbrSwapPositions,
+  deleteCashPositions,
+  closeCashPosition,
 } from 'src/models/trading';
 import type {
   XccyPosition,
   NdfPosition,
   IbrSwapPosition,
+  CashPosition,
   NewXccyPosition,
   NewNdfPosition,
   NewIbrSwapPosition,
+  NewCashPosition,
 } from 'src/types/trading';
 
 export const tradingKeys = {
@@ -49,6 +55,8 @@ export const tradingKeys = {
     ['positions', 'ndf', companyId ?? null] as const,
   ibrSwapPositions: (companyId?: string) =>
     ['positions', 'ibrSwap', companyId ?? null] as const,
+  cashPositions: (companyId?: string) =>
+    ['positions', 'cash', companyId ?? null] as const,
   /** All position lists across all companies — used for invalidation broadcast. */
   allPositions: ['positions'] as const,
 };
@@ -96,6 +104,19 @@ export function useIbrSwapPositions(companyId?: string, options?: { enabled?: bo
   });
 }
 
+export function useCashPositions(companyId?: string, options?: { enabled?: boolean }) {
+  return useQuery({
+    queryKey: tradingKeys.cashPositions(companyId),
+    queryFn: async () => {
+      const res = await fetchCashPositions(companyId);
+      if (res.error) throw new Error(res.error);
+      return res.data as CashPosition[];
+    },
+    enabled: options?.enabled ?? true,
+    staleTime: POSITIONS_STALE_MS,
+  });
+}
+
 // ── Mutations: create ──
 
 export function useAddXccyPosition() {
@@ -128,6 +149,19 @@ export function useAddIbrSwapPosition() {
   });
 }
 
+export function useAddCashPosition() {
+  const qc = useQueryClient();
+  return useMutation({
+    // companyId se pasa explicito para que super_admin cree en la empresa
+    // seleccionada (ver createCashPosition).
+    mutationFn: (vars: { values: NewCashPosition; companyId?: string }) =>
+      createCashPosition(vars.values, vars.companyId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['positions', 'cash'] });
+    },
+  });
+}
+
 // ── Mutations: delete ──
 
 export function useRemoveXccyPositions() {
@@ -156,6 +190,27 @@ export function useRemoveIbrSwapPositions() {
     mutationFn: (ids: string[]) => deleteIbrSwapPositions(ids),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['positions', 'ibrSwap'] });
+    },
+  });
+}
+
+export function useRemoveCashPositions() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (ids: string[]) => deleteCashPositions(ids),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['positions', 'cash'] });
+    },
+  });
+}
+
+export function useCloseCashPosition() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: { id: string; closedDate: string; closedPrice: number }) =>
+      closeCashPosition(vars.id, vars.closedDate, vars.closedPrice),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['positions', 'cash'] });
     },
   });
 }

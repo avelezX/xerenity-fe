@@ -4,6 +4,7 @@ import {
   NdfPosition,
   IbrSwapPosition,
   TesPosition,
+  CashPosition,
   UserTradingRole,
 } from 'src/types/trading';
 
@@ -69,6 +70,29 @@ export const fetchNdfPositions = async (
     return response;
   } catch {
     response.error = 'Error fetching NDF positions';
+    return response;
+  }
+};
+
+export const fetchCashPositions = async (
+  companyId?: string,
+): Promise<PositionsResponse<CashPosition>> => {
+  const response: PositionsResponse<CashPosition> = {
+    data: [],
+    error: undefined,
+  };
+  try {
+    const { data, error } = await supabase
+      .schema(SCHEMA)
+      .rpc('get_cash_positions', { p_company_id: companyId ?? null });
+    if (error) {
+      response.error = 'Error fetching CASH positions';
+      return response;
+    }
+    response.data = data ?? [];
+    return response;
+  } catch {
+    response.error = 'Error fetching CASH positions';
     return response;
   }
 };

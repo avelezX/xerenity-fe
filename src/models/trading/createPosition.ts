@@ -4,6 +4,7 @@ import {
   NewNdfPosition,
   NewIbrSwapPosition,
   NewTesPosition,
+  NewCashPosition,
 } from 'src/types/trading';
 
 const supabase = createClientComponentClient();
@@ -84,6 +85,44 @@ export const createNdfPosition = async (
     return response;
   } catch {
     response.error = 'Error creating NDF position';
+    return response;
+  }
+};
+
+export const createCashPosition = async (
+  values: NewCashPosition,
+  companyId?: string,
+): Promise<CreatePositionResponse> => {
+  const response: CreatePositionResponse = { data: undefined, error: undefined };
+  try {
+    // p_company_id se pasa explicito para que super_admin (sin company propia)
+    // pueda crear la operacion en la empresa seleccionada. Para corp_admin/gestor
+    // el RPC lo resuelve solo via get_my_company_id() si va null.
+    const { data, error } = await supabase.schema(SCHEMA).rpc('create_cash_position', {
+      p_label: values.label,
+      p_counterparty: values.counterparty,
+      p_notional_usd: values.notional_usd,
+      p_entry_rate: values.entry_rate,
+      p_direction: values.direction,
+      p_trade_date: values.trade_date ?? null,
+      p_id_operacion: values.id_operacion ?? null,
+      p_sociedad: values.sociedad ?? null,
+      p_id_banco: values.id_banco ?? null,
+      p_modalidad: values.modalidad ?? null,
+      p_settlement_date: values.settlement_date ?? null,
+      p_tipo_divisa: values.tipo_divisa ?? null,
+      p_estado: values.estado ?? null,
+      p_doc_sap: values.doc_sap ?? null,
+      p_company_id: companyId ?? null,
+    });
+    if (error) {
+      response.error = 'Error creating CASH position';
+      return response;
+    }
+    response.data = data;
+    return response;
+  } catch {
+    response.error = 'Error creating CASH position';
     return response;
   }
 };
