@@ -409,24 +409,73 @@ export async function closeFuturesPosition(
 
 // ── Realized (P&L de cierres) ─────────────────────────────────────────
 
+// Nota: usamos direct table SELECT en vez de RPC porque la RPC tenia
+// problemas de resolucion via PostgREST desde el frontend (retornaba
+// empty aunque data existiera en la tabla). RLS policy
+// `can_view_company_data(company_id)` filtra correctamente:
+//   - super_admin sin companyId → ve TODAS las filas
+//   - super_admin con companyId → filtra por el picker
+//   - corp_admin/gestor/lector → forzado a su empresa via can_view
 export async function fetchFuturesRealized(
   companyId?: string | null,
 ): Promise<{ data: import('src/types/risk').FuturesRealizedRow[]; error?: string }> {
-  const { data, error } = await supabase
+  let query = supabase
     .schema('xerenity')
-    .rpc('get_futures_realized', { p_company_id: companyId ?? null });
+    .from('risk_futures_realized')
+    .select('id, position_id, company_id, asset, contract, direction, qty_closed, entry_price, close_price, close_date, multiplier_usd, realized_pnl_usd, note, closed_by, created_at')
+    .order('close_date', { ascending: false })
+    .order('created_at', { ascending: false });
+  if (companyId) query = query.eq('company_id', companyId);
+  const { data, error } = await query;
   if (error) return { data: [], error: error.message };
-  return { data: (data ?? []) as import('src/types/risk').FuturesRealizedRow[] };
+  // El shape del select() es igual al RPC excepto que `id` se llama `id` (no `realized_id`).
+  // Mapeamos para mantener el mismo type que espera el UI.
+  const rows = (data ?? []).map((r) => ({
+    realized_id: (r as { id: string }).id,
+    position_id: (r as { position_id: string }).position_id,
+    company_id: (r as { company_id: string }).company_id,
+    asset: (r as { asset: string }).asset,
+    contract: (r as { contract: string }).contract,
+    direction: (r as { direction: 'LONG' | 'SHORT' }).direction,
+    qty_closed: (r as { qty_closed: number }).qty_closed,
+    entry_price: Number((r as { entry_price: number }).entry_price),
+    close_price: Number((r as { close_price: number }).close_price),
+    close_date: (r as { close_date: string }).close_date,
+    multiplier_usd: Number((r as { multiplier_usd: number }).multiplier_usd),
+    realized_pnl_usd: Number((r as { realized_pnl_usd: number }).realized_pnl_usd),
+    note: (r as { note: string | null }).note,
+    closed_by: (r as { closed_by: string | null }).closed_by,
+    created_at: (r as { created_at: string }).created_at,
+  }));
+  return { data: rows };
 }
 
 export async function fetchFuturesCommissions(
   companyId?: string | null,
 ): Promise<{ data: import('src/types/risk').FuturesCommissionRow[]; error?: string }> {
-  const { data, error } = await supabase
+  let query = supabase
     .schema('xerenity')
-    .rpc('get_futures_commissions', { p_company_id: companyId ?? null });
+    .from('risk_futures_commissions')
+    .select('id, company_id, statement_date, broker, account, clearing_fee, commission, nfa_fee, other_fees, total_charges, note, created_at')
+    .order('statement_date', { ascending: false });
+  if (companyId) query = query.eq('company_id', companyId);
+  const { data, error } = await query;
   if (error) return { data: [], error: error.message };
-  return { data: (data ?? []) as import('src/types/risk').FuturesCommissionRow[] };
+  const rows = (data ?? []).map((r) => ({
+    id: (r as { id: string }).id,
+    company_id: (r as { company_id: string }).company_id,
+    statement_date: (r as { statement_date: string }).statement_date,
+    broker: (r as { broker: string }).broker,
+    account: (r as { account: string | null }).account,
+    clearing_fee: Number((r as { clearing_fee: number }).clearing_fee),
+    commission: Number((r as { commission: number }).commission),
+    nfa_fee: Number((r as { nfa_fee: number }).nfa_fee),
+    other_fees: Number((r as { other_fees: number }).other_fees),
+    total_charges: Number((r as { total_charges: number }).total_charges),
+    note: (r as { note: string | null }).note,
+    created_at: (r as { created_at: string }).created_at,
+  }));
+  return { data: rows };
 }
 
 export async function deleteFuturesPosition(
