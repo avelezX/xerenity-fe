@@ -32,7 +32,7 @@ import {
   ResponsiveContainer,
   Legend,
 } from 'recharts';
-import { fetchRollingVar, fetchBenchmarkFactors, fetchExposure, fetchFuturesPortfolio, upsertFuturesPositions, rollFuturesPosition, closeFuturesPosition, deleteFuturesPosition, editFuturesPosition } from 'src/models/risk/riskApi';
+import { fetchRollingVar, fetchBenchmarkFactors, fetchExposure, fetchFuturesPortfolio, upsertFuturesPositions, rollFuturesPosition, closeFuturesPosition, deleteFuturesPosition, editFuturesPosition, fetchFuturesRealized, fetchFuturesCommissions } from 'src/models/risk/riskApi';
 import { fetchCoffeePrices } from 'src/lib/risk/supabaseRisk';
 import type { CoffeePriceRow } from 'src/lib/risk/supabaseRisk';
 // TanStack hooks compartidos con /portfolio — garantizan que la fila USD
@@ -1285,6 +1285,9 @@ function RiskManagement() {
   const [futuresLoading, setFuturesLoading] = useState(false);
   const [futuresShowClosed, setFuturesShowClosed] = useState(false);
   const [futuresShowAddForm, setFuturesShowAddForm] = useState(false);
+  const [futuresRealized, setFuturesRealized] = useState<import('src/types/risk').FuturesRealizedRow[]>([]);
+  const [futuresCommissions, setFuturesCommissions] = useState<import('src/types/risk').FuturesCommissionRow[]>([]);
+  const [realizedMonthFilter, setRealizedMonthFilter] = useState<string>('all');  // 'all' | 'YYYY-MM'
   const [expandedSpreads, setExpandedSpreads] = useState<Set<string>>(new Set());
   // futuresMonth = benchmarkMonth (ya derivado de filterDate global).
   // Antes existia una sync useEffect unidireccional que causaba bugs.
@@ -1562,19 +1565,39 @@ function RiskManagement() {
   const handleClose = useCallback(async () => {
     if (!closeModal?.id || !closePrice) return;
     try {
-      await closeFuturesPosition(futuresFilterDate, {
+      // Multiplier efectivo USD/1-unit-price-move/1-contrato.
+      // cents/bu, cents/lb → multiplicar contract_multiplier × 0.01.
+      // USD/ton, USD/bbl, MYR/ton → sin conversion (multiplier = contract_multiplier).
+      // Fallback = MAIZ (50) por si companyConfig no tiene el asset.
+      const cfg = companyConfig?.commodities?.find((c) => c.asset === closeModal.asset);
+      const isCents = cfg?.price_unit?.startsWith('cents/') ?? true;
+      const contractMult = cfg?.contract_multiplier ?? 5000;
+      const multiplierUsd = isCents ? contractMult * 0.01 : contractMult;
+
+      const result = await closeFuturesPosition(futuresFilterDate, {
         position_id: closeModal.id,
         closed_price: parseFloat(closePrice),
         closed_date: futuresFilterDate,
+        qty_closed: closeModal.nominal,   // cierre total por default
+        multiplier_usd: multiplierUsd,
       });
-      toast.success('Posición cerrada');
+      const pnl = result.realized_pnl_usd;
+      toast.success(
+        pnl != null
+          ? `Posición cerrada — P&G realizado: $${pnl.toLocaleString('en-US', { maximumFractionDigits: 2 })} USD`
+          : 'Posición cerrada',
+      );
       setCloseModal(null);
       setClosePrice('');
       handleFetchFutures();
+      // Refrescar la tabla de P&G Realizado (la RPC ya insertó la fila).
+      fetchFuturesRealized(selectedCompanyId).then((r) => {
+        if (!r.error) setFuturesRealized(r.data);
+      });
     } catch (e: unknown) {
       toast.error((e as Error)?.message || 'Error cerrando posición');
     }
-  }, [filterDate, closeModal, closePrice, handleFetchFutures]);
+  }, [filterDate, closeModal, closePrice, handleFetchFutures, companyConfig, selectedCompanyId]);
 
   const handleDelete = useCallback(async (pos: FuturesPosition) => {
     if (!pos.id) return;
@@ -1621,10 +1644,22 @@ function RiskManagement() {
       handleFetchFutures();
       handleFetchExposure(benchmarkDateStr);
     }
-    if (activeTab === 'futures') handleFetchFutures();
+    if (activeTab === 'futures') {
+      handleFetchFutures();
+      // Fetch realized P&L + comisiones de futuros al entrar al tab.
+      fetchFuturesRealized(selectedCompanyId).then((r) => {
+        if (!r.error) setFuturesRealized(r.data);
+      });
+      fetchFuturesCommissions(selectedCompanyId).then((r) => {
+        if (!r.error) setFuturesCommissions(r.data);
+      });
+    }
     if (activeTab === 'coffee') handleFetchCoffeePrices();
+  // futuresShowClosed en deps: sin esto, el switch "Mostrar cerradas" no
+  // refetchea. handleFetchFutures ya lo tiene en sus deps, pero al no
+  // dispararse el effect el UI no cambia hasta clickear Actualizar.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, futuresMonth, benchmarkDateStr, companyConfig]);
+  }, [activeTab, futuresMonth, benchmarkDateStr, companyConfig, selectedCompanyId, futuresShowClosed]);
 
   // NOTE: anteriormente habia un useEffect que sincronizaba futuresMonth con
   // benchmarkMonth de forma unidireccional (bug: cambiar mes en Portafolio GR
@@ -3654,6 +3689,183 @@ function RiskManagement() {
                 </div>
               </div>
             )}
+
+            {/* P&G Realizado de futuros — persistido en xerenity.risk_futures_realized.
+                Filtro por mes: 'todos' (default) | 'YYYY-MM' de los meses con eventos. */}
+            {futuresRealized.length > 0 && (() => {
+              const pnlToColor = (v: number): string => {
+                if (v > 0) return '#16a34a';
+                if (v < 0) return '#dc2626';
+                return '#334155';
+              };
+              // Meses disponibles: unique de close_date → YYYY-MM ordenado desc
+              const monthsAvailable = Array.from(new Set(
+                futuresRealized.map((r) => r.close_date.slice(0, 7)),
+              )).sort().reverse();
+              const filteredRealized = realizedMonthFilter === 'all'
+                ? futuresRealized
+                : futuresRealized.filter((r) => r.close_date.startsWith(realizedMonthFilter));
+              const totalPnl = filteredRealized.reduce((s, r) => s + (r.realized_pnl_usd ?? 0), 0);
+              const pnlColor = pnlToColor(totalPnl);
+              const fmtUsdRow = (v: number) => new Intl.NumberFormat('en-US', {
+                minimumFractionDigits: 2, maximumFractionDigits: 2,
+              }).format(v);
+              const formatMonthLabel = (ym: string): string => {
+                const [yy, mm] = ym.split('-');
+                return `${MONTH_NAMES[parseInt(mm, 10) - 1]} ${yy}`;
+              };
+              return (
+                <div className="mt-4" style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 10, overflow: 'hidden' }}>
+                  <div style={{ padding: '10px 14px', borderBottom: '1px solid #e2e8f0', background: 'linear-gradient(180deg,#f8fafc 0%,#fff 100%)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <h6 style={{ margin: 0, fontSize: '0.85rem', fontWeight: 700, color: '#7c3aed' }}>
+                        P&G Realizado — historial de cierres
+                      </h6>
+                      <Form.Select
+                        size="sm"
+                        value={realizedMonthFilter}
+                        onChange={(e) => setRealizedMonthFilter(e.target.value)}
+                        aria-label="Filtrar historial de cierres por mes"
+                        style={{ fontSize: '0.72rem', width: 'auto', minWidth: 130 }}
+                      >
+                        <option value="all">Todos los meses</option>
+                        {monthsAvailable.map((ym) => (
+                          <option key={ym} value={ym}>{formatMonthLabel(ym)}</option>
+                        ))}
+                      </Form.Select>
+                    </div>
+                    <span style={{ fontSize: '0.72rem', color: '#64748b' }}>
+                      {filteredRealized.length} evento{filteredRealized.length === 1 ? '' : 's'} · Total{' '}
+                      <span style={{ color: pnlColor, fontWeight: 700, fontFamily: 'monospace' }}>
+                        ${fmtUsdRow(totalPnl)} USD
+                      </span>
+                    </span>
+                  </div>
+                  <div className="table-responsive">
+                    <table className="table table-sm mb-0" style={{ fontSize: '0.75rem' }}>
+                      <thead style={{ background: '#f8fafc', color: '#64748b', textTransform: 'uppercase', fontSize: '0.65rem' }}>
+                        <tr>
+                          <th style={{ padding: '8px 12px' }}>Fecha</th>
+                          <th style={{ padding: '8px 12px' }}>Activo</th>
+                          <th style={{ padding: '8px 12px' }}>Contrato</th>
+                          <th style={{ padding: '8px 12px' }}>Dir</th>
+                          <th className="text-end" style={{ padding: '8px 12px' }}>Qty</th>
+                          <th className="text-end" style={{ padding: '8px 12px' }}>Entry</th>
+                          <th className="text-end" style={{ padding: '8px 12px' }}>Close</th>
+                          <th className="text-end" style={{ padding: '8px 12px' }}>P&L USD</th>
+                          <th style={{ padding: '8px 12px' }}>Nota</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredRealized.map((r) => {
+                          const rowColor = pnlToColor(r.realized_pnl_usd);
+                          return (
+                            <tr key={r.realized_id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                              <td style={{ padding: '6px 12px', fontFamily: 'monospace', color: '#334155' }}>{r.close_date}</td>
+                              <td style={{ padding: '6px 12px', color: '#7c3aed', fontWeight: 600 }}>{r.asset}</td>
+                              <td style={{ padding: '6px 12px', fontFamily: 'monospace' }}>{r.contract}</td>
+                              <td style={{ padding: '6px 12px' }}>
+                                <span style={{ fontSize: '0.65rem', padding: '1px 6px', borderRadius: 3, background: r.direction === 'LONG' ? '#dcfce7' : '#fee2e2', color: r.direction === 'LONG' ? '#166534' : '#991b1b', fontWeight: 600 }}>
+                                  {r.direction}
+                                </span>
+                              </td>
+                              <td className="text-end" style={{ padding: '6px 12px', fontFamily: 'monospace' }}>{r.qty_closed}</td>
+                              <td className="text-end" style={{ padding: '6px 12px', fontFamily: 'monospace' }}>{r.entry_price}</td>
+                              <td className="text-end" style={{ padding: '6px 12px', fontFamily: 'monospace' }}>{r.close_price}</td>
+                              <td className="text-end" style={{ padding: '6px 12px', fontFamily: 'monospace', fontWeight: 700, color: rowColor }}>
+                                ${fmtUsdRow(r.realized_pnl_usd)}
+                              </td>
+                              <td style={{ padding: '6px 12px', color: '#64748b', fontSize: '0.7rem' }}>{r.note ?? ''}</td>
+                            </tr>
+                          );
+                        })}
+                        <tr style={{ borderTop: '2px solid #1e293b', fontWeight: 700, background: '#f8fafc' }}>
+                          <td colSpan={7} className="text-end" style={{ padding: '8px 12px' }}>Total</td>
+                          <td className="text-end" style={{ padding: '8px 12px', fontFamily: 'monospace', color: pnlColor }}>
+                            ${fmtUsdRow(totalPnl)}
+                          </td>
+                          <td>{' '}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Cash P&L Reconciliation del mes (match con broker Net Futures P&L) */}
+            {(futuresRealized.length > 0 || futuresCommissions.length > 0) && (() => {
+              // Filtramos realized por el mes de futuresMonth (año+mes seleccionado).
+              const y = futuresMonth.year;
+              const m = futuresMonth.month;
+              const monthStart = new Date(y, m, 1).toISOString().slice(0, 10);
+              const monthEnd = new Date(y, m + 1, 0).toISOString().slice(0, 10);
+              const realizedMonth = futuresRealized.filter(
+                (r) => r.close_date >= monthStart && r.close_date <= monthEnd,
+              );
+              const commMonth = futuresCommissions.filter(
+                (c) => c.statement_date >= monthStart && c.statement_date <= monthEnd,
+              );
+              const realizedSum = realizedMonth.reduce((s, r) => s + (r.realized_pnl_usd ?? 0), 0);
+              const commSum = commMonth.reduce((s, c) => s + (c.total_charges ?? 0), 0);
+              const cashPnL = realizedSum - commSum; // comisiones son costos → restamos
+              if (realizedMonth.length === 0 && commMonth.length === 0) return null;
+              const fmtUsdSigned = (v: number) => new Intl.NumberFormat('en-US', {
+                minimumFractionDigits: 2, maximumFractionDigits: 2, signDisplay: 'always',
+              }).format(v);
+              const cellColor = (v: number): string => {
+                if (v > 0) return '#16a34a';
+                if (v < 0) return '#dc2626';
+                return '#334155';
+              };
+              const monthLabel = `${MONTH_NAMES[m]} ${y}`;
+              return (
+                <div className="mt-3" style={{ background: '#fff', border: '2px solid #7c3aed', borderRadius: 10, overflow: 'hidden' }}>
+                  <div style={{ padding: '10px 14px', borderBottom: '1px solid #e2e8f0', background: 'linear-gradient(180deg,#faf5ff 0%,#fff 100%)' }}>
+                    <h6 style={{ margin: 0, fontSize: '0.85rem', fontWeight: 700, color: '#7c3aed' }}>
+                      Reconciliación con broker · {monthLabel}
+                    </h6>
+                    <div style={{ fontSize: '0.7rem', color: '#64748b', marginTop: 2 }}>
+                      Cash P&L del mes = Realized + Comisiones. Debe coincidir con el Net Futures P&L del statement.
+                    </div>
+                  </div>
+                  <table className="table table-sm mb-0" style={{ fontSize: '0.8rem' }}>
+                    <tbody>
+                      <tr>
+                        <td style={{ padding: '8px 14px', color: '#334155' }}>
+                          Realized P&L
+                          <span style={{ fontSize: '0.7rem', color: '#94a3b8', marginLeft: 6 }}>
+                            ({realizedMonth.length} cierre{realizedMonth.length === 1 ? '' : 's'})
+                          </span>
+                        </td>
+                        <td className="text-end" style={{ padding: '8px 14px', fontFamily: 'monospace', fontWeight: 700, color: cellColor(realizedSum) }}>
+                          ${fmtUsdSigned(realizedSum)}
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style={{ padding: '8px 14px', color: '#334155' }}>
+                          Comisiones + Fees
+                          <span style={{ fontSize: '0.7rem', color: '#94a3b8', marginLeft: 6 }}>
+                            ({commMonth.length > 0 ? `${commMonth[0].broker}` : 'n/a'})
+                          </span>
+                        </td>
+                        <td className="text-end" style={{ padding: '8px 14px', fontFamily: 'monospace', fontWeight: 700, color: cellColor(-commSum) }}>
+                          ${fmtUsdSigned(-commSum)}
+                        </td>
+                      </tr>
+                      <tr style={{ borderTop: '2px solid #7c3aed', background: '#faf5ff' }}>
+                        <td style={{ padding: '10px 14px', color: '#7c3aed', fontWeight: 700 }}>
+                          Cash P&L del mes
+                        </td>
+                        <td className="text-end" style={{ padding: '10px 14px', fontFamily: 'monospace', fontWeight: 700, fontSize: '0.9rem', color: cellColor(cashPnL) }}>
+                          ${fmtUsdSigned(cashPnL)}
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              );
+            })()}
 
             {/* Multiplier reference */}
             {futuresPortfolio.length > 0 && (

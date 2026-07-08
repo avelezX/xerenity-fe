@@ -4,6 +4,7 @@
  * Reads data directly from Supabase and computes VaR, exposure, and P&L locally.
  * No dependency on Fly.io/Django backend for the Commodities module.
  */
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import type {
   RollingVarResponse, BenchmarkFactorsResponse,
   ExposureResponse, ExposureParams,
@@ -29,6 +30,11 @@ import {
   lastBusinessDayOfPrevMonth as lastBusinessDayOfPrevMonthDate,
   lastBusinessDayOfPrevQuarter as lastBusinessDayOfPrevQuarterDate,
 } from 'src/lib/risk/dateHelpers';
+
+// Cliente Supabase local para las RPCs nuevas de futures realized.
+// (supabaseRisk.ts ya tiene su propio cliente; usamos uno propio aqui para
+//  no exportar el suyo — simetria con otros modelos que llaman RPCs.)
+const supabase = createClientComponentClient();
 
 // Fallback units (used when no company config)
 const DEFAULT_UNITS: Record<string, string> = {
@@ -358,13 +364,69 @@ export async function rollFuturesPosition(
 export async function closeFuturesPosition(
   _filterDate: string,
   params: FuturesCloseParams,
-): Promise<{ status: string; position_id: string }> {
+): Promise<{ status: string; position_id: string; realized_pnl_usd?: number; realized_id?: string }> {
+  const closeDate = params.closed_date ?? new Date().toISOString().slice(0, 10);
+
+  // Si el caller pasa qty_closed + multiplier, usamos la RPC nueva que
+  // calcula y persiste el P&L realizado en xerenity.risk_futures_realized.
+  // Sin esos params (retro-compat) hacemos el UPDATE directo — el realized
+  // se pierde, pero no rompemos callers viejos.
+  if (params.qty_closed != null && params.multiplier_usd != null) {
+    const { data, error } = await supabase
+      .schema('xerenity')
+      .rpc('close_futures_position', {
+        p_position_id: params.position_id,
+        p_close_date: closeDate,
+        p_close_price: params.closed_price,
+        p_qty_closed: params.qty_closed,
+        p_multiplier_usd: params.multiplier_usd,
+        p_note: params.note ?? null,
+      });
+    if (error) throw new Error(error.message || 'Failed to close futures position');
+    const payload = data as {
+      message?: string;
+      realized_id?: string;
+      realized_pnl_usd?: number;
+    } | null;
+    if (payload?.message && payload.message.startsWith('Cannot')) {
+      throw new Error(payload.message);
+    }
+    return {
+      status: 'closed',
+      position_id: params.position_id,
+      realized_pnl_usd: payload?.realized_pnl_usd,
+      realized_id: payload?.realized_id,
+    };
+  }
+
   await closeFuturesPositionDB(
     params.position_id,
-    params.closed_date ?? new Date().toISOString().slice(0, 10),
+    closeDate,
     params.closed_price,
   );
   return { status: 'closed', position_id: params.position_id };
+}
+
+// ── Realized (P&L de cierres) ─────────────────────────────────────────
+
+export async function fetchFuturesRealized(
+  companyId?: string | null,
+): Promise<{ data: import('src/types/risk').FuturesRealizedRow[]; error?: string }> {
+  const { data, error } = await supabase
+    .schema('xerenity')
+    .rpc('get_futures_realized', { p_company_id: companyId ?? null });
+  if (error) return { data: [], error: error.message };
+  return { data: (data ?? []) as import('src/types/risk').FuturesRealizedRow[] };
+}
+
+export async function fetchFuturesCommissions(
+  companyId?: string | null,
+): Promise<{ data: import('src/types/risk').FuturesCommissionRow[]; error?: string }> {
+  const { data, error } = await supabase
+    .schema('xerenity')
+    .rpc('get_futures_commissions', { p_company_id: companyId ?? null });
+  if (error) return { data: [], error: error.message };
+  return { data: (data ?? []) as import('src/types/risk').FuturesCommissionRow[] };
 }
 
 export async function deleteFuturesPosition(
