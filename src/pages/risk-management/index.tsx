@@ -1941,28 +1941,60 @@ function RiskManagement() {
         // Single source of truth: las dos pestañas (Benchmark y Portafolio GR)
         // deben mostrar los mismos numeros para Valor Compra y P&L Mes.
         //
-        // Antes: aqui se recalculaba con el FRONT contract price para todos los
-        // contratos del activo (lineas 1380-1404 del codigo anterior). Esto
-        // producia errores de hasta $20K en el P&G GR para AZUCAR/MAIZ porque
-        // contratos lejanos (SBH27, SBV27, ZCK27, ZCN27) tienen precios muy
-        // distintos al front (SBN26, ZCN26).
+        // pnl_gr por commodity ahora = Unrealized + Realized − Comisiones.
+        //   - Unrealized: subtotalRow.pnl_month (movimiento del mes en posiciones activas)
+        //   - Realized: sum de risk_futures_realized WHERE asset=X AND close_date IN mes
+        //   - Comisiones: distribuidas proporcional al valor_compra del asset
         //
-        // Ahora: leer directo del subtotal del Portafolio GR (que usa precios
-        // per-contract de risk_prices_all_contracts).
+        // Con esto, la suma pnl_gr de todos los commodities matchea el
+        // "P&G Mes" del panel consolidado del Portafolio GR y el Net Futures
+        // P&L del statement mensual del broker.
         const subtotalRow = (futuresPortfolio ?? []).find((p) => p.asset === `Total ${row.asset}`);
+
+        // Realized del mes filtrado por asset. La fuente futuresRealized ya
+        // fue populada por el useEffect del tab. Si aun no cargo (empty),
+        // caemos a 0 → el numero se corrige en el proximo render.
+        const monthStart = new Date(benchmarkMonth.year, benchmarkMonth.month, 1)
+          .toISOString().slice(0, 10);
+        const monthEnd = new Date(benchmarkMonth.year, benchmarkMonth.month + 1, 0)
+          .toISOString().slice(0, 10);
+        const realizedForAsset = (futuresRealized ?? [])
+          .filter((r) => r.asset === row.asset)
+          .filter((r) => r.close_date >= monthStart && r.close_date <= monthEnd)
+          .reduce((s, r) => s + (r.realized_pnl_usd ?? 0), 0);
+
+        // Distribucion proporcional de comisiones del mes. Weight por asset =
+        // valor_compra_asset / total_valor_compra_all_assets. Comisiones son
+        // portfolio-level (no atribuibles a un commodity especifico), pero
+        // proporcional a exposicion es la aproximacion mas defensible.
+        const totalCommMonth = (futuresCommissions ?? [])
+          .filter((c) => c.statement_date >= monthStart && c.statement_date <= monthEnd)
+          .reduce((s, c) => s + (c.total_charges ?? 0), 0);
+        const totalNotionalAllAssets = (futuresPortfolio ?? [])
+          .filter((p) => String(p.asset ?? '').startsWith('Total ') && p.asset !== 'Total' && p.asset !== 'Total Neto')
+          .reduce((s, p) => s + (p.valor_compra ?? 0), 0);
+        const assetNotional = subtotalRow?.valor_compra ?? 0;
+        const weight = totalNotionalAllAssets > 0 ? assetNotional / totalNotionalAllAssets : 0;
+        const commissionsForAsset = weight * totalCommMonth;
+
         if (subtotalRow) {
-          next[i].position_gr = String(subtotalRow.valor_compra ?? 0);
-          next[i].pnl_gr = String(subtotalRow.pnl_month ?? 0);
+          const unrealized = subtotalRow.pnl_month ?? 0;
+          const pnlGrTotal = unrealized + realizedForAsset - commissionsForAsset;
+          next[i].position_gr = String(assetNotional);
+          next[i].pnl_gr = String(Math.round(pnlGrTotal));
         } else {
           next[i].position_gr = '0';
-          next[i].pnl_gr = '0';
+          next[i].pnl_gr = String(Math.round(realizedForAsset - commissionsForAsset));
         }
       });
 
       return recalcBenchmark(next, varianceMap);
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [futuresPortfolio, varianceMap, benchmarkDateStr, pricedXccyStore, pricedNdfStore, pricedIbrSwapStore, refPricesStore, liquidationsThisMonthUsd, settlementsThisMonthUsd, xccySettlementsThisMonthUsd, ndfLiquidationsLoaded, settlementsAllLoaded, xccySettle.allLoaded]);
+  // futuresRealized + futuresCommissions en deps: pnl_gr por commodity ahora
+  // incluye realized del mes + comisiones proporcionales. Sin estas deps el
+  // Benchmark no refleja el cambio cuando cargan las liquidaciones/comisiones.
+  }, [futuresPortfolio, futuresRealized, futuresCommissions, varianceMap, benchmarkDateStr, benchmarkMonth, pricedXccyStore, pricedNdfStore, pricedIbrSwapStore, refPricesStore, liquidationsThisMonthUsd, settlementsThisMonthUsd, xccySettlementsThisMonthUsd, ndfLiquidationsLoaded, settlementsAllLoaded, xccySettle.allLoaded]);
 
   // Build chart data for rolling var
   const buildChartData = (asset: string, field: 'prices' | 'rolling_var') => {
@@ -3487,11 +3519,11 @@ function RiskManagement() {
                     </span>
                   </div>
                   <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                    {tile('P&G Realizado (mes)', realizedSum, `${realizedMonth.length} cierre${realizedMonth.length === 1 ? '' : 's'}`)}
+                    {tile('P&G Realizado', realizedSum, `${realizedMonth.length} cierre${realizedMonth.length === 1 ? '' : 's'}`)}
                     {tile('Comisiones + Fees', -commSum, commMonth.length > 0 ? (commMonth[0].broker ?? 'broker') : 'sin data')}
-                    {tile('Cash P&L del mes', cashPnL, 'Realizado + Comisiones', true)}
-                    {tile('Unrealized MTD', unrealizedMtd, 'Posiciones abiertas')}
-                    {tile('Impacto Total', totalImpactMonth, 'Cash + Unrealized')}
+                    {tile('Cash P&L Broker', cashPnL, 'Realizado + Comisiones', false)}
+                    {tile('P&G No Realizado', unrealizedMtd, 'Posiciones abiertas')}
+                    {tile('P&G Mes', totalImpactMonth, 'Se lleva al Benchmark', true)}
                   </div>
                 </div>
               );
