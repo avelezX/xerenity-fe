@@ -1578,7 +1578,7 @@ function RiskManagement() {
         position_id: closeModal.id,
         closed_price: parseFloat(closePrice),
         closed_date: futuresFilterDate,
-        qty_closed: closeModal.nominal,   // cierre total por default
+        qty_closed: closeModal.nominal ?? undefined,   // cierre total por default
         multiplier_usd: multiplierUsd,
       });
       const pnl = result.realized_pnl_usd;
