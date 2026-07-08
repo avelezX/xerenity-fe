@@ -1647,11 +1647,34 @@ function RiskManagement() {
     if (activeTab === 'futures') {
       handleFetchFutures();
       // Fetch realized P&L + comisiones de futuros al entrar al tab.
+      // Surfaceamos errores como toast para no fallar silencioso (bug previo:
+      // RPC returning error → state vacio → 0 cierres visible en UI aunque
+      // los datos existan en Supabase).
       fetchFuturesRealized(selectedCompanyId).then((r) => {
-        if (!r.error) setFuturesRealized(r.data);
+        if (r.error) {
+          // eslint-disable-next-line no-console
+          console.error('[futures-realized] fetch error:', r.error);
+          toast.error(`Error cargando P&G Realizado: ${r.error}`, { autoClose: 6000 });
+        } else {
+          setFuturesRealized(r.data);
+          if (r.data.length === 0) {
+            // eslint-disable-next-line no-console
+            console.warn('[futures-realized] empty result for company', selectedCompanyId);
+          }
+        }
       });
       fetchFuturesCommissions(selectedCompanyId).then((r) => {
-        if (!r.error) setFuturesCommissions(r.data);
+        if (r.error) {
+          // eslint-disable-next-line no-console
+          console.error('[futures-commissions] fetch error:', r.error);
+          toast.error(`Error cargando Comisiones: ${r.error}`, { autoClose: 6000 });
+        } else {
+          setFuturesCommissions(r.data);
+          if (r.data.length === 0) {
+            // eslint-disable-next-line no-console
+            console.warn('[futures-commissions] empty result for company', selectedCompanyId);
+          }
+        }
       });
     }
     if (activeTab === 'coffee') handleFetchCoffeePrices();
