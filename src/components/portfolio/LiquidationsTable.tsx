@@ -25,12 +25,41 @@
  * aparecen aqui por diseno (no son "eventos de liquidacion" sino
  * settlements determinados por la TRM al maturity).
  */
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import type { NdfLiquidationRow, XccySettlementRow } from 'src/models/trading';
 
 interface Props {
   liquidations: NdfLiquidationRow[];
   xccySettlements?: XccySettlementRow[];
+}
+
+// ── Date filter presets ─────────────────────────────────────────────────
+
+function pad(n: number): string {
+  return n < 10 ? `0${n}` : String(n);
+}
+
+function isoDate(d: Date): string {
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+function currentMonthRange(): { from: string; to: string } {
+  const now = new Date();
+  const first = new Date(now.getFullYear(), now.getMonth(), 1);
+  const last = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+  return { from: isoDate(first), to: isoDate(last) };
+}
+
+function previousMonthRange(): { from: string; to: string } {
+  const now = new Date();
+  const first = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const last = new Date(now.getFullYear(), now.getMonth(), 0);
+  return { from: isoDate(first), to: isoDate(last) };
+}
+
+function currentYearRange(): { from: string; to: string } {
+  const now = new Date();
+  return { from: `${now.getFullYear()}-01-01`, to: isoDate(now) };
 }
 
 const fmtCop = (v: number): string => {
@@ -235,38 +264,71 @@ function XccyRow({ s }: RenderXccyRowProps) {
 // ── Main component ──────────────────────────────────────────────────────
 
 export default function LiquidationsTable({ liquidations, xccySettlements = [] }: Props) {
-  const ndfTotals = useMemo(() => liquidations.reduce(
+  // ── Date filter state ──────────────────────────────────────────────
+  const [dateFrom, setDateFrom] = useState<string>('');
+  const [dateTo, setDateTo] = useState<string>('');
+
+  const applyPreset = (preset: 'month' | 'prev-month' | 'ytd' | 'clear') => {
+    if (preset === 'clear') { setDateFrom(''); setDateTo(''); return; }
+    const range = preset === 'month' ? currentMonthRange()
+      : preset === 'prev-month' ? previousMonthRange()
+        : currentYearRange();
+    setDateFrom(range.from);
+    setDateTo(range.to);
+  };
+
+  const isFiltered = dateFrom !== '' || dateTo !== '';
+
+  const passesDateFilter = (d: string): boolean => {
+    if (dateFrom && d < dateFrom) return false;
+    if (dateTo && d > dateTo) return false;
+    return true;
+  };
+
+  // Apply date filter BEFORE all downstream memoization
+  const filteredLiquidations = useMemo(
+    () => liquidations.filter((l) => passesDateFilter(l.liquidation_date)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [liquidations, dateFrom, dateTo],
+  );
+  const filteredXccy = useMemo(
+    () => xccySettlements.filter((s) => passesDateFilter(s.payment_date)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [xccySettlements, dateFrom, dateTo],
+  );
+
+  const ndfTotals = useMemo(() => filteredLiquidations.reduce(
     (acc, l) => ({
       monto: acc.monto + (l.monto_liquidado_usd ?? 0),
       pnl_cop: acc.pnl_cop + (l.realized_pnl_cop || 0),
       pnl_usd: acc.pnl_usd + (l.realized_pnl_usd || 0),
     }),
     { monto: 0, pnl_cop: 0, pnl_usd: 0 },
-  ), [liquidations]);
+  ), [filteredLiquidations]);
 
-  const xccyTotals = useMemo(() => xccySettlements.reduce(
+  const xccyTotals = useMemo(() => filteredXccy.reduce(
     (acc, s) => ({
       monto: acc.monto + (s.notional_usd_at_period ?? 0),
       pnl_cop: acc.pnl_cop + (s.realized_pnl_cop || 0),
       pnl_usd: acc.pnl_usd + (s.realized_pnl_usd || 0),
     }),
     { monto: 0, pnl_cop: 0, pnl_usd: 0 },
-  ), [xccySettlements]);
+  ), [filteredXccy]);
 
   const grandTotal = useMemo(() => ({
     pnl_cop: ndfTotals.pnl_cop + xccyTotals.pnl_cop,
     pnl_usd: ndfTotals.pnl_usd + xccyTotals.pnl_usd,
-    count: liquidations.length + xccySettlements.length,
-  }), [ndfTotals, xccyTotals, liquidations.length, xccySettlements.length]);
+    count: filteredLiquidations.length + filteredXccy.length,
+  }), [ndfTotals, xccyTotals, filteredLiquidations.length, filteredXccy.length]);
 
   // Ordenar por fecha dentro de cada seccion (desc)
   const ndfSorted = useMemo(
-    () => [...liquidations].sort((a, b) => b.liquidation_date.localeCompare(a.liquidation_date)),
-    [liquidations],
+    () => [...filteredLiquidations].sort((a, b) => b.liquidation_date.localeCompare(a.liquidation_date)),
+    [filteredLiquidations],
   );
   const xccySorted = useMemo(
-    () => [...xccySettlements].sort((a, b) => b.payment_date.localeCompare(a.payment_date)),
-    [xccySettlements],
+    () => [...filteredXccy].sort((a, b) => b.payment_date.localeCompare(a.payment_date)),
+    [filteredXccy],
   );
 
   if (liquidations.length === 0 && xccySettlements.length === 0) {
@@ -289,12 +351,126 @@ export default function LiquidationsTable({ liquidations, xccySettlements = [] }
     );
   }
 
+  const emptyAfterFilter = filteredLiquidations.length === 0 && filteredXccy.length === 0;
+
+  const inputStyle: React.CSSProperties = {
+    fontSize: 12,
+    padding: '4px 8px',
+    border: '1px solid #ced4da',
+    borderRadius: 4,
+    fontFamily: 'monospace',
+    color: '#212529',
+  };
+
+  const presetBtnStyle: React.CSSProperties = {
+    fontSize: 11,
+    padding: '4px 10px',
+    border: '1px solid #ced4da',
+    borderRadius: 999,
+    background: '#fff',
+    color: '#495057',
+    cursor: 'pointer',
+    fontWeight: 500,
+  };
+
+  const clearBtnStyle: React.CSSProperties = {
+    ...presetBtnStyle,
+    background: isFiltered ? '#dc3545' : '#e9ecef',
+    color: isFiltered ? '#fff' : '#adb5bd',
+    borderColor: isFiltered ? '#dc3545' : '#ced4da',
+    cursor: isFiltered ? 'pointer' : 'not-allowed',
+  };
+
   return (
-    <div style={{
-      border: '1px solid #dee2e6', borderRadius: 8, overflow: 'auto',
-      maxHeight: 'calc(100vh - 320px)',
-    }}
-    >
+    <div>
+      {/* ── Date filter bar ─── */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 10,
+        flexWrap: 'wrap',
+        padding: '10px 12px',
+        marginBottom: 8,
+        background: '#f8f9fa',
+        border: '1px solid #dee2e6',
+        borderRadius: 6,
+      }}
+      >
+        <span style={{
+          fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.06em',
+          fontWeight: 700, color: '#6c757d',
+        }}
+        >
+          Filtrar por fecha:
+        </span>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#495057' }}>
+          Desde
+          <input
+            type="date"
+            value={dateFrom}
+            onChange={(e) => setDateFrom(e.target.value)}
+            style={inputStyle}
+          />
+        </label>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#495057' }}>
+          Hasta
+          <input
+            type="date"
+            value={dateTo}
+            onChange={(e) => setDateTo(e.target.value)}
+            style={inputStyle}
+          />
+        </label>
+        <div style={{ display: 'flex', gap: 4, marginLeft: 6 }}>
+          <button type="button" style={presetBtnStyle} onClick={() => applyPreset('month')}>
+            Este mes
+          </button>
+          <button type="button" style={presetBtnStyle} onClick={() => applyPreset('prev-month')}>
+            Mes anterior
+          </button>
+          <button type="button" style={presetBtnStyle} onClick={() => applyPreset('ytd')}>
+            YTD
+          </button>
+          <button
+            type="button"
+            style={clearBtnStyle}
+            onClick={() => applyPreset('clear')}
+            disabled={!isFiltered}
+          >
+            Limpiar
+          </button>
+        </div>
+        {isFiltered && (
+          <span style={{
+            marginLeft: 'auto', fontSize: 11, color: '#495057', fontWeight: 500,
+          }}
+          >
+            {`${filteredLiquidations.length + filteredXccy.length} de ${liquidations.length + xccySettlements.length} eventos`}
+          </span>
+        )}
+      </div>
+
+      {emptyAfterFilter ? (
+        <div style={{
+          padding: 32,
+          textAlign: 'center',
+          color: '#6c757d',
+          border: '2px dashed #dee2e6',
+          borderRadius: 8,
+          fontSize: 13,
+        }}
+        >
+          Sin liquidaciones ni cashflows trimestrales en el rango de fechas seleccionado.
+          <div style={{ fontSize: 11, marginTop: 6, color: '#adb5bd' }}>
+            Ajusta el rango o presiona &quot;Limpiar&quot; para ver todos los eventos.
+          </div>
+        </div>
+      ) : (
+      <div style={{
+        border: '1px solid #dee2e6', borderRadius: 8, overflow: 'auto',
+        maxHeight: 'calc(100vh - 380px)',
+      }}
+      >
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
         <thead>
           <tr>
@@ -390,6 +566,8 @@ export default function LiquidationsTable({ liquidations, xccySettlements = [] }
           </tfoot>
         )}
       </table>
+      </div>
+      )}
     </div>
   );
 }
