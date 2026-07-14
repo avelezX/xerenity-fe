@@ -729,9 +729,20 @@ const METHODOLOGY: Record<string, { title: string; content: React.ReactNode }> =
 };
 
 // ── Setup screen for companies without risk config ──
-function CommoditySetup({ companyId, onSaved }: { companyId: string; onSaved: (cfg: RiskCompanyConfig) => void }) {
-  const [selected, setSelected] = useState<Set<string>>(new Set());
+function CommoditySetup({
+  companyId,
+  onSaved,
+  initialCommodities = [],
+  onCancel,
+}: {
+  companyId: string;
+  onSaved: (cfg: RiskCompanyConfig) => void;
+  initialCommodities?: string[];
+  onCancel?: () => void;
+}) {
+  const [selected, setSelected] = useState<Set<string>>(new Set(initialCommodities));
   const [saving, setSaving] = useState(false);
+  const isReconfiguring = initialCommodities.length > 0 || !!onCancel;
 
   const toggleAsset = (asset: string) => {
     setSelected((prev) => {
@@ -767,10 +778,11 @@ function CommoditySetup({ companyId, onSaved }: { companyId: string; onSaved: (c
     <Container fluid className="p-4">
       <div className="text-center py-5">
         <Icon icon={faShieldAlt} size="3x" className="text-muted mb-3" />
-        <h4>Configurar Gestión de Riesgos</h4>
+        <h4>{isReconfiguring ? 'Reconfigurar commodities' : 'Configurar Gestión de Riesgos'}</h4>
         <p className="text-muted mb-4">
-          Selecciona los commodities que tu empresa desea gestionar.
-          Podrás modificar esta selección más adelante.
+          {isReconfiguring
+            ? 'Modifica la selección de commodities que tu empresa gestiona. Los cambios se aplican inmediatamente al Benchmark, Rolling VaR, Exposición y Matrices.'
+            : 'Selecciona los commodities que tu empresa desea gestionar. Podrás modificar esta selección más adelante.'}
         </p>
         <Row className="justify-content-center mb-2">
           {/* Fixed USD card — always included as currency_asset */}
@@ -830,7 +842,16 @@ function CommoditySetup({ companyId, onSaved }: { companyId: string; onSaved: (c
         </p>
         {/* Button con display:flex (del styled wrapper) no se centra con text-align,
             asi que lo envolvemos en un flex container centrado. */}
-        <div className="d-flex justify-content-center">
+        <div className="d-flex justify-content-center gap-2">
+          {onCancel && (
+            <Button
+              variant="outline-secondary"
+              onClick={onCancel}
+              disabled={saving}
+            >
+              Cancelar
+            </Button>
+          )}
           <Button
             variant="primary"
             onClick={handleSave}
@@ -838,8 +859,12 @@ function CommoditySetup({ companyId, onSaved }: { companyId: string; onSaved: (c
           >
             {(() => {
               if (saving) return 'Guardando...';
+              if (isReconfiguring) {
+                if (selected.size === 0) return 'Guardar solo USD';
+                return `Guardar ${selected.size} commodit${selected.size !== 1 ? 'ies' : 'y'} + USD`;
+              }
               if (selected.size === 0) return 'Continuar solo con USD';
-              return `Configurar ${selected.size} commodity${selected.size !== 1 ? 's' : ''} + USD`;
+              return `Configurar ${selected.size} commodit${selected.size !== 1 ? 'ies' : 'y'} + USD`;
             })()}
           </Button>
         </div>
@@ -871,6 +896,9 @@ function RiskManagement() {
   // Company risk configuration (commodities, multipliers, exposure params)
   const [companyConfig, setCompanyConfig] = useState<RiskCompanyConfig | null>(null);
   const [, setConfigLoading] = useState(false);
+  // Toggle para mostrar CommoditySetup en modo reconfiguracion (con
+  // preselección hidratada desde companyConfig.commodities).
+  const [showReconfigure, setShowReconfigure] = useState(false);
 
   useEffect(() => {
     if (!selectedCompanyId) return;
@@ -2034,13 +2062,33 @@ function RiskManagement() {
       {!companyConfig && selectedCompanyId && (
         <CommoditySetup companyId={selectedCompanyId} onSaved={(cfg) => setCompanyConfig(cfg)} />
       )}
-      {/* Show main content only when company has config */}
-      {companyConfig && (
+      {/* Reconfigurar commodities: reabre el setup con seleccion pre-hidratada */}
+      {companyConfig && showReconfigure && selectedCompanyId && (
+        <CommoditySetup
+          companyId={selectedCompanyId}
+          initialCommodities={companyConfig.commodities.map((c) => c.asset)}
+          onSaved={(cfg) => { setCompanyConfig(cfg); setShowReconfigure(false); }}
+          onCancel={() => setShowReconfigure(false)}
+        />
+      )}
+      {/* Show main content only when company has config y NO estamos reconfigurando */}
+      {companyConfig && !showReconfigure && (
       <Container fluid className="p-4">
-        <PageTitle>
-          <Icon icon={faShieldAlt} />
-          <h4>{PAGE_TITLE}</h4>
-        </PageTitle>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+          <PageTitle>
+            <Icon icon={faShieldAlt} />
+            <h4>{PAGE_TITLE}</h4>
+          </PageTitle>
+          <Button
+            variant="outline-secondary"
+            size="sm"
+            onClick={() => setShowReconfigure(true)}
+            title="Modificar la selección de commodities para esta empresa"
+          >
+            <Icon icon={faShieldAlt} className="me-1" />
+            Reconfigurar commodities ({companyConfig.commodities.length})
+          </Button>
+        </div>
 
         {/* Tabs */}
         <Tabs outlined className="mb-3">
