@@ -363,6 +363,7 @@ export const COMMODITY_TEMPLATES: CommodityConfig[] = [
   { asset: 'PETROLEO', unit: 'BBL', price_unit: 'USD/bbl', contract_multiplier: 1000, chart_color: '#1e293b', exchange: 'NYMEX', symbol: 'CL' },
   { asset: 'TRIGO', unit: 'TONS', price_unit: 'cents/bu', contract_multiplier: 5000, chart_color: '#d97706', exchange: 'CME', symbol: 'ZW' },
   { asset: 'SOYA', unit: 'TONS', price_unit: 'cents/bu', contract_multiplier: 5000, chart_color: '#059669', exchange: 'CME', symbol: 'ZS' },
+  { asset: 'ACERO', unit: 'TONS', price_unit: 'USD/ton', contract_multiplier: 20, chart_color: '#475569', exchange: 'NYMEX', symbol: 'HRC' },
 ];
 
 // ── Helpers to extract config maps ──
