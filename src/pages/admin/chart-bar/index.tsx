@@ -27,7 +27,7 @@ import PageTitle from '@components/PageTitle';
 import Button from '@components/UI/Button';
 import RoleGuard from 'src/components/RoleGuard';
 import useAppStore from 'src/store';
-import ChatChart from 'src/components/chat/ChatChart';
+import Chart from '@components/chart/Chart';
 import type { ChartSpec } from 'src/types/chat';
 import type {
   FindAndChartResult,
@@ -139,6 +139,36 @@ const WarningBox = styled.div`
   strong { display: block; margin-bottom: 4px; }
 `;
 
+const PeriodBar = styled.div`
+  display: flex;
+  gap: 4px;
+  justify-content: flex-end;
+  margin-bottom: 8px;
+
+  button {
+    border: 1px solid #d8d8e6;
+    background: #fff;
+    color: #4a4a68;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 3px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.12s;
+
+    &:hover {
+      border-color: #302b63;
+      color: #302b63;
+    }
+
+    &.active {
+      background: #302b63;
+      border-color: #302b63;
+      color: #fff;
+    }
+  }
+`;
+
 const PLACEHOLDER = 'TRM último mes  ·  IBR 3M vs SOFR 3M  ·  inflación q1 2024';
 
 interface ParsedInput {
@@ -195,6 +225,59 @@ function parseBar(input: string): ParsedInput {
   return { queries, periodText };
 }
 
+// Transform the merged ChartSpec into per-series {time,value}[] arrays for the
+// TradingView-based Chart component (the same one Suameca/MarketDashboard use).
+const LINE_COLORS = ['#4F46E5', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6'];
+
+// Period filter. The API always returns the full history; these just narrow the
+// visible window client-side. Anchored to the DATA's latest date (not "today")
+// so lagging series — e.g. a monthly index — still show a real window.
+const PERIODS = ['1M', '3M', '6M', 'YTD', '1Y', '5Y', 'MAX'] as const;
+type Period = (typeof PERIODS)[number];
+const PERIOD_DAYS: Record<Exclude<Period, 'YTD' | 'MAX'>, number> = {
+  '1M': 30,
+  '3M': 90,
+  '6M': 180,
+  '1Y': 365,
+  '5Y': 1825,
+};
+
+function cutoffFor(period: Period, maxDateISO: string | null): string | null {
+  if (period === 'MAX' || !maxDateISO) return null;
+  const max = new Date(`${maxDateISO}T00:00:00Z`);
+  if (period === 'YTD') return `${max.getUTCFullYear()}-01-01`;
+  const d = new Date(max);
+  d.setUTCDate(d.getUTCDate() - PERIOD_DAYS[period]);
+  return d.toISOString().slice(0, 10);
+}
+
+interface ChartLine {
+  key: string;
+  name: string;
+  color: string;
+  data: { time: string; value: number }[];
+}
+
+function buildLines(spec: ChartSpec, cutoff: string | null): ChartLine[] {
+  return spec.series.map((s, i) => ({
+    key: s.data_key,
+    name: s.name,
+    color: s.color || LINE_COLORS[i % LINE_COLORS.length],
+    data: spec.data
+      .map((row) => ({
+        time: String(row[spec.x_axis_key]).slice(0, 10),
+        value: Number(row[s.data_key]),
+      }))
+      .filter(
+        (d) =>
+          d.time.length === 10 &&
+          Number.isFinite(d.value) &&
+          (!cutoff || d.time >= cutoff),
+      )
+      .sort((a, b) => a.time.localeCompare(b.time)),
+  }));
+}
+
 const ChartBarPage = () => {
   const userProfile = useAppStore((s) => s.userProfile);
   const loadUserProfile = useAppStore((s) => s.loadUserProfile);
@@ -202,10 +285,25 @@ const ChartBarPage = () => {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<FindAndChartResult | null>(null);
+  // The Chart component exposes its lightweight-charts instance through a ref
+  // (not state), so mounting <Chart> and its <Chart.Line> children in the same
+  // render leaves the lines with an undefined chart context and nothing is
+  // drawn. Mount the container first, then add the lines on the next frame,
+  // once the container's mount effect has created the chart.
+  const [chartReady, setChartReady] = useState(false);
+  const [period, setPeriod] = useState<Period>('MAX');
 
   useEffect(() => {
     if (!userProfile) loadUserProfile();
   }, [userProfile, loadUserProfile]);
+
+  useEffect(() => {
+    setChartReady(false);
+    setPeriod('MAX'); // each new search starts showing the complete range
+    if (!result?.chartData) return undefined;
+    const id = requestAnimationFrame(() => setChartReady(true));
+    return () => cancelAnimationFrame(id);
+  }, [result]);
 
   const onSubmit = useCallback(async () => {
     const parsed = parseBar(input);
@@ -245,6 +343,13 @@ const ChartBarPage = () => {
     },
     [onSubmit],
   );
+
+  const chartSpec = result?.chartData as ChartSpec | undefined;
+  const maxDataDate =
+    chartSpec && chartSpec.data.length > 0
+      ? String(chartSpec.data[chartSpec.data.length - 1][chartSpec.x_axis_key]).slice(0, 10)
+      : null;
+  const cutoff = cutoffFor(period, maxDataDate);
 
   return (
     <CoreLayout>
@@ -328,7 +433,31 @@ const ChartBarPage = () => {
                     </div>
                   ))}
                 </MatchesRow>
-                <ChatChart spec={result.chartData as ChartSpec} />
+                <PeriodBar>
+                  {PERIODS.map((p) => (
+                    <button
+                      key={p}
+                      type="button"
+                      className={period === p ? 'active' : ''}
+                      onClick={() => setPeriod(p)}
+                    >
+                      {p}
+                    </button>
+                  ))}
+                </PeriodBar>
+                <Chart chartHeight={480} showToolbar>
+                  {chartReady && buildLines(result.chartData as ChartSpec, cutoff).map((ln) => (
+                    <Chart.Line
+                      key={ln.key}
+                      data={ln.data}
+                      color={ln.color}
+                      title={ln.name}
+                      scaleId="right"
+                      lastValueVisible={false}
+                      priceLineVisible={false}
+                    />
+                  ))}
+                </Chart>
                 <div
                   style={{
                     fontSize: 11,
@@ -337,7 +466,9 @@ const ChartBarPage = () => {
                     textAlign: 'right',
                   }}
                 >
-                  Rango: {result.from} → {result.to} ({result.period_days} días)
+                  Datos: {result.from} → {result.to}
+                  {chartSpec ? ` · ${chartSpec.data.length} puntos` : ''}
+                  {period !== 'MAX' ? ` · viendo ${period}` : ''}
                 </div>
               </ChartCard>
             )}

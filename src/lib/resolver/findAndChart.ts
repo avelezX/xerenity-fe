@@ -62,6 +62,7 @@ export interface FindAndChartInput {
   chart_type?: 'line' | 'bar' | 'area';
   from?: string; // ISO date YYYY-MM-DD (overrides period_days if both given)
   to?: string;
+  full?: boolean; // fetch entire history (ignore period window); filter client-side
 }
 
 export interface FindAndChartMeta {
@@ -136,8 +137,9 @@ function pickValueColumn(
 
 async function resolveAndFetchOne(
   query: string,
-  fromISO: string,
-  toISO: string,
+  fromISO: string | null,
+  toISO: string | null,
+  limit: number,
   supabase: AnySupabase,
 ): Promise<ResolveAndFetchResult> {
   const embedding = await embedQuery(query);
@@ -164,7 +166,7 @@ async function resolveAndFetchOne(
       p_slice_value: top.slice_value,
       p_from: fromISO,
       p_to: toISO,
-      p_limit: 5000,
+      p_limit: limit,
     });
   if (queryError) {
     return { ok: false, query, error: `Fetch ${top.table_name}: ${queryError.message}` };
@@ -226,10 +228,16 @@ export async function findAndChart(
     return { success: false, error: 'Maximo 5 queries por llamada' };
   }
 
-  // Compute date range
-  let fromISO: string;
-  let toISO: string;
-  if (input.from && input.to) {
+  // Compute date range. `full` fetches the entire history (NULL bounds → the DB
+  // returns the most recent p_limit rows across all time); the client then
+  // filters the visible window with the period selector.
+  let fromISO: string | null;
+  let toISO: string | null;
+  const limit = input.full ? 20000 : 5000;
+  if (input.full) {
+    fromISO = null;
+    toISO = null;
+  } else if (input.from && input.to) {
     fromISO = input.from;
     toISO = input.to;
   } else {
@@ -242,7 +250,7 @@ export async function findAndChart(
 
   // Fan out
   const results = await Promise.all(
-    queries.map((q) => resolveAndFetchOne(q, fromISO, toISO, supabase)),
+    queries.map((q) => resolveAndFetchOne(q, fromISO, toISO, limit, supabase)),
   );
   const oks = results.filter((r): r is ResolveAndFetchOk => r.ok);
   const errs = results.filter((r): r is ResolveAndFetchErr => !r.ok);
@@ -256,8 +264,8 @@ export async function findAndChart(
       success: false,
       error: `Sin resultados. Errores: ${errs.map((e) => `${e.query}: ${e.error}`).join('; ')}`,
       warnings: warningsList,
-      from: fromISO,
-      to: toISO,
+      from: fromISO ?? undefined,
+      to: toISO ?? undefined,
       period_days: input.period_days,
     };
   }
@@ -273,6 +281,14 @@ export async function findAndChart(
 
   // Build ChartSpec
   const chartData = mergeByDate(oks);
+  // Report the ACTUAL date span of the returned data (esp. for `full`, where the
+  // request bounds were NULL). Falls back to the requested window otherwise.
+  const actualFrom =
+    chartData.length > 0 ? String(chartData[0].date) : (fromISO ?? undefined);
+  const actualTo =
+    chartData.length > 0
+      ? String(chartData[chartData.length - 1].date)
+      : (toISO ?? undefined);
   const seriesSpec = oks
     .filter((r) => r.valueColumn !== null)
     .map((r) => ({ data_key: r.dataKey, name: r.displayName }));
@@ -282,8 +298,8 @@ export async function findAndChart(
       success: true,
       matches,
       warnings: warningsList,
-      from: fromISO,
-      to: toISO,
+      from: fromISO ?? undefined,
+      to: toISO ?? undefined,
       period_days: input.period_days,
       raw_series: oks.map((r) => ({
         query: r.query,
@@ -301,8 +317,8 @@ export async function findAndChart(
     success: true,
     matches,
     warnings: warningsList,
-    from: fromISO,
-    to: toISO,
+    from: actualFrom,
+    to: actualTo,
     period_days: input.period_days,
     chartData: {
       chart_type: input.chart_type ?? 'line',
