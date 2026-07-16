@@ -1,5 +1,13 @@
 # Xerenity Frontend - Claude Agent Workflow
 
+## 🤖 Xerenity AI Agent — Documentación
+
+**Si vas a trabajar en el agente de IA embebido**, lee primero:
+- [docs/agent/README.md](./docs/agent/README.md) — Estructura del código, tools, DB, seguridad, testing
+- [docs/agent/ROADMAP.md](./docs/agent/ROADMAP.md) — Fase actual (nutrir el agente) y meta final (MCP Server)
+
+El agente ya está en producción con admin UI en `/admin/agent` (super_admin only) para editar skills sin tocar código.
+
 ## 📖 Playbook operacional de collectors
 
 Para entender los collectors que alimentan los datos del FE (y el sistema de monitoreo en `/admin/monitor`), leer [el playbook en xerenity-dm](https://github.com/avelezX/xerenity-dm/blob/main/docs/COLLECTORS_PLAYBOOK.md). Cubre el modelo de catálogo, anti-patterns, convenciones, y metodología de triage. El monitor del FE tiene un botón "📖 Playbook" que linkea directo a ese archivo.
