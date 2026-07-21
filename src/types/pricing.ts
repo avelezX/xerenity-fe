@@ -95,6 +95,41 @@ export interface ParCurvePoint {
   error?: string;
 }
 
+// ── IBR Term Swap (fija vs IBR 3M/1M/6M/12M, nocional amortizable) ──
+
+export interface IbrTermSwapCashflow {
+  period_num: number;
+  date_start: string;
+  date_end: string;
+  notional: number;            // saldo vigente en el periodo (amortizable)
+  days: number;
+  fixed_rate: number;          // decimal
+  floating_rate: number | null; // % (realizado si settled/current, fwd si future)
+  fixed_coupon: number;        // COP
+  floating_coupon: number | null; // COP (null si aun no hay fixing/forward)
+  net: number | null;          // COP neto perspectiva cliente
+  ibr_fwd_pct: number | null;  // % forward (periodos future)
+  realized_ibr_pct: number | null; // % fixing BanRep (periodos settled/current)
+  discount_factor: number;
+  status: 'settled' | 'current' | 'future';
+}
+
+export interface IbrTermSwapPricingResult {
+  npv: number;
+  fair_rate: number | null;
+  fixed_rate: number;
+  fixed_leg_npv: number;
+  floating_leg_npv: number;
+  fixed_leg_bps: number;
+  dv01: number;
+  notional: number;
+  pay_fixed: boolean;
+  spread: number;
+  floating_index: string;      // e.g. 'IBR_3M'
+  amortization_type: string;   // 'bullet' | 'linear' | 'custom'
+  cashflows: IbrTermSwapCashflow[];
+}
+
 // ── TES Bond ──
 
 // Matches pysdk TesBondPricer.cashflow_schedule() response exactly
