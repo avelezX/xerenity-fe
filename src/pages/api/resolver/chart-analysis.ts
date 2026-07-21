@@ -77,23 +77,25 @@ function isFiniteNumber(v: unknown): v is number {
   return typeof v === 'number' && Number.isFinite(v);
 }
 
+function validateOneSeries(s: unknown): AnalysisSeries | null {
+  if (typeof s !== 'object' || s === null) return null;
+  const { name, table, stats, points } = s as AnalysisSeries;
+  if (typeof name !== 'string' || name.length === 0 || name.length > 200) return null;
+  if (typeof table !== 'string' || table.length > 200) return null;
+  if (typeof stats !== 'object' || stats === null) return null;
+  if (!isFiniteNumber(stats.last) || !isFiniteNumber(stats.min) || !isFiniteNumber(stats.max)) return null;
+  if (!Array.isArray(points) || points.length === 0 || points.length > MAX_POINTS) return null;
+  const pointsOk = points.every(
+    (p) => Array.isArray(p) && typeof p[0] === 'string' && isFiniteNumber(p[1]),
+  );
+  if (!pointsOk) return null;
+  return { name, table, stats, points };
+}
+
 function validateSeries(raw: unknown): AnalysisSeries[] | null {
   if (!Array.isArray(raw) || raw.length === 0 || raw.length > MAX_SERIES) return null;
-  const out: AnalysisSeries[] = [];
-  for (const s of raw) {
-    if (typeof s !== 'object' || s === null) return null;
-    const { name, table, stats, points } = s as AnalysisSeries;
-    if (typeof name !== 'string' || name.length === 0 || name.length > 200) return null;
-    if (typeof table !== 'string' || table.length > 200) return null;
-    if (typeof stats !== 'object' || stats === null) return null;
-    if (!isFiniteNumber(stats.last) || !isFiniteNumber(stats.min) || !isFiniteNumber(stats.max)) return null;
-    if (!Array.isArray(points) || points.length === 0 || points.length > MAX_POINTS) return null;
-    for (const p of points) {
-      if (!Array.isArray(p) || typeof p[0] !== 'string' || !isFiniteNumber(p[1])) return null;
-    }
-    out.push({ name, table, stats, points });
-  }
-  return out;
+  const validated = raw.map(validateOneSeries);
+  return validated.some((s) => s === null) ? null : (validated as AnalysisSeries[]);
 }
 
 function fmt(n: number): string {
