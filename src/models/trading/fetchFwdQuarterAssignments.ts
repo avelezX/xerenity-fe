@@ -13,7 +13,7 @@ import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 const supabase = createClientComponentClient();
 const SCHEMA = 'xerenity';
 
-export type FwdPositionType = 'NDF' | 'XCCY' | 'IBR';
+export type FwdPositionType = 'NDF' | 'XCCY' | 'IBR' | 'CASH';
 
 export type FwdQuarterAssignmentRow = {
   position_id: string;
