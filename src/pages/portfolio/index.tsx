@@ -2046,6 +2046,31 @@ function PortfolioPage() {
   // error "Sin TRM spot" y el P&L queda en 0 hasta que haya spot.
   const pricedCash: PricedCash[] = priceCashPositions(cashPositions, summary?.fx_spot ?? null);
 
+  // Summary con CASH incluido: el backend `/pricing/reprice-portfolio` solo
+  // valora derivados (XCCY+NDF+IBR). Aca sumamos los CASH client-side para
+  // que el SummaryBar arriba cuadre exactamente con la fila TOTAL del blotter.
+  // Regla de negocio: los KPIs superiores deben ser la suma de TODOS los
+  // activos del portafolio (incluye CASH). Reglas por columna:
+  //  - NPV COP/USD: sumar cash.npv_cop / cash.npv_usd
+  //  - Carry COP: sin cambio (CASH es spot, no tiene carry)
+  //  - P&L Tasas: sin cambio (CASH no tiene exposicion a curvas)
+  //  - P&L FX: sumar cash.pnl_cop (P&L del CASH es 100% FX por definicion)
+  //  - fx_spot: sin cambio
+  const summaryWithCash = React.useMemo(() => {
+    if (!summary) return null;
+    const validCash = pricedCash.filter((c) => !c.error);
+    if (validCash.length === 0) return summary;
+    const sumCashNpvCop = validCash.reduce((s, c) => s + (c.npv_cop ?? 0), 0);
+    const sumCashNpvUsd = validCash.reduce((s, c) => s + (c.npv_usd ?? 0), 0);
+    const sumCashPnlCop = validCash.reduce((s, c) => s + (c.pnl_cop ?? 0), 0);
+    return {
+      ...summary,
+      total_npv_cop:     summary.total_npv_cop     + sumCashNpvCop,
+      total_npv_usd:     summary.total_npv_usd     + sumCashNpvUsd,
+      total_pnl_fx_cop:  summary.total_pnl_fx_cop  + sumCashPnlCop,
+    };
+  }, [summary, pricedCash]);
+
   const portfolioRows = buildPortfolioRows(xccyRows, ndfRows, ibrRows, pricedCash, settlementMap, refPrices, markFecha);
 
   // Totales de P&L para la SummaryBar
@@ -2199,9 +2224,11 @@ function PortfolioPage() {
           </div>
         )}
 
-        {/* Summary — incluye P&G Realizado total (COP) de NDFs liquidadas */}
+        {/* Summary — incluye CASH (sumado client-side, ver summaryWithCash arriba)
+            + P&G Realizado total (COP) de NDFs liquidadas. Los KPIs del header
+            cuadran con la fila TOTAL del blotter. */}
         <SummaryBar
-          summary={summary}
+          summary={summaryWithCash}
           pricedAt={pricedAt}
           pnlTotals={pnlTotals}
           realizedPnlMtdCop={realizedPnlMtdCop}
