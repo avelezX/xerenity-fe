@@ -3,6 +3,7 @@ import {
   fetchNdfPositions,
   fetchIbrSwapPositions,
   fetchTesPositions,
+  fetchCashPositions,
   fetchUserTradingRole,
   PositionsResponse,
 } from './fetchPositions';
@@ -11,6 +12,7 @@ import {
   createNdfPosition,
   createIbrSwapPosition,
   createTesPosition,
+  createCashPosition,
   CreatePositionResponse,
 } from './createPosition';
 import {
@@ -18,6 +20,8 @@ import {
   deleteNdfPositions,
   deleteIbrSwapPositions,
   deleteTesPositions,
+  deleteCashPositions,
+  closeCashPosition,
   DeletePositionResponse,
 } from './deletePosition';
 import {
@@ -32,6 +36,7 @@ import {
   type AdjustSpotResponse,
 } from './liquidatePosition';
 import { repricePortfolio } from './repricePortfolio';
+import { priceCashPositions, priceCashPosition, cashSign } from './priceCash';
 import {
   fetchMarketDataConfig,
   saveMarketDataConfig,
@@ -62,20 +67,27 @@ export {
   fetchNdfPositions,
   fetchIbrSwapPositions,
   fetchTesPositions,
+  fetchCashPositions,
   fetchUserTradingRole,
   createXccyPosition,
   createNdfPosition,
   createIbrSwapPosition,
   createTesPosition,
+  createCashPosition,
   deleteXccyPositions,
   deleteNdfPositions,
   deleteIbrSwapPositions,
   deleteTesPositions,
+  deleteCashPositions,
+  closeCashPosition,
   liquidateNdfPosition,
   fetchNdfLiquidations,
   adjustSpotLiquidationsAtMaturity,
   fetchXccySettlements,
   repricePortfolio,
+  priceCashPositions,
+  priceCashPosition,
+  cashSign,
   fetchMarketDataConfig,
   saveMarketDataConfig,
   fetchHistoricalMark,

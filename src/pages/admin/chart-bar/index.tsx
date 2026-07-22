@@ -27,7 +27,7 @@ import PageTitle from '@components/PageTitle';
 import Button from '@components/UI/Button';
 import RoleGuard from 'src/components/RoleGuard';
 import useAppStore from 'src/store';
-import ChatChart from 'src/components/chat/ChatChart';
+import Chart from '@components/chart/Chart';
 import type { ChartSpec } from 'src/types/chat';
 import type {
   FindAndChartResult,
@@ -139,6 +139,62 @@ const WarningBox = styled.div`
   strong { display: block; margin-bottom: 4px; }
 `;
 
+const ControlsRow = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+
+  .group {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+  }
+
+  .lbl {
+    font-size: 11px;
+    color: #888;
+    margin-right: 2px;
+  }
+
+  button {
+    border: 1px solid #d8d8e6;
+    background: #fff;
+    color: #4a4a68;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 3px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.12s;
+
+    &:hover {
+      border-color: #302b63;
+      color: #302b63;
+    }
+
+    &.active {
+      background: #302b63;
+      border-color: #302b63;
+      color: #fff;
+    }
+  }
+`;
+
+const AnalysisBox = styled.div`
+  margin-top: 12px;
+  background: #f7f7fb;
+  border-left: 3px solid #302b63;
+  border-radius: 6px;
+  padding: 14px 16px;
+  font-size: 14px;
+  line-height: 1.65;
+  color: #333;
+  white-space: pre-wrap;
+`;
+
 const PLACEHOLDER = 'TRM último mes  ·  IBR 3M vs SOFR 3M  ·  inflación q1 2024';
 
 interface ParsedInput {
@@ -195,6 +251,181 @@ function parseBar(input: string): ParsedInput {
   return { queries, periodText };
 }
 
+// Transform the merged ChartSpec into per-series {time,value}[] arrays for the
+// TradingView-based Chart component (the same one Suameca/MarketDashboard use).
+const LINE_COLORS = ['#4F46E5', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6'];
+
+// Period filter. The API always returns the full history; these just narrow the
+// visible window client-side. Anchored to the DATA's latest date (not "today")
+// so lagging series — e.g. a monthly index — still show a real window.
+const PERIODS = ['1M', '3M', '6M', 'YTD', '1Y', '5Y', 'MAX'] as const;
+type Period = (typeof PERIODS)[number];
+const PERIOD_DAYS: Record<Exclude<Period, 'YTD' | 'MAX'>, number> = {
+  '1M': 30,
+  '3M': 90,
+  '6M': 180,
+  '1Y': 365,
+  '5Y': 1825,
+};
+
+function cutoffFor(period: Period, maxDateISO: string | null): string | null {
+  if (period === 'MAX' || !maxDateISO) return null;
+  const max = new Date(`${maxDateISO}T00:00:00Z`);
+  if (period === 'YTD') return `${max.getUTCFullYear()}-01-01`;
+  const d = new Date(max);
+  d.setUTCDate(d.getUTCDate() - PERIOD_DAYS[period]);
+  return d.toISOString().slice(0, 10);
+}
+
+// How multiple series share (or don't) the price axis:
+//   shared — all on the right scale (Suameca default; fine for same-unit series)
+//   dual   — 1st series right axis, 2nd left axis, rest auto-scaled overlays
+//   norm   — all rebased to 100 at the start of the visible window (Chart's
+//            native normalize; base = first visible point since data is
+//            pre-filtered by the period cutoff)
+type ScaleMode = 'shared' | 'dual' | 'norm';
+
+const SCALE_MODE_LABELS: Record<ScaleMode, string> = {
+  shared: 'Eje común',
+  dual: '2 ejes',
+  norm: 'Base 100',
+};
+
+// Median |value| per series; if the biggest/smallest ratio is huge, a shared
+// axis flattens the small series (TRM ~4000 vs a rate ~10) → default to norm.
+function smartScaleMode(spec: ChartSpec): ScaleMode {
+  if (spec.series.length < 2) return 'shared';
+  const medians = spec.series
+    .map((s) => {
+      const vals = spec.data
+        .map((row) => Math.abs(Number(row[s.data_key])))
+        .filter((v) => Number.isFinite(v) && v > 0)
+        .sort((a, b) => a - b);
+      return vals.length > 0 ? vals[Math.floor(vals.length / 2)] : 0;
+    })
+    .filter((m) => m > 0);
+  if (medians.length < 2) return 'shared';
+  return Math.max(...medians) / Math.min(...medians) >= 20 ? 'norm' : 'shared';
+}
+
+function scaleIdFor(mode: ScaleMode, index: number, key: string): string {
+  // norm: rebased series share the RIGHT scale (not an overlay id like
+  // Suameca's 'normalized') so the base-100 values get a visible axis.
+  if (mode === 'dual') {
+    if (index === 0) return 'right';
+    if (index === 1) return 'left';
+    return key; // 3rd+ series: own auto-scaled overlay
+  }
+  return 'right';
+}
+
+interface ChartLine {
+  key: string;
+  name: string;
+  color: string;
+  data: { time: string; value: number }[];
+}
+
+function buildLines(spec: ChartSpec, cutoff: string | null): ChartLine[] {
+  return spec.series.map((s, i) => ({
+    key: s.data_key,
+    name: s.name,
+    color: s.color || LINE_COLORS[i % LINE_COLORS.length],
+    data: spec.data
+      .map((row) => ({
+        time: String(row[spec.x_axis_key]).slice(0, 10),
+        value: Number(row[s.data_key]),
+      }))
+      .filter(
+        (d) =>
+          d.time.length === 10 &&
+          Number.isFinite(d.value) &&
+          (!cutoff || d.time >= cutoff),
+      )
+      .sort((a, b) => a.time.localeCompare(b.time)),
+  }));
+}
+
+// ── Fase 4: payload para /api/resolver/chart-analysis ────────────────────────
+// Enviamos un RESUMEN (stats sobre datos completos + serie decimada), no los
+// puntos crudos: prompt chico (~3K tokens), mejor análisis, ~$0.01 por clic.
+
+const ANALYSIS_MAX_POINTS = 150;
+
+type Pt = { time: string; value: number };
+
+function valueOnOrBefore(pts: Pt[], targetISO: string): number | null {
+  for (let i = pts.length - 1; i >= 0; i -= 1) {
+    if (pts[i].time <= targetISO) return pts[i].value;
+  }
+  return null;
+}
+
+function pctChange(current: number, base: number | null): number | null {
+  if (base === null || base === 0) return null;
+  return ((current - base) / Math.abs(base)) * 100;
+}
+
+function isoDaysBefore(iso: string, days: number): string {
+  const d = new Date(`${iso}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() - days);
+  return d.toISOString().slice(0, 10);
+}
+
+function statsFor(pts: Pt[]) {
+  let min = pts[0];
+  let max = pts[0];
+  pts.forEach((p) => {
+    if (p.value < min.value) min = p;
+    if (p.value > max.value) max = p;
+  });
+  const first = pts[0];
+  const last = pts[pts.length - 1];
+  const year = last.time.slice(0, 4);
+  return {
+    first: first.value,
+    firstDate: first.time,
+    last: last.value,
+    lastDate: last.time,
+    min: min.value,
+    minDate: min.time,
+    max: max.value,
+    maxDate: max.time,
+    change1M: pctChange(last.value, valueOnOrBefore(pts, isoDaysBefore(last.time, 30))),
+    change1Y: pctChange(last.value, valueOnOrBefore(pts, isoDaysBefore(last.time, 365))),
+    changeYTD: pctChange(last.value, valueOnOrBefore(pts, `${year}-01-01`)),
+  };
+}
+
+function downsample(pts: Pt[], max: number): [string, number][] {
+  if (pts.length <= max) return pts.map((p) => [p.time, p.value]);
+  const stride = Math.ceil(pts.length / max);
+  const out: [string, number][] = [];
+  for (let i = 0; i < pts.length; i += stride) out.push([pts[i].time, pts[i].value]);
+  const lastPt = pts[pts.length - 1];
+  if (out[out.length - 1][0] !== lastPt.time) out.push([lastPt.time, lastPt.value]);
+  return out;
+}
+
+function buildAnalysisPayload(
+  spec: ChartSpec,
+  period: Period,
+  from?: string,
+  to?: string,
+  query?: string,
+) {
+  // Stats sobre la historia COMPLETA (cutoff null), no solo la ventana visible.
+  const series = buildLines(spec, null)
+    .filter((ln) => ln.data.length > 0)
+    .map((ln) => ({
+      name: ln.name,
+      table: ln.key.split('|')[0],
+      stats: statsFor(ln.data),
+      points: downsample(ln.data, ANALYSIS_MAX_POINTS),
+    }));
+  return { series, from, to, period, query };
+}
+
 const ChartBarPage = () => {
   const userProfile = useAppStore((s) => s.userProfile);
   const loadUserProfile = useAppStore((s) => s.loadUserProfile);
@@ -202,10 +433,65 @@ const ChartBarPage = () => {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<FindAndChartResult | null>(null);
+  // The Chart component exposes its lightweight-charts instance through a ref
+  // (not state), so mounting <Chart> and its <Chart.Line> children in the same
+  // render leaves the lines with an undefined chart context and nothing is
+  // drawn. Mount the container first, then add the lines on the next frame,
+  // once the container's mount effect has created the chart.
+  const [chartReady, setChartReady] = useState(false);
+  const [period, setPeriod] = useState<Period>('MAX');
+  const [scaleMode, setScaleMode] = useState<ScaleMode>('shared');
+  const [analysis, setAnalysis] = useState<{
+    loading: boolean;
+    text?: string;
+    error?: string;
+  } | null>(null);
 
   useEffect(() => {
     if (!userProfile) loadUserProfile();
   }, [userProfile, loadUserProfile]);
+
+  useEffect(() => {
+    setChartReady(false);
+    setPeriod('MAX'); // each new search starts showing the complete range
+    setAnalysis(null); // el análisis es por búsqueda — se pide con el botón
+    setScaleMode(
+      result?.chartData ? smartScaleMode(result.chartData as ChartSpec) : 'shared',
+    );
+    if (!result?.chartData) return undefined;
+    const id = requestAnimationFrame(() => setChartReady(true));
+    return () => cancelAnimationFrame(id);
+  }, [result]);
+
+  const onAnalyze = useCallback(async () => {
+    if (!result?.chartData) return;
+    setAnalysis({ loading: true });
+    try {
+      const payload = buildAnalysisPayload(
+        result.chartData as ChartSpec,
+        period,
+        result.from,
+        result.to,
+        result.matches?.map((m) => m.query).join(' vs '),
+      );
+      const r = await fetch('/api/resolver/chart-analysis', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const json = (await r.json()) as { analysis?: string; error?: string };
+      if (!r.ok || !json.analysis) {
+        setAnalysis({ loading: false, error: json.error ?? `HTTP ${r.status}` });
+        return;
+      }
+      setAnalysis({ loading: false, text: json.analysis });
+    } catch (e) {
+      setAnalysis({
+        loading: false,
+        error: e instanceof Error ? e.message : 'Error de red',
+      });
+    }
+  }, [result, period]);
 
   const onSubmit = useCallback(async () => {
     const parsed = parseBar(input);
@@ -245,6 +531,13 @@ const ChartBarPage = () => {
     },
     [onSubmit],
   );
+
+  const chartSpec = result?.chartData as ChartSpec | undefined;
+  const maxDataDate =
+    chartSpec && chartSpec.data.length > 0
+      ? String(chartSpec.data[chartSpec.data.length - 1][chartSpec.x_axis_key]).slice(0, 10)
+      : null;
+  const cutoff = cutoffFor(period, maxDataDate);
 
   return (
     <CoreLayout>
@@ -328,7 +621,79 @@ const ChartBarPage = () => {
                     </div>
                   ))}
                 </MatchesRow>
-                <ChatChart spec={result.chartData as ChartSpec} />
+                <ControlsRow>
+                  <div className="group">
+                    {chartSpec && chartSpec.series.length >= 2 && (
+                      <>
+                        <span className="lbl">Escala:</span>
+                        {(Object.keys(SCALE_MODE_LABELS) as ScaleMode[]).map((m) => (
+                          <button
+                            key={m}
+                            type="button"
+                            className={scaleMode === m ? 'active' : ''}
+                            onClick={() => setScaleMode(m)}
+                          >
+                            {SCALE_MODE_LABELS[m]}
+                          </button>
+                        ))}
+                      </>
+                    )}
+                  </div>
+                  <div className="group">
+                    {PERIODS.map((p) => (
+                      <button
+                        key={p}
+                        type="button"
+                        className={period === p ? 'active' : ''}
+                        onClick={() => setPeriod(p)}
+                      >
+                        {p}
+                      </button>
+                    ))}
+                  </div>
+                </ControlsRow>
+                <Chart chartHeight={480} showToolbar>
+                  {chartReady && buildLines(result.chartData as ChartSpec, cutoff).map((ln, i) => (
+                    <Chart.Line
+                      key={ln.key}
+                      data={ln.data}
+                      color={ln.color}
+                      title={ln.name}
+                      scaleId={scaleIdFor(scaleMode, i, ln.key)}
+                      applyFunctions={scaleMode === 'norm' ? ['normalize'] : undefined}
+                      lastValueVisible={false}
+                      priceLineVisible={false}
+                    />
+                  ))}
+                </Chart>
+                <div style={{ marginTop: 12 }}>
+                  <Button
+                    variant="primary"
+                    onClick={onAnalyze}
+                    disabled={analysis?.loading}
+                    style={{ fontSize: 13, padding: '6px 18px' }}
+                  >
+                    {analysis?.loading ? (
+                      <>
+                        <Spinner
+                          size="sm"
+                          animation="border"
+                          style={{ marginRight: 8 }}
+                        />
+                        Analizando…
+                      </>
+                    ) : (
+                      '✨ Analizar con IA'
+                    )}
+                  </Button>
+                  {analysis?.error && (
+                    <ErrorBox style={{ marginTop: 10, marginBottom: 0 }}>
+                      <strong>No se pudo generar el análisis:</strong>{' '}
+                      {analysis.error}
+                    </ErrorBox>
+                  )}
+                  {analysis?.text && <AnalysisBox>{analysis.text}</AnalysisBox>}
+                </div>
                 <div
                   style={{
                     fontSize: 11,
@@ -337,7 +702,9 @@ const ChartBarPage = () => {
                     textAlign: 'right',
                   }}
                 >
-                  Rango: {result.from} → {result.to} ({result.period_days} días)
+                  Datos: {result.from} → {result.to}
+                  {chartSpec ? ` · ${chartSpec.data.length} puntos` : ''}
+                  {period !== 'MAX' ? ` · viendo ${period}` : ''}
                 </div>
               </ChartCard>
             )}

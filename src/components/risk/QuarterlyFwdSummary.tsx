@@ -11,7 +11,7 @@
  * Qs sin posiciones activas se muestran colapsados con un indicador discreto.
  */
 import React, { useMemo, useState } from 'react';
-import type { PricedNdf, PricedXccy, PricedIbrSwap } from 'src/types/trading';
+import type { PricedNdf, PricedXccy, PricedIbrSwap, PricedCash } from 'src/types/trading';
 import type { FwdPositionType } from 'src/models/trading/fetchFwdQuarterAssignments';
 import {
   NdfDetailModal,
@@ -23,6 +23,7 @@ interface Props {
   ndfs: PricedNdf[];
   xccys: PricedXccy[];
   ibrs: PricedIbrSwap[];
+  cash?: PricedCash[];
   /** Q actual (1..4) — basado en filterDate global. Para highlight. */
   currentQuarter: number;
   /** Overrides de trimestre por posicion. Key = position_id.
@@ -40,7 +41,7 @@ interface Props {
 
 type RowLike = {
   id: string;
-  tipo: 'NDF' | 'XCCY' | 'IBR';
+  tipo: 'NDF' | 'XCCY' | 'IBR' | 'CASH';
   label: string;
   counterparty: string;
   notional_usd: number;
@@ -158,12 +159,13 @@ const TIPO_BADGE: Record<RowLike['tipo'], React.CSSProperties> = {
   NDF:  { background: '#dbeafe', color: '#1d4ed8' },
   XCCY: { background: '#fef3c7', color: '#92400e' },
   IBR:  { background: '#ede9fe', color: '#6d28d9' },
+  CASH: { background: '#e0e7ff', color: '#3730a3' },
 };
 
 // ── Component ───────────────────────────────────────────────────────────
 
 export default function QuarterlyFwdSummary({
-  ndfs, xccys, ibrs, currentQuarter,
+  ndfs, xccys, ibrs, cash = [], currentQuarter,
   quarterOverrides, onAssignQuarter, onClearAssignment,
 }: Props) {
   // Modal de detalle inline — se abre al clickear en el ID/Label de una fila.
@@ -263,8 +265,26 @@ export default function QuarterlyFwdSummary({
       });
     });
 
+    // CASH: exposición spot USD. No tiene maturity_date — agrupa por trade_date.
+    // Solo se muestran las abiertas (active); al cerrar deja de generar exposición.
+    cash.forEach((p) => {
+      if (!p.active || !p.trade_date) return;
+      rows.push({
+        id: p.id,
+        tipo: 'CASH',
+        label: p.label || p.id_operacion || p.id.slice(0, 8),
+        counterparty: p.counterparty || '—',
+        notional_usd: p.notional_usd,        // notional bruto (consistente con NDF)
+        strike_or_fx: p.entry_rate,          // TRM de entrada
+        trade_date: p.trade_date,
+        maturity_date: '',                   // sin vencimiento
+        npv_usd: p.npv_usd,
+        fx_delta: p.fx_delta,                // exposición con signo (obligación = negativa)
+      });
+    });
+
     return rows;
-  }, [ndfs, xccys, ibrs]);
+  }, [ndfs, xccys, ibrs, cash]);
 
   // Q efectivo por posicion: usa override si esta asignado, sino
   // fallback a quarterOf(trade_date). Esto refleja si el hedge fue
