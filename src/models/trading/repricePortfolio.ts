@@ -105,6 +105,9 @@ async function repriceImpl(
         pay_fixed: p.pay_fixed,
         spread_bps: p.spread_bps,
         payment_frequency: p.payment_frequency,
+        floating_index: p.floating_index,
+        amortization_type: p.amortization_type,
+        amortization_schedule: p.amortization_schedule,
       })),
     }),
   });

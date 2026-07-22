@@ -70,10 +70,13 @@ export default async function handler(
     return res.status(400).json({ error: 'body.query o body.queries es requerido' });
   }
 
-  // Compute period: prefer period_text (NL parse), then explicit period_days, default 365
+  // Compute period: prefer period_text (NL parse), then explicit period_days.
+  // With NO period at all, fetch the FULL history so every year is accessible;
+  // the client filters the visible window with the period selector.
   let periodDays = 365;
   let from: string | undefined;
   let to: string | undefined;
+  let full = false;
 
   if (typeof body.period_text === 'string' && body.period_text.trim().length > 0) {
     const parsed = parsePeriod(body.period_text);
@@ -82,6 +85,8 @@ export default async function handler(
     to = parsed.to.toISOString().slice(0, 10);
   } else if (typeof body.period_days === 'number') {
     periodDays = Math.max(1, Math.min(3650, body.period_days));
+  } else {
+    full = true;
   }
 
   // Call core
@@ -92,6 +97,7 @@ export default async function handler(
       chart_type: body.chart_type,
       from,
       to,
+      full,
     },
     supabase,
   );

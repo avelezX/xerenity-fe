@@ -239,6 +239,46 @@ export interface FuturesCloseParams {
   position_id: string;
   closed_price: number;
   closed_date?: string;
+  // Nuevos: para persistir el P&L realizado en xerenity.risk_futures_realized
+  // via RPC close_futures_position. Opcionales por retro-compat con la
+  // ruta antigua (UPDATE directo sin realized) — pero deberian pasarse
+  // siempre que sea posible.
+  qty_closed?: number;      // # contratos a cerrar (default = nominal completo)
+  multiplier_usd?: number;  // USD por 1-unit-price-move × 1 contrato
+  note?: string;
+}
+
+export interface FuturesRealizedRow {
+  realized_id: string;
+  position_id: string;
+  company_id: string;
+  asset: string;
+  contract: string;
+  direction: 'LONG' | 'SHORT';
+  qty_closed: number;
+  entry_price: number;
+  close_price: number;
+  close_date: string;
+  multiplier_usd: number;
+  realized_pnl_usd: number;
+  note: string | null;
+  closed_by: string | null;
+  created_at: string;
+}
+
+export interface FuturesCommissionRow {
+  id: string;
+  company_id: string;
+  statement_date: string;   // YYYY-MM-DD
+  broker: string;
+  account: string | null;
+  clearing_fee: number;
+  commission: number;
+  nfa_fee: number;
+  other_fees: number;
+  total_charges: number;
+  note: string | null;
+  created_at: string;
 }
 
 // ── Resumen (Dashboard) ──

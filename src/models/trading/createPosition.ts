@@ -151,6 +151,9 @@ export const createIbrSwapPosition = async (
       p_tipo_divisa: values.tipo_divisa ?? null,
       p_estado: values.estado ?? null,
       p_doc_sap: values.doc_sap ?? null,
+      p_floating_index: values.floating_index ?? 'IBR_ON',
+      p_amortization_type: values.amortization_type ?? 'bullet',
+      p_amortization_schedule: values.amortization_schedule ?? null,
     });
     if (error) {
       response.error = 'Error creating IBR Swap position';

@@ -7,6 +7,7 @@ import type {
   NdfPricingResult,
   NdfImpliedCurvePoint,
   IbrSwapPricingResult,
+  IbrTermSwapPricingResult,
   ParCurvePoint,
   TesBondResult,
   TesCatalogItem,
@@ -135,6 +136,31 @@ export const priceIbrSwap = (params: IbrSwapRequest, opts?: PricingFetchOptions)
 
 export const getIbrParCurve = (opts?: PricingFetchOptions) =>
   pricingFetch<ParCurvePoint[]>('pricing/ibr/par-curve', opts);
+
+// ── IBR Term Swap (fija vs IBR 3M/1M/6M/12M, nocional amortizable) ──
+
+export interface IbrTermSwapRequest {
+  notional: number;
+  fixed_rate: number;             // decimal (e.g. 0.1128)
+  start_date: string;             // ISO YYYY-MM-DD
+  maturity_date: string;          // ISO YYYY-MM-DD
+  pay_fixed?: boolean;
+  spread?: number;                // decimal
+  payment_frequency_months?: number; // 1 | 3 | 6 | 12 → define el tenor IBR term
+  amortization_type?: string;     // 'bullet' | 'linear' | 'custom'
+  amortization_schedule?: number[]; // solo custom: capital por periodo
+  with_realized?: boolean;        // usar fixings BanRep IBR term en settled/current
+}
+
+export const priceIbrTermSwap = (
+  params: IbrTermSwapRequest,
+  opts?: PricingFetchOptions,
+) =>
+  pricingFetch<IbrTermSwapPricingResult>('pricing/ibr-term-swap', {
+    method: 'POST',
+    body: JSON.stringify(params),
+    ...opts,
+  });
 
 // ── TES Bond ──
 

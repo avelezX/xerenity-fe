@@ -4,6 +4,7 @@
  * Reads data directly from Supabase and computes VaR, exposure, and P&L locally.
  * No dependency on Fly.io/Django backend for the Commodities module.
  */
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import type {
   RollingVarResponse, BenchmarkFactorsResponse,
   ExposureResponse, ExposureParams,
@@ -29,6 +30,11 @@ import {
   lastBusinessDayOfPrevMonth as lastBusinessDayOfPrevMonthDate,
   lastBusinessDayOfPrevQuarter as lastBusinessDayOfPrevQuarterDate,
 } from 'src/lib/risk/dateHelpers';
+
+// Cliente Supabase local para las RPCs nuevas de futures realized.
+// (supabaseRisk.ts ya tiene su propio cliente; usamos uno propio aqui para
+//  no exportar el suyo — simetria con otros modelos que llaman RPCs.)
+const supabase = createClientComponentClient();
 
 // Fallback units (used when no company config)
 const DEFAULT_UNITS: Record<string, string> = {
@@ -358,13 +364,118 @@ export async function rollFuturesPosition(
 export async function closeFuturesPosition(
   _filterDate: string,
   params: FuturesCloseParams,
-): Promise<{ status: string; position_id: string }> {
+): Promise<{ status: string; position_id: string; realized_pnl_usd?: number; realized_id?: string }> {
+  const closeDate = params.closed_date ?? new Date().toISOString().slice(0, 10);
+
+  // Si el caller pasa qty_closed + multiplier, usamos la RPC nueva que
+  // calcula y persiste el P&L realizado en xerenity.risk_futures_realized.
+  // Sin esos params (retro-compat) hacemos el UPDATE directo — el realized
+  // se pierde, pero no rompemos callers viejos.
+  if (params.qty_closed != null && params.multiplier_usd != null) {
+    const { data, error } = await supabase
+      .schema('xerenity')
+      .rpc('close_futures_position', {
+        p_position_id: params.position_id,
+        p_close_date: closeDate,
+        p_close_price: params.closed_price,
+        p_qty_closed: params.qty_closed,
+        p_multiplier_usd: params.multiplier_usd,
+        p_note: params.note ?? null,
+      });
+    if (error) throw new Error(error.message || 'Failed to close futures position');
+    const payload = data as {
+      message?: string;
+      realized_id?: string;
+      realized_pnl_usd?: number;
+    } | null;
+    if (payload?.message && payload.message.startsWith('Cannot')) {
+      throw new Error(payload.message);
+    }
+    return {
+      status: 'closed',
+      position_id: params.position_id,
+      realized_pnl_usd: payload?.realized_pnl_usd,
+      realized_id: payload?.realized_id,
+    };
+  }
+
   await closeFuturesPositionDB(
     params.position_id,
-    params.closed_date ?? new Date().toISOString().slice(0, 10),
+    closeDate,
     params.closed_price,
   );
   return { status: 'closed', position_id: params.position_id };
+}
+
+// ── Realized (P&L de cierres) ─────────────────────────────────────────
+
+// Nota: usamos direct table SELECT en vez de RPC porque la RPC tenia
+// problemas de resolucion via PostgREST desde el frontend (retornaba
+// empty aunque data existiera en la tabla). RLS policy
+// `can_view_company_data(company_id)` filtra correctamente:
+//   - super_admin sin companyId → ve TODAS las filas
+//   - super_admin con companyId → filtra por el picker
+//   - corp_admin/gestor/lector → forzado a su empresa via can_view
+export async function fetchFuturesRealized(
+  companyId?: string | null,
+): Promise<{ data: import('src/types/risk').FuturesRealizedRow[]; error?: string }> {
+  let query = supabase
+    .schema('xerenity')
+    .from('risk_futures_realized')
+    .select('id, position_id, company_id, asset, contract, direction, qty_closed, entry_price, close_price, close_date, multiplier_usd, realized_pnl_usd, note, closed_by, created_at')
+    .order('close_date', { ascending: false })
+    .order('created_at', { ascending: false });
+  if (companyId) query = query.eq('company_id', companyId);
+  const { data, error } = await query;
+  if (error) return { data: [], error: error.message };
+  // El shape del select() es igual al RPC excepto que `id` se llama `id` (no `realized_id`).
+  // Mapeamos para mantener el mismo type que espera el UI.
+  const rows = (data ?? []).map((r) => ({
+    realized_id: (r as { id: string }).id,
+    position_id: (r as { position_id: string }).position_id,
+    company_id: (r as { company_id: string }).company_id,
+    asset: (r as { asset: string }).asset,
+    contract: (r as { contract: string }).contract,
+    direction: (r as { direction: 'LONG' | 'SHORT' }).direction,
+    qty_closed: (r as { qty_closed: number }).qty_closed,
+    entry_price: Number((r as { entry_price: number }).entry_price),
+    close_price: Number((r as { close_price: number }).close_price),
+    close_date: (r as { close_date: string }).close_date,
+    multiplier_usd: Number((r as { multiplier_usd: number }).multiplier_usd),
+    realized_pnl_usd: Number((r as { realized_pnl_usd: number }).realized_pnl_usd),
+    note: (r as { note: string | null }).note,
+    closed_by: (r as { closed_by: string | null }).closed_by,
+    created_at: (r as { created_at: string }).created_at,
+  }));
+  return { data: rows };
+}
+
+export async function fetchFuturesCommissions(
+  companyId?: string | null,
+): Promise<{ data: import('src/types/risk').FuturesCommissionRow[]; error?: string }> {
+  let query = supabase
+    .schema('xerenity')
+    .from('risk_futures_commissions')
+    .select('id, company_id, statement_date, broker, account, clearing_fee, commission, nfa_fee, other_fees, total_charges, note, created_at')
+    .order('statement_date', { ascending: false });
+  if (companyId) query = query.eq('company_id', companyId);
+  const { data, error } = await query;
+  if (error) return { data: [], error: error.message };
+  const rows = (data ?? []).map((r) => ({
+    id: (r as { id: string }).id,
+    company_id: (r as { company_id: string }).company_id,
+    statement_date: (r as { statement_date: string }).statement_date,
+    broker: (r as { broker: string }).broker,
+    account: (r as { account: string | null }).account,
+    clearing_fee: Number((r as { clearing_fee: number }).clearing_fee),
+    commission: Number((r as { commission: number }).commission),
+    nfa_fee: Number((r as { nfa_fee: number }).nfa_fee),
+    other_fees: Number((r as { other_fees: number }).other_fees),
+    total_charges: Number((r as { total_charges: number }).total_charges),
+    note: (r as { note: string | null }).note,
+    created_at: (r as { created_at: string }).created_at,
+  }));
+  return { data: rows };
 }
 
 export async function deleteFuturesPosition(

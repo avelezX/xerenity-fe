@@ -2,6 +2,9 @@
   "name": "nextjs-dashboard",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": "22.x"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -11,12 +14,7 @@
     "build-tokens": "style-dictionary build --config ./tokens-config.cjs",
     "test": "vitest",
     "test:run": "vitest run",
-    "test:ui": "vitest --ui",
-    "test:agent": "npx tsx src/evals/index.ts",
-    "test:agent:portfolio": "npx tsx src/evals/index.ts --category portfolio",
-    "test:agent:chart": "npx tsx src/evals/index.ts --category chart",
-    "test:agent:query": "npx tsx src/evals/index.ts --category query",
-    "test:agent:verbose": "npx tsx src/evals/index.ts --verbose"
+    "test:ui": "vitest --ui"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.87.0",

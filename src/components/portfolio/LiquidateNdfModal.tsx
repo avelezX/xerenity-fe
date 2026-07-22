@@ -74,8 +74,19 @@ const todayIso = (): string => new Date().toISOString().slice(0, 10);
 export default function LiquidateNdfModal({ show, onHide, row, onSuccess }: Props) {
   const ndf = row?._ndf;
   const direction = ndf?.direction || 'sell';
+  // Notional real de DB (no el reconstruido as-of). Si la posicion ya
+  // esta liquidada en DB, notional_usd=0 y no se puede liquidar mas.
+  // Usamos ndf.notional_usd (que en la fila _ndf es el valor raw de DB
+  // via `useRepricePortfolio.query`) — NO row.notional_usd que puede
+  // estar reconstruido para vista historica as-of.
   const notionalActual = ndf?.notional_usd ?? 0;
   const strikePosicion = ndf?.strike ?? 0;
+  // Estado real de DB — no el reconstruido. Un frontend override en
+  // /portfolio/index.tsx:455 fuerza estado='Activo' si notional
+  // reconstruido > 0 (para la vista historica). Esa reconstruccion sirve
+  // para VISUALIZAR pero NO para operar contra la RPC — la RPC valida
+  // contra estado DB real. Usamos ndf.estado directo del DB.
+  const estadoDb = ndf?.estado ?? row?.estado ?? '';
 
   const [liquidationDate, setLiquidationDate] = useState<string>(todayIso());
   const [montoStr, setMontoStr] = useState<string>('');
@@ -230,8 +241,14 @@ export default function LiquidateNdfModal({ show, onHide, row, onSuccess }: Prop
 
   if (!row) return null;
 
-  const isActivo = row.estado === 'Activo';
+  // isActivo se evalua contra el estado DB directo (no reconstruido).
+  // Antes usaba row.estado que en vista as-of puede ser 'Activo' aunque
+  // la posicion este Liquidada en DB → RPC rechaza con "position is not
+  // Activo" pero el UI permitia el submit.
+  const isActivo = estadoDb === 'Activo' && notionalActual > 0;
   const positionLabel = row.id_operacion || row.label || '—';
+  // Mensaje de warning: distinguir si es vista as-of vs estado DB real.
+  const isAsOfMismatch = row.estado === 'Activo' && estadoDb !== 'Activo';
 
   return (
     <Modal show={show} onHide={handleClose} centered backdrop={loading ? 'static' : true} size="lg">
@@ -244,8 +261,20 @@ export default function LiquidateNdfModal({ show, onHide, row, onSuccess }: Prop
       <Modal.Body>
         {!isActivo && (
           <Alert variant="warning" style={{ fontSize: 13 }}>
-            Esta posicion no esta en estado <strong>Activo</strong> ({row.estado || 'sin estado'}).
-            No se puede liquidar.
+            {isAsOfMismatch ? (
+              <>
+                Esta posicion esta en estado <strong>{estadoDb}</strong> en la base de datos
+                (notional actual: <strong>${notionalActual.toLocaleString('en-US')} USD</strong>).
+                Aparece como Activo en la vista porque estas mirando una fecha historica en la
+                que la posicion aun tenia notional. <strong>No se puede re-liquidar.</strong>
+              </>
+            ) : (
+              <>
+                Esta posicion no esta en estado <strong>Activo</strong>{' '}
+                ({estadoDb || 'sin estado'}, notional {notionalActual.toLocaleString('en-US')} USD).
+                No se puede liquidar.
+              </>
+            )}
           </Alert>
         )}
 

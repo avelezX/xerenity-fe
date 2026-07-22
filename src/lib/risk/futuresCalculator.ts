@@ -230,13 +230,22 @@ export function calculateFuturesPortfolio(
     });
   }
 
-  // Group by asset for subtotals
-  const assetGroups = new Map<string, { nominal: number; valorT: number; valorT1: number; pnlMonth: number; pnlInception: number; valorCompra: number }>();
+  // Group by asset for subtotals.
+  // Traqueamos GROSS (todas las filas, incluye SHORT) y NET (LONG − SHORT).
+  // Xerenity almacena cada trade individualmente, entonces gross puede
+  // divergir de net cuando hay pares LONG/SHORT en el mismo contrato
+  // (ej. SBK27 de Super: 1 SHORT + 1 LONG + delta LONG). StoneX reporta
+  // NET; el usuario debe poder ver ambos para reconciliar.
+  const assetGroups = new Map<string, { nominal: number; nominalNet: number; valorT: number; valorT1: number; pnlMonth: number; pnlInception: number; valorCompra: number }>();
   let totalNominal = 0;
+  let totalNominalNet = 0;
 
   for (const pos of result) {
-    const group = assetGroups.get(pos.asset) ?? { nominal: 0, valorT: 0, valorT1: 0, pnlMonth: 0, pnlInception: 0, valorCompra: 0 };
-    group.nominal += pos.nominal ?? 0;
+    const group = assetGroups.get(pos.asset) ?? { nominal: 0, nominalNet: 0, valorT: 0, valorT1: 0, pnlMonth: 0, pnlInception: 0, valorCompra: 0 };
+    const qty = pos.nominal ?? 0;
+    const isShort = pos.direction === 'SHORT';
+    group.nominal += qty;
+    group.nominalNet += isShort ? -qty : qty;
     group.valorT += pos.valor_t ?? 0;
     group.valorT1 += pos.valor_t1 ?? 0;
     group.pnlMonth += pos.pnl_month ?? 0;
@@ -244,7 +253,8 @@ export function calculateFuturesPortfolio(
     const toUsdFactor = PRICE_TO_USD[pos.asset] ?? 1;
     group.valorCompra += (pos.entry_price ?? 0) * (pos.multiplier ?? 1) * (pos.nominal ?? 0) * toUsdFactor;
     assetGroups.set(pos.asset, group);
-    totalNominal += pos.nominal ?? 0;
+    totalNominal += qty;
+    totalNominalNet += isShort ? -qty : qty;
   }
 
   // Sort result: group positions by asset, then add subtotal after each group
@@ -281,7 +291,7 @@ export function calculateFuturesPortfolio(
     });
   }
 
-  // Grand total row
+  // Grand total row (GROSS = suma de |nominal| de todas las filas)
   const grandValorCompra = Array.from(assetGroups.values()).reduce((s, g) => s + g.valorCompra, 0);
   sorted.push({
     id: '',
@@ -307,6 +317,36 @@ export function calculateFuturesPortfolio(
     rolled_to: null,
     valor_compra: Math.round(grandValorCompra),
   });
+
+  // Grand total NET — solo mostramos si difiere del GROSS (i.e., existen SHORTs
+  // que compensan LONGs en el mismo asset). Este es el numero que hay que
+  // comparar con StoneX Open Positions Summary del statement mensual.
+  if (totalNominalNet !== totalNominal) {
+    sorted.push({
+      id: '',
+      asset: 'Total Neto',
+      contract: '',
+      direction: '' as 'LONG',
+      nominal: totalNominalNet,
+      multiplier: 0,
+      entry_price: 0,
+      entry_date: '',
+      current_price: null,
+      current_price_date: null,
+      precio_previo: null,
+      precio_previo_date: null,
+      valor_t: null,
+      valor_t1: null,
+      pnl_inception: null,
+      pnl_month: null,
+      price_unit: '',
+      active: true,
+      closed_date: null,
+      closed_price: null,
+      rolled_to: null,
+      valor_compra: null,
+    });
+  }
 
   return sorted;
 }

@@ -88,6 +88,9 @@ export interface IbrSwapPosition extends OperationalFields {
   pay_fixed: boolean;
   spread_bps: number;
   payment_frequency: string;
+  floating_index?: string;          // 'IBR_ON' (OIS) | 'IBR_1M'|'IBR_3M'|'IBR_6M'|'IBR_12M' (term)
+  amortization_type?: string;       // 'bullet' | 'linear' | 'custom'
+  amortization_schedule?: number[]; // solo custom: capital por periodo
   created_at: string;
 }
 
