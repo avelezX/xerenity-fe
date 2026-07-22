@@ -953,26 +953,13 @@ function RiskManagement() {
   // — antes vivia aqui como ultimo tab.
   const [pageTabs, setPageTabs] = useState<TabItemType[]>(TAB_ITEMS);
   useEffect(() => {
-    // Los Coches (solo-FX): ocultar tabs que no aplican — Exposición y
-    // Portafolio GR (futuros de commodities). Se mantienen Benchmark,
-    // Rolling VaR y Matrices.
-    const baseTabs = isCochesFlag
-      ? TAB_ITEMS.filter((t) => t.property !== 'exposure' && t.property !== 'futures')
-      : [...TAB_ITEMS];
+    const baseTabs = [...TAB_ITEMS];
     if (hasCafe) {
       baseTabs.push({ name: 'Precios Locales', property: 'coffee', icon: faMugHot, active: false });
     }
     setPageTabs(baseTabs.map((t) => ({ ...t, active: t.property === activeTab })));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasCafe, isCochesFlag]);
-
-  // Si un tab oculto para Los Coches quedo activo (e.g. venias de otra empresa
-  // en Exposición/Portafolio GR y cambiaste a Los Coches), volver a Benchmark.
-  useEffect(() => {
-    if (isCochesFlag && (activeTab === 'exposure' || activeTab === 'futures')) {
-      setActiveTab('benchmark');
-    }
-  }, [isCochesFlag, activeTab]);
+  }, [hasCafe]);
 
   // Coffee prices state (only used when hasCafe)
   const [coffeePrices, setCoffeePrices] = useState<CoffeePriceRow[]>([]);
