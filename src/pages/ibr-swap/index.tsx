@@ -29,12 +29,15 @@ import {
 } from 'recharts';
 import {
   priceIbrSwap,
+  priceIbrTermSwap,
   getIbrParCurve,
   type IbrSwapRequest,
+  type IbrTermSwapRequest,
 } from 'src/models/pricing/pricingApi';
 import type {
   IbrSwapPricingResult,
   IbrSwapCashflow,
+  IbrTermSwapPricingResult,
   ParCurvePoint,
 } from 'src/types/pricing';
 import { createIbrSwapPosition } from 'src/models/trading';
@@ -43,9 +46,12 @@ import useAppStore from 'src/store';
 const PAGE_TITLE = 'IBR Swap Pricer';
 
 const TAB_ITEMS: TabItemType[] = [
-  { name: 'Pricing', property: 'pricing', icon: faCalculator, active: true },
+  { name: 'IBR OIS', property: 'pricing', icon: faCalculator, active: true },
+  { name: 'IBR 3M', property: 'term', icon: faCalculator, active: false },
   { name: 'Par Curve', property: 'parcurve', icon: faLineChart, active: false },
 ];
+
+const FREQ_MONTHS: Record<string, number> = { '1M': 1, '3M': 3, '6M': 6, '12M': 12 };
 
 const fmt = (v: number, decimals = 2) =>
   v != null ? v.toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals }) : '—';
@@ -166,6 +172,53 @@ function IbrSwapPricer() {
   // Results
   const [result, setResult] = useState<IbrSwapPricingResult | null>(null);
   const [parCurve, setParCurve] = useState<ParCurvePoint[]>([]);
+
+  // ── IBR 3M term swap state (tab separada, no toca el OIS) ──
+  const [tNotional, setTNotional] = useState(10_000_000_000);
+  const [tFixedRate, setTFixedRate] = useState(11.28);
+  const [tStartDate, setTStartDate] = useState('');
+  const [tMaturityDate, setTMaturityDate] = useState('');
+  const [tPayFixed, setTPayFixed] = useState(true);
+  const [tSpread, setTSpread] = useState(0);
+  const [tFreq, setTFreq] = useState('3M');
+  const [tAmortType, setTAmortType] = useState<'bullet' | 'linear' | 'custom'>('bullet');
+  const [tAmortSchedule, setTAmortSchedule] = useState('');
+  const [tWithRealized, setTWithRealized] = useState(true);
+  const [tResult, setTResult] = useState<IbrTermSwapPricingResult | null>(null);
+
+  const handlePriceTermSwap = useCallback(async () => {
+    if (!tStartDate || !tMaturityDate) {
+      toast.warn('Ingrese fecha inicio y vencimiento');
+      return;
+    }
+    setLoading(true);
+    try {
+      const params: IbrTermSwapRequest = {
+        notional: tNotional,
+        fixed_rate: tFixedRate / 100,
+        start_date: tStartDate,
+        maturity_date: tMaturityDate,
+        pay_fixed: tPayFixed,
+        spread: tSpread / 10000,
+        payment_frequency_months: FREQ_MONTHS[tFreq] || 3,
+        amortization_type: tAmortType,
+        with_realized: tWithRealized,
+      };
+      if (tAmortType === 'custom') {
+        const sched = tAmortSchedule
+          .split(/[\s,]+/)
+          .map((s) => parseFloat(s.replace(/,/g, '')))
+          .filter((n) => !Number.isNaN(n));
+        params.amortization_schedule = sched;
+      }
+      const res = await priceIbrTermSwap(params);
+      setTResult(res);
+    } catch (e) {
+      toast.error(`Error: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setLoading(false);
+    }
+  }, [tNotional, tFixedRate, tStartDate, tMaturityDate, tPayFixed, tSpread, tFreq, tAmortType, tAmortSchedule, tWithRealized]);
 
   const handleTabChange = (tabProp: string) => {
     setActiveTab(tabProp);
@@ -836,6 +889,238 @@ function IbrSwapPricer() {
     </>
   );
 
+  const renderTermSwapTab = () => (
+    <>
+      <Row className="mb-3">
+        <Col>
+          <div style={{ fontSize: 12, color: '#6c757d' }}>
+            Swap de tasa fija COP vs <strong>IBR term (3M)</strong> fijado en advance —
+            soporta nocional amortizable. Fixings realizados desde BanRep (IBR 3M nominal).
+          </div>
+        </Col>
+      </Row>
+      {renderCurveStatus()}
+      <Row>
+        <Col md={5}>
+          <div style={{ background: '#fff', border: '1px solid #dee2e6', borderRadius: 8, padding: 20 }}>
+            <h6 style={{ marginBottom: 16 }}>Parámetros IBR Term Swap</h6>
+            <Form>
+              <Form.Group className="mb-3">
+                <Form.Label style={{ fontSize: 13 }}>Notional COP</Form.Label>
+                <Form.Control
+                  type="text"
+                  value={fmtInput(tNotional)}
+                  onChange={(e) => setTNotional(parseInput(e.target.value))}
+                  style={{ fontFamily: 'monospace' }}
+                />
+                <Form.Text className="text-muted">{fmtMM(tNotional)} COP</Form.Text>
+              </Form.Group>
+
+              <Form.Group className="mb-3">
+                <Form.Label style={{ fontSize: 13 }}>Tasa Fija (%)</Form.Label>
+                <Form.Control
+                  type="number"
+                  step="0.01"
+                  value={tFixedRate}
+                  onChange={(e) => setTFixedRate(parseFloat(e.target.value) || 0)}
+                />
+              </Form.Group>
+
+              <Row>
+                <Col>
+                  <Form.Group className="mb-3">
+                    <Form.Label style={{ fontSize: 13 }}>Fecha Inicio</Form.Label>
+                    <Form.Control type="date" value={tStartDate} onChange={(e) => setTStartDate(e.target.value)} />
+                  </Form.Group>
+                </Col>
+                <Col>
+                  <Form.Group className="mb-3">
+                    <Form.Label style={{ fontSize: 13 }}>Fecha Vencimiento</Form.Label>
+                    <Form.Control type="date" value={tMaturityDate} onChange={(e) => setTMaturityDate(e.target.value)} />
+                  </Form.Group>
+                </Col>
+              </Row>
+
+              <Row>
+                <Col>
+                  <Form.Group className="mb-3">
+                    <Form.Label style={{ fontSize: 13 }}>Frecuencia / Índice</Form.Label>
+                    <Form.Select value={tFreq} onChange={(e) => setTFreq(e.target.value)}>
+                      <option value="1M">Mensual · IBR 1M</option>
+                      <option value="3M">Trimestral · IBR 3M</option>
+                      <option value="6M">Semestral · IBR 6M</option>
+                      <option value="12M">Anual · IBR 12M</option>
+                    </Form.Select>
+                  </Form.Group>
+                </Col>
+                <Col>
+                  <Form.Group className="mb-3">
+                    <Form.Label style={{ fontSize: 13 }}>Dirección</Form.Label>
+                    <Form.Select
+                      value={tPayFixed ? 'pay' : 'receive'}
+                      onChange={(e) => setTPayFixed(e.target.value === 'pay')}
+                    >
+                      <option value="pay">Pay Fixed / Receive IBR</option>
+                      <option value="receive">Receive Fixed / Pay IBR</option>
+                    </Form.Select>
+                  </Form.Group>
+                </Col>
+              </Row>
+
+              <Row>
+                <Col>
+                  <Form.Group className="mb-3">
+                    <Form.Label style={{ fontSize: 13 }}>Amortización</Form.Label>
+                    <Form.Select
+                      value={tAmortType}
+                      onChange={(e) => setTAmortType(e.target.value as 'bullet' | 'linear' | 'custom')}
+                    >
+                      <option value="bullet">Bullet (al vencimiento)</option>
+                      <option value="linear">Lineal (recta)</option>
+                      <option value="custom">Custom (schedule)</option>
+                    </Form.Select>
+                  </Form.Group>
+                </Col>
+                <Col>
+                  <Form.Group className="mb-3">
+                    <Form.Label style={{ fontSize: 13 }}>Spread (bps)</Form.Label>
+                    <Form.Control
+                      type="number"
+                      step="1"
+                      value={tSpread}
+                      onChange={(e) => setTSpread(parseFloat(e.target.value) || 0)}
+                    />
+                  </Form.Group>
+                </Col>
+              </Row>
+
+              {tAmortType === 'custom' && (
+                <Form.Group className="mb-3">
+                  <Form.Label style={{ fontSize: 13 }}>Capital amortizado por período</Form.Label>
+                  <Form.Control
+                    as="textarea"
+                    rows={2}
+                    value={tAmortSchedule}
+                    onChange={(e) => setTAmortSchedule(e.target.value)}
+                    placeholder="833333333, 833333334, ... (un valor por período, suma = notional)"
+                    style={{ fontFamily: 'monospace', fontSize: 12 }}
+                  />
+                </Form.Group>
+              )}
+
+              <Form.Group className="mb-3">
+                <Form.Check
+                  type="switch"
+                  label="Usar fixings realizados (BanRep IBR term) en períodos vencidos/en curso"
+                  checked={tWithRealized}
+                  onChange={() => setTWithRealized(!tWithRealized)}
+                />
+              </Form.Group>
+
+              <Button variant="primary" onClick={handlePriceTermSwap} disabled={loading || !curvesReady} style={{ width: '100%' }}>
+                <Icon icon={faPlay} className="me-1" />
+                Valorar Swap IBR 3M
+              </Button>
+            </Form>
+          </div>
+        </Col>
+
+        <Col md={7}>
+          {tResult ? (
+            <div style={{ background: '#fff', border: '1px solid #dee2e6', borderRadius: 8, padding: 20 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                <h6 style={{ margin: 0 }}>Resultado</h6>
+                <span style={{ fontSize: 11, color: '#6c757d' }}>
+                  {tResult.floating_index} · {tResult.amortization_type}
+                </span>
+              </div>
+              <div
+                style={{
+                  background: tResult.npv >= 0 ? '#e8f5e9' : '#fce4ec',
+                  borderRadius: 8, padding: '16px 20px', marginBottom: 16, textAlign: 'center',
+                }}
+              >
+                <div style={{ fontSize: 13, color: '#666' }}>NPV</div>
+                <div style={{ fontSize: 28, fontWeight: 700, fontFamily: 'monospace', color: tResult.npv >= 0 ? '#2e7d32' : '#c62828' }}>
+                  {fmtMM(tResult.npv)} COP
+                </div>
+              </div>
+              <table style={{ width: '100%', fontSize: 13, borderCollapse: 'collapse', marginBottom: 8 }}>
+                <tbody>
+                  {[
+                    ['Fair Rate', tResult.fair_rate != null ? fmtPct(tResult.fair_rate) : '—'],
+                    ['Fixed Rate', fmtPct(tResult.fixed_rate)],
+                    ['Spread vs Par', tResult.fair_rate != null ? `${((tResult.fixed_rate - tResult.fair_rate) * 10000).toFixed(1)} bps` : '—'],
+                    ['Fixed Leg NPV', fmtMM(tResult.fixed_leg_npv)],
+                    ['Floating Leg NPV', fmtMM(tResult.floating_leg_npv)],
+                    ['DV01', fmtMM(tResult.dv01)],
+                    ['Notional (inicial)', fmtMM(tResult.notional)],
+                    ['Dirección', tResult.pay_fixed ? 'Pay Fixed' : 'Receive Fixed'],
+                  ].map(([label, value]) => (
+                    <tr key={label as string} style={{ borderBottom: '1px solid #eee' }}>
+                      <td style={{ padding: '6px 12px', fontWeight: 600, color: '#555', width: '45%' }}>{label}</td>
+                      <td style={{ padding: '6px 12px', textAlign: 'right', fontFamily: 'monospace' }}>{value}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div style={{ height: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#999', border: '1px dashed #dee2e6', borderRadius: 8 }}>
+              {curvesReady ? 'Complete los parámetros y presione Valorar' : 'Primero construya las curvas'}
+            </div>
+          )}
+        </Col>
+      </Row>
+
+      {tResult && tResult.cashflows.length > 0 && (
+        <Row className="mt-3">
+          <Col>
+            <div style={{ background: '#fff', border: '1px solid #dee2e6', borderRadius: 8, padding: 16 }}>
+              <h6 style={{ margin: '0 0 10px', fontSize: 14 }}>Cashflows (nocional amortizable)</h6>
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                  <thead>
+                    <tr style={{ borderBottom: '2px solid #dee2e6', background: '#f8f9fa' }}>
+                      {['#', 'Inicio', 'Fin', 'Días', 'Saldo', 'IBR %', 'Fuente', 'Pago Fijo', 'Pago Flot.', 'Neto COP'].map((h) => (
+                        <th key={h} style={{ padding: '6px 8px', textAlign: h === '#' || h === 'Días' ? 'center' : 'right', whiteSpace: 'nowrap', fontWeight: 600 }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {tResult.cashflows.map((cf) => {
+                      let rowBg = 'transparent';
+                      if (cf.status === 'current') rowBg = '#fffde7';
+                      else if (cf.status === 'settled') rowBg = '#fafafa';
+                      const ibrPct = cf.realized_ibr_pct ?? cf.ibr_fwd_pct;
+                      let fuente = '—';
+                      if (cf.realized_ibr_pct != null) fuente = 'realizado';
+                      else if (cf.ibr_fwd_pct != null) fuente = 'forward';
+                      return (
+                        <tr key={cf.period_num} style={{ borderBottom: '1px solid #f0f0f0', background: rowBg }}>
+                          <td style={{ padding: '4px 8px', textAlign: 'center', color: '#6c757d' }}>{cf.period_num}</td>
+                          <td style={{ padding: '4px 8px', textAlign: 'right', fontFamily: 'monospace' }}>{cf.date_start}</td>
+                          <td style={{ padding: '4px 8px', textAlign: 'right', fontFamily: 'monospace' }}>{cf.date_end}</td>
+                          <td style={{ padding: '4px 8px', textAlign: 'center', color: '#6c757d' }}>{cf.days}</td>
+                          <td style={{ padding: '4px 8px', textAlign: 'right', fontFamily: 'monospace' }}>{fmtMM(cf.notional)}</td>
+                          <td style={{ padding: '4px 8px', textAlign: 'right', fontFamily: 'monospace' }}>{ibrPct != null ? `${ibrPct.toFixed(4)}%` : '—'}</td>
+                          <td style={{ padding: '4px 8px', textAlign: 'right', fontSize: 10, color: fuente === 'realizado' ? '#2e7d32' : '#6c757d' }}>{fuente}</td>
+                          <td style={{ padding: '4px 8px', textAlign: 'right', fontFamily: 'monospace', color: '#dc3545' }}>({fmtMM(cf.fixed_coupon)})</td>
+                          <td style={{ padding: '4px 8px', textAlign: 'right', fontFamily: 'monospace', color: '#28a745' }}>{cf.floating_coupon != null ? fmtMM(cf.floating_coupon) : '—'}</td>
+                          <td style={{ padding: '4px 8px', textAlign: 'right', fontFamily: 'monospace', fontWeight: 600, color: cf.net != null ? npvColor(cf.net) : '#999' }}>{cf.net != null ? fmtMM(cf.net) : '—'}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </Col>
+        </Row>
+      )}
+    </>
+  );
+
   const renderParCurveTab = () => {
     const chartData = parCurve
       .filter((p) => p.par_rate != null)
@@ -973,6 +1258,7 @@ function IbrSwapPricer() {
         </Row>
 
         {activeTab === 'pricing' && renderPricingTab()}
+        {activeTab === 'term' && renderTermSwapTab()}
         {activeTab === 'parcurve' && renderParCurveTab()}
       </Container>
     </CoreLayout>

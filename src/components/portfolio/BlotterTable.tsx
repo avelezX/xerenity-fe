@@ -31,7 +31,7 @@ import {
   useSortable,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import type { PricedXccy, PricedNdf, PricedIbrSwap } from 'src/types/trading';
+import type { PricedXccy, PricedNdf, PricedIbrSwap, PricedCash } from 'src/types/trading';
 import type { BlotterPreferences } from 'src/models/user/blotter-preferences';
 import type { NdfLiquidationRow, XccySettlementRow } from 'src/models/trading';
 import ColumnFilterDropdown from './ColumnFilterDropdown';
@@ -41,7 +41,7 @@ import LiquidationsTable from './LiquidationsTable';
 
 export type PortfolioRow = {
   id: string;
-  type: 'XCCY' | 'NDF' | 'IBR';
+  type: 'XCCY' | 'NDF' | 'IBR' | 'CASH';
   label: string;
   counterparty: string;
   notional_usd: number;
@@ -66,6 +66,7 @@ export type PortfolioRow = {
   _xccy?: PricedXccy;
   _ndf?: PricedNdf;
   _ibr?: PricedIbrSwap;
+  _cash?: PricedCash;
   // P&L comparativo (null = marca no disponible / N/A)
   pnl_1d_cop?: number | null;
   pnl_mtd_cop?: number | null;
@@ -121,6 +122,7 @@ const TYPE_COLORS: Record<string, { bg: string; fg: string }> = {
   XCCY: { bg: '#cce5ff', fg: '#004085' },
   NDF:  { bg: '#d4edda', fg: '#155724' },
   IBR:  { bg: '#fff3cd', fg: '#856404' },
+  CASH: { bg: '#e0e7ff', fg: '#3730a3' },
 };
 
 const ESTADO_STYLES: Record<string, { bg: string; color: string }> = {
@@ -595,16 +597,20 @@ const buildColumns = (
     cell: (info) => {
       const r = info.row.original;
       if (!canEdit) return null;
+      // Liquidar (NDF) / Cerrar (CASH): ambos congelan el P&L actual como realizado.
       const showLiquidate = canLiquidate
-        && r.type === 'NDF'
+        && (r.type === 'NDF' || r.type === 'CASH')
         && r.estado === 'Activo'
         && onLiquidate != null;
+      const isCash = r.type === 'CASH';
       return (
         <div style={{ display: 'flex', gap: 4, alignItems: 'center', justifyContent: 'flex-end' }}>
           {showLiquidate && (
             <button
               type="button"
-              title="Liquidar — congela el NPV actual como P&G realizado"
+              title={isCash
+                ? 'Cerrar — registra la TRM de cierre y materializa el P&L'
+                : 'Liquidar — congela el NPV actual como P&G realizado'}
               onClick={(e) => { e.stopPropagation(); onLiquidate!(r); }}
               style={{
                 background: '#d4edda',
@@ -619,7 +625,7 @@ const buildColumns = (
                 lineHeight: 1.4,
               }}
             >
-              Liquidar
+              {isCash ? 'Cerrar' : 'Liquidar'}
             </button>
           )}
           <button

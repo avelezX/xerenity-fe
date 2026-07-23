@@ -35,13 +35,18 @@ import {
   useXccyPositions,
   useNdfPositions,
   useIbrSwapPositions,
+  useCashPositions,
   useAddXccyPosition,
   useAddNdfPosition,
   useAddIbrSwapPosition,
+  useAddCashPosition,
   useRemoveXccyPositions,
   useRemoveNdfPositions,
   useRemoveIbrSwapPositions,
+  useRemoveCashPositions,
+  useCloseCashPosition,
 } from 'src/queries/trading';
+import { priceCashPositions } from 'src/models/trading';
 import { useQueryClient } from '@tanstack/react-query';
 import { fetchHistoricalMark } from 'src/models/trading/fetchHistoricalMark';
 import type { CurveStatus } from 'src/types/pricing';
@@ -50,9 +55,11 @@ import type {
   NewXccyPosition,
   NewNdfPosition,
   NewIbrSwapPosition,
+  NewCashPosition,
   PricedXccy,
   PricedNdf,
   PricedIbrSwap,
+  PricedCash,
   PortfolioSummary,
   PortfolioRepriceResponse,
 } from 'src/types/trading';
@@ -246,6 +253,7 @@ const ADD_TYPE_OPTIONS = [
   { value: 'xccy', label: 'XCCY Swap' },
   { value: 'ndf', label: 'NDF' },
   { value: 'ibr', label: 'IBR Swap' },
+  { value: 'cash', label: 'Cash USD' },
 ];
 
 const fmtMM = (v: number | null | undefined) => {
@@ -355,6 +363,7 @@ function buildPortfolioRows(
   xccy: PricedXccy[],
   ndf: PricedNdf[],
   ibr: PricedIbrSwap[],
+  cash: PricedCash[] = [],
   settlementMap: Record<string, NdfSettlementResult | 'error'> = {},
   refPrices?: {
     daily: PortfolioRepriceResponse | null;
@@ -476,6 +485,29 @@ function buildPortfolioRows(
       pnl_1d_usd:  pnlFrom(todayNpvUsd, dailyIbr, r.id, (x) => x.npv / 4200),
       pnl_mtd_usd: pnlFrom(todayNpvUsd, mtdIbr,   r.id, (x) => x.npv / 4200),
       pnl_ytd_usd: pnlFrom(todayNpvUsd, ytdIbr,   r.id, (x) => x.npv / 4200),
+    });
+  }
+
+  // CASH — exposición spot USD, valorada client-side (sin reprice/curvas).
+  for (const r of cash) {
+    const isObligation = r.direction !== 'asset';
+    rows.push({
+      id: r.id, type: 'CASH', label: r.label, counterparty: r.counterparty,
+      notional_usd: r.notional_usd, maturity_date: '',
+      detail: r.realized
+        ? `${isObligation ? 'Obligación' : 'Activo'} | Entrada ${fmt(r.entry_rate, 2)} | Cerrada @ ${fmt(r.closed_price ?? 0, 2)}`
+        : `${isObligation ? 'Obligación' : 'Activo'} | Entrada ${fmt(r.entry_rate, 2)} | Spot ${r.error ? '-' : fmt(r.rate, 2)}`,
+      npv_cop: r.npv_cop, npv_usd: r.npv_usd,
+      pnl_cop: r.error ? 0 : r.pnl_cop,
+      carry_cop: 0, carry_label: '',
+      dv01: 0, dv01_label: '',
+      fx_delta: r.fx_delta,
+      error: r.error,
+      id_operacion: r.id_operacion, trade_date: r.trade_date, sociedad: r.sociedad, id_banco: r.id_banco,
+      estado: r.realized ? 'Cerrado' : (r.estado || 'Activo'),
+      _cash: r,
+      pnl_1d_cop: null, pnl_mtd_cop: null, pnl_ytd_cop: null,
+      pnl_1d_usd: null, pnl_mtd_usd: null, pnl_ytd_usd: null,
     });
   }
 
@@ -918,6 +950,219 @@ function AddNdfModal({
   );
 }
 
+function AddCashModal({
+  show,
+  onHide,
+  onSave,
+}: {
+  show: boolean;
+  onHide: () => void;
+  onSave: (v: NewCashPosition) => void;
+}) {
+  const [label, setLabel] = useState('');
+  const [counterparty, setCounterparty] = useState('');
+  const [notionalUsd, setNotionalUsd] = useState(0);
+  const [entryRate, setEntryRate] = useState(0);
+  const [direction, setDirection] = useState('obligation');
+  // Operational fields
+  const [idOperacion, setIdOperacion] = useState('');
+  const [tradeDate, setTradeDate] = useState('');
+  const [sociedad, setSociedad] = useState('BP01');
+  const [idBanco, setIdBanco] = useState('');
+  const [estado, setEstado] = useState('Activo');
+  const [docSap, setDocSap] = useState('');
+
+  const handleSave = () => {
+    if (!notionalUsd || !entryRate || !tradeDate) {
+      toast.warn('Completa nocional, tasa de negociación y fecha');
+      return;
+    }
+    onSave({
+      label,
+      counterparty,
+      notional_usd: notionalUsd,
+      entry_rate: entryRate,
+      direction,
+      trade_date: tradeDate || undefined,
+      id_operacion: idOperacion || undefined,
+      sociedad: sociedad || undefined,
+      id_banco: idBanco || undefined,
+      tipo_divisa: 'USD/COP',
+      estado: estado || undefined,
+      doc_sap: docSap || undefined,
+    });
+    onHide();
+  };
+
+  return (
+    <Modal show={show} onHide={onHide} size="lg">
+      <Modal.Header closeButton>
+        <Modal.Title style={{ fontSize: 16 }}>Nueva Operación CASH (spot USD)</Modal.Title>
+      </Modal.Header>
+      <Modal.Body>
+        <div style={{ fontSize: 11, fontWeight: 700, color: '#0f5132', marginBottom: 6 }}>Datos del Instrumento</div>
+        <Row className="g-2 mb-3">
+          <Col md={4}>
+            <Form.Group>
+              <Form.Label style={{ fontSize: 12 }}>ID Operación Interno</Form.Label>
+              <Form.Control size="sm" value={idOperacion} onChange={(e) => setIdOperacion(e.target.value)} placeholder="LC-EMB1-29.03.2026" />
+            </Form.Group>
+          </Col>
+          <Col md={4}>
+            <Form.Group>
+              <Form.Label style={{ fontSize: 12 }}>Contraparte</Form.Label>
+              <Form.Control size="sm" value={counterparty} onChange={(e) => setCounterparty(e.target.value)} />
+            </Form.Group>
+          </Col>
+          <Col md={4}>
+            <Form.Group>
+              <Form.Label style={{ fontSize: 12 }}>Label</Form.Label>
+              <Form.Control size="sm" value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Emisión LC – Emb. 1" />
+            </Form.Group>
+          </Col>
+          <Col md={3}>
+            <Form.Group>
+              <Form.Label style={{ fontSize: 12 }}>Nocional USD</Form.Label>
+              <Form.Control
+                size="sm"
+                value={fmtInput(notionalUsd)}
+                onChange={(e) => setNotionalUsd(parseInput(e.target.value))}
+              />
+            </Form.Group>
+          </Col>
+          <Col md={3}>
+            <Form.Group>
+              <Form.Label style={{ fontSize: 12 }}>Tasa Negociación (TRM)</Form.Label>
+              <Form.Control
+                size="sm"
+                type="number"
+                step="0.01"
+                value={entryRate || ''}
+                onChange={(e) => setEntryRate(parseFloat(e.target.value) || 0)}
+              />
+            </Form.Group>
+          </Col>
+          <Col md={3}>
+            <Form.Group>
+              <Form.Label style={{ fontSize: 12 }}>Dirección</Form.Label>
+              <Form.Select size="sm" value={direction} onChange={(e) => setDirection(e.target.value)}>
+                <option value="obligation">OBLIGACIÓN (pasivo USD · corto)</option>
+                <option value="asset">ACTIVO (por cobrar USD · largo)</option>
+              </Form.Select>
+            </Form.Group>
+          </Col>
+          <Col md={3}>
+            <Form.Group>
+              <Form.Label style={{ fontSize: 12 }}>Fecha Operación</Form.Label>
+              <Form.Control size="sm" type="date" value={tradeDate} onChange={(e) => setTradeDate(e.target.value)} />
+            </Form.Group>
+          </Col>
+        </Row>
+        <div style={{ fontSize: 11, fontWeight: 700, color: '#0f5132', marginBottom: 6 }}>Operación</div>
+        <Row className="g-2 mb-3">
+          <Col md={3}>
+            <Form.Group>
+              <Form.Label style={{ fontSize: 12 }}>Sociedad</Form.Label>
+              <Form.Control size="sm" value={sociedad} onChange={(e) => setSociedad(e.target.value)} placeholder="BP01" />
+            </Form.Group>
+          </Col>
+          <Col md={3}>
+            <Form.Group>
+              <Form.Label style={{ fontSize: 12 }}>ID Operación Banco</Form.Label>
+              <Form.Control size="sm" value={idBanco} onChange={(e) => setIdBanco(e.target.value)} />
+            </Form.Group>
+          </Col>
+          <Col md={3}>
+            <Form.Group>
+              <Form.Label style={{ fontSize: 12 }}>Estado</Form.Label>
+              <Form.Select size="sm" value={estado} onChange={(e) => setEstado(e.target.value)}>
+                <option value="Activo">Activo</option>
+                <option value="Vencido">Vencido</option>
+                <option value="Cancelado">Cancelado</option>
+              </Form.Select>
+            </Form.Group>
+          </Col>
+          <Col md={3}>
+            <Form.Group>
+              <Form.Label style={{ fontSize: 12 }}>Doc SAP</Form.Label>
+              <Form.Control size="sm" value={docSap} onChange={(e) => setDocSap(e.target.value)} />
+            </Form.Group>
+          </Col>
+        </Row>
+        <div style={{ fontSize: 11, color: '#6c757d' }}>
+          El P&amp;L se calcula contra la TRM spot actual. Una obligación en dólares
+          genera <strong>utilidad</strong> cuando el dólar baja. Al pagar el pasivo,
+          se cierra registrando la TRM de cierre (materializa el P&amp;L).
+        </div>
+      </Modal.Body>
+      <Modal.Footer>
+        <Button variant="secondary" size="sm" onClick={onHide}>Cancelar</Button>
+        <Button variant="primary" size="sm" onClick={handleSave}>Guardar</Button>
+      </Modal.Footer>
+    </Modal>
+  );
+}
+
+function CloseCashModal({
+  row,
+  defaultRate,
+  onHide,
+  onConfirm,
+}: {
+  row: PortfolioRow | null;
+  defaultRate: number | null;
+  onHide: () => void;
+  onConfirm: (closedDate: string, closedPrice: number) => void;
+}) {
+  const [closedDate, setClosedDate] = useState(new Date().toISOString().slice(0, 10));
+  const [closedPrice, setClosedPrice] = useState(0);
+
+  // Pre-cargar la TRM de cierre con el spot actual cada vez que se abre.
+  useEffect(() => {
+    if (row) setClosedPrice(defaultRate ?? 0);
+  }, [row, defaultRate]);
+
+  const handleConfirm = () => {
+    if (!closedPrice) {
+      toast.warn('Ingresa la TRM de cierre');
+      return;
+    }
+    onConfirm(closedDate, closedPrice);
+  };
+
+  return (
+    <Modal show={!!row} onHide={onHide} size="sm">
+      <Modal.Header closeButton>
+        <Modal.Title style={{ fontSize: 15 }}>Cerrar operación CASH</Modal.Title>
+      </Modal.Header>
+      <Modal.Body>
+        <div style={{ fontSize: 12, color: '#6c757d', marginBottom: 10 }}>
+          {row?.label || row?.id_operacion || 'Operación'} — al cerrar, el P&amp;L se
+          materializa contra la TRM de cierre y deja de marcar a spot.
+        </div>
+        <Form.Group className="mb-2">
+          <Form.Label style={{ fontSize: 12 }}>Fecha de cierre</Form.Label>
+          <Form.Control size="sm" type="date" value={closedDate} onChange={(e) => setClosedDate(e.target.value)} />
+        </Form.Group>
+        <Form.Group>
+          <Form.Label style={{ fontSize: 12 }}>TRM de cierre</Form.Label>
+          <Form.Control
+            size="sm"
+            type="number"
+            step="0.01"
+            value={closedPrice || ''}
+            onChange={(e) => setClosedPrice(parseFloat(e.target.value) || 0)}
+          />
+        </Form.Group>
+      </Modal.Body>
+      <Modal.Footer>
+        <Button variant="secondary" size="sm" onClick={onHide}>Cancelar</Button>
+        <Button variant="primary" size="sm" onClick={handleConfirm}>Cerrar operación</Button>
+      </Modal.Footer>
+    </Modal>
+  );
+}
+
 // Compute default dates
 const getTodayStr = () => new Date().toISOString().slice(0, 10);
 const getT2Str = () => {
@@ -1353,6 +1598,7 @@ function PortfolioPage() {
 
   // Estado del modal de liquidacion + cache de liquidaciones para el card.
   const [liquidateRow, setLiquidateRow] = useState<PortfolioRow | null>(null);
+  const [closeCashRow, setCloseCashRow] = useState<PortfolioRow | null>(null);
   const [showLiquidate, setShowLiquidate] = useState(false);
   const [liquidations, setLiquidations] = useState<NdfLiquidationRow[]>([]);
   const [liquidationsLoading, setLiquidationsLoading] = useState(false);
@@ -1444,6 +1690,12 @@ function PortfolioPage() {
   }, [reloadLiquidations]);
 
   const handleOpenLiquidate = useCallback((row: PortfolioRow) => {
+    // CASH usa su propio flujo de cierre (pide TRM de cierre); NDF usa el modal
+    // de liquidacion existente.
+    if (row.type === 'CASH') {
+      setCloseCashRow(row);
+      return;
+    }
     setLiquidateRow(row);
     setShowLiquidate(true);
   }, []);
@@ -1483,9 +1735,11 @@ function PortfolioPage() {
   const xccyPositionsQuery = useXccyPositions(companyId);
   const ndfPositionsQuery = useNdfPositions(companyId);
   const ibrSwapPositionsQuery = useIbrSwapPositions(companyId);
+  const cashPositionsQuery = useCashPositions(companyId);
   const xccyPositions = xccyPositionsQuery.data ?? [];
   const ndfPositions = ndfPositionsQuery.data ?? [];
   const ibrSwapPositions = ibrSwapPositionsQuery.data ?? [];
+  const cashPositions = cashPositionsQuery.data ?? [];
 
   // XCCY settlements: cashflows trimestrales liquidados (carry + FX).
   // Persistido en trading.xccy_settlement. El hook dispara el calculo
@@ -1572,9 +1826,12 @@ function PortfolioPage() {
   const addXccyMutation = useAddXccyPosition();
   const addNdfMutation = useAddNdfPosition();
   const addIbrSwapMutation = useAddIbrSwapPosition();
+  const addCashMutation = useAddCashPosition();
   const removeXccyMutation = useRemoveXccyPositions();
   const removeNdfMutation = useRemoveNdfPositions();
   const removeIbrSwapMutation = useRemoveIbrSwapPositions();
+  const removeCashMutation = useRemoveCashPositions();
+  const closeCashMutation = useCloseCashPosition();
 
   // Track when the user explicitly requested a reprice via the toolbar button
   // — used to surface a toast when the next query lands. Without it, every
@@ -1711,9 +1968,10 @@ function PortfolioPage() {
       if (type === 'XCCY') removeXccyMutation.mutate([id]);
       else if (type === 'NDF') removeNdfMutation.mutate([id]);
       else if (type === 'IBR') removeIbrSwapMutation.mutate([id]);
+      else if (type === 'CASH') removeCashMutation.mutate([id]);
       toast.info('Posicion eliminada');
     },
-    [removeXccyMutation, removeNdfMutation, removeIbrSwapMutation]
+    [removeXccyMutation, removeNdfMutation, removeIbrSwapMutation, removeCashMutation]
   );
 
   const onSelectXccy = useCallback((pos: PricedXccy) => {
@@ -1783,7 +2041,37 @@ function PortfolioPage() {
       .filter((p) => !markFecha || !p.start_date || p.start_date <= markFecha)
       .map((p) => ({ ...p, npv: 0, fair_rate: 0, dv01: 0, fixed_leg_npv: 0, floating_leg_npv: 0, ibr_overnight_pct: 0, carry_daily_cop: 0, carry_daily_diff_bps: 0, ibr_fwd_period_pct: 0, carry_period_cop: 0, carry_period_diff_bps: 0, error: 'Pendiente de valoración' } as PricedIbrSwap));
 
-  const portfolioRows = buildPortfolioRows(xccyRows, ndfRows, ibrRows, settlementMap, refPrices, markFecha);
+  // CASH: valoración client-side contra la TRM spot del reprice (fx_spot).
+  // Si no hay spot (sin OTC → reprice deshabilitado), priceCashPositions marca
+  // error "Sin TRM spot" y el P&L queda en 0 hasta que haya spot.
+  const pricedCash: PricedCash[] = priceCashPositions(cashPositions, summary?.fx_spot ?? null);
+
+  // Summary con CASH incluido: el backend `/pricing/reprice-portfolio` solo
+  // valora derivados (XCCY+NDF+IBR). Aca sumamos los CASH client-side para
+  // que el SummaryBar arriba cuadre exactamente con la fila TOTAL del blotter.
+  // Regla de negocio: los KPIs superiores deben ser la suma de TODOS los
+  // activos del portafolio (incluye CASH). Reglas por columna:
+  //  - NPV COP/USD: sumar cash.npv_cop / cash.npv_usd
+  //  - Carry COP: sin cambio (CASH es spot, no tiene carry)
+  //  - P&L Tasas: sin cambio (CASH no tiene exposicion a curvas)
+  //  - P&L FX: sumar cash.pnl_cop (P&L del CASH es 100% FX por definicion)
+  //  - fx_spot: sin cambio
+  const summaryWithCash = React.useMemo(() => {
+    if (!summary) return null;
+    const validCash = pricedCash.filter((c) => !c.error);
+    if (validCash.length === 0) return summary;
+    const sumCashNpvCop = validCash.reduce((s, c) => s + (c.npv_cop ?? 0), 0);
+    const sumCashNpvUsd = validCash.reduce((s, c) => s + (c.npv_usd ?? 0), 0);
+    const sumCashPnlCop = validCash.reduce((s, c) => s + (c.pnl_cop ?? 0), 0);
+    return {
+      ...summary,
+      total_npv_cop:     summary.total_npv_cop     + sumCashNpvCop,
+      total_npv_usd:     summary.total_npv_usd     + sumCashNpvUsd,
+      total_pnl_fx_cop:  summary.total_pnl_fx_cop  + sumCashPnlCop,
+    };
+  }, [summary, pricedCash]);
+
+  const portfolioRows = buildPortfolioRows(xccyRows, ndfRows, ibrRows, pricedCash, settlementMap, refPrices, markFecha);
 
   // Totales de P&L para la SummaryBar
   const pnlTotals = (() => {
@@ -1936,9 +2224,11 @@ function PortfolioPage() {
           </div>
         )}
 
-        {/* Summary — incluye P&G Realizado total (COP) de NDFs liquidadas */}
+        {/* Summary — incluye CASH (sumado client-side, ver summaryWithCash arriba)
+            + P&G Realizado total (COP) de NDFs liquidadas. Los KPIs del header
+            cuadran con la fila TOTAL del blotter. */}
         <SummaryBar
-          summary={summary}
+          summary={summaryWithCash}
           pricedAt={pricedAt}
           pnlTotals={pnlTotals}
           realizedPnlMtdCop={realizedPnlMtdCop}
@@ -2001,6 +2291,16 @@ function PortfolioPage() {
             toast.success('Posicion IBR Swap creada');
           }}
         />
+        <AddCashModal
+          show={addType === 'cash'}
+          onHide={() => setAddType(null)}
+          onSave={async (v) => {
+            // companyId explicito para que super_admin cree en la empresa
+            // seleccionada (el RPC lo requiere si el usuario no tiene company propia).
+            await addCashMutation.mutateAsync({ values: v, companyId });
+            toast.success('Operación CASH creada');
+          }}
+        />
         {/* Detail Modals */}
         <XccyDetailModal row={selectedXccy} show={!!selectedXccy} onHide={() => setSelectedXccy(null)} />
         <NdfDetailModal row={selectedNdf} show={!!selectedNdf} onHide={() => setSelectedNdf(null)} />
@@ -2028,6 +2328,19 @@ function PortfolioPage() {
             queryClient.invalidateQueries({ queryKey: ['positions', 'ndf'] });
             queryClient.invalidateQueries({ queryKey: ['pricing', 'reprice'] });
             reloadLiquidations();
+          }}
+        />
+
+        {/* Cerrar operación CASH — registra TRM/fecha de cierre y materializa P&L. */}
+        <CloseCashModal
+          row={closeCashRow}
+          defaultRate={summary?.fx_spot ?? null}
+          onHide={() => setCloseCashRow(null)}
+          onConfirm={async (closedDate, closedPrice) => {
+            if (!closeCashRow) return;
+            await closeCashMutation.mutateAsync({ id: closeCashRow.id, closedDate, closedPrice });
+            toast.success('Operación CASH cerrada');
+            setCloseCashRow(null);
           }}
         />
       </Container>

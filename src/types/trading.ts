@@ -54,6 +54,27 @@ export interface NdfPosition extends OperationalFields {
   created_at: string;
 }
 
+/**
+ * CASH — exposición spot USD/COP (obligación o activo en dólares).
+ * Como un NDF pero SIN puntos forward: se valora a TRM spot, sin curva.
+ * Ciclo de vida abierto→cerrado: mientras `active`, marca a spot (P&L vivo);
+ * al cerrarse se registra `closed_price` (TRM de cierre) y el P&L se materializa.
+ */
+export interface CashPosition extends OperationalFields {
+  id: string;
+  owner: string;
+  company_id?: string;
+  label: string;
+  counterparty: string;
+  notional_usd: number;
+  entry_rate: number;              // tasa de negociación (TRM de entrada)
+  direction: string;              // 'obligation' (corto USD) | 'asset' (largo USD)
+  active: boolean;                // true = abierto (marca a spot), false = cerrado
+  closed_date?: string | null;
+  closed_price?: number | null;   // TRM de cierre (materializa P&L)
+  created_at: string;
+}
+
 export interface IbrSwapPosition extends OperationalFields {
   id: string;
   owner: string;
@@ -67,6 +88,9 @@ export interface IbrSwapPosition extends OperationalFields {
   pay_fixed: boolean;
   spread_bps: number;
   payment_frequency: string;
+  floating_index?: string;          // 'IBR_ON' (OIS) | 'IBR_1M'|'IBR_3M'|'IBR_6M'|'IBR_12M' (term)
+  amortization_type?: string;       // 'bullet' | 'linear' | 'custom'
+  amortization_schedule?: number[]; // solo custom: capital por periodo
   created_at: string;
 }
 
@@ -146,6 +170,23 @@ export interface PricedXccy extends XccyPosition {
   error?: string;
   pricing_status?: PricingStatus;
   missing_fields?: string[];
+}
+
+/**
+ * CASH valorado (client-side, sin pysdk). `rate` = TRM usada (spot si abierto,
+ * closed_price si cerrado). P&L en COP = signo × notional × (rate − entry_rate),
+ * signo: asset=+1, obligation=−1.
+ */
+export interface PricedCash extends CashPosition {
+  rate: number;               // TRM de valoración (spot o closed_price)
+  pnl_cop: number;            // P&L mark-to-market (o materializado si cerrado)
+  pnl_usd: number;            // pnl_cop / rate
+  npv_cop: number;            // = pnl_cop (para encajar con el blotter)
+  npv_usd: number;            // = pnl_usd
+  fx_delta: number;           // exposición = signo × notional_usd
+  fx_exposure_usd: number;    // = fx_delta
+  realized: boolean;          // true si cerrado (P&L ya no cambia con spot)
+  error?: string;
 }
 
 export interface PricedNdf extends NdfPosition {
@@ -233,6 +274,12 @@ export interface PortfolioRepriceResponse {
 export type NewXccyPosition = Omit<XccyPosition, 'id' | 'owner' | 'company_id' | 'created_at'>;
 export type NewNdfPosition = Omit<NdfPosition, 'id' | 'owner' | 'company_id' | 'created_at'>;
 export type NewIbrSwapPosition = Omit<IbrSwapPosition, 'id' | 'owner' | 'company_id' | 'created_at'>;
+// Al crear un CASH no se envian los campos server-generated ni el estado de
+// cierre (active arranca en true; closed_* quedan null hasta que se cierra).
+export type NewCashPosition = Omit<
+  CashPosition,
+  'id' | 'owner' | 'company_id' | 'created_at' | 'active' | 'closed_date' | 'closed_price'
+>;
 
 // ── TES Bond Portfolio ──
 
