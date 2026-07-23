@@ -90,6 +90,7 @@ const RIESGOS_SUBNAV: RiesgosNavItem[] = [
   { name: 'XCCY Swap', path: '/xccy-swap', icon: faLineChart, active: false },
   { name: 'COLTES', path: '/coltes-calculator', icon: faCalculator, active: false },
   { name: 'USDCOP', path: '/usdcop-calculator', icon: faCalculator, active: false },
+  { name: 'Opciones USDCOP', path: '/fx-option-pricer', icon: faCalculator, active: false },
 
   { divider: true, name: 'DATOS DE MERCADO' },
   { name: 'Marcas', path: '/marks', icon: faBook, active: false },
@@ -155,6 +156,7 @@ const SidebarNavList = ({ currentPath }: SidebarNavProps) => {
           currentPath.includes('/coltes-calculator') ||
           currentPath.includes('/tes-portfolio') ||
           currentPath.includes('/usdcop-calculator') ||
+          currentPath.includes('/fx-option-pricer') ||
           currentPath.includes('/marks')
         }
       >

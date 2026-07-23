@@ -278,3 +278,38 @@ export interface ParBasisPoint {
   par_basis_bps: number | null;
   error?: string;
 }
+
+// ── FX Option (USDCOP vanilla, prototipo) ──
+//
+// Inputs de mercado para el pricer de opciones USDCOP, derivados de
+// `market_marks` (spot + curva NDF para el forward + curva IBR para el
+// descuento COP). La matemática Black-76 vive en `src/lib/pricing/fxOption.ts`.
+
+export interface FxOptionMarketInputs {
+  /** Fecha de valoración (ISO). */
+  evalDate: string;
+  /** Fecha del mark efectivamente usada (carry-forward si hubo gap). */
+  markDate: string;
+  /** Tenor en meses (1, 2, 3...). */
+  tenorMonths: number;
+  /** Fecha de vencimiento implícita (ISO, para display). */
+  maturityDate: string;
+  /** Año-fracción act/365 usado en el pricing. */
+  T: number;
+  /** Spot USDCOP (COP por USD). */
+  spot: number;
+  /** Forward USDCOP al tenor (COP por USD), interpolado de la curva NDF. */
+  forward: number;
+  /** Puntos forward (forward − spot) en COP. */
+  fwdPointsCop: number;
+  /** Tasa COP E.A. interpolada de la curva IBR (decimal). */
+  rCopEA: number;
+  /** Tasa COP continua equivalente = ln(1 + rCopEA) (decimal). */
+  rCopCont: number;
+  /** Factor de descuento COP = (1 + rCopEA)^(−T). */
+  dfCop: number;
+  /** De dónde salió el forward: nodo NDF, paridad CIP, o spot puro. */
+  forwardSource: 'ndf' | 'cip' | 'spot';
+  /** Advertencias de calidad (extrapolación, tenor > 3M, nodos faltantes...). */
+  warnings: string[];
+}
