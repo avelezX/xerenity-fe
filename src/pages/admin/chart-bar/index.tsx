@@ -683,7 +683,7 @@ const ChartBarPage = () => {
                         Analizando…
                       </>
                     ) : (
-                      '✨ Analizar con IA'
+                      'Xerenity AI Analysis'
                     )}
                   </Button>
                   {analysis?.error && (
